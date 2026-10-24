@@ -1,0 +1,3 @@
+[submodule "assets/tmw/clientdata"]
+	path = assets/tmw/clientdata
+	url = https://git.themanaworld.org/tmw/clientdata.git
