@@ -1,0 +1,24 @@
+notifications:
+  email:
+    on_success: changed
+    on_failure: always
+  irc:
+    channels:
+      - "ircs://irc.libera.chat:6697/#themanaworld-dev"
+    on_success: change
+    on_failure: always
+
+sudo: false
+
+addons:
+  apt:
+    packages:
+    - libxml2-utils
+
+install:
+  - pushd ..
+  - git clone --depth 1 https://github.com/themanaworld/tmw-tools.git tools
+  - popd
+
+script:
+  - make check

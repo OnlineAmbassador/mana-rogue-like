@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.2" tiledversion="" orientation="orthogonal" renderorder="right-down" width="6" height="6" tilewidth="32" tileheight="32" infinite="0" nextlayerid="12" nextobjectid="1">
+ <tileset firstgid="1" source="../../tilesets/woodland_ground.tsx"/>
+ <tileset firstgid="257" source="../../tilesets/collision.tsx"/>
+ <tileset firstgid="259" source="../../tilesets/set_rules.tsx"/>
+ <tileset firstgid="263" source="../../tilesets/set_woodland.tsx"/>
+ <layer id="1" name="Regions" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA2YGRE0jI0sjg+gq0c2Cx8AABj1d5WQAAAA
+  </data>
+ </layer>
+ <layer id="2" name="Input_set" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA2mM2JnkwpIMQcAFnmxPpAAAAA=
+  </data>
+ </layer>
+ <layer id="3" name="Input_set" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA1mMGJnkwpIMQcAm3Ecc5AAAAA=
+  </data>
+ </layer>
+ <layer id="4" name="Input_set" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA1mMmJnkwpIMQcAVurIpZAAAAA=
+  </data>
+ </layer>
+ <layer id="5" name="Input_set" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA1mMWJnkwpIMQcAQEDEBZAAAAA=
+  </data>
+ </layer>
+ <layer id="6" name="Input_set" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA1mM2JnkwpIMQcAjdsQ05AAAAA=
+  </data>
+ </layer>
+ <layer id="7" name="Input_set" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA3mMGJnkwpIMQcALRKsnpAAAAA=
+  </data>
+ </layer>
+ <layer id="8" name="Input_set" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA3mMmJnkwpIMQcA4Il4SJAAAAA=
+  </data>
+ </layer>
+ <layer id="9" name="Output_Ground" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA3SkdhheNQRAhFIbHcCigH1Np5akAAAAA==
+  </data>
+ </layer>
+ <layer id="10" name="Output1_Ground" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA3WIbF78agjBBYgsesJKAYA3CmvtpAAAAA=
+  </data>
+ </layer>
+ <layer id="11" name="Output2_Ground" width="6" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgwA3WI7Hn4lFHCExAYtcRUAwAKtdBB5AAAAA=
+  </data>
+ </layer>
+</map>

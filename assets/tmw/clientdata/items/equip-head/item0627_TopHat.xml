@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<items>
+  <item id="627" image="equipment/head/tophat.png" name="Top Hat" description="For the gentry of The Mana World." mattack="2" type="equip-head" defense="10" weight="30" sellProtected="true">
+    <sprite gender="unisex">equipment/head/tophat.xml</sprite>
+    <sprite gender="female">equipment/head/tophat-female.xml</sprite>
+    <replace sprite="hair">
+      <item from="-6" to="-1"/>
+    </replace>
+  </item>
+</items>

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<items>
+  <include name="items/equip-ring/item0702_WeddingRing.xml"/>
+  <include name="items/equip-ring/item4008_DiamondRing.xml"/>
+  <include name="items/equip-ring/item4009_RubyRing.xml"/>
+  <include name="items/equip-ring/item4010_EmeraldRing.xml"/>
+  <include name="items/equip-ring/item4011_SapphireRing.xml"/>
+  <include name="items/equip-ring/item4012_TopazRing.xml"/>
+  <include name="items/equip-ring/item4013_AmethystRing.xml"/>
+  <include name="items/equip-ring/item4014_SimpleRing.xml"/>
+  <include name="items/equip-ring/item5253_MagicRing.xml"/>
+  <include name="items/equip-ring/item5268_AssassinRing.xml"/>
+</items>

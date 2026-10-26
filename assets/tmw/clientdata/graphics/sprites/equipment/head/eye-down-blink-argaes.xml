@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Author: Jesusalva
+Copyright (C) 2021 TMW2: Moubootaur Legends -->
+<sprite>
+    <imageset name="eye"
+              src="graphics/sprites/accessories/eye-down-blink-argaes.png"
+              width="16"
+              height="8"
+              offsetY="-41"
+              offsetX="-1"/>
+
+    <include file="equipment/head/human-eye-blink.xml"/>
+</sprite>

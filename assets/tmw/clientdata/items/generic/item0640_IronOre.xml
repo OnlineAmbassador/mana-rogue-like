@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<items>
+  <item id="640" image="generic/ironore.png" name="Iron Ore" description="A lump of iron ore." type="generic" weight="40"/>
+</items>

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<items>
+  <item id="910"
+        image="equipment/weapon/rainerang.png"
+        name="Rainerang"
+        description="An interesting find. Not too powerful, but possibly useful."
+        attack="60"
+        attack-range="4"
+        type="equip-1hand"
+        weight="115"
+        missile-particle="graphics/particles/rainerang.xml"
+        sellProtected="true">
+    <sound event="hit">weapons/projectiles/rainerang/rainerang-hit1.ogg</sound>
+    <sound event="hit">weapons/projectiles/rainerang/rainerang-hit2.ogg</sound>
+    <sound event="hit">weapons/projectiles/rainerang/rainerang-hit3.ogg</sound>
+    <sound event="strike">weapons/projectiles/rainerang/rainerang-miss1.ogg</sound>
+  </item>
+</items>

@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<items>
+  <item id="704" image="generic/powder.png|W:#405060" name="Iron Powder" description="A pile of powdered iron." type="generic" weight="3"/>
+</items>

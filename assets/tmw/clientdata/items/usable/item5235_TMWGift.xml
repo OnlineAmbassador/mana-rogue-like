@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<items>
+  <item id="5235" image="generic/presentbox.png" name="TMW Birthday Gift" description="TMW turned 15! Open it to see what you got" type="usable" weight="0" sellProtected="true"/>
+</items>

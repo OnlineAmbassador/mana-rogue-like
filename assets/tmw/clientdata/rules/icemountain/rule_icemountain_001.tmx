@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.2" tiledversion="" orientation="orthogonal" renderorder="right-down" width="15" height="5" tilewidth="32" tileheight="32" infinite="0" nextlayerid="13" nextobjectid="1">
+ <tileset firstgid="1" source="../../tilesets/set_icemountain.tsx"/>
+ <tileset firstgid="29" source="../../tilesets/set_rules.tsx"/>
+ <tileset firstgid="33" source="../../tilesets/snow.tsx"/>
+ <tileset firstgid="289" source="../../tilesets/collision.tsx"/>
+ <tileset firstgid="291" source="../../tilesets/snow_ground.tsx"/>
+ <layer id="7" name="Regions" width="15" height="5" visible="0">
+  <data encoding="base64" compression="zlib">
+   eJxjYKAMyJJJUwpINZca9gIA1bABQA==
+  </data>
+ </layer>
+ <layer id="8" name="Input_set" width="15" height="5" visible="0">
+  <data encoding="base64" compression="zlib">
+   eJxjYKAMMEJpJijNDKVZoDQrlGaD0uwU2gcDHFCaE0pzEVDPRwVLASaIAEY=
+  </data>
+ </layer>
+ <layer id="9" name="Output_Ground" width="15" height="5">
+  <data encoding="base64" compression="zlib">
+   eJxjYKAMbMJBs0BpfUYIbQKlzRkptHAAAQBYIwK4
+  </data>
+ </layer>
+ <layer id="10" name="Output_Fringe" width="15" height="5">
+  <data encoding="base64" compression="zlib">
+   eJxjYBgFxAIAASwAAQ==
+  </data>
+ </layer>
+ <layer id="11" name="Output_Over" width="15" height="5" visible="0">
+  <data encoding="base64" compression="zlib">
+   eJxjYBgFxAIAASwAAQ==
+  </data>
+ </layer>
+ <layer id="12" name="Output_Collision" width="15" height="5">
+  <data encoding="base64" compression="zlib">
+   eJxjYKAMKDESJ49OD0UAAHHQAI0=
+  </data>
+ </layer>
+</map>

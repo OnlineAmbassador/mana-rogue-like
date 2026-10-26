@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Author: Jesusalva
+Copyright (C) 2019 Moubootaur Legends -->
+
+<sprite>
+    <imageset name="icon"
+              src="graphics/sprites/icons/curse.png"
+              width="30"
+              height="36"/>
+
+    <action name="default" imageset="icon">
+        <animation direction="default">
+            <sequence start="0" end="2" delay="100"/>
+        </animation>
+    </action>
+</sprite>

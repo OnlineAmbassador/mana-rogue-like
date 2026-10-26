@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<items>
+  <item id="5264" image="equipment/head/blue-wolf-helmet.png" name="Blue Wolf Helmet" description="Wolves attack in packs. Where is yours?" type="equip-head" defense="3" weight="50" sellProtected="true">
+    <replace sprite="hair">
+      <item from="-6" to="-1"/>
+    </replace>
+    <replace direction="left" sprite="hair">
+      <item from="-14" to="-1"/>
+      <item from="-16" to="-9"/>
+    </replace>
+    <replace direction="right" sprite="hair">
+      <item from="-14" to="-1"/>
+      <item from="-16" to="-9"/>
+    </replace>
+    <replace direction="upall" sprite="hair">
+      <item from="-15" to="-18"/>
+    </replace>
+    <replace direction="downall" sprite="hair">
+      <item from="-15" to="-9"/>
+      <item from="-16" to="-18"/>
+    </replace>
+    <sprite gender="unisex">equipment/head/blue-wolf-helmet.xml</sprite>
+    <sprite gender="female">equipment/head/blue-wolf-helmet.xml</sprite>
+  </item>
+</items>

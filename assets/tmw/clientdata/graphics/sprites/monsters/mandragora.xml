@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<sprite>
+    <imageset name="base" src="graphics/sprites/monsters/mandragora.png" width="42" height="33"/>
+
+    <include file="monsters/maggot.xml"/>
+</sprite>

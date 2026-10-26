@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Author: 4144 Saulc Jesusalva
+Copyright (C) 2018 Evol Online
+Copyright (C) 2018-2020 TMW2: Moubootaur Legends -->
+
+<clans>
+    <clan
+        id="1"
+        name="Tonori Raiders"
+        str="1"
+        vit="1"
+        maxhp="30"
+        maxmp="10"
+    />
+    <clan
+        id="2"
+        name="Argaes Emeralds"
+        int="1"
+        dex="1"
+        maxhp="30"
+        maxmp="10"
+    />
+    <clan
+        id="3"
+        name="Lords of Kaizei"
+        int="1"
+        luk="1"
+        maxhp="30"
+        maxmp="10"
+    />
+    <clan
+        id="4"
+        name="Master of Flames"
+        dex="1"
+        agi="1"
+        maxhp="30"
+        maxmp="10"
+    />
+</clans>

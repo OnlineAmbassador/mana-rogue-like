@@ -1,0 +1,77 @@
+stages:
+- test
+
+image: debian:bookworm
+before_script:
+  - uname -a
+
+pngcheck:
+  stage: test
+  script:
+  - ./.tools/pngcheck.sh
+  #allow_failure: true
+
+imagemagiccheck:
+  stage: test
+  script:
+  - ./.tools/imagemagiccheck.sh
+  allow_failure: true
+
+manaverse:
+  stage: test
+  tags:
+  - amd64
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+  - ./.tools/manaplus.sh mana/verse master pkg_deb manaverse.log
+  artifacts:
+    paths:
+    - logs
+    when: always
+    expire_in: 3 week
+
+old_manaplus:
+  stage: test
+  tags:
+  - amd64
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+  - ./.tools/manaplus.sh mana/verse old_manaplus_for_CI pkg_deb manaplus.log
+  artifacts:
+    paths:
+    - logs
+    when: always
+    expire_in: 3 week
+  allow_failure: true
+
+newlines:
+  stage: test
+  tags:
+  - lightweight
+  script:
+  - ./.tools/newlines.sh
+  artifacts:
+    paths:
+    - shared
+    when: always
+    expire_in: 3 week
+  #allow_failure: true
+
+licensecheck:
+  stage: test
+  tags:
+  - lightweight
+  script:
+  - ln -s license.md LICENSE
+  - ln -s license.md ART_LICENSE
+  - ./.tools/licensecheck.sh
+  allow_failure: true
+
+testxml:
+  stage: test
+  script:
+  - ./.tools/testxml.sh
+  allow_failure: true
+

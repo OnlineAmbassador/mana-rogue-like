@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Author: Saulc
+Copyright (C) 2018-2019 TMW2 -->
+<sprite>
+    <imageset name="base"
+              src="graphics/sprites/equipment/head/moubihat.png"
+              width="28"
+              height="32"/>
+
+    <include file="equipment/head/mouboohat.xml"/>
+</sprite>

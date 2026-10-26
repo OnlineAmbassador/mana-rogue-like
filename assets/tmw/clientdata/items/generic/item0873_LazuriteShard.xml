@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<items>
+  <item id="873" image="generic/lazurite-shard.png" name="Lazurite Shard" description="A small shard of Lazurite, with little magic catalysis properties." type="generic" weight="2" sellProtected="true"/>
+</items>

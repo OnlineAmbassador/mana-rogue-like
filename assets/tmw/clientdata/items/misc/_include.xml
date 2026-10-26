@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<items>
+  <include name="items/misc/item0030_.xml"/>
+  <include name="items/misc/item0031_.xml"/>
+  <include name="items/misc/item0032_.xml"/>
+  <include name="items/misc/item0033_.xml"/>
+  <include name="items/misc/item0034_.xml"/>
+  <include name="items/misc/item0035_.xml"/>
+  <include name="items/misc/item1700_magicblade.xml"/>
+  <include name="items/misc/item1701_toxicdart.xml"/>
+  <include name="items/misc/item1703_wand.xml"/>
+  <include name="items/misc/item1704_flaredart.xml"/>
+  <include name="items/misc/item1705_wand_staff.xml"/>
+  <include name="items/misc/item1706_magicknuckles.xml"/>
+  <include name="items/misc/item1707_shear.xml"/>
+</items>

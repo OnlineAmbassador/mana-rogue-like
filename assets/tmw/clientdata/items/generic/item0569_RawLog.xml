@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<items>
+  <item id="569" image="generic/rawlog.png" name="Raw Log" description="A raw log." type="generic" weight="10"/>
+</items>

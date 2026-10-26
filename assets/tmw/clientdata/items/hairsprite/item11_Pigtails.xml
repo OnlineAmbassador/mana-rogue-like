@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<items>
+  <item id="-11" type="hairsprite" name="Pigtails">
+    <sprite race="0" gender="male">hairstyles/hairstyle10-male.xml</sprite>
+    <sprite race="1" gender="male">hairstyles/hairstyle10-male.xml</sprite>
+    <sprite race="0" gender="female">hairstyles/hairstyle10-female.xml</sprite>
+    <sprite race="1" gender="female">hairstyles/hairstyle10-female.xml</sprite>
+    <sprite race="0" gender="other">hairstyles/hairstyle10.xml</sprite>
+    <sprite race="1" gender="other">hairstyles/hairstyle10.xml</sprite>
+    <sprite race="6">monsters/accessories/hairstyle10.xml</sprite>
+  </item>
+</items>

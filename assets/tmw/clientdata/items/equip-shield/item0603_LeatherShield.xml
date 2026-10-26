@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<items>
+	<item id="603"
+		image="equipment/shield/leather.png"
+		name="Leather Shield"
+		description="A shield made of leather on a wooden frame."
+		mattack="-35"
+		defense="7"
+		type="equip-shield"
+		weight="1300">
+		<sprite>equipment/shields/leather.xml</sprite>
+	</item>
+</items>

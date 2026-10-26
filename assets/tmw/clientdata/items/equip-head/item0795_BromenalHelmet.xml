@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<items>
+  <item id="795" image="equipment/head/bromenalhelmet.png" name="Bromenal Helmet" description="A hard bromenal helmet." mattack="-30" type="equip-head" defense="16" weight="400" sellProtected="true">
+    <sprite gender="unisex">equipment/head/bromenalhelmet.xml</sprite>
+    <sprite gender="female">equipment/head/bromenalhelmet-female.xml</sprite>
+    <replace sprite="hair">
+      <item from="-6" to="-1"/>
+      <item from="-7" to="-1"/>
+      <item from="-15" to="-8"/>
+      <item from="-16" to="-8"/>
+    </replace>
+  </item>
+</items>

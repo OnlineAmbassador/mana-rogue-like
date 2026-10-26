@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<quests>
+  <var id="12">
+    <effect map="002-1.tmx" npc="106" value="0" effect="45"/>
+    <effect map="002-1.tmx" npc="106" value="1" effect="46"/>
+    <quest name="Sarah" group="Tonori" incomplete="1">
+      <name>Let me eat cake!</name>
+      <text>Sarah wants a piece of Cherry Cake</text>
+    </quest>
+    <quest name="Sarah" group="Tonori" complete="2">
+      <name>Let me eat cake!</name>
+      <text>Sarah has her cake and eaten it too</text>
+    </quest>
+  </var>
+</quests>

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<items>
+	<item id="5286"
+		image="equipment/chest/redknight.png"
+		name="Red Armor"
+		description="Said to belong to some otherwordly queen, but it is severely weakened in this world."
+		effect="Unobtainable."
+		maxhp="1800"
+		dex="1"
+		agi="1"
+		mattack="-40"
+		defense="27"
+		type="equip-torso"
+		weight="2000"
+		sellProtected="true">
+		<sprite gender="unisex">equipment/chest/redknightarmor-male.xml</sprite>
+		<sprite gender="female">equipment/chest/redknightarmor-female.xml</sprite>
+	</item>
+</items>

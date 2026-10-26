@@ -1,0 +1,73 @@
+##3                      === <<FREQUENTLY ASKED QUESTIONS>> ===
+
+
+##3 <<##BBeginner Stats##b>>
+ <<##9If you never played before, make a build based on agility and dexterity, with
+ some luck and strength. Agility makes you survive, Dex makes you hit enemies,
+ Luck increases drop rates and Strength makes you hit harder.>>
+
+
+##3 <<##BDealing with Lag##b>>
+ <<##9To deal with lag, please use ##B##3@resyncall##9##b and it will resync
+ everything on your screen, including the weather.>>
+ <<##9If you're an archer, in settings -> misc, disable server-side attack, disable
+ auto fix position, and in settings -> quick tab, third option, set to archer attack
+ range.>>
+
+
+##3 <<##BGetting Money##b>>
+ <<##9##BAlways:##b Try completing quests. Specially daily quests. They provide
+ the best income at Candor.>>
+ <<##9##BEarly Game:##b Sell Bat Wings and Coin Bag on the shop.>>
+ <<##9##BMid Game:##b Sell Dragon Scales on the shop.>>
+ <<##9##BEnd Game##b: Sell Crafty Wings on the shop.>>
+
+ <<##9##BCandor##b: Getting stuck without money on Candor after completing all
+ quests may lock your game, as it will take a long time to get money with Candor
+ drops.>>
+ <<##9##BTulimshar##b: Get a fishing rod with Eugene. You need to find a secret
+ passage to reach him, on the very centre of Tulimshar, isolated on his own island.
+ Hint: You cannot swim.>>
+
+ <<##9##BShip Prices##b: Travel prices will go down the more quests you complete on
+ destination and current location. Keep in mind that except Candor, you can walk
+ on foot to anywhere on the world, without needing to pay.>>
+
+
+##3 <<##BGetting Experience##b>>
+ <<##9##BQuests:##b The main quest provide the best experience rewards, and it also
+ unlocks useful features, like Homunculus.>>
+
+ <<##9##BWithout grinding:##b If you don't want to kill monsters, you also get
+ experience by crafting and fishing. The easiest place to get experience without
+ fighting is inside Tulimshar Magic Council. In the red rug with the Professor,
+ you can get experience by staying still.>>
+
+ <<##9##BBoosters:##b Alcoholic drinks, like Beer, Wine, Sake, Rum and Whiskey,
+ for no specific reason, acts as Experience Boosters. Their effects expire on
+ death and after a certain time has elapsed. It goes from ten minutes to three
+ hours depending on how strong is the drink. The more players are around you when
+ you drink, the bigger the experience boost will be.>>
+
+ <<##9##BGrinding:##b Early game, hunt Giant Maggots. Midgame, switch to Trolls
+ and/or Black Mambas. Late game, Whirly Birds and heroes hold -boss dungeon give
+ the most.>>
+
+
+##3 <<##BGetting magic and skills##b>>
+ <<##9You can learn basic tricks at Tulimshar Magic School. However, to obtain
+ magic, you must find and touch the Mana Stone. If you're not strong enough, you
+ will fail.>>
+ <<##9The main quest should give you the opportunity to do so, but you won't be
+ shoved at learning magic.>>
+ <<##9Do note you're not a super-human/super-elf/super-ukar/etc - All skills,
+ including physical ones, are considered magic and will use mana points.>>
+
+
+##3 <<##BGetting more info##b>>
+ <<##9##BIngame Manual:##b You can use ##B@tutorial##b for a long help page!>>
+ <<##9##BWiki:##b You can find a wiki on our website: @@https://wiki.moubootaurlegends.org|@@>>
+ <<##9##BDiscord:##b Ask away. We will try to reply as soon as possible.>>
+
+ <<Need help? [@@help://faq|Frequently Asked Questions@@] [@@https://wiki.moubootaurlegends.org|Wiki@@] [@@https://tmw2.org|Website@@] [@@https://discord.gg/BQNTe68|Discord@@]>>
+

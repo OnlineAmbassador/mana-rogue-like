@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="8" height="6" tilewidth="32" tileheight="32" infinite="0" nextlayerid="7" nextobjectid="1">
+ <properties>
+  <property name="DeleteTiles" type="bool" value="false"/>
+  <property name="MatchInOrder" type="bool" value="true"/>
+  <property name="NoOverlappingOutput" type="bool" value="false"/>
+ </properties>
+ <tileset firstgid="1" source="../../tilesets/collision.tsx"/>
+ <tileset firstgid="3" source="../../tilesets/set_cave.tsx"/>
+ <tileset firstgid="67" source="../../tilesets/set_rules.tsx"/>
+ <tileset firstgid="71" source="../../tilesets/cave.tsx"/>
+ <layer id="1" name="regions" width="8" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgIAycSZR3RhNzxqEOlzy6fnwAAPmsh/LAAAAA
+  </data>
+ </layer>
+ <layer id="2" name="input_set" width="8" height="6">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgIAzYyZBnJyCPzxxi1YMAANxwvgnAAAAA
+  </data>
+ </layer>
+ <layer id="3" name="output_NotSet" width="8" height="6" visible="0">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgoD5gp4I4LrXoAAAMdXcLwAAAAA==
+  </data>
+ </layer>
+ <layer id="4" name="output_Ground" width="8" height="6" visible="0">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgIAyyCchXYxGLQmJ3E2EHMoghQS0Ao0NRssAAAAA=
+  </data>
+ </layer>
+ <layer id="5" name="output_Over" width="8" height="6" visible="0">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgoB+Io4GZAIKpQ33AAAAA
+  </data>
+ </layer>
+ <layer id="6" name="output_Collision" width="8" height="6" visible="0">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgIAyYyJBnIiCPzxxi1YMAADYuyefAAAAA
+  </data>
+ </layer>
+</map>

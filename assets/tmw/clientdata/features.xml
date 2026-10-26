@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<configuration>
+  <option name="forceAccountGender" value="3"/>
+  <option name="forceCharGender" value="3"/>
+</configuration>

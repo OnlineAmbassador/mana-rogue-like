@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="64" height="32" tilewidth="32" tileheight="32" infinite="0" nextlayerid="15" nextobjectid="1">
+ <tileset firstgid="1" source="../tilesets/set_cave.tsx"/>
+ <tileset firstgid="65" source="../tilesets/cave.tsx"/>
+ <tileset firstgid="193" source="../tilesets/collision.tsx"/>
+ <tileset firstgid="195" source="../tilesets/cave_x2.tsx"/>
+ <tileset firstgid="211" source="../tilesets/set_rules.tsx"/>
+ <layer id="1" name="set" width="64" height="32">
+  <data encoding="base64" compression="zlib">
+   eJztlU0LgzAMhjs6D2PzIGyX3dz//5EiKCujpPlo2jhzeBDF2j5vajqEEAbHcRwlXgbW0JpLgd7r6+V9lAzihpa79Rwo/lxvy/416j6dwL/kNies9+8T+n8Sf0z9j5QLtf6YDKT+rfPL+dwQ2Wj1BQv+tUjnwPpxc4xB99zXzEzqHzNwM4Celfwp2ULvUPdwzp+SAVQL6R7F+M0JkyF/aL77dsWOwfpT3TkZSPv2+t0rMecaZ0MNf0ovguZ5GPPHwunJudo/w/c/oM75D/7c/tI7A4n77o+pudU9IP3/ueu3sgd6+Vvhd/2jcLzjOI7TngW7oCR0
+  </data>
+ </layer>
+</map>

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<items>
+	<item id="601"
+		image="equipment/shield/steel.png"
+		name="Steel Shield"
+		description="A shield made of steel."
+		mattack="-200"
+		defense="20"
+		type="equip-shield"
+		weight="2500">
+		<sprite>equipment/shields/steel.xml</sprite>
+	</item>
+</items>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<quests>
+  <var id="13">
+    <effect map="001-2.tmx" npc="114" value="0" effect="45"/>
+    <effect map="001-2.tmx" npc="114" value="1" effect="46"/>
+    <quest name="Sandra" group="Tonori" incomplete="1">
+      <name>Sandra</name>
+      <text>Sandra needs 5 Scorpion Stingers</text>
+    </quest>
+    <quest name="Sandra" group="Tonori" complete="2">
+      <name>Sandra</name>
+      <text>Complete.</text>
+    </quest>
+  </var>
+</quests>

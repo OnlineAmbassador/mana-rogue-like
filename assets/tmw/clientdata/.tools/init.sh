@@ -1,0 +1,85 @@
+#!/bin/bash
+
+function check_error {
+    if [ "$1" != 0 ]; then
+        echo "Error $1"
+        exit $1
+    fi
+}
+
+retry_with_increasing_wait()
+{
+    local wait_time=1
+
+    while true; do
+        printf "Running %s\n" "$*"
+        # The || keeps a failure from tripping set -e in the caller.
+        local retval=0
+        "$@" || retval=$?
+
+        if [[ $retval -eq 0  ||  $wait_time -gt 16 ]]; then
+            break
+        fi
+
+        printf "command %s failed (exit code %d), waiting %d seconds until next try.\n"\
+               "$*" "$retval" "$wait_time"
+
+        sleep "$wait_time"
+        # 1, 2, 4, 8, 16...
+        (( wait_time = 2 * wait_time ))
+    done
+
+    return "$retval"
+}
+
+
+function gitclone {
+    retry_with_increasing_wait git clone "$1/$2" "$3"
+    check_error $?
+}
+
+function update_repos {
+    if [ "$CI_SERVER" == "" ];
+    then
+        return
+    fi
+
+    # dpkg fsyncs after every package, which is pointless in CI
+    if [[ ! -f /etc/dpkg/dpkg.cfg.d/02speedup ]]; then
+        echo force-unsafe-io > /etc/dpkg/dpkg.cfg.d/02speedup
+    fi
+
+    export DATA=$(cat /etc/resolv.conf|grep "nameserver 1.10.100.101")
+    if [ "$DATA" != "" ];
+    then
+        echo "Detected local runner"
+        sed -i 's!http://httpredir.debian.org/debian!http://1.10.100.103/debian!' /etc/apt/sources.list
+    else
+        echo "Detected non local runner"
+    fi
+}
+
+function aptget_update {
+    update_repos
+    retry_with_increasing_wait apt-get -y -qq update
+    check_error $?
+}
+
+function aptget_install {
+    retry_with_increasing_wait apt-get --assume-yes -qq --no-install-recommends install "$@"
+    check_error $?
+}
+
+function clientdata_init {
+    mkdir -p shared
+    if [[ "${PWD##*/}" != clientdata ]]; then
+        ln -sfn "$PWD" ../clientdata
+        check_error $?
+    fi
+    # The tools scripts look for the checkout under its upstream name
+    if [[ "${PWD##*/}" != client-data ]]; then
+        ln -sfn "$PWD" ../client-data
+        check_error $?
+    fi
+    cd ..
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<sprite>
+    <imageset
+        name="base"
+        src="graphics/sprites/monsters/haunted.png"
+        width="64"
+        height="64"
+    />
+
+    <include file="monsters/slime-mother.xml"/>
+</sprite>

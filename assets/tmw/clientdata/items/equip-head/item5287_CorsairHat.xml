@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<items>
+  <item
+		id="5287"
+		image="equipment/head/corsairhat.png"
+		name="Corsair Hat"
+		description="The official Hat of Mana Corsairs (HMC)."
+		defense="5"
+		mdefense="15"
+		criticaldefense="5"
+		maxhp="50"
+		type="equip-head"
+		sellProtected="true"
+		weight="20">
+		<sprite>equipment/head/corsairhat.xml</sprite>
+    <replace sprite="hair">
+      <item from="-6" to="-1"/>
+    </replace>
+  </item>
+</items>

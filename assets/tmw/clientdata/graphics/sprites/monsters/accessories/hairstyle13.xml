@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<sprite>
+  <imageset name="base" src="graphics/sprites/monsters/accessories/hairstyle13.png|W" width="32" height="32"/>
+  <include file="hairstyles/hairstyle13.xml"/>
+</sprite>

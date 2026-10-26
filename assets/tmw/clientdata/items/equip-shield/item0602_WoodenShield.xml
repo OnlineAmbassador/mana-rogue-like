@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<items>
+	<item id="602"
+		image="equipment/shield/wooden.png"
+		name="Wooden Shield"
+		description="A shield made of wood."
+		mattack="-70"
+		defense="14"
+		type="equip-shield"
+		weight="1500">
+		<sprite>equipment/shields/wooden.xml</sprite>
+	</item>
+</items>

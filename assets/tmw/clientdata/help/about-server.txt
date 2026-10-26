@@ -1,0 +1,374 @@
+.<- @@index|<<Back to Index>>@@
+
+@@https://tmw2.org/|<<Official site:>> https://tmw2.org@@
+
+##3---------------------------
+##3-- <<TMW2 Contributors>> --
+##3---------------------------
+
+
+##3##BServer Administrators##b
+##9jesusalva (Jonatas L. Nogueira) <jesusalva tmw2.org>
+##9jak1 (Mike W.) <jak1 germantmw.de>
+
+##3##BAdditional Coders and Questarts##b
+##9acsvln
+##9ayruss
+##9danger Duck (Sean Hulka)
+##9GonzoDark
+##9LawnCable
+##9malginsa (Sergei Malgin)
+##9NetSysFire
+##9Povo
+##9Rakinorf
+##9Sky Dragon! (Athirson Caraciolo)
+##9specing
+##9Test_User <hax andrewyu.org>
+##9Xanthem (Cristopher Chay)
+
+##3##BAdditional Art and Music##b
+##9Saulc (Lucas Helaine) <lucashelaine14 gmail.com>
+##9Axzell
+##9Cadis Etrama Di Raizel
+##9dusty in a bootle
+##9Hocus
+##9Ledmitz <ledmitz themanaworld.org>
+##9Manatauro
+##9meway (Andrew Hall)
+##9Micksha (Mick) <ms-shaman gmx.de>
+##9Mishana (Maria)
+##9Polaczka (Denis)
+##9+seeds
+##9YuckFou
+
+##3##BAdditional Mappers##b
+##9Saulc (Lucas Helaine) <saulc moubootaurlegends.org>
+##9Soren
+##9Kolchak (Donald G. Horn)
+##9kytty (Ashley)
+##9Micksha <ms-shaman gmx.de>
+##9poppet (Bleu Tailfly)
+
+##3##BNotable Mentions##b
+##941444d494e (Andrei Karas)
+##9gnulinux
+##9manatauro
+
+##3##BGame Masters##b
+##9Crazyfefe (Lecanu Colin)
+##9demure
+##9+seeds (A. Hulka)
+
+##3---------------------------
+##3-- <<LoF Contributors>> --
+##3---------------------------
+
+
+##3##BProject Leaders##b
+##9Pihro ((Founder))
+##9Pyndragon ((Lead Dev, Coder, Host))
+##9KeeKeeKat ((Retired, co-founder, lead gm))
+##9BronzeEagle ((Retired, server admin assist.))
+
+##3##BGame Masters##b
+##9MrsSolo
+##9BunnyBear
+##9Cordo
+##9demure
+
+##3##BArtist and Mappers##b
+##9Ozthokk ((art))
+##9Billr ((art/map))
+##9lavender ((art/map))
+##9Solo ((map))
+##9Munkar ((retired, art))
+
+##3##BAdditional Scripts##b
+##9DingoDuck ((retired))
+##9Pluto ((retired))
+
+##3##BSpecial Thanks##b
+##9Pyro ((website, forum, branding))
+##9Kirua ((ManaServ))
+##9Itchy Demon ((email setup, content upgrade assist.))
+
+##3---------------------------
+##3-- <<German TMW Contributors>> --
+##3---------------------------
+
+##9jak1 (Mike W.) <jak1 germantmw.de>
+##9Calimero
+##9Der Loisl
+##9Goldschuss
+##9GoNzO (David W.)
+##9Ivory
+##9Taya
+##9VeloxNeb
+
+##3---------------------------
+##3-- <<Related Communities>> --
+##3---------------------------
+
+[@@https://germantmw.de|<<German TMW>>@@]
+[@@https://landoffire.org|<<Land Of Fire>>@@]
+[@@https://tmw-br.scall.org|<<The Mana World Brazil>>@@]
+[@@https://themanaworld.org|<<The Mana World>>@@]
+[@@https://manaplus.org|<<ManaPlus>>@@]
+[@@https://opengameart.org|<<Open Game Art>>@@]
+[@@https://arcmage.org|<<Arcmage>>@@]
+[@@http://evolonline.org|<<Evol Online>>@@]
+
+##3---------------------------
+##3-- <<Evol Online Contributors>> --
+##3---------------------------
+
+##941444d494e (Andrei Karas) <4144 evolonline.org>
+##9Ablu (Erik Schilling) <ablu.erikschilling googlemail.com>
+##9AL13N (Maarten Vanraes) <alien rmail.be>
+##9Alastrim (Antônio) <alasmirt gmail.com>
+##9Alige <alige evolonline.org>
+##9AlOnS
+##9Ant0ine (Antoine Ruck) <antoinebcn hotmail.com>
+##9AxlTrozz (Alex Argumedo)
+##9BartK (Bart Kelsey)
+##9CheccoDess (Lisa)
+##9ChefChelios
+##9Coolkid782 <coolkid782 evolonline.org>
+##9Cosmostrator (David Vecchio) <dave cosmostrator.com>
+##9Crevost
+##9Crush (Philipp Sehmisch) <tmw crushnet.org>
+##9Dariunas (Aasif Chaudry) <aasif.chaudry infectedmusicdesigns.co.uk>
+##9Dark_Mage
+##9DerLoisl (Max Isele) <der.loisl theavoraproject.org>
+##9Derpella
+##9EJlol
+##9Elvano (Elvano Miok) <elvano evolonline.org>
+##9Enchilado (W E Sayers)
+##9Eric (Eric Matyas) <ematyas aol.com>
+##9Ezili
+##9Fate
+##9Fey (Alexandre Le Corre) <fey_29 live.fr>
+##9FotherJ (Jarrett Thomas-Huxley)
+##9gumi
+##9Hal9000 (Francesco Miglietta) <francesco.miglietta evolonline.org>
+##9Irukard (Krzysztof Daszuta)
+##9IvanMorve (Martin)
+##9Jak1 (Mike Wollmann) <jak1 germantmw.de>
+##9jesusalva (Jonatas L. Nogueira) <cpntb1 ymail.com>
+##9KaTSuo (Gremly) <tlz.katsuo gmail.com>
+##9Kenny690 (Saidullin Il'shat) <bio_editor mail.ru>
+##9Kestrel
+##9Kineticstorm
+##9Kolokolna (Olga Zhupina) <uzver777 ya.ru>
+##9KomradeJack (Jack Menhorn) <jack.menhorn gmail.com>
+##9Kr0n05931 (Grant)
+##9Ledmitz <ledmitz gmail.com>
+##9Len (Leonard Pabin III)
+##9Lien (Felix Jely) <felixjely hotmail.fr>
+##9LokiF
+##9Lunovox <rui.gravata hotmail.com>
+##9Magick (Jordan) <admin_magick hotmail.com>
+##9Mandi Paugh
+##9mas886 (Arnau) <arnau.cat.1997 gmail.com>
+##9Micksha (Mick) <ms-shaman gmx.de>
+##9Minnymart3
+##9Modanung (Frode Lindeijer)
+##9monwarez (Thibault Payet) <monwarez mailoo.org>[@@https://gitlab.com/u/monwarez|<<https://gitlab.com/u/monwarez>>@@]
+##9Naj (Thibault Garcia) <thibault.garcia revaweb.com>
+##9Nard (Bernard Hugonnet) <bernard.hugonnet bh28.net>
+##9Necromonger (Mihail Barer)
+##9Nelson6e65 (Nelson Martell) <nelson6e65-manaplus yahoo.es>
+##9omatt <m.vuoso @laposte.net>
+##9Othello (Vincent Van Beveren) <v.van.beveren nikhef.nl>
+##9Pajarico
+##9Pihro (Garett Smith) <theonewhoplayswithfire gmail.com>
+##9Piman
+##9Pitriss (Petr Varkoček)
+##9Posydonia (Mélanie Dinot)
+##9Qwerty Dragon
+##9Reid <reid evolonline.org>
+##9Saci
+##9Saphy
+##9Salius (Aleksey S.)
+##9saturn (Nikola Whallon) <6.saturn.6 gmail.com>
+##9Saweres <onshine20 gmail.com>
+##9Sir_lance
+##9Socapex (Philippe Groarke) <socapex evolonline.org>
+##9Talaroc (Ryan Voss) <arashi86 gmail.com>
+##9Taree
+##9Tayoko
+##9Teru
+##9Tirifto
+##9Vasily Makarov (Dan Sagunov) <vasily evolonline.org>
+##9VxD <vxd.michael gmail.com>
+##9WildX (William Pine) <wildx evolonline.org>
+##9Wushin <pasekei gmail.com>
+##9Yosuhara
+##9Yuuki
+
+##3---------------------------
+##3-- <<The Mana World Legacy Contributors>> --
+##3---------------------------
+
+##941444d494e (Andrei Karas) <4144 evolonline.org>
+##9Ablu (Erik Schilling) <ablu.erikschilling gmail.com>
+##9AL13N (Maarten Vanraes) <alien rmail.be>
+##9Alastrim (Antônio) <alasmirt gmail.com>
+##9Alige <alige evolonline.org>
+##9AlOns
+##9Argul (Stefan Beller)
+##9Arikel
+##9Avaniel (Rogier Polak)
+##9Bagzie
+##9Bear
+##9Bernhardt (Chay)
+##9Bertram (Yohann Ferreira)
+##9Big Crunch
+##9CapitanAwesome
+##9Cassy (Cassandra)
+##9Catfish_Man
+##9ChefChelios
+##9Chetic (Fredrik Reveny) <chetic gmail.com>
+##9Chicka-Maria <comfycheeks themanaworld.org>
+##9Clef
+##9Coolkid782 <coolkid782 evolonline.org>
+##9Crush (Philipp Sehmisch) <tmw crushnet.org>
+##9Dabe (David Del Re)
+##9Delasia
+##9Demon
+##9Der Loisl (Max Isele) <der.loisl theavoraproject.org>
+##9deviexx
+##9dobey (Rodney Dawes)
+##9doorsman
+##9Ejlol (Oscar Klein Heerenbrink)
+##9ElvenProgammer (Eugenio Favalli) <elvenprogrammer gmail.com>
+##9Enchilado (W E Sayers)
+##9FotherJ (Jarrett Thomas-Huxley)
+##9Freeyorp
+##9Frost
+##9Gnulia
+##9Golgo
+##9GonzoDark (Leif Kildelund)
+##9gumi
+##9Hello=)
+##9Hocus Pocus Fidibus <kurt.kuschinski gmail.com>
+##9Irukard
+##9imorgado (Igor Morgado)
+##9IvanMorve (Martin)
+##9jak1 (Mike Wollmann) <jak1 germantmw.de>
+##9Javila (JosÃ© Ãvila)
+##9jaxed0127 (Jared Adams)
+##9Jenalya (Jessica Tölke)
+##9Jesusalva (Jonatas L. Nogueira) <cpntb1 ymail.com>
+##9JoshLangley (Joshua Langley)
+##9Kage (Chuck Miller) <shadowmil gmail.com>
+##9Katze
+##9kindjal (Huynh Ngoc Chau Tran)
+##9Kineticstorm
+##9kth5/Shura (Alexander Baldeck)
+##9Kyokai (Kiyoshi Kyokai)
+##9kytty
+##9Ledmitz <ledmitz gmail.com>
+##9Len (Leonard Pabin III)
+##9Livio (Livio Recchia)
+##9Lizandra (Filipa Serra e Silva)
+##9maci (Marcel W. Wysocki)
+##9MadCamel
+##9Maester Pixel
+##9Magick (Jordan) <admin_magick hotmail.com>
+##9MasterKenobi
+##9meway (Andrew Hall)
+##9Micksha <ms-shaman gmx.de>
+##9Mkael
+##9Modanung (Frode Lindeijer)
+##9moi1392 (Cedric Borgese) <cedric.borgese gmail.com>
+##9monwarez (Thibault Payet) <monwarez mailoo.org>[@@https://gitlab.com/u/monwarez|<<https://gitlab.com/u/monwarez>>@@]
+##9Mra (Jan-Fabian Humann) <malastare gmx.net>
+##9mrgrey
+##9Nard (Bernard Hugonnet) <bernard.hugonnet bh28.net>
+##9Narus <narus.tmw gmail.com>
+##9Necromonger (Mihail Barer)
+##9Neko-mon
+##9Neorice
+##9nym
+##9o11c (Ben Longbons)
+##9omatt <m.vuoso laposte.net>
+##9Pajarico (Pajarico Guaje)
+##9Pauan
+##9peavey (Dennis Friis) <peavey placid.dk>
+##9Pihro (Garett Smith) <theonewhoplayswithfire gmail.com>
+##9Platyna (Zuzanna Karolina Filutowska)
+##9Pluto (Arian Asimi)
+##9Prsm
+##9Purple (Thorbjørn Lindeijer) <thorbjorn lindeijer.nl>
+##9Pyndragon (Daniel Foerster)
+##9Qoal (Scott Ellis) <quiche_on_a_leash hotmail.co.uk>
+##9Qwerty Dragon
+##9razor85 (Romulo Fernandes)
+##9Reid <reid evolonline.org>
+##9Rotonen (Joni Orponen)
+##9salmondine (Mark Dunbar)
+##9Silene (Guillaume Melquiond)
+##9Silent Dawn
+##9simonedw (Simon Edwardsson) <simon crossnet.se>
+##9Skipy
+##9Sora
+##9SudoPlatipus
+##9Sull (Jean-Francois Lampron) <sull.kf gmail.com>
+##9Superkoop (John Koopman)
+##9Swimmy
+##9Talaroc (Ryan Voss) <arashi86 gmail.com>
+##9Tametomo (Ira Rice) <irarice gmail.com>
+##9Tatjana
+##9Tezer431
+##9Ti Sing Hao
+##9Tiana
+##9Tirifto
+##9Tomminator
+##9Turmfalke
+##9tux9th
+##9Ultramichy
+##9Usiu (Mateusz Kaduk)
+##9V0id (Vincent Petithory)
+##9Varuna
+##9Vasily Makarov (Danil Sagunov) <vasily evolonline.org>
+##9veryapeGM
+##9VictorSan
+##9Vink
+##9Vlady
+##9WildX (William Pine) <wildx evolonline.org>
+##9Wombat <hpwombat yahoo.com>[@@https://github.com/wombatism|<<https://github.com/wombatism>>@@]
+##9Wushin <pasekei gmail.com>
+##9zenogais (Eric Scrivner)
+##9Zipon
+##9(unknown) (Aaron Marks)
+##9(unknown) (Andrej Sinicyn)
+##9(unknown) (Douglas Boffey)
+##9(unknown) (Duane Bailey)
+##9(unknown) (Johannelaliberte)
+##9(unknown) (Kess Vargavind) <vargavind gmail.com>
+##9(unknown) (Lloyd Bryant) <lloyd_bryant netzero.net>
+##9(unknown) (Matthias Hartmann) <hartmann.matthias gmail.com>
+
+##3---------------------------
+##3-- <<Unknown Flying Bullet Contributors>> --
+##3---------------------------
+
+##9Arikel
+##9Varuna
+
+##3---------------------------
+##3-- <<Freesound Contributors>> --
+##3---------------------------
+
+##9adriann[@@http://freesound.org/people/adriann/|<<http://freesound.org/people/adriann/>>@@]
+##9beerbelly38[@@http://freesound.org/people/beerbelly38/|<<http://freesound.org/people/beerbelly38/>>@@]
+##9CaptainSiberia[@@http://freesound.org/people/CaptainSiberia/|<<http://freesound.org/people/CaptainSiberia/>>@@]
+##9D W[@@http://freesound.org/people/D%20W/|<<http://freesound.org/people/D%20W/>>@@]
+##9erkanozan[@@http://freesound.org/people/erkanozan/|<<http://freesound.org/people/erkanozan/>>@@]
+##9Q.K.[@@http://freesound.org/people/Q.K./|<<http://freesound.org/people/Q.K./>>@@]
+##9sammy214[@@http://freesound.org/people/sammy214/|<<http://freesound.org/people/sammy214/>>@@]
+##9SkeetMasterFunk69[@@http://freesound.org/people/SkeetMasterFunk69/|<<http://freesound.org/people/SkeetMasterFunk69/>>@@]
+##9speedygonzo[@@http://freesound.org/people/speedygonzo/|<<http://freesound.org/people/speedygonzo/>>@@]
+##9spookymodem[@@http://freesound.org/people/spookymodem/|<<http://freesound.org/people/spookymodem/>>@@]
+##9vibe_crc[@@http://freesound.org/people/vibe_crc/|<<http://freesound.org/people/vibe_crc/>>@@]

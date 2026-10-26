@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<items>
+  <item id="1206" image="equipment/head/santabeardhat.png" name="Santa Beard Hat" description="Now you will look just like Santa Claus!" mattack="2" type="equip-head" defense="5" weight="20" sellProtected="true">
+    <sprite gender="unisex">equipment/head/santabeardhat.xml</sprite>
+    <sprite gender="female">equipment/head/santabeardhat-female.xml</sprite>
+  </item>
+</items>

@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<weapons>
+  <swords>
+    <item id="521"/>
+    <item id="522"/>
+    <item id="536"/>
+    <item id="570"/>
+    <item id="571"/>
+    <item id="579"/>
+    <item id="758"/>
+    <item id="867"/>
+    <item id="1201"/>
+    <item id="1700"/>
+    <item id="1703"/>
+    <item id="1705"/>
+    <item id="1706"/>
+    <item id="1707"/>
+  </swords>
+  <bows>
+    <item id="545"/>
+    <item id="530"/>
+    <item id="878"/>
+    <item id="903"/>
+    <item id="1200"/>
+    <item id="1701"/>
+    <item id="1704"/>
+  </bows>
+  <shields>
+    <item id="601"/>
+    <item id="602"/>
+    <item id="603"/>
+  </shields>
+</weapons>

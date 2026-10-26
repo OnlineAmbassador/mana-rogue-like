@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This file is generated automatically, editing it will have no effect.
+     (C) Jesusalva, 2019-2020 -->
+<skills>
+	<set name="Summon">
+		<skill
+			id="20025"
+			name="Summon Maggots"
+			icon="graphics/skills/other/kalmurk.png"
+			description="2x Maggot Slime."
+		/>
+
+		<skill
+			id="20029"
+			name="Summon Dragon"
+			icon="graphics/skills/summon/dragon.png"
+			description="4x Dragon Scale."
+		/>
+
+		<skill
+			id="20030"
+			name="Summon Slimes"
+			icon="graphics/skills/summon/slime.png"
+			description="15x Maggot Slime."
+		/>
+
+		<skill
+			id="20043"
+			name="Summon Fluffies"
+			icon="graphics/skills/summon/fluffy.png"
+			description="1x White Fur."
+		/>
+
+		<skill
+			id="20042"
+			name="Summon Spiky"
+			icon="graphics/skills/none.png"
+			description="1x Mushroom Spores."
+		/>
+
+		<skill
+			id="20041"
+			name="Summon Mouboo"
+			icon="graphics/skills/none.png"
+			description="1x Mouboo Figurine."
+		/>
+
+		<skill
+			id="20036"
+			name="Summon Snakes"
+			icon="graphics/skills/none.png"
+			description="1x Snake Egg."
+		/>
+
+		<skill
+			id="20037"
+			name="Summon Wolverns"
+			icon="graphics/skills/none.png"
+			description="5x White Fur."
+		/>
+
+		<skill
+			id="20038"
+			name="Summon Fairies"
+			icon="graphics/skills/none.png"
+			description="1x Fluo Powder."
+		/>
+
+		<skill
+			id="20039"
+			name="Summon Yetis"
+			icon="graphics/skills/none.png"
+			description="1x Frozen Yeti Tear."
+		/>
+
+		<skill
+			id="20040"
+			name="Summon Terranite"
+			icon="graphics/skills/none.png"
+			description="1x Terranite Ore."
+		/>
+
+		<skill
+			id="20044"
+			name="Summon Plants"
+			icon="graphics/skills/none.png"
+			description="30 MP. 2x Root."
+			invokeCmd="@sk-plantkingdom"
+			level="1"
+		/>
+		<skill
+			id="20044"
+			name="Summon Plants"
+			icon="graphics/skills/none.png"
+			description="33 MP. 2x Root."
+			invokeCmd="@sk-plantkingdom"
+			level="2"
+		/>
+		<skill
+			id="20044"
+			name="Summon Plants"
+			icon="graphics/skills/none.png"
+			description="36 MP. 2x Root."
+			invokeCmd="@sk-plantkingdom"
+			level="3"
+		/>
+		<skill
+			id="20044"
+			name="Summon Plants"
+			icon="graphics/skills/none.png"
+			description="39 MP. 2x Root."
+			invokeCmd="@sk-plantkingdom"
+			level="4"
+		/>
+		<skill
+			id="20044"
+			name="Summon Plants"
+			icon="graphics/skills/none.png"
+			description="42 MP. 2x Root."
+			invokeCmd="@sk-plantkingdom"
+			level="5"
+		/>
+		<skill
+			id="20044"
+			name="Summon Plants"
+			icon="graphics/skills/none.png"
+			description="MP + 3/lv. 2x Root."
+		/>
+
+		<skill
+			id="20047"
+			name="Summon Ducks"
+			icon="graphics/skills/none.png"
+			description="1x Cherry Cake. Req. Rubber Ducky."
+		/>
+
+		<skill
+			id="20049"
+			name="Summon Pixies"
+			icon="graphics/skills/none.png"
+			description="3x Fluo Powder."
+		/>
+
+		<skill
+			id="20023"
+			name="Summon Cave Maggot"
+			icon="graphics/skills/summon/cave.png"
+			description="Req. Zarkor Scroll."
+		/>
+
+
+	</set>
+</skills>

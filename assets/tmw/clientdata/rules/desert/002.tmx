@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.2" tiledversion="" orientation="orthogonal" renderorder="right-down" width="3" height="3" tilewidth="32" tileheight="32" infinite="0" nextlayerid="6" nextobjectid="1">
+ <tileset firstgid="1" source="../../tilesets/desert1.tsx"/>
+ <tileset firstgid="257" source="../../tilesets/desert2.tsx"/>
+ <tileset firstgid="513" source="../../tilesets/desert_x2.tsx"/>
+ <tileset firstgid="561" source="../../tilesets/desert_x3.tsx"/>
+ <tileset firstgid="593" source="../../tilesets/desert_x5.tsx"/>
+ <tileset firstgid="599" source="../../tilesets/set_desert.tsx"/>
+ <tileset firstgid="649" source="../../tilesets/set_rules.tsx"/>
+ <layer id="1" name="Regions" width="3" height="3">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgQAWdTAwYAAD8GU+NJAAAAA==
+  </data>
+ </layer>
+ <layer id="2" name="Input_set" width="3" height="3">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgQAWRTAwYAADjUoAzJAAAAA==
+  </data>
+ </layer>
+ <layer id="3" name="Output_Ground" width="3" height="3">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgQAXsDJgAAEYU8oskAAAA
+  </data>
+ </layer>
+ <layer id="4" name="Output1_Ground" width="3" height="3">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgQAWcDJgAACFfCpIkAAAA
+  </data>
+ </layer>
+ <layer id="5" name="Output2_Ground" width="3" height="3">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgQAVcDJgAAOsSoz0kAAAA
+  </data>
+ </layer>
+</map>

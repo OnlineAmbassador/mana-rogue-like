@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<items>
+  <item id="686" image="use/potions/b.png|G:#b03678,ffffff" name="Medium Healing Potion" description="A medium healing potion made from brewed herbs." type="usable" hp="400" weight="15" tag="Potions"/>
+</items>

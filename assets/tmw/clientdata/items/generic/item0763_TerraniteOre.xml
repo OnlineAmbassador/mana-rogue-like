@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<items>
+  <item id="763" image="generic/terraniteore.png" name="Terranite Ore" description="Some ore collected out of terranite." type="generic" weight="40"/>
+</items>

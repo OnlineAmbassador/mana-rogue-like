@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<items>
+  <item id="633" image="equipment/head/xmaself.png" name="Christmas Elf Hat" description="A hat worn by Christmas elves." mattack="2" type="equip-head" defense="13" weight="30" sellProtected="true">
+    <sprite gender="unisex">equipment/head/xmaself.xml</sprite>
+    <sprite gender="female">equipment/head/xmaself-female.xml</sprite>
+    <replace sprite="hair">
+      <item from="-6" to="-1"/>
+    </replace>
+    <replace direction="left" sprite="hair">
+      <item from="-14" to="-1"/>
+      <item from="-15" to="-17"/>
+      <item from="-16" to="-9"/>
+    </replace>
+    <replace direction="right" sprite="hair">
+      <item from="-14" to="-1"/>
+      <item from="-15" to="-17"/>
+      <item from="-16" to="-9"/>
+    </replace>
+    <replace direction="upall" sprite="hair">
+      <item from="-15" to="-14"/>
+      <item from="-16" to="-14"/>
+      <item from="-19" to="-9"/>
+    </replace>
+    <replace direction="downall" sprite="hair">
+      <item from="-15" to="-14"/>
+      <item from="-16" to="-14"/>
+      <item from="-10" to="-2"/>
+    </replace>
+  </item>
+</items>

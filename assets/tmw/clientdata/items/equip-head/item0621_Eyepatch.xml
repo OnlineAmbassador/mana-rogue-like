@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<items>
+  <item id="621" image="equipment/head/eyepatch.png" name="Eyepatch" description="What really makes you a pirate." type="equip-head" weight="5" defense="3" sellProtected="true">
+    <sprite gender="unisex">equipment/head/eyepatch.xml</sprite>
+    <sprite gender="female">equipment/head/eyepatch-female.xml</sprite>
+  </item>
+</items>

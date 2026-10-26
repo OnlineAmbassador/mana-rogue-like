@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!-- Use this file to override default data paths used by the system
+If this file is not used, the hard-coded defaults are the following:
+
+Files:                  Default paths:
+=============           ===============
+(All folders listed below are relative to the data/ directory.)
+
+Default wallpaper:      graphics/images/
+Default error path:     graphics/images/
+
+Default items path:     graphics/items/
+Default minimaps path:  graphics/minimaps/
+Default particles path: graphics/particles/
+Default sprite path:    graphics/sprites/
+Default maps path:      maps/
+Default sfx path:       sfx/
+
+Hard-coded reference files (Some could be handled differently later):
+
+Files:                                      Default paths:
+=============                               ===============
+Error handling for missing sprites files:   graphics/sprites/error.xml
+Level Up particle XML file:                 graphics/particles/levelup.particle.xml
+Warp/Portal effect XML file:                graphics/particles/warparea.particle.xml
+Player unarmed attack sound effect:         sfx/fist-swish.ogg
+
+You can also have a look the client data handling reference page, here:
+http://doc.manasource.org/client_data_handling
+
+Also, don't forget to add the '/' path separator at the end of folder values.
+-->
+<configuration>
+  <!-- Required data paths -->
+  <option name="itemIcons" value="graphics/items/"/>
+  <option name="unknownItemFile" value="unknown-item.png"/>
+  <option name="sprites" value="graphics/sprites/"/>
+  <option name="spriteErrorFile" value="error.xml"/>
+  <option name="particles" value="graphics/particles/"/>
+  <option name="levelUpEffectFile" value="levelup.particle.xml"/>
+  <option name="portalEffectFile" value="warparea.particle.xml"/>
+  <option name="minimaps" value="graphics/minimaps/"/>
+  <option name="maps" value="maps/"/>
+  <option name="sfx" value="sfx/"/>
+  <!-- option name="newQuestSfx" value="system/levelup.ogg"/ -->
+  <!-- option name="completeQuestSfx" value="system/levelup.ogg"/ -->
+  <!-- option name="attackSfxFile" value=""/ -->
+  <!-- option name="missSfxFile" value=""/ -->
+  <option name="music" value="music/"/>
+  <option name="wallpapers" value="graphics/images/"/>
+  <option name="wallpaperFile" value="login_wallpaper.png"/>
+  <option name="newQuestEffectId" value="47"/>
+  <option name="completeQuestEffectId" value="48"/>
+  <option name="gmTabMinimalLevel" value="60"/>
+  <!--
+    ManaPlus tries to load skillsFile first, then skillsFile2 if it failed.
+    In old versions, ea-skills.xml before skills.xml, now it is swapped.
+    This config setting makes any version of ManaPlus DTRT.
+
+    It can be removed once ea-skills.xml is not in zips
+    or min ManaPlus version is bumped to v1.4.1.18 (which is also the
+    first version that supports <include> in all files)
+    ... or would it be better to specify all the files?
+  -->
+  <option name="skillsFile" value="skills.xml"/>
+</configuration>

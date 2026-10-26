@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.0" orientation="orthogonal" renderorder="right-down" width="13" height="7" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="1">
+ <tileset firstgid="1" source="../../tilesets/collision.tsx"/>
+ <tileset firstgid="3" source="../../tilesets/set_cave.tsx"/>
+ <tileset firstgid="67" source="../../tilesets/set_rules.tsx"/>
+ <tileset firstgid="71" source="../../tilesets/cave.tsx"/>
+ <layer id="1" name="regions" width="13" height="7">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgIA84QzGxbHL1DCe3AQBhmwyGbAEAAA==
+  </data>
+ </layer>
+ <layer id="2" name="input_set" width="13" height="7">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgoC5QgWJ0NrI8A5o4LjWUuoMa9hDyDykAADpwCuhsAQAA
+  </data>
+ </layer>
+ <layer id="3" name="input_set" width="13" height="7">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgoC5QhmJ0NrI8A5o4LjWUuoMa9hDyDykAAJXncL9sAQAA
+  </data>
+ </layer>
+ <layer id="4" name="output_NotSet" width="13" height="7" opacity="0.33">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgIB+ooNHEqsfGJ9UsWthDTTdgAwDBPBNdbAEAAA==
+  </data>
+ </layer>
+ <layer id="5" name="output_NotSet" width="13" height="7" opacity="0.36">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgIB8oo9HEqsfGJ9UsWthDTTdgAwAUJIhnbAEAAA==
+  </data>
+ </layer>
+ <layer id="6" name="output_Ground" width="13" height="7">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgoC5oQuM3o/EDoXQwle1FB4VQuphCcyah8SdTYBYAy7rYPmwBAAA=
+  </data>
+ </layer>
+ <layer id="7" name="output_Collision" width="13" height="7">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAACmNgGAX0AgB8n9a4bAEAAA==
+  </data>
+ </layer>
+</map>

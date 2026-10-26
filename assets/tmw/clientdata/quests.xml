@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    See here for documentation: http://manaplus.org/quests.xml
+-->
+<quests>
+  <include name="quests/_include.xml"/>
+</quests>

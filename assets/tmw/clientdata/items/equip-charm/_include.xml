@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<items>
+  <include name="items/equip-charm/item0677_HeartNecklace.xml"/>
+  <include name="items/equip-charm/item0742_FourLeafClover.xml"/>
+  <include name="items/equip-charm/item0749_Towel.xml"/>
+  <include name="items/equip-charm/item0865_Grimoire.xml"/>
+  <include name="items/equip-charm/item0879_HeartofIsis.xml"/>
+  <include name="items/equip-charm/item1244_DarkTalisman.xml"/>
+</items>
