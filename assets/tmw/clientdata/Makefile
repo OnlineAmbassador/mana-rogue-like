@@ -3,24 +3,51 @@ SHELL=/bin/bash
 .SECONDARY:
 .DELETE_ON_ERROR:
 
-check:
-	git diff --color=always
+XSLTPROC = xsltproc
 
-XMLS = $(shell find -type f -name '*.xml')
-check: check-xml
-check-xml: $(patsubst %.xml,out/%.xml.ok,${XMLS})
-	find -name '*.xml.ok' -delete
-	find -name '*.xml.out' -delete
-out/%.xml.ok: %.xml out/%.xml.out
-	diff -u $^
-	touch $@
-out/%.xml.out: %.xml
+all:
+	@echo "Normal: build pipeline"
+	@echo "Standalone: check-png testxml testxml-full license icc"
+	@echo "Groups: build check pipeline"
+
+
+check: check-xml check-png testxml
+
+PNGS = $(shell find . -type f -name "*.png")
+check-png: $(patsubst %.png,out/%.png.ok,${PNGS})
+	find . -name '*.png.ok' -delete
+	find . -name '*.png.out' -delete
+	find ./out/ -type d -delete
+out/%.png.ok: out/%.png.out
+	grep '32-bit RGB+alpha, non-interlaced, ' $< > $@
+out/%.png.out: %.png
 	mkdir -p ${@D}
 	set -e -o pipefail; \
-	xmllint --format --schema tools/tmw.xsd $< 2>&1 > $@ | grep -v 'Skipping import of schema' 1>&2
+	pngcheck $< > $@
 
-check: xsd
-xsd:
-	xmllint --format --schema tools/dl/XMLSchema.xsd tools/tmw.xsd > tmw-formatted.xsd
-	diff tools/tmw.xsd tmw-formatted.xsd
-	rm tmw-formatted.xsd
+check-xml:
+	cd ../tools/testxml/ ; ./xsdcheck.sh ; cat errors.txt
+
+testxml:
+	cd ../tools/testxml/ ; ./testxml.py stfu
+
+testxml-full:
+	cd ../tools/testxml/ ; ./testxml.py silent
+
+client: build
+
+build:
+	cd ../tools/ ; make client
+
+license:
+	cd ../tools/licensecheck/ ; ./clientdata.sh
+
+icc:
+	cd ../tools/imagescheck/ ; ./icccheck.sh
+
+pipeline: check-xml
+	cd ../tools/testxml/ ; ./testxml.py silent |grep -v "Checking"
+	#echo "Now using imagemagic to verify images..."
+	#cd ../tools/imagescheck/ ; ./icccheck.sh
+	@echo "Now run `make check-png` to check PNG images. Use `make contrib` if contributor list must be updated."
+	@echo "Use `make icc` to verify for broken images, too."

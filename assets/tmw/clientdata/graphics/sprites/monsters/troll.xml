@@ -1,4 +1,3 @@
-<?xml version="1.0"?>
 <sprite>
   <imageset name="base" src="graphics/sprites/monsters/troll.png|W;R;Y;G" width="40" height="40"/>
   <action name="stand" imageset="base">
@@ -89,20 +88,16 @@
   </action>
   <action name="dead" imageset="base">
     <animation direction="down">
-      <sequence start="144" end="148" delay="100"/>
-      <frame index="149"/>
+      <sequence start="144" end="149" delay="0"/>
     </animation>
     <animation direction="right">
-      <sequence start="150" end="154" delay="100"/>
-      <frame index="155"/>
+      <sequence start="150" end="155" delay="0"/>
     </animation>
     <animation direction="up">
-      <sequence start="156" end="160" delay="100"/>
-      <frame index="161"/>
+      <sequence start="156" end="161" delay="0"/>
     </animation>
     <animation direction="left">
-      <sequence start="162" end="166" delay="100"/>
-      <frame index="167"/>
+      <sequence start="162" end="167" delay="0"/>
     </animation>
   </action>
 </sprite>

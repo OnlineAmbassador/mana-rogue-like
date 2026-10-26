@@ -3,5 +3,5 @@
 Copyright (C) 2013 ManaPlus -->
 
 <configuration>
-  <option name="dataPath" value="."/>
+    <option name="dataPath" value="."/>
 </configuration>

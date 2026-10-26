@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sprite>
-  <imageset name="base" src="graphics/sprites/monsters/scorpion.png|W" width="48" height="45"/>
+  <imageset name="base" src="graphics/sprites/monsters/scorpion.png" width="48" height="45"/>
   <action name="stand" imageset="base">
     <animation direction="down">
       <frame index="0" offsetY="2"/>

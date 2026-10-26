@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
 <sprite>
   <imageset name="mob" src="graphics/sprites/monsters/snowman-boss.png" width="128" height="128" offsetY="0"/>
-  <include file="monsters/golem.xml"/>
+  <include file="monsters/golem2.xml"/>
 </sprite>

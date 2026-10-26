@@ -7,7 +7,7 @@ White bubbles which come out of the ground and fill exactly one tile.
     <emitter>
       <property name="position-x" min="0" max="32"/>
       <property name="position-y" min="0" max="48"/>
-      <animation imageset="graphics/particles/bubble_8px.png" width="8" height="8">
+      <animation imageset="graphics/particles/bubble.png" width="8" height="8">
         <frame index="0" delay="50"/>
         <frame index="1" delay="50"/>
         <frame index="2" delay="50"/>

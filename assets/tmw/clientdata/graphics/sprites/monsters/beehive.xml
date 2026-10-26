@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sprite>
-  <imageset name="base" src="graphics/sprites/monsters/beehive.png" width="92" height="150" offsetX="28"/>
+  <imageset name="base" src="graphics/sprites/monsters/beehive.png" width="92" height="150"/>
   <action name="stand" imageset="base">
     <animation>
       <frame index="0"/>

@@ -1,18 +1,27 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Author: Alige, Unknown
+Copyright (C) 2016 Evol Online
+Copyright (C) 2004~2019 The Mana World -->
+
 <effect>
-  <particle position-x="0" position-y="0" position-z="0" lifetime="128">
-    <emitter>
-      <animation imageset="graphics/particles/sparkle.png|W:#e0e0e0,ffffff" width="15" height="15">
-        <sequence start="0" end="3" delay="50"/>
-        <frame index="0" delay="100"/>
-      </animation>
-      <property name="vertical-angle" value="90"/>
-      <property name="power" min="1" max="1"/>
-      <property name="lifetime" min="15" max="25"/>
-      <property name="output" min="1" max="1"/>
-      <property name="position-x" min="-16" max="16"/>
-      <property name="position-y" min="-16" max="16"/>
-      <property name="position-z" min="29" max="40"/>
-    </emitter>
-  </particle>
+    <particle position-x="0"
+              position-y="0"
+              position-z="27"
+              lifetime="150">
+        <emitter>
+            <animation imageset="graphics/particles/sparkles.png|W:#e0e0e0,ffffff" width="15" height="15">
+                <sequence start="0" end="3" delay="50"/>
+                <frame index="0" delay="100"/>
+            </animation>
+            <property name="vertical-angle" value="90"/>
+            <property name="power" value="1.1"/>
+            <property name="lifetime" min="50" max="60"/>
+            <property name="output" value="1"/>
+            <property name="output-pause" value="4"/>
+            <property name="fade-in" min="5" max="10"/>
+            <property name="fade-out" value="15"/>
+            <property name="position-x" min="-12" max="12"/>
+            <property name="position-y" value="32"/>
+        </emitter>
+    </particle>
 </effect>

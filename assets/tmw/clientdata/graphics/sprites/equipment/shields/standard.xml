@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sprite>
-   <imageset name="shield" src="graphics/sprites/equipment/shields/dragon.png" width="64" height="64" />
+   <imageset name="shield" src="graphics/sprites/equipment/shields/leather.png" width="64" height="64" />
 
    <action name="default" imageset="shield">
    </action>

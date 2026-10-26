@@ -13,9 +13,8 @@ retry_with_increasing_wait()
 
     while true; do
         printf "Running %s\n" "$*"
-        # The || keeps a failure from tripping set -e in the caller.
-        local retval=0
-        "$@" || retval=$?
+        "$@"
+        local retval=$?
 
         if [[ $retval -eq 0  ||  $wait_time -gt 16 ]]; then
             break
@@ -71,15 +70,8 @@ function aptget_install {
 }
 
 function clientdata_init {
-    mkdir -p shared
-    if [[ "${PWD##*/}" != clientdata ]]; then
-        ln -sfn "$PWD" ../clientdata
-        check_error $?
-    fi
-    # The tools scripts look for the checkout under its upstream name
-    if [[ "${PWD##*/}" != client-data ]]; then
-        ln -sfn "$PWD" ../client-data
-        check_error $?
-    fi
+    mkdir shared
     cd ..
+    ln -s clientdata client-data
+    check_error $?
 }

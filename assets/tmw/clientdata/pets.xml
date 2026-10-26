@@ -1,5 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Author: 4144
-Copyright (C) 2013 Evol Online -->
+<!-- Author: 4144, Saulc, Jesusalva
+Copyright (C) 2013 Evol Online
+Copyright (C) 2018 TMW2: Moubootaur Legends -->
+
 <pets>
+    <pet id="1002" name="piou">
+        <sprite>monsters/piou.xml</sprite>
+    </pet>
+    <pet id="1005" name="Ratte">
+        <sprite>monsters/ratto.xml</sprite>
+    </pet>
+    <pet id="1022" name="Cute Fluffy">
+        <sprite>monsters/fluffy.xml</sprite>
+    </pet>
+    <pet id="1029" name="Dangerous Duck">
+        <sprite>monsters/duck.xml</sprite>
+    </pet>
+    <pet id="1030" name="Cute Maggot">
+        <sprite>monsters/maggot.xml</sprite>
+    </pet>
+    <pet id="1032" name="Panfilo the Pinkie">
+        <sprite>monsters/pinkie.xml</sprite>
+    </pet>
+    <pet id="1039" name="Nasty Bat">
+        <sprite>monsters/bat.xml</sprite>
+    </pet>
+    <pet id="1049" name="Bhopper Fluffy">
+        <sprite>monsters/bhopfluffy.xml</sprite>
+    </pet>
+    <pet id="1060" name="Forest Shroomy">
+        <sprite>monsters/forestmushroom.xml</sprite>
+    </pet>
+    <pet id="1067" name="Goblin in Fire">
+        <sprite>monsters/firegoblin.xml</sprite>
+    </pet>
+    <pet id="1070" name="Baby Yeti">
+        <sprite>monsters/moggun.xml</sprite>
+    </pet>
+    <pet id="1122" name="Tamed Snake">
+        <sprite>monsters/snake.xml|#664d28,a6673a,dbbc86,ffffff</sprite>
+    </pet>
+    <pet id="1123" name="Aggressive Snake">
+        <sprite>monsters/snake.xml|#585b39,a67c5d,dbc9a9,ffffff</sprite>
+    </pet>
+    <pet id="1182" name="Elemental Fairy">
+        <sprite>monsters/fairy.xml|#0000ff,ff9e00,ff0000,00ff00,ffffff</sprite>
+    </pet>
+    <pet id="1190" name="Toto">
+        <sprite>monsters/pet-dog.xml</sprite>
+    </pet>
+    <pet id="1191" name="Cat">
+        <sprite>monsters/pet-cat.xml</sprite>
+    </pet>
+    <pet id="1192" name="Black Cat">
+        <sprite>monsters/pet-black-cat.xml</sprite>
+    </pet>
+    <pet id="1195" name="Young Dragon">
+        <sprite>monsters/dragon-pet.xml</sprite>
+    </pet>
 </pets>

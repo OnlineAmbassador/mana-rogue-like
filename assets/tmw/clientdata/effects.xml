@@ -1,286 +1,166 @@
-<?xml version="1.0"?>
-<!--
-   Effects definition file.
-   Copyright (C) 2011-2012  The Mana World Development Team
-
-   This file is part of The Mana World client data.
-
-   This file is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   any later version.
-
-   This file is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this file. If not, see <http://www.gnu.org/licenses/>.
-
-   See also documentation at: http://doc.manasource.org/effects.xml
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Authors: 4144, Alige, Hal9000, Reid, Saulc, jesusalva
+Copyright (C) 2010-2014 Evol Online 
+Copyright (C) 2018 TMW2: Moubootaur Legends
 -->
+
 <being-effects>
-  <!-- Core effect - used by the TMW magic system - do not change the ids
-        without testing the corresponding magic spells. -->
-  <effect id="0" audio="system/levelup.ogg" particle="graphics/particles/levelup.particle.xml"/>
-  <effect id="1" audio="system/skillup02.ogg" particle="graphics/particles/skillup.particle.xml"/>
-  <effect id="2" particle="graphics/particles/magic.generic.xml"/>
-  <!-- life -->
-  <effect id="3" particle="graphics/particles/magic.white.xml"/>
-  <!-- war -->
-  <effect id="4" particle="graphics/particles/magic.black.xml"/>
-  <!-- transmute -->
-  <effect id="5" particle="graphics/particles/magic.red.xml"/>
-  <!-- nature -->
-  <effect id="6" particle="graphics/particles/magic.green.xml"/>
-  <!-- astral -->
-  <effect id="7" particle="graphics/particles/magic.blue.xml"/>
-  <!-- dark -->
-  <effect id="8" particle="graphics/particles/magic.darkred.xml"/>
-  <effect id="10" particle="graphics/particles/magic.default.xml"/>
-  <!-- #betsanc (protect) hit | XML animation looks reversed, so end animation has on SFX -->
-  <effect id="11" audio="magic/betsanc-on.ogg" particle="graphics/particles/magic.shield-ends.xml"/>
-  <!--  <effect id="12" particle="graphics/particles/magic.haste.xml"/>-->
-  <effect id="13" particle="graphics/particles/magic.hit.xml"/>
-  <effect id="14" particle="graphics/particles/magic.hit.evil.xml"/>
-  <effect id="15" audio="env/flame.ogg" particle="graphics/particles/fire-burst.xml"/>
-  <effect id="16" audio="env/flame.ogg" particle="graphics/particles/fire-explosion.xml"/>
-  <!-- #ingrav (lightning strike) hit -->
-  <effect id="17" audio="magic/ingrav1.ogg" particle="graphics/particles/lightning1.xml"/>
-  <effect id="18" audio="magic/ingrav2.ogg" particle="graphics/particles/lightning2.xml"/>
-  <effect id="19" audio="magic/ingrav3.ogg" particle="graphics/particles/lightning3.xml"/>
-  <effect id="20" audio="system/warp.ogg" particle="graphics/particles/magic.teleport.xml"/>
-  <!--  <effect id="20" particle="graphics/particles/magic.barrier.xml"/> -->
-  <effect id="21" particle="graphics/particles/pentagram-buildup-short.xml"/>
-  <effect id="22" particle="graphics/particles/pentagram-burst.xml"/>
-  <effect id="23" audio="env/zap.ogg" particle="graphics/particles/zap.xml"/>
-  <effect id="24" audio="system/warp.ogg" particle="graphics/particles/magic.teleport.xml"/>
-  <!-- #kaflosh (rain) hit -->
-  <effect id="25" audio="magic/kaflosh.ogg" particle="graphics/particles/rain.xml"/>
-  <effect id="26" particle="graphics/particles/hit.particle.xml"/>
-  <!-- #frillyar (arrow hail) hit -->
-  <effect id="27" audio="magic/frillyar.ogg" particle="graphics/particles/arrow-hail.xml"/>
-  <effect id="28" audio="system/crit.ogg" particle="graphics/particles/crit.particle.xml"/>
-  <effect id="30" audio="system/boom.ogg" particle="graphics/particles/large-explosion.xml"/>
-  <effect id="31" audio="system/crit.ogg" particle="graphics/particles/medium-explosion.xml"/>
-  <effect id="32" particle="graphics/particles/medium-smoke.xml"/>
-  <!-- Illia quest effects -->
-  <effect id="33" audio="env/spawn_burst.ogg" particle="graphics/particles/medium-blindinglight.xml"/>
-  <effect id="34" particle="graphics/particles/channelling-raise.particle.xml"/>
-  <effect id="35" particle="graphics/particles/channelling-cast.particle.xml"/>
-  <effect id="36" particle="graphics/particles/enchanted-door-broken.particle.xml"/>
-  <effect id="37" particle="graphics/particles/dark-teleport.particle.xml"/>
-  <effect id="38" audio="magic/astral.ogg" particle="graphics/particles/evil-summon.particle.xml"/>
-  <effect id="39" audio="env/spawn_burst.ogg" particle="graphics/particles/ground-spawn.particle.xml"/>
-  <effect id="40" particle="graphics/particles/blue-magic-cast.particle.xml"/>
-  <effect id="41" particle="graphics/particles/magic-blue-teleport.particle.xml"/>
-  <effect id="42" particle="graphics/particles/magic-dark-explosion.particle.xml"/>
-  <effect id="43" audio="monsters/pumpkin/pumpkin-explosion.ogg" particle="graphics/particles/monster-pumpkin-explosion.particle.xml"/>
-  <effect id="44" particle="graphics/particles/object-getitem.particle.xml"/>
-  <effect id="45" sprite="icons/quest-start.xml"/>
-  <effect id="46" sprite="icons/quest-continue.xml"/>
-  <effect id="47" audio="system/quest-up.ogg" particle="graphics/particles/questup.particle.xml"/>
-  <effect id="48" audio="system/quest-done.ogg" particle="graphics/particles/questdone.particle.xml"/>
-  <effect id="49" particle="graphics/particles/hug.particle.xml"/>
-  <effect id="50" particle="graphics/particles/hellblaze.particle.xml"/>
-  <effect id="51" audio="system/warning.ogg"/>
-  <effect id="52" audio="punch.ogg"/>
-  <effect id="53" particle="graphics/particles/epilogue.xml" audio="epilogue.ogg"/>
-  <effect id="54" audio="oblivion.ogg"/>
-  <effect id="55" particle="graphics/particles/snowball-crit.particle.xml"/>
-  <effect id="56" audio="system/levelup-long.ogg" particle="graphics/particles/levelup.particle.xml"/>
-  <effect id="57" particle="graphics/particles/channelling-raise-red.particle.xml"/>
-  <effect id="58" particle="graphics/particles/channelling-raise-blue.particle.xml"/>
-  <effect id="59" particle="graphics/particles/channelling-cast-red.particle.xml"/>
-  <effect id="60" particle="graphics/particles/channelling-cast-blue.particle.xml"/>
-  <effect id="61" particle="graphics/particles/red-magic-cast.particle.xml"/>
-  <effect id="69" audio="env/fart.ogg" particle="graphics/particles/python.xml"/>
-  <effect id="70" audio="monsters/slime/slime-hurt1.ogg" particle="graphics/particles/monster-rotter-hit.xml"/>
-  <effect id="71" audio="monsters/rotter/crit1.ogg" particle="graphics/particles/monster-rotter-crit.xml"/>
-  <effect id="72" particle="graphics/particles/rainbow-hit.xml"/>
-  <effect id="73" audio="system/boom.ogg" particle="graphics/particles/rainbow-crit.xml"/>
-  <effect id="74" audio="weapons/gun/gun-hit1.ogg"/>
-  <effect id="75" audio="system/warp.ogg" particle="graphics/particles/magic-blue-teleport.particle.xml"/>
-  <!-- #betsanc (protect) end -->
-  <effect id="111" audio="magic/betsanc-off.ogg" particle="graphics/particles/magic.shield.xml"/>
-  <!-- <effect id="112" particle="graphics/particles/magic.haste-ends.xml"/>-->
-  <!-- <effect id="113" particle="graphics/particles/magic.barrier-ends.xml"/> -->
-  <effect id="114" particle="graphics/particles/electricity.red.xml"/>
-  <effect id="115" particle="graphics/particles/electricity.blue.xml"/>
-  <effect id="116" particle="graphics/particles/heat.xml"/>
-  <!-- Interactive Object Animations -->
-  <effect id="300" particle="graphics/particles/gate-opening.xml"/>
-  <effect id="301" audio="env/casket-lid.ogg" particle="graphics/particles/casket-lid.xml"/>
-  <effect id="302" audio="monsters/casket-monster/casket-monster.ogg" particle="graphics/particles/casket-monster.xml"/>
-  <!-- Monster attack particle effects -->
-  <effect id="400" audio="env/flame.ogg" particle="graphics/particles/monster-goblin-firebreath.particle.xml"/>
-  <effect id="401" audio="env/flame.ogg" particle="graphics/particles/monster-lizard-firebreath.particle.xml"/>
-  <!-- Add the data needed for the electricity boss battle. -->
-  <effect id="402" audio="system/ship-bell2.ogg"/>
-  <effect id="403" audio="monsters/bat/bat-hit1.ogg"/>
-  <effect id="404" audio="env/tiny_bell.ogg"/>
-  <effect id="405" audio="weapons/beam/beam-crit.ogg" particle="graphics/particles/beam-crit.xml"/>
-  <effect id="406" audio="env/rubber_duck.ogg"/>
-  <effect id="407" audio="env/flame.ogg"/>
-  <effect id="408" audio="env/zap.ogg"/>
-  <!-- magic v3 spells -->
-  <!-- #discharge -->
-  <effect id="500" audio="magic/discharge.ogg" particle="graphics/particles/fire-burst.xml"/>
-  <!-- #confringo (wand) cast -->
-  <effect id="501" audio="magic/generic.ogg" particle="graphics/particles/magic.generic.xml"/>
-  <!-- #itenplz (aggravate) cast -->
-  <effect id="503" audio="magic/nature.ogg" particle="graphics/particles/magic.green.xml"/>
-  <!-- #itenplz (aggravate) hit -->
-  <effect id="504" audio="magic/itenplz-hit.ogg" particle="graphics/particles/magic.default.xml"/>
-  <!-- #miteyo (detect magic) cast -->
-  <effect id="505" audio="magic/generic.ogg" particle="graphics/particles/magic.generic.xml"/>
-  <!-- #miteyo (detect magic) hit -->
-  <effect id="506" audio="magic/detect_magic.ogg" particle="graphics/particles/magic.default.xml"/>
-  <!-- #abizit (magic experience) cast -->
-  <effect id="507" audio="magic/default_magic.ogg" particle="graphics/particles/magic.default.xml"/>
-  <!-- #flar (flare dart) cast -->
-  <effect id="508" audio="magic/war.ogg" particle="graphics/particles/magic.default.xml"/>
-  <!-- (grow plant) cast -->
-  <effect id="510" audio="magic/nature.ogg" particle="graphics/particles/magic.grow-plant.xml"/>
-  <!-- (grow plant) spawn -->
-  <effect id="511" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #lum (lesser heal) cast -->
-  <effect id="512" audio="magic/inma.ogg" particle="graphics/particles/magic.white.xml"/>
-  <!-- #lum (lesser heal) hit -->
-  <effect id="513" audio="magic/inma.ogg" particle="graphics/particles/magic.white.xml"/>
-  <!-- #chiza (magic blade) cast -->
-  <effect id="514" audio="magic/war.ogg" particle="graphics/particles/magic.black.xml"/>
-  <!-- #gole (make sulphur) cast -->
-  <effect id="516" audio="magic/transmute.ogg" particle="graphics/particles/magic.red.xml"/>
-  <!-- #kalmurk (summon maggot) cast -->
-  <effect id="517" audio="magic/astral.ogg" particle="graphics/particles/magic.astral-summon.xml"/>
-  <!-- #kalmurk (summon maggot) spawn -->
-  <effect id="518" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #parum (transmute wood) cast -->
-  <effect id="519" audio="magic/transmute.ogg" particle="graphics/particles/magic.red.xml"/>
-  <!-- #frillyar (arrow hail) cast -->
-  <effect id="520" audio="magic/war.ogg" particle="graphics/particles/magic.black.xml"/>
-  <!-- #asorm (astral barrier) cast -->
-  <effect id="521" audio="magic/astral.ogg" particle="graphics/particles/magic.blue.xml"/>
-  <!-- #asorm (astral barrier) hit -->
-  <effect id="522" audio="magic/default_magic.ogg" particle="graphics/particles/magic.default.xml"/>
-  <!-- #asorm (astral barrier) end -->
-  <effect id="523" audio="magic/default_magic.ogg" particle="graphics/particles/magic.default.xml"/>
-  <!-- #inwilt (detect player) cast -->
-  <effect id="524" audio="magic/generic.ogg" particle="graphics/particles/magic.generic.xml"/>
-  <!-- #manpahil (enchant lifestone) cast -->
-  <effect id="525" audio="magic/generic.ogg" particle="graphics/particles/magic.generic.xml"/>
-  <!-- #plugh (flying backpack) cast -->
-  <effect id="526" audio="magic/nature.ogg" particle="graphics/particles/magic.green.xml"/>
-  <!-- #plugh (flying backpack) hit -->
-  <effect id="527" audio="magic/nature.ogg" particle="graphics/particles/magic.generic.xml"/>
-  <!-- #plugh (flying backpack) end -->
-  <effect id="528" audio="magic/nature.ogg" particle="graphics/particles/magic.generic.xml"/>
-  <!-- #joyplim (happy curse) cast -->
-  <effect id="529" audio="magic/nature.ogg" particle="graphics/particles/magic.green.xml"/>
-  <!-- #anwiltyp (hide) cast -->
-  <effect id="530" audio="magic/astral.ogg" particle="graphics/particles/magic.blue.xml"/>
-  <!-- #anwiltyp (hide) hit -->
-  <effect id="531" audio="magic/default_magic.ogg" particle="graphics/particles/magic.default.xml"/>
-  <!-- #anwiltyp (hide) end -->
-  <effect id="532" audio="magic/default_magic.ogg" particle="graphics/particles/magic.generic.xml"/>
-  <!-- #inma (lay on hands) cast -->
-  <effect id="533" audio="magic/inma.ogg" particle="graphics/particles/magic.white.xml"/>
-  <!-- #inma (lay on hands) hit -->
-  <effect id="534" audio="magic/inma.ogg" particle="graphics/particles/magic.white.xml"/>
-  <!-- #ingrav (lightning strike) cast -->
-  <effect id="535" audio="magic/war.ogg" particle="graphics/particles/magic.black.xml"/>
-  <!-- #upmarmu (magic knuckles) cast -->
-  <effect id="536" audio="magic/war.ogg" particle="graphics/particles/magic.black.xml"/>
-  <!-- #kularzufrill (make arrows) cast -->
-  <effect id="537" audio="magic/transmute.ogg" particle="graphics/particles/magic.red.xml"/>
-  <!-- #zukminbirf (make iron powder) cast -->
-  <effect id="538" audio="magic/transmute.ogg" particle="graphics/particles/magic.red.xml"/>
-  <!-- (make shirt/short tanktop/tanktop) cast -->
-  <effect id="539" audio="magic/transmute.ogg" particle="graphics/particles/magic.red.xml"/>
-  <!-- #betsanc (protect) cast -->
-  <effect id="540" audio="magic/nature.ogg" particle="graphics/particles/magic.green.xml"/>
-  <!-- #kaflosh (rain) cast -->
-  <effect id="541" audio="magic/nature.ogg" particle="graphics/particles/magic.green.xml"/>
-  <!-- #chipchip (shear) cast -->
-  <effect id="542" audio="magic/nature.ogg" particle="graphics/particles/magic.green.xml"/>
-  <!-- #kalakarenk (summon fluffy) cast -->
-  <effect id="543" audio="magic/astral.ogg" particle="graphics/particles/magic.astral-summon.xml"/>
-  <!-- #kalakarenk (summon fluffy) spawn -->
-  <effect id="544" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #kalboo (summon mouboo) cast -->
-  <effect id="545" audio="magic/astral.ogg" particle="graphics/particles/magic.astral-summon.xml"/>
-  <!-- #kalboo (summon mouboo) spawn -->
-  <effect id="546" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #kalgina (summon pinky) cast -->
-  <effect id="547" audio="magic/astral.ogg" particle="graphics/particles/magic.astral-summon.xml"/>
-  <!-- #kalgina (summon pinky) spawn -->
-  <effect id="548" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #halhiss (summon snake) cast -->
-  <effect id="549" audio="magic/astral.ogg" particle="graphics/particles/magic.dark-summon.xml"/>
-  <!-- #halhiss (summon snake) spawn -->
-  <effect id="550" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #kalrenk (summon spiky shroom) cast -->
-  <effect id="551" audio="magic/astral.ogg" particle="graphics/particles/magic.astral-summon.xml"/>
-  <!-- #kalrenk (summon spiky shroom) spawn -->
-  <effect id="552" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #helorp (summon wicked shroom) cast -->
-  <effect id="553" audio="magic/astral.ogg" particle="graphics/particles/magic.dark-summon.xml"/>
-  <!-- #helorp (summon wicked shroom) spawn -->
-  <effect id="554" audio="env/spawn_burst.ogg" particle="graphics/particles/pentagram-burst.xml"/>
-  <!-- #phlex (toxic dart) cast -->
-  <effect id="555" audio="magic/astral.ogg" particle="graphics/particles/magic.darkred.xml"/>
-  <!-- Temporary -->
-  <effect id="907" particle="graphics/sprites/npcs/halifax.xml"/>
+    <effect id="0" audio="system/levelup.ogg" particle="graphics/particles/levelup.xml"/> <!-- Level up particle effect. -->
+    <effect id="1" audio="system/skillup.ogg" particle="graphics/particles/skillup.xml"/> <!-- Skill up particle effect. -->
+    <effect id="2"/> <!-- Fail refine/remove card item effect. -->
+    <effect id="3"/> <!-- Success repair/refine/remove card item effect. -->
+    <effect id="4" audio="system/save.ogg" particle="graphics/particles/save.xml"/> <!-- Savepoint particle effect on a player. -->
+    <!-- 5 - already used. one of mix effects -->
+    <effect id="5" particle="graphics/particles/warp.xml"/> <!-- Warp particle effect. -->
+    <!-- 6 - already used. one of mix effects -->
+    <effect id="6" particle="graphics/particles/savepoint-32x32.xml"/> <!-- Savepoint particle effect on the save location. -->
+    <effect id="7" particle="graphics/particles/healing.xml"/> <!-- Healing particle effect. -->
+    <effect id="8" particle="graphics/particles/poison.xml"/> <!-- Poison particle effect. -->
+    <effect id="9" particle="graphics/particles/invisibility.xml"/> <!-- Invisibility particle effect. -->
+    <effect id="10" particle="graphics/particles/afk.xml"/> <!-- AFK particle effect. -->
+    <effect id="11" audio="system/critical.ogg" particle="graphics/particles/critical.xml"/> <!-- Critical hit's explosion particle effect. -->
+    <effect id="12" sprite="effects/queststart.xml"/> <!-- NPC quest-start status effect. -->
+    <effect id="13" sprite="effects/questcontinue.xml"/> <!-- NPC quest-continue status effect. -->
+    <effect id="14" sprite="effects/queststart-low.xml"/> <!-- NPC quest-start status effect (reduced height). -->
+    <effect id="15" sprite="effects/questcontinue-low.xml"/> <!-- NPC quest-continue status effect (reduced height). -->
+    <effect id="16" particle="graphics/particles/hit.xml"/> <!-- Hit's explosion particle effect. -->
+    <effect id="17" audio="system/quest-update.ogg"/> <!-- Updated quest particle effect. -->
+    <effect id="18" audio="system/quest-done.ogg"/> <!-- Finished quest particle effect. -->
+    <effect id="19" particle="graphics/particles/concentration.xml"/> <!-- Concentration particle effect on user. -->
+    <effect id="20" particle="graphics/particles/panels.xml"/> <!-- Particle effect for NPC panels, used to give advice to players. -->
+    <effect id="21" particle="graphics/particles/poison-cloud.xml"/> <!-- Attack animation used by poisoned mushrooms. -->
+    <effect id="22" particle="graphics/particles/treeglow.xml"/> <!-- Tree glowing particle effect. -->
+    <effect id="23" particle="graphics/particles/magic.xml"/> <!-- A magical particle effect. -->
+    <effect id="24" audio="npcs/chest-open.ogg"/> <!-- Chest NPC, open sound effect. -->
+    <effect id="25" audio="npcs/chest-close.ogg"/> <!-- Chest NPC, close sound effect. -->
+    <effect id="26" audio="monsters/piou/spawn1.ogg"/> <!-- Sound for the Rocket Piou NPC. -->
+    <effect id="27" audio="system/event-success.ogg"/> <!-- Sound for successful events in scripts. -->
+    <effect id="28" audio="system/event-fail.ogg"/> <!-- Sound for failed events in scripts. -->
+    <effect id="29" audio="npcs/fishing-cast.ogg"/> <!-- Throwing the bait in the water, in the fishing script. -->
+    <effect id="30" audio="npcs/fishing-bite.ogg"/> <!-- Fish biting the bait, in the fishing script. -->
+    <effect id="33" audio="monsters/piou/hit1.ogg"/> <!-- when clicking the flying piou -->
+    <effect id="34" particle="graphics/particles/python.xml" audio="special/fart.ogg"/> <!-- Gumi's foot -->
+    <effect id="35" audio="system/critical2.ogg" particle="graphics/particles/critical.xml"/> <!-- Critical hit's explosion particle effect. (alt) -->
+    <effect id="36" audio="system/critical.ogg" particle="graphics/particles/hellblaze.particle.xml"/> <!-- Hellblaze (OVH Fire skill) -->
+    <effect id="37" particle="graphics/particles/fire-explosion.xml"/> <!-- ? -->
+    <effect id="38" audio="system/item.ogg"/> <!-- Zegas Barrel inspection -->
 
-  <!-- Emotion Effects -->
-  <effect id="10000" particle="graphics/emotes/disgust.xml"/>
-  <effect id="10001" particle="graphics/emotes/surprise.xml"/>
-  <effect id="10002" particle="graphics/emotes/happy.xml"/>
-  <effect id="10003" particle="graphics/emotes/sad.xml"/>
-  <effect id="10004" particle="graphics/emotes/evil.xml"/>
-  <effect id="10005" particle="graphics/emotes/wink.xml"/>
-  <effect id="10006" particle="graphics/emotes/angel.xml"/>
-  <effect id="10007" particle="graphics/emotes/blush.xml"/>
-  <effect id="10008" particle="graphics/emotes/tongue.xml"/>
-  <effect id="10009" particle="graphics/emotes/grin.xml"/>
-  <effect id="10010" particle="graphics/emotes/upset.xml"/>
-  <effect id="10011" particle="graphics/emotes/perturbed.xml"/>
-  <effect id="10012" particle="graphics/emotes/speech.xml"/>
-  <effect id="10013" particle="graphics/emotes/blah.xml"/>
-  <!--
-    Emote IDs 14-99 are reserved to keep compatibility with ManaPlus client.
-    Leaving similar gap here to keep the effect IDs aligned.
-  -->
-  <effect id="10100" particle="graphics/emotes/meow.xml"/>
-  <effect id="10101" particle="graphics/emotes/laugh.xml"/>
-  <effect id="10102" particle="graphics/emotes/cheerful.xml"/>
-  <effect id="10103" particle="graphics/emotes/love.xml"/>
-  <effect id="10104" particle="graphics/emotes/money.xml"/>
-  <effect id="10105" particle="graphics/emotes/sleep.xml"/>
-  <effect id="10106" particle="graphics/emotes/rest.xml"/>
-  <effect id="10107" particle="graphics/emotes/bothered.xml"/>
-  <effect id="10108" particle="graphics/emotes/afraid.xml"/>
-  <effect id="10109" particle="graphics/emotes/dead.xml"/>
-  <effect id="10110" particle="graphics/emotes/suspicious.xml"/>
-  <effect id="10111" particle="graphics/emotes/melancholy.xml"/>
-  <effect id="10112" particle="graphics/emotes/facepalm.xml"/>
-  <effect id="10113" particle="graphics/emotes/angry.xml"/>
-  <effect id="10114" particle="graphics/emotes/headache.xml"/>
-  <effect id="10115" particle="graphics/emotes/bored.xml"/>
-  <effect id="10116" particle="graphics/emotes/swear.xml"/>
-  <effect id="10117" particle="graphics/emotes/heart.xml"/>
-  <effect id="10118" particle="graphics/emotes/empty.xml"/>
-  <effect id="10119" particle="graphics/emotes/halloween.xml"/>
-  <effect id="10120" particle="graphics/emotes/vicious.xml"/>
-  <effect id="10121" particle="graphics/emotes/joyful.xml"/>
-  <effect id="10122" particle="graphics/emotes/clever.xml"/>
-  <effect id="10123" particle="graphics/emotes/shy.xml"/>
-  <effect id="10124" particle="graphics/emotes/alien.xml"/>
-  <effect id="10125" particle="graphics/emotes/troll.xml"/>
-  <effect id="10126" particle="graphics/emotes/pain.xml"/>
-  <effect id="10127" particle="graphics/emotes/tears.xml"/>
-  <effect id="10128" particle="graphics/emotes/curious.xml"/>
+    <!-- known server special effects
+        162 - snow
+        163 - sakura
+        233 - clouds
+        297 - fireworks
+        299 - fireworks
+        301 - fireworks
+        333 - leaves
+        336 - TUNAPARTY damage affected
+        338 - SL_WIZARD
+        344 - summoned mob
+        408 - baby
+        420 - size changed to medium
+        421 - medium size
+        422 - size changed to big
+        423 - big size
+        438 - KAITE failed
+        450 - doom
+        462 - blocked damage
+        515 - fog
+        516 - clouds2
+        523 - CG_TAROTCARD
+        524 - CG_TAROTCARD
+        525 - CG_TAROTCARD
+        526 - CG_TAROTCARD
+        527 - CG_TAROTCARD
+        528 - CG_TAROTCARD
+        568 - homunculus evolve/levelup
+        608 - cooking
+        609 - cooking
+    -->
 
+    <!--++++++++++++++++++++++++++++++-->
+    <!-- Reserved for TMW2: id 50~250 -->
+    <!--++++++++++++++++++++++++++++++-->
+    <effect id="50" particle="graphics/particles/smoke.xml"/> <!-- Smoke particle effect. -->
+    <effect id="51" particle="graphics/particles/medium-blindinglight.xml"/> <!-- Bug bomb -->
+    <effect id="52" particle="graphics/particles/medium-blindinglight2.xml"/> <!-- Smoke Grenade -->
+    <effect id="53" particle="graphics/particles/torch.xml"/> <!-- Torch and/or small fireball -->
+    <effect id="54" particle="graphics/particles/moonshroom.particle.xml"/> <!-- small little floating stars-->
+    <effect id="55" particle="graphics/particles/demonicmouboo.particle.xml"/>
+    <effect id="56" particle="graphics/particles/largepowercircle.particle.xml"/> <!-- Large zone of magic power raise to the sky -->
+    <effect id="57" particle="graphics/particles/longdemonic.particle.xml"/> <!-- Long dark blue smoke shadow effect-->
+    <effect id="58" particle="graphics/particles/evilaura.particle.xml"/> <!-- evil face -->
+    <effect id="59" particle="graphics/particles/icedfire.particle.xml"/> <!-- blue effect feet to head -->
+    <effect id="60" particle="graphics/particles/magic-shield.xml"/>
+    <effect id="61" particle="graphics/particles/black.particle.xml"/>
+    <effect id="62" particle="graphics/particles/darkblueflame.particle.xml"/> <!-- dark blue torch fire -->
+    <effect id="63" particle="graphics/particles/magic-shield.xml"/> <!-- Aeros Landing -->
+    <effect id="64" particle="graphics/particles/circle-magic-short.xml"/> <!-- Magical Warp Particle -->
+    <effect id="65" particle="graphics/particles/magica-cartola.particle.xml"/> <!-- Golden Particle (short-lived) -->
+    <effect id="66" particle="graphics/particles/pentagram-burst.xml"/> <!-- Summon Circle Particle -->
+    <effect id="67" particle="graphics/particles/pentagram-blacklinedraw.particle.xml"/> <!-- Dark Pentagram Particle -->
+
+    <effect id="150" particle="graphics/particles/healing.xml"/> <!-- Potion particle effect. -->
+
+    <!-- id 162 ~ id 163 reserved -->
+
+    <effect id="310" particle="graphics/particles/circle-magic.xml"/> <!-- A magical circle, which GMs can use -->
+    <effect id="311" audio="special/fanfare.ogg"/> <!-- Boss Fanfare -->
+    <effect id="312" audio="special/nature-thunder.ogg" particle="graphics/particles/lightning-lunovox.xml"/> <!-- A flashing lighting! -->
+
+    <effect id="344" particle="graphics/particles/magic-shield.xml"/> <!-- @summon GM command particle effect. -->
+    <effect id="568" audio="system/skillup.ogg" particle="graphics/particles/homunup.xml"/> <!-- Homunculus level up particle effect. -->
+
+
+    <!--+++++++++++++++++++++++-->
+    <!-- id 700+: Magic Skills -->
+    <!--+++++++++++++++++++++++-->
+
+    <!-- Golden magical particle effect: ??? -->
+    <effect id="700" particle="graphics/particles/magic.golden.xml"/>
+    <!-- White magical particle effect: Buffing -->
+    <effect id="701" particle="graphics/particles/magic.white.xml"/>
+    <!-- Red magical particle effect: Attack -->
+    <effect id="702" particle="graphics/particles/magic.red.xml"/>
+    <!-- Green magical particle effect: Healing -->
+    <effect id="703" particle="graphics/particles/magic.green.xml"/>
+    <!-- Blue magical particle effect. -->
+    <!--effect id="704" particle="graphics/particles/magic.xml"/-->
+
+    <!-- Firebolt 1 -->
+    <effect id="750" particle="graphics/particles/misc.firebolt.xml"/>
+
+    <!--+++++++++++++++++++++++-->
+    <!-- id 800+: Special FXs! -->
+    <!--+++++++++++++++++++++++-->
+
+    <!-- Yellow Hit Particles -->
+    <effect id="800" particle="graphics/particles/hit2.xml"/>
+    <!-- Golden Hit Particles -->
+    <effect id="801" particle="graphics/particles/hit3.xml"/>
+    <!-- Blue-ish Hit Particles -->
+    <effect id="802" particle="graphics/particles/hit4.xml"/>
+    <!-- Red-ish Hit Particles -->
+    <effect id="803" particle="graphics/particles/hit5.xml"/>
+
+    <!-- Hit effects -->
+    <effect id="810" particle="graphics/particles/hit.weak.xml"/>
+    <effect id="811" particle="graphics/particles/hit.average.xml"/>
+    <effect id="812" particle="graphics/particles/hit.strong.xml"/>
+    <effect id="813" particle="graphics/particles/hit.verystrong.xml"/>
+
+    <effect id="820" particle="graphics/particles/hit.verystrong.xml" audio="weapons/lightsaber/crit.ogg"/>
+
+    <!--+++++++++++++++++++++++-->
+    <!-- id 5000+: Voicing Sys -->
+    <!--+++++++++++++++++++++++-->
+    <effect id="5000" audio="voice/candor01.ogg"/> <!-- The power which lies at Candor -->
+    <effect id="5001" audio="voice/candor02.ogg"/> <!-- Acknowledges you -->
+    <effect id="5002" audio="voice/candor03.ogg"/> <!-- Rejects you -->
+
+
+    <!--+++++++++++++++++++++++-->
+    <!-- id 10k+: Testing 4144 -->
+    <!--+++++++++++++++++++++++-->
+
+    <effect id="10000" particle="graphics/particles/spirit.xml"/> <!-- Spirit ball. -->
 </being-effects>

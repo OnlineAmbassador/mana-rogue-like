@@ -1,84 +1,1231 @@
-<?xml version="1.0"?>
-<!-- Copyright 2011 The Mana World Development Team -->
-<!--
-  See documentation at:
-    Mana:     http://doc.manasource.org/skills.xml/
-    ManaPlus: https://manaplus.org/skills.xml
--->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Authors: 4144, Reid, Jesusalva, dangerDuck
+Copyright (C) 2010-2013 Evol Online
+Copyright (C) 2018 TMW2 -->
+
 <skills>
-  <!-- Note: All descriptions need to be *very* short because Manaplus doesn't offer much space to show them. -->
-  <set name="Basic">
-    <!-- Basic Skills are available right from the start. -->
-    <skill id="1" name="Emote" icon="graphics/skills/basic/emote.png" description="Allows you to use emotes." alwaysVisible="true"/>
-    <skill id="2" name="Trade" icon="graphics/skills/basic/trade.png" description="You can trade with others." alwaysVisible="true"/>
-    <skill id="3" name="Party" level="1" icon="graphics/skills/basic/party.png" description="Join a Party." alwaysVisible="true"/>
-    <skill id="3" name="Party" level="2" icon="graphics/skills/basic/party.png" description="Join or create a Party." alwaysVisible="true"/>
-  </set>
-  <set name="Magic">
-    <!-- The descriptions might look obvious but players should get a small hint that -->
-    <!-- e.g. without level 2 in Life Magic they can't cast level 2 spells of that school. -->
-    <skill id="340" name="Magic" level="1" icon="graphics/skills/magic/basic.png" description="Cast Lvl 1 magic spells."/>
-    <skill id="340" name="Magic" level="2" icon="graphics/skills/magic/basic.png" description="Cast Lvl 2 magic spells."/>
-    <skill id="340" name="Magic" level="3" icon="graphics/skills/magic/basic.png" description="Cast Lvl 3 magic spells."/>
-    <skill id="340" name="Magic" level="4" icon="graphics/skills/magic/basic.png" description="Cast Lvl 4 magic spells."/>
-    <skill id="340" name="Magic" level="5" icon="graphics/skills/magic/basic.png" description="Cast Lvl 5 magic spells."/>
-    <skill id="341" name="Life Magic" level="1" icon="graphics/skills/magic/life.png" description="Cast Lvl 1 Life Magic spells."/>
-    <skill id="341" name="Life Magic" level="2" icon="graphics/skills/magic/life.png" description="Cast Lvl 2 Life Magic spells."/>
-    <skill id="341" name="Life Magic" level="3" icon="graphics/skills/magic/life.png" description="Cast Lvl 3 Life Magic spells."/>
-    <skill id="341" name="Life Magic" level="4" icon="graphics/skills/magic/life.png" description="Cast Lvl 4 Life Magic spells."/>
-    <skill id="341" name="Life Magic" level="5" icon="graphics/skills/magic/life.png" description="Cast Lvl 5 Life Magic spells."/>
-    <skill id="342" name="War Magic" level="1" icon="graphics/skills/magic/war.png" description="Cast Lvl 1 War Magic spells."/>
-    <skill id="342" name="War Magic" level="2" icon="graphics/skills/magic/war.png" description="Cast Lvl 2 War Magic spells."/>
-    <skill id="342" name="War Magic" level="3" icon="graphics/skills/magic/war.png" description="Cast Lvl 3 War Magic spells."/>
-    <skill id="342" name="War Magic" level="4" icon="graphics/skills/magic/war.png" description="Cast Lvl 4 War Magic spells."/>
-    <skill id="342" name="War Magic" level="5" icon="graphics/skills/magic/war.png" description="Cast Lvl 5 War Magic spells."/>
-    <skill id="343" name="Transmutation Magic" level="1" icon="graphics/skills/magic/transmutation.png" description="Cast Lvl 1 Transmut. Magic spells."/>
-    <skill id="343" name="Transmutation Magic" level="2" icon="graphics/skills/magic/transmutation.png" description="Cast Lvl 2 Transmut. Magic spells."/>
-    <skill id="343" name="Transmutation Magic" level="3" icon="graphics/skills/magic/transmutation.png" description="Cast Lvl 3 Transmut. Magic spells."/>
-    <skill id="343" name="Transmutation Magic" level="4" icon="graphics/skills/magic/transmutation.png" description="Cast Lvl 4 Transmut. Magic spells."/>
-    <skill id="343" name="Transmutation Magic" level="5" icon="graphics/skills/magic/transmutation.png" description="Cast Lvl 5 Transmut. Magic spells."/>
-    <skill id="344" name="Nature Magic" level="1" icon="graphics/skills/magic/nature.png" description="Cast Lvl 1 Nature Magic spells."/>
-    <skill id="344" name="Nature Magic" level="2" icon="graphics/skills/magic/nature.png" description="Cast Lvl 2 Nature Magic spells."/>
-    <skill id="344" name="Nature Magic" level="3" icon="graphics/skills/magic/nature.png" description="Cast Lvl 3 Nature Magic spells."/>
-    <skill id="344" name="Nature Magic" level="4" icon="graphics/skills/magic/nature.png" description="Cast Lvl 4 Nature Magic spells."/>
-    <skill id="344" name="Nature Magic" level="5" icon="graphics/skills/magic/nature.png" description="Cast Lvl 5 Nature Magic spells."/>
-    <skill id="345" name="Astral Magic" level="1" icon="graphics/skills/magic/astral.png" description="Cast Lvl 1 Astral Magic spells."/>
-    <skill id="345" name="Astral Magic" level="2" icon="graphics/skills/magic/astral.png" description="Cast Lvl 2 Astral Magic spells."/>
-    <skill id="345" name="Astral Magic" level="3" icon="graphics/skills/magic/astral.png" description="Cast Lvl 3 Astral Magic spells."/>
-    <skill id="345" name="Astral Magic" level="4" icon="graphics/skills/magic/astral.png" description="Cast Lvl 4 Astral Magic spells."/>
-    <skill id="345" name="Astral Magic" level="5" icon="graphics/skills/magic/astral.png" description="Cast Lvl 5 Astral Magic spells."/>
-    <skill id="346" name="Dark Magic" level="1" icon="graphics/skills/magic/dark.png" description="Cast Lvl 1 Dark Magic spells."/>
-    <skill id="346" name="Dark Magic" level="2" icon="graphics/skills/magic/dark.png" description="Cast Lvl 2 Dark Magic spells."/>
-    <skill id="346" name="Dark Magic" level="3" icon="graphics/skills/magic/dark.png" description="Cast Lvl 3 Dark Magic spells."/>
-    <skill id="346" name="Dark Magic" level="4" icon="graphics/skills/magic/dark.png" description="Cast Lvl 4 Dark Magic spells."/>
-    <skill id="346" name="Dark Magic" level="5" icon="graphics/skills/magic/dark.png" description="Cast Lvl 5 Dark Magic spells."/>
-  </set>
-  <set name="Focus">
-    <skill id="339" name="Focusing" icon="graphics/skills/focus/focus.png" description="Luca can activate one Focus Skill."/>
-    <skill id="45" name="Mallards Eye" icon="graphics/skills/focus/mallardseye.png" description="Increases accuracy and range."/>
-    <skill id="350" name="Brawling" icon="graphics/skills/focus/brawling.png" description="Your fists hit harder."/>
-    <skill id="351" name="Lucky Counter" icon="graphics/skills/unknown.png" description="???"/>
-    <skill id="352" name="Speed" icon="graphics/skills/focus/speed.png" description="Faster walking and attacking."/>
-    <skill id="353" name="Ailment Resistance" icon="graphics/skills/focus/resistpoison.png" description="Lower chance to get ailments."/>
-    <skill id="354" name="Astral Soul" icon="graphics/skills/focus/astralsoul.png" description="Increases your Magic Attack."/>
-    <skill id="355" name="Raging" icon="graphics/skills/focus/raging.png" description="Higher chance for critical hits."/>
-  </set>
-  <!--
-  <set name="Spells">
+	<set name="Basic">
 		<skill
-			id="420"
-			name="Itenplz"
-			icon="graphics/skills/magic/basic.png"
-			description="Provoke mobs"
-			invokeCmd="#itenplz"
+			id="1"
+			name="Basic"
+			icon="graphics/skills/emote.png"
+			description="Gives you an identity."
+			invokeCmd="@ucp"
 		/>
 		<skill
-			id="457"
-			name="Jande"
-			icon="graphics/skills/magic/basic.png"
-			description="Summons mana guardian. 1x Small Potion"
-			invokeCmd="#jande"
+			id="20031"
+			name="Resync"
+			icon="graphics/skills/life.png"
+			description="Corrects ManaPlus desync (@resync)."
+			alwaysVisible="true"
 		/>
-  </set>
-  -->
+		<skill
+			id="20032"
+			name="Event Warp"
+			icon="graphics/skills/other/warp.png"
+			description="Warps you to event island (during events)."
+			invokeCmd="@toevent"
+			alwaysVisible="true"
+		/>
+		<skill
+			id="20033"
+			name="Crafting"
+			icon="graphics/skills/other/craft.png"
+			description="Craft equipment with special bonuses"
+		/>
+		<!--skill
+			id="20034"
+			name="Change Look"
+			icon="graphics/skills/none.png"
+			description="200 MP. Changes slightly your appearance."
+			invokeCmd="@suplook"
+			alwaysVisible="true"
+		/-->
+		<skill
+			id="20008"
+			name="Cooking"
+			icon="graphics/skills/other/cook.png"
+			description="Prepare cooked food with special bonuses"
+		/>
+		<skill
+			id="20002"
+			name="Super Menu"
+			icon="graphics/skills/none.png"
+			description="Gives access to administrative options."
+			invokeCmd="@super"
+		/>
+		<skill
+			id="20050"
+			name="First Aid"
+			icon="graphics/skills/first_aid.png"
+			description="Minor healing for yourself."
+			castingMissile-particle="graphics/particles/concentration.xml"
+			castingMissile-lifetime="10000"
+			castingMissile-speed="3"
+			castingSrcEffectId="23"
+			dstEffectId="703"
+		/>
+		<skill
+			id="6"
+			name="Provoke"
+			icon="graphics/skills/poison.png"
+			description="Allow provoke a single monster for 10 seconds."
+			castingAnimation="emote.xml"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20003"
+			name="Area provoke"
+			icon="graphics/skills/poison.png"
+			description="Allow provoke many monsters, centered on target."
+			castingAnimation="emote.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="143"
+			name="Fake Death"
+			icon="graphics/skills/other/dead.png"
+			description="Geez, I thought you were a goner for real!"
+			castingAnimation="emote.xml"
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="334"
+			name="Marriage Life force"
+			icon="graphics/skills/other/transf2.png"
+			description="Transfer 10% HP to partner."
+			castingAnimation="emote.xml"
+			castingSrcEffectId="23"
+			dstEffectId="703"
+		/>
+		<skill
+			id="335"
+			name="Marriage Mana flow"
+			icon="graphics/skills/other/transf1.png"
+			description="Transfer 10% MP to partner."
+			castingAnimation="emote.xml"
+			castingSrcEffectId="23"
+			dstEffectId="703"
+		/>
+		<skill
+			id="50"
+			name="Stealing"
+			icon="graphics/skills/other/steal.png"
+			description="Attempt to steal drops from mobs."
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+
+		<skill
+			id="20022"
+			name="Mana Conversion"
+			icon="graphics/skills/other/transf.png"
+			description="Converts HP into MP. Beware, it can kill you!"
+		/>
+
+		<skill
+			id="20079"
+			name="Transfer Mana"
+			icon="graphics/skills/other/transf1.png"
+			description="Transfers up to 100% mana to target."
+		/>
+
+		<skill
+			id="20080"
+			name="Make Trap"
+			icon="graphics/skills/other/trap.png"
+			description="1x Iron Ore. Makes a trap."
+		/>
+
+		<!-- Skills from Legacy Mana Magic -->
+		<skill
+			id="20024"
+			name="Parum"
+			icon="graphics/skills/other/parum.png"
+			description="Transmutate wood into stuff."
+		/>
+
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="215 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="1"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="210 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="2"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="205 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="3"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="200 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="4"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="195 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="5"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="190 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="6"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="185 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="7"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="180 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="8"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="175 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="9"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="170 MP. Transmute stuff into other stuff."
+			invokeCmd="@sk-trans"
+			level="10"
+		/>
+		<skill
+			id="20027"
+			name="Transmutation"
+			icon="graphics/skills/transmutation.png"
+			description="MP + -5/lv. Transmute stuff into other stuff."
+		/>
+		<!-- Passive skills -->
+		<skill
+			id="37"
+			name="Discount"
+			icon="graphics/skills/other/discount.png"
+			description="Discount when purchasing: 5% + 2% per skill level"
+		/>
+		<skill
+			id="38"
+			name="Barter"
+			icon="graphics/skills/other/barter.png"
+			description="Sell items for more money: 5% + 2% per skill level"
+		/>
+		<skill
+			id="39"
+			name="Cart"
+			icon="graphics/skills/other/backpack.png"
+			description="The Cart button on inventory is now enabled."
+		/>
+		<skill
+			id="41"
+			name="Merchant"
+			icon="graphics/skills/other/cart.png"
+			description="Sell items on your cart."
+		/>
+		<skill
+			id="681"
+			name="Backpack Float"
+			icon="graphics/skills/other/bpfloat.png"
+			description="Increase maximum weight."
+		/>
+		<skill
+			id="36"
+			name="Backpack Float 2"
+			icon="graphics/skills/other/bpfloat.png"
+			description="FIXME: Increase maximum weight."
+		/>
+		<!-- TODO status.c:3009 allow guns -->
+		<skill
+			id="43"
+			name="Owl Eye"
+			icon="graphics/skills/other/eye.png"
+			description="I thought it was the same as Archers Eye. I was wrong."
+		/>
+		<skill
+			id="44"
+			name="Archers Eye"
+			icon="graphics/skills/other/eye.png"
+			description="Raise range and Chance to Hit on bows (incl. skills)."
+		/>
+		<skill
+			id="20034"
+			name="Read Ancient Languages"
+			icon="graphics/skills/other/book.png"
+			description="Read stuff in long forgotten languages."
+		/>
+		<skill
+			id="20035"
+			name="Speech"
+			icon="graphics/skills/other/speech.png"
+			description="Learn more while listening to Professor."
+		/>
+		<skill
+			id="20010"
+			name="Special Class Membership"
+			icon="graphics/skills/warrior.png"
+			description="Grants you additional Magic Skill Points."
+		/>
+		<skill
+			id="20078"
+			name="Chanting"
+			icon="graphics/skills/none.png"
+			description="Improves use of magic via chants."
+		/>
+		<skill
+			id="284"
+			name="Dragon Slayer"
+			icon="graphics/skills/wizard/dragon.png"
+			description="Raises attack and defense while fighting dragons. Raise int."
+		/>
+		<skill
+			id="20026"
+			name="Mana Wisdom"
+			icon="graphics/skills/wizard/manaexp.png"
+			description="Increases Mana Experience Gain."
+		/>
+		<skill
+			id="22"
+			name="Divine Protection"
+			icon="graphics/skills/wizard/potion.png"
+			description="Jesus' blessing, extra defense against unholy things."
+			castingAnimation="emote.xml"
+			castingSrcEffectId="23"
+			dstEffectId="701"
+		/>
+		<skill
+			id="20004"
+			name="OVH Fire"
+			icon="graphics/skills/wizard/big_explosion.png"
+			description="Become a living torch."
+		/>
+		<skill
+			id="20009"
+			name="Realm of Drops"
+			icon="graphics/skills/other/drops.png"
+			description="Passive: Monsters may drop a lot more."
+		/>
+		<skill
+			id="20020"
+			name="Study"
+			icon="graphics/skills/other/study.png"
+			description="Obtains info on a monster and RP"
+		/>
+		<skill
+			id="45"
+			name=""
+			icon="graphics/skills/other/trade.png"
+			description=""
+		/>
+		<skill
+			id="53"
+			name="Detoxify"
+			icon="graphics/skills/none.png"
+			description=""
+		/>
+		<skill
+			id="54"
+			name=""
+			icon="graphics/skills/none.png"
+			description=""
+		/>
+		<skill
+			id="68"
+			name=""
+			icon="graphics/skills/none.png"
+			description=""
+		/>
+		<skill
+			id="20081"
+			name="Parlor Trick"
+			icon="graphics/skills/wizard/coldbolt.png"
+			description="A water based parlor trick. Better under rain."
+			castingMissile-particle="graphics/particles/misc.coldbolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+
+	</set>
+	<set name="Physical">
+		<skill
+			id="20048"
+			name="Weapon Overload"
+			icon="graphics/skills/warrior/overload.png"
+			description="Overload the weapon! Damage x2"
+		/>
+		<!-- Common -->
+		<skill
+			id="5"
+			name="Falkon Punch!"
+			icon="graphics/skills/warrior/bash.png"
+			castingMissile-particle="graphics/particles/critical.xml"
+			description="A violent punch. +30% dmg and +5% acc per level."
+		/>
+		<skill
+			id="20071"
+			name="Falkon Punch!"
+			icon="graphics/skills/warrior/bash.png"
+			castingMissile-particle="graphics/particles/critical.xml"
+			description="A violent punch. +30% dmg and +5% acc per level."
+		/>
+		<skill
+			id="42"
+			name="Supreme Attack"
+			icon="graphics/skills/warrior/counter.png"
+			description="Delivers a powerful, charged attack."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="20073"
+			name="Supreme Attack"
+			icon="graphics/skills/warrior/counter.png"
+			description="Delivers a powerful, charged attack."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="148"
+			name="Charged Shot"
+			icon="graphics/skills/other/sharpshooter.png"
+			description="Powerful bowshot."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="20074"
+			name="Charged Shot"
+			icon="graphics/skills/other/sharpshooter.png"
+			description="Powerful bowshot."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="47"
+			name="Arrow Shower"
+			icon="graphics/skills/other/sharpshooter.png"
+			description="Shoots 5 arrows or bullets to the area on your cursor."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="20075"
+			name="Arrow Shower"
+			icon="graphics/skills/other/sharpshooter.png"
+			description="Shoots 5 arrows or bullets to the area on your cursor."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="382"
+			name="Sharpshooter"
+			icon="graphics/skills/other/sharpshooter.png"
+			castingMissile-particle="graphics/particles/critical.xml"
+			description="Focus and do a magical shoot which multihits."
+		/>
+		<skill
+			id="406"
+			name="Ground Strike"
+			icon="graphics/skills/warrior/counter.png"
+			description="Hit the ground for area damage and status effects."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="20072"
+			name="Ground Strike"
+			icon="graphics/skills/warrior/counter.png"
+			description="Hit the ground for area damage and status effects."
+			castingSrcEffectId="23"
+		/>
+		<!-- Paladin -->
+		<skill
+			id="248"
+			name="Last Standing Man"
+			icon="graphics/skills/warrior/lastman.png"
+			description="Increase max HP and holy resistance."
+		/>
+		<skill
+			id="29"
+			name="Increase AGI"
+			icon="graphics/skills/none.png"
+			description=""
+		/>
+		<skill
+			id="33"
+			name="Party Area Defense"
+			icon="graphics/skills/warrior/areadef.png"
+			description="Increase party defense."
+			castingMissile-particle="graphics/particles/magic-shield.xml"
+			dstEffectId="701"
+		/>
+		<skill
+			id="8240"
+			name="Increase Agility"
+			icon="graphics/skills/none.png"
+			description="FIXME: Sacrifice HP for more agility and move speed."
+		/>
+		<skill
+			id="1014"
+			name="Redemption"
+			icon="graphics/skills/none.png"
+			description="FIXME: Suicide with death penalty. Revive party members in a range."
+		/>
+		<!-- Tanker -->
+		<skill
+			id="249"
+			name="Guard"
+			icon="graphics/skills/warrior.png"
+			description="Shield: Chance to block entirely an attack. Stuns you when block is successful."
+			castingSrcEffectId="701"
+		/>
+		<skill
+			id="257"
+			name="Arrow Shield"
+			icon="graphics/skills/warrior/arrowshield.png"
+			description="Shield: Receive less ranged damage, in exchange of move and attack speed."
+			castingSrcEffectId="701"
+		/>
+		<skill
+			id="4"
+			name="Minor HP Recovery"
+			icon="graphics/skills/warrior/hpregen.png"
+			description="Increase standing HP Recovery."
+		/>
+		<skill
+			id="9"
+			name="Minor MP Recovery"
+			icon="graphics/skills/none.png"
+			description="Increase standing MP Recovery."
+		/>
+		<!-- Berserk -->
+		<skill
+			id="61"
+			name="Counter Attack"
+			icon="graphics/skills/warrior/counter.png"
+			description="Block and retaliate attack with double critical rate."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="8"
+			name="Endure"
+			icon="graphics/skills/warrior/endure.png"
+			description="Immune to stun penalty when attacked. Raises MDEF."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="146"
+			name="Final Berserk"
+			icon="graphics/skills/warrior.png"
+			description="ATK +32%, VIT DEF -55% when HP is below 25%. Drains MP."
+		/>
+		<skill
+			id="60"
+			name="Two Hands Mastery"
+			icon="graphics/skills/warrior.png"
+			description="It's time to rage this weapon!"
+		/>
+
+		<!-- Mana Skills -->
+		<skill
+			id="20028"
+			name="Divine Rage"
+			icon="graphics/skills/none.png"
+			description="Berserk: Melee Weapon only. ATK/HIT/ASPD+, FLEE/DEF/MHP-"
+		/>
+		<skill
+			id="150"
+			name="Tactical Retreat"
+			icon="graphics/skills/other/backslide.png"
+			description="Jumps five tiles back to gain some space."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="5014"
+			name="Last Resort"
+			icon="graphics/skills/warrior.png"
+			description="blame Saulc"
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="2023"
+			name="Jump Attack!"
+			icon="graphics/skills/none.png"
+			description="Jumps at an enemy and attacks. Don't let 'em run away!"
+			castingSrcEffectId="23"
+		/>
+
+		<skill
+			id="20068"
+			name="Brawling"
+			icon="graphics/skills/none.png"
+			description="Three powerful consecutive brawn attacks."
+		/>
+		<skill
+			id="20069"
+			name="Bear Strike"
+			icon="graphics/skills/none.png"
+			description="Five powerful consecutive brawn attacks."
+		/>
+		<skill
+			id="20070"
+			name="All In One"
+			icon="graphics/skills/other/transf.png"
+			description="Seven consecutive brawn attacks of diff. elements."
+		/>
+		<skill
+			id="20076"
+			name="Stunning Strike"
+			icon="graphics/skills/none.png"
+			description="Three powerful consecutive brawn attacks with a chance to stun target."
+		/>
+
+	</set>
+	<set name="Magic">
+		<!--
+		<skill
+			id="20011"
+			name="Wizard Mage"
+			icon="graphics/skills/wizard.png"
+			description="You are a member from the Wizard Mage Class."
+		/>
+		-->
+		<!-- Misc -->
+		<skill
+			id="366"
+			name="Accumulate Power"
+			icon="graphics/skills/wizard.png"
+			description="Sightly increase next magical attack power."
+			castingSrcEffectId="700"
+		/>
+		<skill
+			id="18"
+			name="Nature Wall"
+			icon="graphics/skills/none.png"
+			description="Creates several short-lived pikpiks to push back and attack enemies."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="2443"
+			name="Fire Walk"
+			icon="graphics/skills/none.png"
+			description="Pursuers will burn their feet, o admirable one."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="383"
+			name="Wind Walk"
+			icon="graphics/skills/none.png"
+			description="Makes you walk faster"
+			castingSrcEffectId="23"
+			dstEffectId="701"
+		/>
+		<skill
+			id="20021"
+			name="Mana Bomb"
+			icon="graphics/skills/wizard/generic.png"
+			description="Uses all mana to attack."
+			castingMissile-particle="graphics/particles/misc.coldbolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="820"
+		/>
+
+		<!-- Priest -->
+		<skill
+			id="20051"
+			name="Healing"
+			icon="graphics/skills/first_aid.png"
+			description="Minor healing for the wounded."
+			castingMissile-particle="graphics/particles/concentration.xml"
+			castingMissile-lifetime="10000"
+			castingMissile-speed="3"
+			castingSrcEffectId="23"
+			dstEffectId="703"
+		/>
+		<skill
+			id="20052"
+			name="Magnum Healing"
+			icon="graphics/skills/first_aid.png"
+			description="Healing for all allies in range. Req. Lifestone."
+			castingMissile-particle="graphics/particles/concentration.xml"
+			castingMissile-lifetime="10000"
+			castingMissile-speed="3"
+			castingSrcEffectId="23"
+			dstEffectId="703"
+		/>
+		<skill
+			id="20077"
+			name="Resurrection"
+			icon="graphics/skills/first_aid.png"
+			description="Resurrects a fallen comrade. Req. Lifestone."
+			castingMissile-particle="graphics/particles/concentration.xml"
+			castingMissile-lifetime="10000"
+			castingMissile-speed="3"
+			castingSrcEffectId="23"
+			dstEffectId="703"
+		/>
+
+		<!-- Sage -->
+		<skill
+			id="278"
+			name="Action Casting"
+			icon="graphics/skills/wizard/freecast.png"
+			description="Allows to move and attack while casting."
+		/>
+		<skill
+			id="157"
+			name="Energy Coating"
+			icon="graphics/skills/wizard/energycoat.png"
+			description="Raises damage reduction but eats MP."
+			castingSrcEffectId="23"
+		/>
+
+		<!-- Weapon Improvement -->
+		<skill
+			id="280"
+			name="Fire Weapon"
+			icon="graphics/skills/wizard/firesword.png"
+			description="Switch attack element to fire. 70% Success Chance."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="281"
+			name="Ice Weapon"
+			icon="graphics/skills/wizard/icesword.png"
+			description="Switch attack element to ice. 70% Success Chance."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="282"
+			name="Wind Weapon"
+			icon="graphics/skills/wizard/windsword.png"
+			description="Switch attack element to wind. 70% Success Chance."
+			castingSrcEffectId="23"
+		/>
+		<skill
+			id="283"
+			name="Earth Weapon"
+			icon="graphics/skills/wizard/earthsword.png"
+			description="Switch attack element to earth. 70% Success Chance."
+			castingSrcEffectId="23"
+		/>
+
+		<!-- Wizard -->
+		<!-- Rank 1 -->
+		<skill
+			id="20053"
+			name="Frost Diver"
+			icon="graphics/skills/wizard/coldbolt.png"
+			description="Standard Ice Attack."
+			castingMissile-particle="graphics/particles/misc.coldbolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20056"
+			name="Napalm Beat"
+			icon="graphics/skills/wizard/napalm.png"
+			description="Weak basic AoE attack with holy damage."
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20059"
+			name="Magic Strike"
+			icon="graphics/skills/magic.png"
+			description="Standard Wind Magic Attack"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20062"
+			name="Meteor Strike"
+			icon="graphics/skills/wizard/earthspike.png"
+			description="Standard Earth Attack."
+			castingMissile-particle="graphics/particles/misc.earthbolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20065"
+			name="Fire Bolt"
+			icon="graphics/skills/wizard/firebolt.png"
+			description="Standard Fire Attack."
+			castingMissile-particle="graphics/particles/misc.firebolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<!-- Rank 2 -->
+		<skill
+			id="20054"
+			name="Frost Nova"
+			icon="graphics/skills/magic.png"
+			description="Freeze the area around target and inflict damage"
+			castingSrcEffectId="23"
+			dstEffectId="701"
+		/>
+		<skill
+			id="20057"
+			name="Holy Light"
+			icon="graphics/skills/magic.png"
+			description="Standard Holy Attack"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20060"
+			name="Lightning Bolt"
+			icon="graphics/skills/wizard/thunderbolt.png"
+			description="Standard Wind Attack."
+			castingMissile-particle="graphics/particles/lightning-lunovox.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20063"
+			name="Meteor Shower"
+			icon="graphics/skills/wizard/earthspike.png"
+			description="AoE Earth Attack."
+			castingMissile-particle="graphics/particles/misc.earthbolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20066"
+			name="Fire ball"
+			icon="graphics/skills/wizard/big_explosion.png"
+			description="Attack enemy with fireball."
+			castingMissile-particle="graphics/particles/flame-particle.xml"
+			castingMissile-lifetime="10000"
+			castingMissile-speed="3"
+			castingSrcEffectId="23"
+			dstEffectId="11"
+		/>
+		<!-- Rank 3 -->
+		<skill
+			id="20055"
+			name="Nilfheim"
+			icon="graphics/skills/magic.png"
+			description="Causes a frozen hell at target area."
+			castingSrcEffectId="23"
+			dstEffectId="701"
+		/>
+		<skill
+			id="20058"
+			name="Judgement"
+			icon="graphics/skills/magic.png"
+			description="AoE Centered Holy Attack."
+			castingSrcEffectId="23"
+			dstEffectId="701"
+		/>
+		<skill
+			id="20061"
+			name="Tempest Storm"
+			icon="graphics/skills/wizard/thunderbolt.png"
+			description="AoE Wind Attack."
+			castingMissile-particle="graphics/particles/misc.thunderbolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20064"
+			name="Gaia Break"
+			icon="graphics/skills/wizard/earthspike.png"
+			description="AoE centered earth attack, Allies DEF+"
+			castingMissile-particle="graphics/particles/misc.earthbolt.xml"
+			castingSrcEffectId="23"
+			dstEffectId="702"
+		/>
+		<skill
+			id="20067"
+			name="Armageddon"
+			icon="graphics/skills/magic.png"
+			description="Area fire obliteration."
+			castingSrcEffectId="23"
+			dstEffectId="701"
+		/>
+	</set>
+
+	<set name="Other">
+	<!-- Monster Skills -->
+	<skill
+		id="170"
+		name="NPC_CRITICALSLASH"
+		icon="graphics/skills/none.png"
+		description="Defense disregard attack"
+		dstEffectId="11"
+	/>
+	<skill
+		id="173"
+		name="NPC_SELFDESTRUCTION"
+		icon="graphics/skills/none.png"
+		description="Suicide bombing"
+		dstEffectId="11"
+	/>
+	<skill
+		id="175"
+		name="NPC_SUICIDE"
+		icon="graphics/skills/none.png"
+		description="Suicide"
+	/>
+	<skill
+		id="176"
+		name="NPC_POISON"
+		icon="graphics/skills/none.png"
+		description="Poison Attack"
+		dstEffectId="11"
+	/> <!-- NOTE: Cannot use effect 8 here -->
+	<skill
+		id="196"
+		name="NPC_SUMMONSLAVE"
+		icon="graphics/skills/none.png"
+		description="Follower Summons"
+	/>
+	<skill
+		id="197"
+		name="NPC_EMOTION"
+		icon="graphics/skills/none.png"
+		description="Emotion"
+	/>
+	<skill
+		id="209"
+		name="NPC_SUMMONMONSTER"
+		icon="graphics/skills/none.png"
+		description="Monster Summons"
+	/>
+	</set>
+
+	<!-- Mana Skills -->
+	<include name="mana_skills.xml"/>
+
+
+	<!-- Homunculus Skills -->
+	<set name="H">
+	<!-- Mage -->
+		<skill
+			id="8013"
+			name="Heaven Fury"
+			icon="graphics/skills/homun/0003.png"
+			description="Rand-cast bolts."
+		/>
+		<skill
+			id="8047"
+			name="Heaven Fury"
+			icon="graphics/skills/homun/0003.png"
+			description="Multiple bolts of random elements."
+		/>
+	<!-- Tanker -->
+		<skill
+			id="8045"
+			name="Healing Touch"
+			icon="graphics/skills/homun/0004.png"
+			description="Weak healing on homunculus and player."
+		/>
+		<skill
+			id="8031"
+			name="Magnum Explosion"
+			icon="graphics/skills/homun/0005.png"
+			description="Extreme damage, stun, and knockback."
+		/>
+		<skill
+			id="8056"
+			name="Magnum Explosion"
+			icon="graphics/skills/homun/0005.png"
+			description="Extreme damage, stun, and knockback."
+		/>
+	<!-- Agile -->
+		<skill
+			id="8002"
+			name="Time to Flee!"
+			icon="graphics/skills/homun/0007.png"
+			description="Raises walk speed."
+		/>
+		<skill
+			id="8048"
+			name="Time to Flee!"
+			icon="graphics/skills/homun/0007.png"
+			description="Raises walk speed for homun and caster."
+		/>
+
+	<!-- Strong -->
+		<skill
+			id="8008"
+			name="Bloodlust"
+			icon="graphics/skills/homun/0009.png"
+			description="Raise ATK and leech HP."
+		/>
+		<skill
+			id="8006"
+			name="Survival Order!"
+			icon="graphics/skills/homun/0006.png"
+			description="Raises vit for both."
+		/>
+		<skill
+			id="8050"
+			name="Bloodlust"
+			icon="graphics/skills/homun/0009.png"
+			description="Raise Homun ATK, may leech HP."
+		/>
+		<skill
+			id="8049"
+			name="Survival Order!"
+			icon="graphics/skills/homun/0006.png"
+			description="Raises vit for both."
+		/>
+
+	<!-- Lucky -->
+		<skill
+			id="8009"
+			name="Falkon Kick!"
+			icon="graphics/skills/homun/0010.png"
+			description="Like Bash, can also multihit."
+		/>
+		<skill
+			id="8051"
+			name="Falkon Kick!"
+			icon="graphics/skills/homun/0010.png"
+			description="Attack(s) with higher crit chance."
+		/>
+		<skill
+			id="8046"
+			name="Little Wonders"
+			icon="graphics/skills/homun/0011.png"
+			description="Dispels poison, curse, silence, confusion and blind."
+		/>
+
+	<!-- Accurate -->
+		<skill
+			id="8044"
+			name="Skill X"
+			icon="graphics/skills/homun/0012.png"
+			description="Target mob gives bonus exp. (No boss)."
+		/>
+
+	<!-- All Rounder -->
+		<skill
+			id="8007"
+			name="Immortality"
+			icon="graphics/skills/homun/0015.png"
+			description="Passive, raises HC HP/Regen/DEF."
+		/>
+		<skill
+			id="8011"
+			name="Avoidance"
+			icon="graphics/skills/homun/0002.png"
+			description="Raise HC Flee/Evasion."
+		/>
+		<skill
+			id="8053"
+			name="Avoidance"
+			icon="graphics/skills/homun/0002.png"
+			description="Temporarily boost HC Flee/Evasion."
+		/>
+	<!-- Superior -->
+		<skill
+			id="8010"
+			name="Time to Kill!"
+			icon="graphics/skills/homun/0013.png"
+			description="Raise HC ATK and ASPD."
+		/>
+		<skill
+			id="8052"
+			name="Time to Kill!"
+			icon="graphics/skills/homun/0013.png"
+			description="Raise HC ATK and ASPD."
+		/>
+		<skill
+			id="8015"
+			name="I am Superior!"
+			icon="graphics/skills/homun/0015.png"
+			description="Passive small HC STR/INT+."
+		/>
+	<!-- Generic -->
+		<skill
+			id="8020"
+			name="Blinding Mist"
+			icon="graphics/skills/homun/0014.png"
+			description="AOE blind, nature dmg."
+		/>
+		<skill
+			id="8054"
+			name="Blinding Mist"
+			icon="graphics/skills/homun/0014.png"
+			description="AOE blind, nature dmg."
+		/>
+		<skill
+			id="8003"
+			name="Magic King"
+			icon="graphics/skills/homun/0015.png"
+			description="Passive, Raises Max SP and SP Regen."
+		/>
+		<skill
+			id="8032"
+			name="Sacred Duck Lord"
+			icon="graphics/skills/homun/0014.png"
+			description="+FLEE, ASPD ~ Holydmg."
+		/>
+		<skill
+			id="8055"
+			name="Sacred Duck Lord"
+			icon="graphics/skills/homun/0014.png"
+			description="+FLEE, ASPD. Attacks may become Holy."
+		/>
+	<!-- Management -->
+		<skill
+			id="243"
+			name="Summon Homunculus"
+			icon="graphics/skills/life.png"
+			description="Makes a Homunculus come to existence."
+		/>
+		<skill
+			id="244"
+			name="Homunculus Sleep"
+			icon="graphics/skills/life.png"
+			description="Tells Homunculus to sleep in your backpack."
+		/>
+		<skill
+			id="247"
+			name="Resurrect Homunculus"
+			icon="graphics/skills/life.png"
+			description="Brings a killed Homunculus back to life."
+		/>
+	</set>
+
+	<!-- Guild Skills -->
+	<set name="G">
+		<skill
+			id="10004"
+			name="Guild Size"
+			icon="graphics/skills/guild/GuildExtension.png"
+			description="Increases max member on guild."
+		/>
+		<skill
+			id="10005"
+			name=""
+			icon="graphics/skills/none.png"
+			description=""
+		/>
+		<skill
+			id="10006"
+			name="Guild Courage"
+			icon="graphics/skills/guild/Courage.png"
+			description="5x5 Permanent Strength Boost"
+		/>
+		<skill
+			id="10008"
+			name="Guild Alertness"
+			icon="graphics/skills/homun/0008.png"
+			description="5x5 Permanent Agility Boost"
+		/>
+
+		<skill
+			id="10010"
+			name="Guild's Plan Of Attack"
+			icon="graphics/skills/guild/BattlePlans.png"
+			description="18x18 Temp. STR/DEX/INT Boost"
+		/>
+		<skill
+			id="10011"
+			name="Guild Regeneration"
+			icon="graphics/skills/guild/AngelLight.png"
+			description="12x12 HP and MP recovery"
+		/>
+		<skill
+			id="10012"
+			name="Guild Angelical Grace"
+			icon="graphics/skills/guild/AngelLight.png"
+			description="12x12 Near full HP recovery"
+		/>
+		<skill
+			id="10013"
+			name="Guild Emergency Convocation"
+			icon="graphics/skills/none.png"
+			description="Recall all guild members. Also needs 1x LOF Coin."
+		/>
+
+		<!-- Our hacks -->
+		<skill
+			id="20011"
+			name="Guild's Power"
+			icon="graphics/skills/guild/BoostAll.png"
+			description="Increase all stats of guild mates. Range: 3+Lv. Duration: 40s+5s/Lv"
+		/>
+		<skill
+			id="20012"
+			name="Angel Light"
+			icon="graphics/skills/guild/AngelLight.png"
+			description="Area Regeneration for guild mates. Range: 12. Duration: 8s+1s/Lv"
+		/>
+		<skill
+			id="20013"
+			name="Blessing of Defense"
+			icon="graphics/skills/guild/BlessingOfDefense.png"
+			description="Increase def of guild mates. Range: 4+Lv. Duration: 40s+5s/Lv. Power +4/Lv."
+		/>
+		<skill
+			id="20014"
+			name="Battle Plans"
+			icon="graphics/skills/guild/BattlePlans.png"
+			description="Increase STR/INT/DEX of guild mates. Range: 4+Lv. Duration: 40s+5s/Lv. Power +1/Lv."
+		/>
+		<skill
+			id="20015"
+			name="Damage Improvement"
+			icon="graphics/skills/guild/DamageImprovement.png"
+			description="Increase dmg of guild mates. Range: 4+Lv. Duration: 40s+5s/Lv. Power 5+5/Lv."
+		/>
+		<skill
+			id="20016"
+			name="Critical Fortune"
+			icon="graphics/skills/guild/CriticalFortune.png"
+			description="Increase crit rate of guild mates. Range: 1+Lv. Duration: 30s+5s/Lv. Power +8%/Lv."
+		/>
+		<skill
+			id="20017"
+			name="Blessing of Immortality"
+			icon="graphics/skills/guild/BlessingOfImmortality.png"
+			description="Auto-Revive guild mates if they die. Dispels on revive. Range: 2+Lv. Duration: 25s+10s/Lv. HP +10%/Lv."
+		/>
+		<skill
+			id="20018"
+			name="Maximize Damage"
+			icon="graphics/skills/guild/MaxiDamage.png"
+			description="Weapon of Party and Guild Members always do max damage. Range: 1+Lv. Duration: +60s/Lv."
+		/>
+		<skill
+			id="20019"
+			name="Improved MP Regen"
+			icon="graphics/skills/guild/MPRegen.png"
+			description="Double MP regen rate of party and guild. Range: +1/Lv. Duration: 20s+10s/Lv."
+		/>
+
+	</set>
+
 </skills>

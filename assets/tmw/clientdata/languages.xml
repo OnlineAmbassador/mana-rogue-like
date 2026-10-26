@@ -1,5 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Author: 4144
+<!-- Author: 4144, Jesusalva
 Copyright (C) 2017 Evol Online -->
+
 <languages>
+    <lang
+        id="0"
+        name="Default"
+        po="en"
+        icon="00.xml"
+    />
+    <lang
+        id="1"
+        name="Portuguese (Brazilian)"
+        po="pt_BR"
+        icon="pt_BR.xml"
+    />
+    <lang
+        id="2"
+        name="French"
+        po="fr"
+        icon="fr.xml"
+    />
+    <lang
+        id="3"
+        name="German"
+        po="de"
+        icon="de.xml"
+    />
+    <lang
+        id="4"
+        name="Spanish (Castilian)"
+        po="es"
+        icon="es.xml"
+    />
+    <lang
+        id="5"
+        name="Russian"
+        po="ru"
+        icon="00.xml"
+    />
 </languages>

@@ -1,7 +1,3718 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    See here for documentation: http://manaplus.org/quests.xml
--->
+<!-- Authors: 4144, Alige, Hal9000, Reid, Saulc, Jesusalva
+Copyright (C) 2012-2013 Evol Online
+Copyright (C) 2018 TMW2: Moubootaur Legends -->
 <quests>
-  <include name="quests/_include.xml"/>
+	<!-- PROLOGUE QUESTS -->
+	<var id="1">
+		<effect map="002-1.tmx" npc="407" value="0" effect="12"/>
+		<effect map="002-1.tmx" npc="407" value="1,2" effect="13"/>
+		<quest name="Warm Smelly Clothes" group="Ship" incomplete="0">
+			<name>Warm Smelly Clothes</name>
+			<text>Magic Arpan is waiting for you. Go speak to him.</text>
+			<text></text>
+			<text>To speak to an NPC, click on it with your mouse or select it using the N key and then chat using the T key.</text>
+			<text></text>
+			<questgiver>Magic Arpan</questgiver>
+			<coordinates x="39" y="33">La Johanne, Second Deck. (39,33)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Warm Smelly Clothes" group="Ship" incomplete="1">
+			<name>Warm Smelly Clothes</name>
+			<text>You need to open the chest and take the clothes from it.</text>
+			<text></text>
+			<text>To perform this action, click on the chest with your mouse or select it with the N key and then interact with it using the T key.</text>
+			<text></text>
+			<questgiver>Magic Arpan</questgiver>
+			<coordinates x="41" y="37">La Johanne, Second Deck. (41,37)</coordinates>
+			<reward>Smelly sailor clothes.</reward>
+		</quest>
+		<quest name="Warm Smelly Clothes" group="Ship" incomplete="2">
+			<name>Warm Smelly Clothes</name>
+			<text>To open your inventory, use the F3 key or use your mouse to select it in the above menu in your client.</text>
+			<text></text>
+			<text>When your inventory is open, you can equip an item by selecting it and clicking 'Equip'. You can do the same to remove an item by clicking on 'Unequip'.</text>
+			<text></text>
+			<text>Items have different effects. Some will heal you, some can be used as weapons or armor and some can be sold for gold.</text>
+			<text></text>
+			<questgiver>Magic Arpan</questgiver>
+			<coordinates x="39" y="33">La Johanne, Second Deck. (39,33)</coordinates>
+			<reward>Smelly sailor clothes.</reward>
+		</quest>
+		<quest name="Warm Smelly Clothes" group="Ship" complete="3">
+			<name>Warm Smelly Clothes</name>
+			<text>You wore the clothes you found in the chest that Magic Arpan showed you.</text>
+			<text></text>
+			<text>They are old and a bit smelly but the warm sensation they give makes you feel at home.</text>
+			<text></text>
+			<questgiver>Magic Arpan</questgiver>
+			<coordinates x="39" y="33">La Johanne, Second Deck. (39,33)</coordinates>
+			<reward text1="[Creased Shirt]" text2="[Creased Shorts]">A {@@1} and old {@@2}.</reward>
+		</quest>
+	</var>
+	<var id="2">
+		<effect map="002-1.tmx" npc="401" value="0,1" effect="14"/>
+		<quest name="Contrabandist Aboard" group="Ship" incomplete="1">
+			<name>Contrabandist Aboard</name>
+			<text>You found a contrabandist aboard Nard's Ship!</text>
+			<text>He needs your help. Bring him the many items he is asking for!</text>
+			<wiki></wiki>
+			<wiki>Alige wants:</wiki>
+			<wiki>* 30 Cactus Potions</wiki>
+			<wiki>* 12 Bread</wiki>
+			<wiki>* 12 Cheese</wiki>
+			<wiki>* 12 Cherry Cakes</wiki>
+			<wiki>*  8 Tonori Water</wiki>
+			<wiki>*  6 Haste Potions</wiki>
+			<wiki>*  6 Strength Potions</wiki>
+			<wiki>*  2 Yellow Dyes</wiki>
+			<wiki>*  2 Blue Dyes</wiki>
+			<wiki>* 7,500 gp</wiki>
+			<wiki></wiki>
+			<text></text>
+			<questgiver>Alige</questgiver>
+			<level>42</level>
+		</quest>
+		<quest name="Contrabandist Aboard" group="Ship" complete="2">
+			<name>Contrabandist Aboard</name>
+			<text>I helped Alige. He claims to be lawful now, but I don't quite believe it.</text>
+			<text>Well, it is hard to get Artis goods around here, so perhaps I did the right thing?</text>
+			<text></text>
+			<questgiver>Alige</questgiver>
+			<reward text1="[Crozenite Four-Leaf Amulet]">{@@1}.</reward>
+		</quest>
+	</var>
+	<var id="3">
+		<effect map="002-1.tmx" npc="403" value="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14" effect="12"/>
+		<quest name="Ratto Extermination" group="Ship" incomplete="1,2,3,4,5,6,7,8,9,10,11,12,13,14">
+			<name>Ratto Extermination</name>
+			<text>Peter needs your help to clear La Johanne's hold of some monsters.</text>
+			<text></text>
+			<text>Speak to him when you will have time to help him.</text>
+			<text></text>
+			<questgiver>Peter</questgiver>
+			<coordinates x="33" y="26">La Johanne, Second Deck.</coordinates>
+			<reward>Gold.</reward>
+			<level>8</level>
+		</quest>
+		<quest name="Ratto Extermination" group="Ship" complete="15">
+			<name>Ratto Extermination</name>
+			<text>You helped Peter cleaning the bottom of the ship. He rewarded you with some gold.</text>
+			<text></text>
+			<text>However, it looks like the rattos can come back again. Although Peter won't pay you anymore...</text>
+			<text></text>
+			<questgiver>Peter</questgiver>
+			<coordinates x="33" y="26">La Johanne, Second Deck. (60,35)</coordinates>
+			<reward>Gold.</reward>
+		</quest>
+	</var>
+	<!-- var 4 is free -->
+	<var id="5">
+		<effect map="002-1.tmx" npc="100" value="0" effect="14"/>
+		<quest name="Chef's Secret Blade" group="Ship" complete="1">
+			<name>Chef's Secret Blade</name>
+			<text>You found a sharp knife on a table in one of the rooms of the ship.</text>
+			<text></text>
+			<text>It looks like its previous owner used it to prepare delicious dishes for the crew.</text>
+			<text></text>
+			<coordinates x="50" y="24">La Johanne, Second Deck. (50,24)</coordinates>
+			<reward text1="[Knife]">{@@1}.</reward>
+		</quest>
+	</var>
+	<var id="6">
+		<effect map="002-1.tmx" npc="407" value="0" effect="14"/>
+		<quest name="My Money" group="Ship" complete="1">
+			<name>My Money</name>
+			<text>Arpan was holding my money.</text>
+			<text></text>
+			<wiki>You will need to be level 5 or higher to do this quest.</wiki>
+			<text>It is a small amount, but hey, it is better than nothing!.</text>
+			<text></text>
+			<questgiver>Magic Arpan</questgiver>
+			<coordinates x="39" y="33">La Johanne, Second Deck. (39,33)</coordinates>
+			<reward>35 GP.</reward>
+			<level>4</level>
+		</quest>
+	</var>
+	<var id="7">
+		<effect map="002-1.tmx" npc="418" value="0,1" effect="12"/>
+		<quest name="Good Food makes a Good Crew" group="Ship" incomplete="1">
+			<name>Good Food makes a Good Crew</name>
+			<text>Chef Gado is preparing food for the crew, but supplies are running thin.</text>
+			<text text1="[Piou Legs]">I should help him by getting 11 {@@1}.</text>
+			<text></text>
+			<questgiver>Chef Gado</questgiver>
+			<coordinates x="27" y="28">La Johanne, Second Deck (25,41)</coordinates>
+			<reward>A pair of gloves!</reward>
+		</quest>
+		<quest name="Good Food makes a Good Crew" group="Ship" complete="2">
+			<name>Good Food makes a Good Crew</name>
+			<text>Chef Gado went back to cooking, and I'll be back to hunting.</text>
+			<text></text>
+			<questgiver>Chef Gado</questgiver>
+			<coordinates x="27" y="28">La Johanne, Second Deck (25,41)</coordinates>
+			<reward text1="[Creased Gloves]">1x {@@1}, 100 GP.</reward>
+		</quest>
+	</var>
+	<var id="8">
+		<effect map="002-1.tmx" npc="101" value="0,2" effect="12"/>
+		<quest name="Scary Pious" group="Ship" incomplete="1">
+			<name>Scary Pious</name>
+			<text>Dan is afraid of Pious. I should help him by killing 12 Pious.</text>
+			<text></text>
+			<text>Progress: {@@var2}/12 Pious</text>
+			<text></text>
+			<questgiver>Dan</questgiver>
+			<coordinates x="32" y="32">La Johanne, Second Deck. (32,32)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Scary Pious" group="Ship" incomplete="2">
+			<name>Scary Pious</name>
+			<text>The Pious are gone, now I need to say Dan he can sleep in peace at night.</text>
+			<text></text>
+			<questgiver>Dan</questgiver>
+			<coordinates x="32" y="32">La Johanne, Second Deck. (32,32)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Scary Pious" group="Ship" complete="3">
+			<name>Scary Pious</name>
+			<text>He gave me a nice outfit for my efforts.</text>
+			<text></text>
+			<questgiver>Dan</questgiver>
+			<coordinates x="32" y="32">La Johanne, Second Deck. (32,32)</coordinates>
+			<reward text1="[Creased Boots]">1x {@@1}</reward>
+		</quest>
+	</var>
+	<var id="9" nowiki="1">
+		<quest name="Drunken Bottle" group="Ship" complete="1">
+			<name>Drunken Bottle</name>
+			<text>You got an empty bottle from a drunken sailor.</text>
+			<text>They should stop drinking!</text>
+		</quest>
+	</var>
+
+	<!-- GENERAL QUESTS -->
+	<var id="11">
+		<quest name="World's Hero" group="General" complete="1">
+			<name>World's Hero</name>
+			<text>Complete nearly every quest in game and get famous for that.</text>
+			<text></text>
+			<questgiver>Milly</questgiver>
+			<coordinates x="111" y="66">Hurnscald</coordinates>
+		</quest>
+	</var>
+	<var id="12">
+		<effect map="002-1.tmx" npc="404" value="0" effect="12"/>
+		<effect map="002-3.tmx" npc="406" value="0" effect="12"/>
+		<effect map="012-2.tmx" npc="315" value="4,5,6" effect="12"/>
+		<effect map="012-2.tmx" npc="315" value="6" effect="13"/>
+		<quest name="★ - Who Am I?" group="General" incomplete="0">
+			<wiki>**WARNING: This is the main quest in the game!**</wiki>
+			<wiki>**It's not only lengthy, but it have long dialogs!**</wiki>
+			<wiki>**YOU HAVE BEEN WARNED!**</wiki>
+			<wiki></wiki>
+			<name>Who Am I?</name>
+			<text>I better find out who I am.</text>
+			<text>I mean, it is annoying when all you know is your name.</text>
+			<text></text>
+			<text>I bet the ##BShip's captain##b can help.</text>
+		</quest>
+		<quest name="★ - Who Am I?" group="General" incomplete="1">
+			<name>Who Am I?</name>
+			<text>In Tulimshar, after getting out of the ship, I should visit the first building.</text>
+			<text>It is the townhall. ##BLua##b should be able to help me.</text>
+			<text></text>
+		</quest>
+		<quest name="★ - Seek Of An Identity" group="General" incomplete="2">
+			<name>In Seek Of True Identity</name>
+			<text>I was born at Halinarzo but moved at just 4.</text>
+			<text>I must get some levels before attempting such dangerous journey.</text>
+			<text></text>
+			<text>##BLua##b will guide me in this endeavor.</text>
+			<text>I should talk to her if I forget what I should do now.</text>
+			<text></text>
+			<text>* Base Level 20</text>
+			<text>* Job Level 7</text>
+			<text>* 1500 GP</text>
+			<text>* Tulimshar Guard Card</text>
+			<text>* Monster Hunt License</text>
+			<text>* Crafting License</text>
+			<text>* Fishing Rod</text>
+			<text>* Lifestone Pendant</text>
+			<wiki></wiki>
+			<wiki>You also need to sleep at the Inn before completing the quest.</wiki>
+			<wiki>For the boss, aim to kill it as soon as possible.</wiki>
+		</quest>
+		<quest name="★ - Seek Of An Identity" group="General" incomplete="3">
+			<name>In Seek Of True Identity</name>
+			<text>Lua said I should use the money to travel to Hurnscald and meet the mayor.</text>
+			<text>However, given ship travels are so expensive...</text>
+			<text>Perhaps I should finish some sidequests around here first?</text>
+			<text></text>
+		</quest>
+		<quest name="★ - Seek Of An Identity" group="General" incomplete="4">
+			<name>In Seek Of True Identity</name>
+			<text>Airlia, in the city hall, told me the mayor is out.</text>
+			<text>Well, nobody in the city hall seems to be the mayor.</text>
+			<text></text>
+			<text>But I need to talk to the Mayor!</text>
+			<text>She doesn't seems to want to tell me where he went, though.</text>
+			<text></text>
+			<text>What can I do? Should I look somewhere?</text>
+			<text>Or perhaps talking to her until she says where the mayor went?</text>
+			<text>Alas, who's the mayor, anyway? How will I know when I see them?</text>
+			<text></text>
+			<wiki>* Do as she said: Keep coming back later and poking Airlia.</wiki>
+		</quest>
+		<quest name="★ - A Hand Washes The Other" group="General" incomplete="5">
+			<name>A Hand Washes The Other</name>
+			<text>Hurnscald's mayor, Rakinorf, should be in the Inn upstairs.</text>
+			<text>That's usually an area restricted to sponsors, but they did an exception.</text>
+			<text></text>
+		</quest>
+		<quest name="★ - A Hand Washes The Other" group="General" incomplete="6">
+			<name>A Hand Washes The Other</name>
+			<text>Hurnscald's mayor, Rakinorf, is a complicated man.</text>
+			<text>I should use those Return Potions to reach Halin before they expire.</text>
+			<text></text>
+			<text>Once there, I should look for the Library.</text>
+			<text></text>
+		</quest>
+		<quest name="★ - Who Am I?" group="General" incomplete="7">
+			<name>In Seek Of True Identity</name>
+			<text>Halinarzo's Librarian asked for three hours.</text>
+			<text>I should do some bandit extermination in the canyon, meanwhile.</text>
+			<text></text>
+		</quest>
+		<quest name="★ - Who Am I?" group="General" incomplete="8">
+			<name>In Seek Of True Identity</name>
+			<text>I listen the real story about missing documents.</text>
+			<text>I should talk to the librarian again.</text>
+			<text></text>
+		</quest>
+		<!-- Was: A Greater Purpose -->
+		<quest name="★ - A Thing Called Family" group="General" incomplete="9">
+			<name>It's Not About Me</name>
+			<text>I listen the real story about missing documents.</text>
+			<text>It was not really epic, it just says the only failure Andrei Sakar ever did.</text>
+			<text>Glad to know he is a person like us. (I hope.)</text>
+			<text></text>
+			<text>Anyway, I should go to Hurnscald and talk to the Mayor about reaching the World Edge.</text>
+		</quest>
+		<quest name="★ - A Thing Called Family" group="General" incomplete="10">
+			<name>It's Not About Me</name>
+			<text>I should go to Nivalis, talk with the Blue Sage for help.</text>
+			<text></text>
+		</quest>
+		<quest name="★ - A Thing Called Family" group="General" incomplete="11">
+			<name>It's Not About Me</name>
+			<text>I should go to Frostia and deliver a letter to King Gelid. He will know what to do next.</text>
+			<text></text>
+		</quest>
+		<quest name="★ - The Sage Hunters" group="General" incomplete="12">
+			<name>The Sage Hunters</name>
+			<text>Still in search of my family, I was involved in some conspiracy or other.</text>
+			<text>Seems like someone is looking to get the sages out of picture.</text>
+			<text></text>
+			<text>I also learned incredible information about the World... Death.</text>
+			<text>My next stop is Frostia's Townhall.</text>
+		</quest>
+		<quest name="★ - The Sage Hunters" group="General" incomplete="13">
+			<name>The Sage Hunters</name>
+			<text>Gelid Frozenheart, King of Frostia, welcomed me.</text>
+			<text>And Frostia is said to be the less receptive town...</text>
+			<text>Well, the guard certainly was rude.</text>
+			<text></text>
+			<text>He gave me some Real Estate Credits, and I should now book</text>
+			<text>a small apartment in the Inn.</text>
+		</quest>
+		<quest name="★ - The Sage Hunters" group="General" incomplete="14">
+			<name>The Sage Hunters</name>
+			<text>I should get base level 52 and job level 24.</text>
+			<text>Said next mission will be very dangerous.</text>
+			<text>I'm not sure I can finish it ##BEven at minimum required level##b</text>
+			<text></text>
+			<text>Just to be safe, I could try getting a better level.</text>
+		</quest>
+		<quest name="★ - The Sage Hunters" group="General" incomplete="15">
+			<name>The Sage Hunters</name>
+			<text>I was assigned a reconnaissance mission.</text>
+			<text>Investigate a haunted or cursed abandoned old village...</text>
+			<text>...Or something. The King will lead me the way.</text>
+			<text></text>
+			<text>I do not have a good feeling about this.</text>
+			<text>I should not only be careful with the traps,</text>
+			<text>But healing items and potions are a must.</text>
+			<text></text>
+			<text>If possible, I know a good level makes the difference.</text>
+		</quest>
+		<quest name="★ - Dark Clouds In Horizon" group="General" incomplete="16">
+			<name>Dark Clouds In Horizon</name>
+			<text>I've found out Isbamuth, grand-grand-grand...nephew of the Monster King.</text>
+			<text></text>
+			<text>He seems to be raging against the Monster King themselves.</text>
+			<text>Of course, nobody currently likes the Monster King</text>
+			<text>but he wants to succeed as the Monster King.</text>
+			<text></text>
+			<text>I also found out about the history of the Monster King</text>
+			<text>And about Homunculus, artificial lifeforms.</text>
+			<text>I've even got one myself. Time to report back.</text>
+			<text></text>
+			<text>I'm not sure if King Gelid will be pleased with this.</text>
+		</quest>
+		<quest name="★ - Dark Clouds In Horizon" group="General" incomplete="17">
+			<name>Dark Clouds In Horizon</name>
+			<text>King Gelid ordered me to deliver a letter to LoF Mayors.</text>
+			<text></text>
+			<text>I should hurry.</text>
+			<text>The Townhall is in LoF's Noble District, the uppermost area.</text>
+			<text></text>
+			<text>Usually it is closed, but I think I can enter it there.</text>
+		</quest>
+		<quest name="★ - The Stolen Item" group="General" incomplete="18">
+			<name>The Stolen Item</name>
+			<text>An item was stolen from LoF's Witch, Lalica.</text>
+			<text></text>
+			<text>I should hurry to Elenium Mines and capture her.</text>
+			<text>Also, I need to retrieve the stolen item.</text>
+			<text>Supposedly, it is small, red, round and shiny.</text>
+			<text></text>
+			<text>Kenton advised me to be ready, at least level 72.</text>
+			<text></text>
+			<text>Are the mines really so dangerous?</text>
+		</quest>
+		<quest name="★ - The Stolen Item" group="General" incomplete="19">
+			<name>The Stolen Item</name>
+			<text>The thief has been dealt with.</text>
+			<text>Something tells me I'll meet the Lightbringer again.</text>
+			<text></text>
+			<text>I should report back to Kenton.</text>
+		</quest>
+		<quest name="★ - The World's Curse" group="General" incomplete="20">
+			<name>The World's Curse</name>
+			<text>Kenton has allowed me to use an Airship behind LoF's Townhall.</text>
+			<text>I need to take it to visit the World's Edge.</text>
+			<text></text>
+			<text>Upon arrival, the Alliance has set an outpost north of it.</text>
+			<text>I should talk with the guard responsible for it.</text>
+		</quest>
+		<quest name="★ - The World's Curse" group="General" incomplete="21">
+			<name>The World's Curse</name>
+			<text>The current hero will lead a siege on the Fortress Town.</text>
+			<text></text>
+			<text>I could help if I feel like doing so, after all,</text>
+			<text>I need to find clues inside the town.</text>
+			<text></text>
+			<text>And inside, means the town must be free of monsters.</text>
+		</quest>
+		<quest name="★ - The Secret of Mana" group="General" incomplete="22">
+			<name>The Secret of Mana</name>
+			<text>I should explore the encampment on the southeast.</text>
+			<text></text>
+			<text>I can find it in the Fortress Island eastern caves.</text>
+			<text>There's a tunnel, but I now have the magic key for it.</text>
+			<text></text>
+			<text>What will I find there? Will my parents still be alive?</text>
+		</quest>
+		<quest name="★ - The Secret of Mana" group="General" complete="23">
+			<name>The Secret of Mana</name>
+			<text>This quest is now complete.</text>
+		</quest>
+	</var>
+	<var id="13">
+		<effect map="005-5.tmx" npc="126" value="0" effect="12"/>
+		<effect map="003-3.tmx" npc="126" value="0" effect="12"/>
+		<effect map="009-3.tmx" npc="126" value="0" effect="12"/>
+		<effect map="012-1.tmx" npc="126" value="0" effect="12"/>
+		<effect map="017-3.tmx" npc="126" value="0" effect="12"/>
+		<effect map="020-2.tmx" npc="126" value="0" effect="12"/>
+		<quest name="Pride of Money" group="General" complete="1">
+			<name>Pride of Money</name>
+			<text>You are now registered in the Merchant Guild.</text>
+			<text>This Guild offers storage and bank services.</text>
+			<text></text>
+			<questgiver>Banker</questgiver>
+			<coordinates x="101" y="37">Tulimshar, Merchant Guild. (101,37)</coordinates>
+			<reward>Merchant Guild access.</reward>
+		</quest>
+	</var>
+	<var id="14">
+		<quest name="Friendly Players" group="General" complete="1">
+			<name>Friendly Players</name>
+			<text>After paying the taxes, I'm now allowed to create small parties for raids.</text>
+			<text>With a small group of friends, we can grow a lot!</text>
+			<text></text>
+			<text>Later I can ask him to buy the license to create Guilds.</text>
+			<text>A guild is harder to manage, but there are various benefits in being a Guild Leader.</text>
+			<text></text>
+			<questgiver>Estard</questgiver>
+			<reward>Create Social Groups</reward>
+		</quest>
+	</var>
+	<var id="15">
+		<quest name="Grand Hunter Quest" group="General" incomplete="1">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Aidan to conduct an extermination.</text>
+			<text text1="[@@m1030|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Aidan</questgiver>
+			<coordinates x="95" y="97">Tulimshar (95,97)</coordinates>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="2">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Jacob to conduct an extermination.</text>
+			<text text1="[@@m1122|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Lieutenant Jacob</questgiver>
+			<coordinates x="71" y="24">Halinarzo (71,24)</coordinates>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="4">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Lufix to conduct an extermination.</text>
+			<text text1="[@@m1060|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Lufix</questgiver>
+			<coordinates x="68" y="74">Hurnscald (68,74)</coordinates>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="5">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Hinnak to conduct an extermination.</text>
+			<text text1="[@@m1132|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Hinnak</questgiver>
+			<coordinates x="105" y="30">Hurnscald (105,30)</coordinates>
+			<reward text1="[Pink Helmet]">{@@1}</reward>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="6">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Miler to conduct an extermination.</text>
+			<text text1="[@@m1070|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Miler, Winterlands</questgiver>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="7">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Serge to conduct an extermination.</text>
+			<text text1="[@@m1022|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Serge, Nivalis</questgiver>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="8">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Leona to conduct an extermination.</text>
+			<text text1="[@@m1123|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Leona, Lilit</questgiver>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="9">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Sarah to conduct an extermination.</text>
+			<text text1="[@@m1029|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Sarah, Tulimshar</questgiver>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="10">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Arkim to conduct an extermination.</text>
+			<text text1="[@@m1039|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Arkim, Hurnscald</questgiver>
+		</quest>
+		<quest name="Grand Hunter Quest" group="General" incomplete="11">
+			<name>Grand Hunter Quest</name>
+			<text>I promised Dimond to conduct an extermination.</text>
+			<text text1="[@@m1195|@@]">Progress: {@@var2}/10000 {@@1}.</text>
+			<text></text>
+			<questgiver>Dimond, Land of Fire</questgiver>
+		</quest>
+	</var>
+	<var id="16">
+		<quest name="Transmutation Magic" group="Magic" incomplete="1,2,3,4">
+			<name>Transmutation Magic</name>
+			<text>Auldsbel needs help to transmute stuff.</text>
+			<text></text>
+			<questgiver>Auldsbel</questgiver>
+			<coordinates x="32" y="24">Magic Academy.</coordinates>
+		</quest>
+		<quest name="Transmutation Magic" group="Magic" complete="5">
+			<name>Transmutation Magic</name>
+			<text>Auldsbel needs help to transmute stuff.</text>
+			<text></text>
+			<questgiver>Auldsbel</questgiver>
+			<coordinates x="32" y="24">Magic Academy.</coordinates>
+		</quest>
+	</var>
+	<var id="17">
+		<quest name="Grand Collector" group="General" incomplete="0">
+			<name>Grand Collector</name>
+			<text>Can you collect every piece of equipment ingame?</text>
+			<text>This is an insane quest, don't do it.</text>
+			<text></text>
+			<text>##1##BWARNING:##b You need to wait further releases to continue this quest!##0</text>
+			<text></text>
+			<questgiver>Royal Fairy</questgiver>
+			<coordinates x="135" y="106">Land Of Fire.</coordinates>
+			<reward>Bragging Rights</reward>
+		</quest>
+		<quest name="Grand Collector" group="General" complete="262143">
+			<name>Grand Collector</name>
+			<text>You were insane enough to collect every piece of equipment ingame.</text>
+			<text>How much time did you spent doing this, anyway?</text>
+			<text></text>
+			<questgiver>Royal Fairy</questgiver>
+			<coordinates x="135" y="106">Land Of Fire.</coordinates>
+			<reward>Bragging Rights</reward>
+		</quest>
+	</var>
+	<var id="18">
+		<quest name="Easter Eggs" group="General" complete="1">
+			<name>Easter Eggs</name>
+			<text>So many secret places! Secret features! Things to learn on your own!</text>
+			<text></text>
+			<text>Good luck!</text>
+			<text></text>
+			<text></text>
+			<text>Secrets found: {@@var3}/??</text>
+		</quest>
+	</var>
+	<var id="19">
+		<quest name="Summoning Magic" group="Magic" incomplete="1,2">
+			<name>Summoning Magic</name>
+			<text>Sagratha can teach summoning magic.</text>
+			<text></text>
+			<questgiver>Sagratha</questgiver>
+		</quest>
+		<quest name="Summoning Magic" group="Magic" complete="3,4,5">
+			<name>Summoning Magic</name>
+			<text>Sagratha can teach summoning magic.</text>
+			<text></text>
+			<questgiver>Sagratha</questgiver>
+		</quest>
+	</var>
+	<var id="20">
+		<quest name="Impregnable Fortress Incursion" group="General" incomplete="1,2,3,4,5,6">
+			<name>Impregnable Fortress Incursion</name>
+			<text>I am currently exploring the Impregnable Fortress.</text>
+			<text>There are several trials to get past each floor.</text>
+			<text></text>
+			<questgiver>Commander Povo</questgiver>
+			<level>70</level>
+		</quest>
+		<quest name="Impregnable Fortress Incursion" group="General" complete="7">
+			<name>Impregnable Fortress Incursion</name>
+			<text>I can face off the Monster King in the final floor of the Impregnable Fortress.</text>
+			<text>The lack of an easy access makes me question the fortress design.</text>
+			<text></text>
+			<questgiver>Commander Povo</questgiver>
+			<level>70</level>
+		</quest>
+	</var>
+	<var id="21">
+		<quest name="A Night in Red" group="Magic" incomplete="1">
+			<name>A Night in Red</name>
+			<text>There was a murder.</text>
+			<text>I should find in the Academy, the statue which is different from the others.</text>
+			<text></text>
+			<questgiver>Laura</questgiver>
+		</quest>
+		<quest name="A Night in Red" group="Magic" incomplete="2">
+			<name>A Night in Red</name>
+			<text>There was a murder.</text>
+			<text>I should talk to the Inspector in the Academy Storage.</text>
+			<text></text>
+			<text>* It's not possible to close this quest.</text>
+			<text></text>
+			<questgiver>Laura</questgiver>
+		</quest>
+		<quest name="A Night in Red" group="Magic" complete="3">
+			<name>A Night in Red</name>
+			<text>There was a murder.</text>
+			<text>I should investigate the storeroom more throughly.</text>
+			<text>After this is done, I should report back to the Inspector.</text>
+			<text></text>
+			<text>##1##BWARNING:##b##0</text>
+			<text>* ##BIt's not possible to complete this quest yet.##b</text>
+			<text></text>
+			<questgiver>Laura</questgiver>
+		</quest>
+	</var>
+	<var id="23">
+		<quest name="★ - The Final Showdown" group="General" incomplete="1">
+			<name>The Final Showdown</name>
+			<text>I must attend the next High Council meeting.</text>
+			<text>If I miss the next session, who knows when next one will be?</text>
+			<text></text>
+			<questgiver>Commander Povo</questgiver>
+		</quest>
+		<quest name="★ - The Final Showdown" group="General" incomplete="2">
+			<name>The Final Showdown</name>
+			<text>I can talk to Cassia in Aeros to fight in the Final Showdown.</text>
+			<text>There is no contigency: If I try alone and fail, the world may perish!</text>
+			<text></text>
+			<wiki>* The Moubootaur was allowed shut down the game server if the players challenging him fail to win.</wiki>
+			<wiki></wiki>
+			<questgiver>The High Council</questgiver>
+		</quest>
+		<quest name="★ - The Final Showdown" group="General" complete="3">
+			<name>The Final Showdown</name>
+			<text>If you are reading this, you helped defeating the Moubootaur.</text>
+			<text>So... Congrats?</text>
+			<text>(I didn't thought this to be possible)</text>
+			<text>(You can now use @gm to become a Super Player)</text>
+			<text></text>
+			<questgiver>The High Council</questgiver>
+		</quest>
+	</var>
+
+	<!-- CANDOR QUESTS -->
+	<var id="31">
+		<quest name="Saxso Chest" group="Candor" complete="1">
+			<name>Saxso Chest</name>
+			<text>I managed to open the chest in Saxso's house.</text>
+			<text>Getting the key from the Saxso Ghost took me some time.</text>
+			<text></text>
+			<coordinates x="31" y="79">Candor Island, Saxso's House.</coordinates>
+			<reward text1="[Tooth Necklace]">{@@1}</reward>
+		</quest>
+	</var>
+	<var id="32">
+		<effect map="005-1.tmx" npc="119" value="0,1" effect="12"/>
+		<effect map="005-1.tmx" npc="119" value="3" effect="12"/>
+		<quest name="Hide And Seek" group="Candor" incomplete="2">
+			<name>Hide And Seek</name>
+			<text>Find all the children for Ayasha. They're in the Island.</text>
+			<text></text>
+			<questgiver>Ayasha</questgiver>
+			<coordinates x="52" y="81">Candor Island. (52,81)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Hide And Seek" group="Candor" incomplete="3">
+			<name>Hide And Seek</name>
+			<text>You found all childrens, go report to Ayasha.</text>
+			<text></text>
+			<questgiver>Ayasha</questgiver>
+			<coordinates x="52" y="81">Candor Island. (52,81)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Hide And Seek" group="Candor" complete="4">
+			<name>Hide And Seek</name>
+			<text>I helped Ayasha to find the children.</text>
+			<text></text>
+			<questgiver>Ayasha</questgiver>
+			<coordinates x="52" y="81">Candor Island. (52,81)</coordinates>
+			<reward>30 EXP and 50 GP</reward>
+		</quest>
+	</var>
+	<var id="33">
+		<effect map="005-4.tmx" npc="433" value="0,1,2" effect="12"/>
+		<quest name="Tolchi's Request" group="Candor" incomplete="1,2">
+			<name>Tolchi's Request</name>
+			<text>I am helping Tolchi, a weapon craftswoman, to find materials.</text>
+			<text></text>
+			<questgiver>Tolchi</questgiver>
+			<coordinates x="25" y="41">Candor Island, Armor Shop. (25,41)</coordinates>
+			<reward>Gold and Experience.</reward>
+		</quest>
+		<quest name="Tolchi's Request" group="Candor" complete="3">
+			<name>Tolchi's Request</name>
+			<text>I helped Tolchi with the materials she needed.</text>
+			<text></text>
+			<questgiver>Tolchi</questgiver>
+			<coordinates x="25" y="41">Candor Island, Armor Shop. (25,41)</coordinates>
+			<reward>Gold and Experience.</reward>
+		</quest>
+	</var>
+	<var id="34">
+		<effect map="005-1.tmx" npc="433" value="0,1" effect="12"/>
+		<quest name="Helping Maya" group="Candor" incomplete="1">
+			<name>Helping Maya</name>
+			<text>I am helping out Maya with finding a few items.</text>
+			<text text1="[Cotton Cloth]" text2="[Maggot Slime]">I need to find three {@@1} and three {@@2}.</text>
+			<text></text>
+			<questgiver>Maya</questgiver>
+			<coordinates x="42" y="37">Candor Island. (42,37)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Helping Maya" group="Candor" complete="2">
+			<name>Helping Maya</name>
+			<text>You are helping out Maya with finding a few items.</text>
+			<text text1="[Cotton Cloth]" text2="[Maggot Slime]">You need to find three {@@1} and three {@@2}.</text>
+			<text></text>
+			<questgiver>Maya</questgiver>
+			<coordinates x="42" y="37">Candor Island. (42,37)</coordinates>
+			<reward text1="[Candor Shirt]">A {@@1}.</reward>
+		</quest>
+	</var>
+	<var id="35">
+		<quest name="Rosen's Improvement" group="Candor" incomplete="1">
+			<name>Rosen's Improvement</name>
+			<text>Rosen asked me to kill 5 Diamond Bifs.</text>
+			<text></text>
+			<questgiver>Rosen</questgiver>
+			<coordinates x="25" y="41">Candor Island, Armor Shop.</coordinates>
+		</quest>
+		<quest name="Rosen's Improvement" group="Candor" incomplete="2">
+			<name>Rosen's Improvement</name>
+			<text>I should report back to Rosen.</text>
+			<text></text>
+			<questgiver>Rosen</questgiver>
+			<coordinates x="25" y="41">Candor Island, Armor Shop.</coordinates>
+		</quest>
+		<quest name="Rosen's Improvement" group="Candor" complete="3">
+			<name>Rosen's Improvement</name>
+			<text>Rosen gave me Candor Gloves for mining Bifs.</text>
+			<text>Bifs are a great source of raw ore.</text>
+			<text></text>
+			<questgiver>Rosen</questgiver>
+			<coordinates x="25" y="41">Candor Island, Armor Shop.</coordinates>
+		</quest>
+		<quest name="Rosen's Improvement" group="Candor" incomplete="4">
+			<name>Rosen's Improvement</name>
+			<text>Rosen asked me if I don't want to use a bow.</text>
+			<text>He is asking for a Cactus Drink and Piberries.</text>
+			<text></text>
+			<questgiver>Rosen</questgiver>
+			<coordinates x="25" y="41">Candor Island, Armor Shop.</coordinates>
+		</quest>
+		<quest name="Rosen's Improvement" group="Candor" complete="5">
+			<name>Rosen's Improvement</name>
+			<text>Rosen warned me that you can't dodge with a bow.</text>
+			<text>He also teach that Bifs are a great source of raw ore.</text>
+			<text>Rosen is a so good professor!</text>
+			<text></text>
+			<questgiver>Rosen</questgiver>
+			<coordinates x="25" y="41">Candor Island, Armor Shop.</coordinates>
+		</quest>
+	</var>
+	<var id="36">
+		<effect map="005-1.tmx" npc="450" value="0,1,3" effect="12"/>
+		<quest name="Cleaning the Storehouse" group="Candor" incomplete="2">
+			<name>Cleaning the Storehouse</name>
+			<text>Zegas needs someone to find and defuse the Bug Bomb in the storehouse.</text>
+			<text>I must check all barrels.</text>
+			<text></text>
+			<questgiver>Zegas</questgiver>
+			<coordinates x="34" y="76">Candor Island. (35,77)</coordinates>
+			<reward>Unknown</reward>
+			<level>5</level>
+		</quest>
+		<quest name="Cleaning the Storehouse" group="Candor" incomplete="3">
+			<name>Cleaning the Storehouse</name>
+			<text>I defused the bug bomb.</text>
+			<text>I must report back to Zegas at once.</text>
+			<text></text>
+			<questgiver>Zegas</questgiver>
+			<coordinates x="35" y="77">Candor Island. (35,77)</coordinates>
+			<reward>Unknown</reward>
+		</quest>
+		<quest name="Cleaning the Storehouse" group="Candor" complete="4">
+			<name>Cleaning the Storehouse</name>
+			<text>I helped Zegas to clear the Storehouse.</text>
+			<text>More bugs may attack there later, but that's not my problem anymore.</text>
+			<text></text>
+			<questgiver>Zegas</questgiver>
+			<coordinates x="35" y="77">Candor Island. (35,77)</coordinates>
+			<reward>60 EXP and 450 GP</reward>
+			<level>5</level>
+		</quest>
+	</var>
+	<var id="37">
+		<effect map="005-1.tmx" npc="112" value="0,1" effect="12"/>
+		<effect map="002-4.tmx" npc="409" value="2" effect="12"/>
+		<quest name="Preparing a Party" group="Candor" incomplete="1">
+			<name>Preparing a Party</name>
+			<text>Some sailors at beach are planning a party.</text>
+			<text text1="[Beer]">They need 5 {@@1} for the party to happen.</text>
+			<text></text>
+			<questgiver>Sailors</questgiver>
+			<coordinates x="92" y="99">Candor Island. (92,99)</coordinates>
+			<reward>Become one of the crew.</reward>
+			<level>8</level>
+		</quest>
+		<quest name="Preparing a Party" group="Candor" incomplete="2">
+			<name>Preparing a Party</name>
+			<text text1="[Beer]">The sailors have sufficient {@@1} for the party.</text>
+			<text>They now want me to invite Elmo, the captain's assistant, to the party.</text>
+			<text></text>
+			<questgiver>Sailors</questgiver>
+			<coordinates x="22" y="27">La Johanne, Captain's room. (22,27)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Preparing a Party" group="Candor" complete="3">
+			<name>Preparing a Party</name>
+			<text>Elmo was invited, and with that, the sailors may party.</text>
+			<text></text>
+			<questgiver>Sailors</questgiver>
+			<reward text1="[Bandana]">1x {@@1}, 10 EXP, 1000 GP</reward>
+		</quest>
+	</var>
+	<var id="38">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Making a Figurine" group="Candor" incomplete="1">
+			<name>Making a Figurine</name>
+			<text text1="[Bug Leg]">Vincent is making a figurine with {@@1}. He needs 7.</text>
+			<text></text>
+			<questgiver>Vincent</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Making a Figurine" group="Candor" complete="2">
+			<name>Making a Figurine</name>
+			<text>Vincent was able to make his figurine thanks to the bug legs I gave him.</text>
+			<text></text>
+			<questgiver>Vincent</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>850 GP</reward>
+		</quest>
+	</var>
+	<var id="39">
+		<effect map="005-7.tmx" npc="801" value="0,2,3,5,6,8,9,11,14" effect="12"/>
+		<quest name="Training" group="Candor" incomplete="2,3,5,6,8,9,11,14">
+			<name>Training</name>
+			<text>I have to report to the trainer.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>40 xp, 25 gp</reward>
+			<level>3</level>
+		</quest>
+		<quest name="Training" group="Candor" incomplete="1">
+			<name>Training</name>
+			<text text1="Maggot">I already killed {@@var2}/10 {@@1}.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>40 xp, 25 gp</reward>
+		</quest>
+		<quest name="Training" group="Candor" incomplete="4">
+			<name>Training</name>
+			<text text1="House Maggot">I already killed {@@var2}/5 {@@1}.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>40 xp, 25 gp</reward>
+		</quest>
+		<quest name="Training" group="Candor" incomplete="7">
+			<name>Training</name>
+			<text text1="Candor Scorpion">I already killed {@@var2}/3 {@@1}.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>40 xp, 25 gp</reward>
+		</quest>
+		<quest name="Training" group="Candor" incomplete="10">
+			<name>Training</name>
+			<text text1="[@@m1071|@@]">I already killed {@@var2}/2 {@@1}.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>40 xp, 25 gp</reward>
+		</quest>
+		<quest name="Training" group="Candor" complete="12">
+			<name>Training</name>
+			<text>I was successfully trained.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>50 xp</reward>
+		</quest>
+		<quest name="Training" group="Candor" incomplete="13">
+			<name>Training</name>
+			<text>The Trainer gave me a bonus task.</text>
+			<text text1="[@@m1075|@@]">I already killed {@@var2}/1 {@@1}.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward>???</reward>
+		</quest>
+		<quest name="Training" group="Candor" complete="15">
+			<name>Training</name>
+			<text>I did the bonus task from the Trainer and he was very impressed.</text>
+			<text></text>
+			<questgiver>Trainer</questgiver>
+			<coordinates x="92" y="96">Candor Island. (92,96)</coordinates>
+			<reward text1="[Candor Head Band]">1x {@@1}, 200 GP</reward>
+		</quest>
+	</var>
+	<var id="40">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Nurse Candies" group="Candor" incomplete="1,2,3">
+			<name>Nurse Candies</name>
+			<text text1="[Candy]">Candor's Nurse loves {@@1}. I gave her one, and now she wants more!</text>
+			<text>This is an easy way to make some money.</text>
+			<text></text>
+			<questgiver>Nurse</questgiver>
+			<coordinates x="41" y="30">Candor Island, Training Hall. (41,30)</coordinates>
+			<reward>5 EXP, 25 GP.</reward>
+		</quest>
+		<quest name="Nurse Candies" group="Candor" complete="3">
+			<name>Nurse Candies</name>
+			<text text1="[Candy]">Candor's Nurse loves {@@1}. I gave her one, and now she wants more!</text>
+			<text>This is an easy way to make some money.</text>
+			<text></text>
+			<text>##2Repeatable Quest##0</text>
+			<text></text>
+			<questgiver>Nurse</questgiver>
+			<coordinates x="41" y="30">Candor Island, Training Hall. (41,30)</coordinates>
+			<reward>Experience and Gold.</reward>
+		</quest>
+	</var>
+	<var id="41">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Mud Balls" group="Candor" incomplete="2">
+			<name>Mud Balls</name>
+			<text text1="[Maggot Slime]">Liana is collecting {@@1} to make balls, so the children can play.</text>
+			<text>This quest is repeatable.</text>
+			<text></text>
+			<questgiver>Liana</questgiver>
+			<coordinates x="47" y="86">Candor Island. (47,86)</coordinates>
+			<reward>Experience and Gold.</reward>
+		</quest>
+		<quest name="Mud Balls" group="Candor" complete="1">
+			<name>Mud Balls</name>
+			<text text1="[Maggot Slime]">Liana is collecting {@@1} to make balls, so the children can play.</text>
+			<text>This quest is repeatable every six hours, so I should again to her sometime.</text>
+			<text></text>
+			<questgiver>Liana</questgiver>
+			<coordinates x="47" y="86">Candor Island. (47,86)</coordinates>
+			<reward>Experience and Gold.</reward>
+		</quest>
+	</var>
+	<var id="42">
+		<!-- This quest conflicts another one -->
+		<quest name="Sailor Cure" group="Candor" complete="1">
+			<name>Sailor Cure</name>
+			<text text1="[Scorpion Stinger]">In order to help a sailor to recover from hangover, I collected {@@1}.</text>
+			<text>Juliet was successful in making a hangover potion. If I ever need one, I already know to whom ask.</text>
+			<text></text>
+			<wiki>**This is part 2 of Sailors Quest!**</wiki>
+			<wiki></wiki>
+			<questgiver>Sailors</questgiver>
+			<coordinates x="22" y="27">La Johanne, Captain's room. (22,27)</coordinates>
+			<reward>Experience and Gold.</reward>
+		</quest>
+	</var>
+	<var id="43">
+		<quest name="Marggo" group="Candor" complete="1">
+			<name>Marggo</name>
+			<text>I helped Nylo to save his crops from Maggots.</text>
+			<text>It was fun.</text>
+			<text></text>
+			<questgiver>Nylo</questgiver>
+			<coordinates x="46" y="78">Candor Bank</coordinates>
+			<level>6</level>
+		</quest>
+	</var>
+	<!-- var 44 Groata and 45 Jak1 FIXME TODO MISSING -->
+
+	<!-- TULIMSHAR QUESTS -->
+	<var id="51">
+		<effect map="003-1.tmx" npc="428" value="0" effect="14"/>
+		<effect map="003-1.tmx" npc="428" value="1" effect="15"/>
+		<quest name="Fisherman" group="Tulimshar" incomplete="1">
+			<name>Fisherman</name>
+			<text>Eugene, the fishman in Artis docks, bought a new fishing rod.</text>
+			<text>He hurried so much to try it out, that he forgot to take enough baits.</text>
+			<text text1="[Small Tentacles]">You need to bring him 10 {@@1}.</text>
+			<wiki></wiki>
+			<wiki>To Find Eugene: Use the secret passage on Tulimshar walls.</wiki>
+			<wiki>To Find Blubs (easiest way): Use the secret passage below Ched.</wiki>
+			<wiki>Ched is near Magic Council.</wiki>
+			<wiki></wiki>
+			<wiki>Be careful, because little blubs help each other!</wiki>
+			<text></text>
+			<questgiver>Eugene</questgiver>
+			<coordinates x="80" y="127">Tulimshar (80,127)</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Fisherman" group="Tulimshar" complete="2">
+			<name>Fisherman</name>
+			<text>You helped Eugene.</text>
+			<text>As his gratitude, he gave you his old fishing rod.</text>
+			<text>You can use it to catch fish.</text>
+			<text></text>
+			<questgiver>Eugene</questgiver>
+			<coordinates x="80" y="127">Tulimshar (80,127)</coordinates>
+			<reward text1="[Fishing Rod]">{@@1}.</reward>
+		</quest>
+	</var>
+	<var id="52">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="I Want Cherry Cakes" group="Tulimshar" complete="1">
+			<name>I Want Cherry Cakes</name>
+			<text>Sarah wanted a cherry cake, so I gave her five.</text>
+			<text></text>
+			<text>Maybe tomorrow she'll want more...?</text>
+			<text>##2Repeatable Quest##0</text>
+			<text></text>
+			<wiki>You can purchase cakes from Itka, in the Bakery.</wiki>
+			<wiki>Otherwise, Giant Maggots and Ducks drops them, too.</wiki>
+			<wiki></wiki>
+			<questgiver>Sarah</questgiver>
+			<coordinates x="91" y="146">Tulimshar (91,146)</coordinates>
+			<reward text1="[Serf Hat]">{@@1}</reward>
+		</quest>
+	</var>
+	<var id="53">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Water For Guards" group="Tulimshar" incomplete="1">
+			<name>Water For Guards</name>
+			<text>Dausen asked me to give water to his guards.</text>
+			<text>There should be a well in the city. I already gave water to {@@var2}/17 guards.</text>
+			<text></text>
+			<wiki>You only need one Empty Bottle and ~400 GP for this quest.</wiki>
+			<wiki>A free bottle is available on Nard's Ship - secret quest.</wiki>
+			<wiki>But doing this with a single bottle will be very tiring.</wiki>
+			<wiki></wiki>
+			<wiki>There's a guard inside the townhall and in the bank.</wiki>
+			<wiki></wiki>
+			<questgiver>Lt. Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar. (111,84)</coordinates>
+		</quest>
+		<quest name="Water For Guards" group="Tulimshar" incomplete="2">
+			<name>Water For Guards</name>
+			<text>All guards drank water.</text>
+			<text>I should now report to Dausen that this mission is complete.</text>
+			<text></text>
+			<questgiver>Lt. Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar. (111,84)</coordinates>
+		</quest>
+		<quest name="Water For Guards" group="Tulimshar" complete="3">
+			<name>Water For Guards</name>
+			<text>I gave water to all Tulimshar guards, and Dausen was very glad.</text>
+			<text>He told me I can find more ways to help the city guard inside the Guard House.</text>
+			<text></text>
+			<questgiver>Lt. Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar. (111,84)</coordinates>
+			<reward text1="[Tulimshar Guard Boots]" text2="[Tulimshar Guard Card]">1x {@@1}, 1x {@@2}</reward>
+		</quest>
+	</var>
+	<var id="54">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Quenching My Thirst" group="Tulimshar" complete="1">
+			<name>Quenching My Thirst</name>
+			<text>Swezanne was thirsty, but now she can keep doing her job.</text>
+			<text>I can repeat this request every 24 hours.</text>
+			<text></text>
+			<questgiver>Swezanne</questgiver>
+			<coordinates x="69" y="100">Tulimshar (70,100)</coordinates>
+			<reward>EXP and Gold</reward>
+		</quest>
+		<quest name="Quenching My Thirst" group="Tulimshar" incomplete="2">
+			<name>Quenching My Thirst</name>
+			<text text1="[Cactus Potion]">Swezanne is once again thirsty, I should bring her 5 {@@1} to quench it.</text>
+			<text></text>
+			<questgiver>Swezanne</questgiver>
+			<coordinates x="69" y="100">Tulimshar (70,100)</coordinates>
+			<reward>25 EXP and 200 GP</reward>
+		</quest>
+	</var>
+	<var id="55">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Lifestone Pendant" group="Tulimshar" incomplete="1">
+			<name>Lifestone Pendant</name>
+			<text text1="[Lifestone]">Swezanne's Daughter, Silvia, can give you a very useful necklace</text>
+			<text>For just 500 GP and a Lifestone.</text>
+			<text></text>
+			<questgiver>Silvia</questgiver>
+			<coordinates x="109" y="150">Tulimshar. (109,150)</coordinates>
+			<reward text1="[Lifestone Pendant]">{@@1}.</reward>
+		</quest>
+		<quest name="Lifestone Pendant" group="Tulimshar" complete="2">
+			<name>Lifestone Pendant</name>
+			<text>Silvia gave me a Lifestone Pendant, which increases my regeneration.</text>
+			<text>It'll work even better if I sit to think.</text>
+			<text></text>
+			<questgiver>Silvia</questgiver>
+			<coordinates x="109" y="150">Tulimshar. (109,150)</coordinates>
+			<reward text1="[Lifestone Pendant]">{@@1}.</reward>
+		</quest>
+	</var>
+	<var id="56">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Eistein" group="Tulimshar" incomplete="1">
+			<wiki></wiki>
+			<wiki>***Prologue:***</wiki>
+			<text>I should obtain level 25 and get a reward on Tulimshar's City Hall.</text>
+			<wiki></wiki>
+			<level>25</level>
+			<wiki></wiki>
+			<name>Eistein</name>
+			<text>I should obtain level 50 and get a reward on Tulimshar's City Hall.</text>
+			<text></text>
+			<questgiver>Eistein</questgiver>
+			<reward>Graduation Cap.</reward>
+			<level>50</level>
+		</quest>
+		<quest name="Eistein" group="Tulimshar" incomplete="2">
+			<name>Eistein</name>
+			<text>I should obtain level 75 and get a reward on Tulimshar's City Hall.</text>
+			<text></text>
+			<questgiver>Eistein</questgiver>
+			<reward>Gift Box.</reward>
+			<level>75</level>
+		</quest>
+		<quest name="Eistein" group="Tulimshar" incomplete="3">
+			<name>Eistein</name>
+			<text>I should obtain level 100 and get a reward on Tulimshar's City Hall.</text>
+			<text></text>
+			<questgiver>Eistein</questgiver>
+			<reward>Gift Box.</reward>
+			<level>100</level>
+		</quest>
+		<quest name="Eistein" group="Tulimshar" incomplete="4">
+			<name>Eistein</name>
+			<text>I should obtain level 125 and get a reward on Tulimshar's City Hall.</text>
+			<text></text>
+			<questgiver>Eistein</questgiver>
+			<reward>Gift Box.</reward>
+			<level>125</level>
+		</quest>
+		<quest name="Eistein" group="Tulimshar" incomplete="5">
+			<name>Eistein</name>
+			<text>I should obtain level 150 and get a reward on Tulimshar's City Hall.</text>
+			<text></text>
+			<questgiver>Eistein</questgiver>
+			<reward>Gift Box.</reward>
+			<level>150</level>
+		</quest>
+		<quest name="Eistein" group="Tulimshar" complete="6">
+			<name>Eistein</name>
+			<text>I reached level 150 and am now a pro.</text>
+			<text></text>
+			<questgiver>Eistein</questgiver>
+		</quest>
+	</var>
+	<var id="57">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Petty Thief" group="Tulimshar" incomplete="1">
+			<name>Petty Thief</name>
+			<text>While leaving Tulimshar, a petty thief called Hasan stole me.</text>
+			<text>I should warn the leader of the guard, Lieutenant Dausen, about that.</text>
+			<text></text>
+			<questgiver>Hasan</questgiver>
+			<coordinates x="111" y="84">Tulimshar. (111,84)</coordinates>
+		</quest>
+		<quest name="Petty Thief" group="Tulimshar" incomplete="2">
+			<name>Petty Thief</name>
+			<text>Dausen instructed me to seek for his mother, Sorfina.</text>
+			<text>She should be in Mahoud's house, near the Inn.</text>
+			<text></text>
+			<questgiver>Hasan</questgiver>
+			<coordinates x="54" y="138">Tulimshar. (54,138)</coordinates>
+		</quest>
+		<quest name="Petty Thief" group="Tulimshar" incomplete="3">
+			<name>Petty Thief</name>
+			<text>I should talk to Sorfina and complete her task.</text>
+			<text></text>
+			<questgiver>Hasan</questgiver>
+			<coordinates x="111" y="84">Tulimshar, Mahoud's House. (111,84)</coordinates>
+		</quest>
+		<quest name="Petty Thief" group="Tulimshar" incomplete="4">
+			<name>Petty Thief</name>
+			<text>Having avenged his father, I should talk to Hasan.</text>
+			<text>Perhaps now he'll stop stealing from me!</text>
+			<text></text>
+			<questgiver>Hasan</questgiver>
+			<coordinates x="62" y="148">Tulimshar. (62, 148)</coordinates>
+		</quest>
+		<quest name="Petty Thief" group="Tulimshar" complete="5,6">
+			<name>Petty Thief</name>
+			<text>Hasan swore to never steal from me again.</text>
+			<text>He didn't gave my money back, though...</text>
+			<text></text>
+			<questgiver>Hasan</questgiver>
+			<coordinates x="62" y="148">Tulimshar. (62, 148)</coordinates>
+			<reward text1="[Cotton Shorts]">{@@1}, 75 EXP.</reward>
+		</quest>
+	</var>
+	<var id="58">
+		<quest name="Red Scorpion Plague" group="Tulimshar" complete="1">
+			<name>Red Scorpion Plague</name>
+			<text>Red Scorpions are threating Tulimshar.</text>
+			<text>I need to bring some stingers, to prove my worth.</text>
+			<text>...Or just to help out with extermination.</text>
+			<text></text>
+			<text>##2Repeatable Quest##0</text>
+			<wiki>14 Stingers first time, 7 afterwards.</wiki>
+			<wiki></wiki>
+			<wiki>To unlock access to Guard House, complete [this](q/53) first.</wiki>
+			<text></text>
+			<questgiver>Guard Devoir</questgiver>
+			<coordinates x="114" y="83">Tulimshar's Guard House, 2nd floor.</coordinates>
+			<reward>Gold and Experience.</reward>
+		</quest>
+	</var>
+	<var id="59">
+		<effect map="003-1.tmx" npc="112" value="0,1" effect="14"/>
+		<quest name="Sailors Help" group="Tulimshar" incomplete="1">
+			<name>Sailors Help</name>
+			<text>Some Sailors in Tulimshar, above Terranite Forge, are in need of some supplies.</text>
+			<text>I should fetch them 1 Fish Box, 2 Croconut Box and 3 Cotton Cloths.</text>
+			<text></text>
+			<questgiver>Sailors</questgiver>
+			<coordinates x="110" y="100">Tulimshar's Terranite Forge Rooftop.</coordinates>
+			<level>12</level>
+		</quest>
+		<quest name="Sailors Help" group="Tulimshar" incomplete="3">
+			<name>Sailors Help</name>
+			<text>Some Sailors in Tulimshar, above Terranite Forge, are in need of some supplies.</text>
+			<text>I should fetch them 2 Fish Box, 5 Croconut Box and 7 Cotton Cloths.</text>
+			<text></text>
+			<questgiver>Sailors</questgiver>
+			<coordinates x="110" y="100">Tulimshar's Terranite Forge Rooftop.</coordinates>
+			<level>12</level>
+		</quest>
+		<quest name="Sailors Help" group="Tulimshar" complete="2,4">
+			<name>Sailors Help</name>
+			<text>I gave them what they needed, and now they can resume their journey.</text>
+			<text></text>
+			<questgiver>Sailors</questgiver>
+			<coordinates x="110" y="100">Tulimshar's Terranite Forge Rooftop.</coordinates>
+			<reward text1="[Dagger]" text2="[%Color% Cotton Shirt]">1x {@@1}, 1x {@@2}, 18750 GP, Experience.</reward>
+		</quest>
+	</var>
+	<var id="60">
+		<quest name="Dark Invocator" group="Tulimshar" incomplete="1">
+			<name>Dark Invocator</name>
+			<text>After paying Zarkor a token of loyalty, he told me his plans.</text>
+			<text>He wants to summon the Monster King.</text>
+			<text>I should talk to Zitoni, on Candor, for some Everburn Powder.</text>
+			<text></text>
+			<questgiver>Zarkor</questgiver>
+			<coordinates x="152" y="155">Tulimshar Mines.</coordinates>
+			<level>30</level>
+		</quest>
+		<quest name="Dark Invocator" group="Tulimshar" incomplete="2">
+			<name>Dark Invocator</name>
+			<text>Zitoni refused to make the powder.</text>
+			<text>I must report this to Zarkor.</text>
+			<text></text>
+			<questgiver>Zarkor</questgiver>
+			<coordinates x="152" y="155">Tulimshar Mines.</coordinates>
+		</quest>
+		<quest name="Dark Invocator" group="Tulimshar" incomplete="3">
+			<name>Dark Invocator</name>
+			<text>Zarkor gave a precious Dark Desert Mushroom.</text>
+			<text>I should deliver this rare item to Zitoni on Candor.</text>
+			<text>...I could just sell it instead, but I think I'll regret doing so later...</text>
+			<text></text>
+			<questgiver>Zarkor</questgiver>
+			<coordinates x="152" y="155">Tulimshar Mines.</coordinates>
+		</quest>
+		<quest name="Dark Invocator" group="Tulimshar" incomplete="4">
+			<name>Dark Invocator</name>
+			<text>Zitoni on Candor is now making Everburn Powders.</text>
+			<text>I need 5 Powders for the ritual.</text>
+			<text>For each powder, it will cost me 2500 GP, Iron and Sulfur Powder, and a Pile of Ash.</text>
+			<text></text>
+			<questgiver>Zarkor</questgiver>
+			<coordinates x="152" y="155">Tulimshar Mines.</coordinates>
+		</quest>
+		<quest name="Dark Invocator" group="Tulimshar" incomplete="5,6">
+			<name>Dark Invocator</name>
+			<text>I need to lit every torch.</text>
+			<text>The blue flame get invisible after a while. There's no way to remember!</text>
+			<text>Ahh... I better find a good way to lit all of them without dying!</text>
+			<text></text>
+			<questgiver>Zarkor</questgiver>
+			<coordinates x="152" y="155">Tulimshar Mines.</coordinates>
+		</quest>
+		<quest name="Dark Invocator" group="Tulimshar" complete="7">
+			<name>Dark Invocator</name>
+			<text>Zarkor summoned the Monster King and got a nice electrical discharge as a gift.</text>
+			<text>Well, he didn't gave me anything of worth, but some money and experience.</text>
+			<text>At least, now I can craft Everburn Powder. I'm sure it'll be useful later.</text>
+			<text></text>
+			<questgiver>Zarkor</questgiver>
+			<coordinates x="152" y="155">Tulimshar Mines.</coordinates>
+			<reward>20.000 GP, 7995 EXP</reward>
+		</quest>
+	</var>
+	<var id="61">
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="1">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>Go talk to Eomie, near Magic Guild in Tulimshar</text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+			<level>18</level>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="2">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>Go talk to Eomie, near Magic Guild in Tulimshar</text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="3">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>Bring 12 [Cherry Cake] to Tinris, near Tulimshar Magic Guild.</text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="4,5,6">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>To make a fertilizer with Tinris, I need 3 [Plushroom] and 10 [Maggot Slime].</text>
+			<text>Then I need to report to anwar, and cross my fingers.</text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="7">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>Report to Tinris the result of his fertilizer.</text>
+			<wiki>(Additional cost: 2 Scorpion Claw, 3 Moss)</wiki>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="8">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>Deliver to Anwar the bug bomb, to protect the crops.</text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="9">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>Talk to Anwar after letting he rest a short while.</text>
+			<text></text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" incomplete="10">
+			<name>Anwar's Field</name>
+			<text>Anwar need help to save his crops!!</text>
+			<text>If nothing is done Tulimshar will face a famine.</text>
+			<text></text>
+			<text>Give to Tinris and Eomie the gift from Anwar.</text>
+			<text></text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+		</quest>
+		<quest name="Anwar's Field" group="Tulimshar" complete="11">
+			<name>Anwar's Field</name>
+			<text>I help Anwar to save his crops, Tulimshar should now be safe from a famine.</text>
+			<text></text>
+			<questgiver>Anwar</questgiver>
+			<coordinates x="107" y="67">Tulimshar's Desert.</coordinates>
+			<reward>Orange Farmer Pants</reward>
+		</quest>
+	</var>
+	<!-- var 62 Secret -->
+	<var id="63">
+		<quest name="Neked Shop" group="Tulimshar" incomplete="1">
+			<name>Neked Shop</name>
+			<text>My best attempt at a pun with the word naked.</text>
+			<text>Neko had his Jean Shorts ate by Cave Snakes, who love to eat that.</text>
+			<text></text>
+			<text>It is a good item, I should get some Shorts for me!</text>
+			<text>But Neko needs them, too... How many extra can I make drop?</text>
+			<text></text>
+			<questgiver>Neko</questgiver>
+			<coordinates x="103" y="106">Tulimshar.</coordinates>
+			<level>21</level>
+		</quest>
+		<quest name="Neked Shop" group="Tulimshar" complete="2">
+			<name>Neked Shop</name>
+			<text>He thanked but refused the shorts.</text>
+			<text>I probably should use it instead. It's a good defensive item!</text>
+			<text></text>
+			<questgiver>Neko</questgiver>
+			<coordinates x="103" y="106">Tulimshar.</coordinates>
+			<reward>Experience</reward>
+		</quest>
+	</var>
+	<var id="64">
+		<quest name="Newbie's Sword" group="Tulimshar" incomplete="1">
+			<name>Newbie's Sword</name>
+			<text>A veteran officer at Tulimshar Guard House offered me a Wooden Sword.</text>
+			<text>I need to bring him 25 [Raw Log] if I want the item.</text>
+			<text></text>
+			<questgiver>Veteran Officer</questgiver>
+			<coordinates x="114" y="83">Tulimshar's Guard House.</coordinates>
+			<reward text1="[Wooden Sword]">{@@1}</reward>
+			<level>18</level>
+		</quest>
+		<quest name="Newbie's Sword" group="Tulimshar" complete="2">
+			<name>Newbie's Sword</name>
+			<text>A veteran officer at Tulimshar Guard House offered me a Wooden Sword.</text>
+			<text>It's not a great sword but it'll get the job done for a while.</text>
+			<text></text>
+			<questgiver>Veteran Officer</questgiver>
+			<coordinates x="114" y="83">Tulimshar's Guard House.</coordinates>
+			<reward text1="[Wooden Sword]">{@@1}</reward>
+		</quest>
+	</var>
+	<var id="65">
+		<quest name="An Empire For A Knife" group="Tulimshar" incomplete="1">
+			<name>An Empire For A Knife</name>
+			<text>Inac needs 20 Piou Feathers to make pillows.</text>
+			<text>He promised me a Sharp Knife for these items.</text>
+			<text></text>
+			<questgiver>Inac</questgiver>
+			<coordinates x="55" y="82">Tulimshar</coordinates>
+			<reward text1="[Sharp Knife]">{@@1}</reward>
+			<level>12</level>
+		</quest>
+		<quest name="An Empire For A Knife" group="Tulimshar" complete="2">
+			<name>An Empire For A Knife</name>
+			<text>Inac needs 20 Piou Feathers to make pillows.</text>
+			<text>He promised me a Sharp Knife for these items.</text>
+			<text></text>
+			<questgiver>Inac</questgiver>
+			<coordinates x="55" y="82">Tulimshar</coordinates>
+			<reward text1="[Sharp Knife]">{@@1}</reward>
+		</quest>
+	</var>
+	<var id="66">
+		<quest name="Dausen's Test of Strength" group="Tulimshar" incomplete="2,4,6">
+			<name>Dausen's Test of Strength</name>
+			<text>Dausen doesn't seems convinced of my strength just yet.</text>
+			<text>Maybe I should talk to him later!</text>
+			<text></text>
+			<questgiver>Lieutenant Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar</coordinates>
+			<reward>54 gp</reward>
+		</quest>
+		<quest name="Dausen's Test of Strength" group="Tulimshar" incomplete="1">
+			<name>Dausen's Test of Strength</name>
+			<text>So Dausen wants me to kill 10 crocs. No big deal!</text>
+			<text text1="Crocs">I already killed {@@var2}/10 {@@1}</text>
+			<text></text>
+			<questgiver>Lieutenant Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar</coordinates>
+			<reward>54 gp</reward>
+		</quest>
+		<quest name="Dausen's Test of Strength" group="Tulimshar" incomplete="3">
+			<name>Dausen's Test of Strength</name>
+			<text>Now Dausen wants me to kill blubs and ducks. That should also be fairly easy.</text>
+			<text text1="Ducks / Blubs">I already killed {@@var2}/37 {@@1}</text>
+			<text></text>
+			<questgiver>Lieutenant Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar</coordinates>
+			<reward>84 gp</reward>
+			<level>14</level>
+		</quest>
+		<quest name="Dausen's Test of Strength" group="Tulimshar" incomplete="5">
+			<name>Dausen's Test of Strength</name>
+			<text>I showed Dausen my strength, but he wants me to kill some Desert Bandits and Sarracenus or Desert Log Heads</text>
+			<text text1="Desert Bandits">I already killed {@@var2}/100 {@@1}</text>
+			<text></text>
+			<questgiver>Lieutenant Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar</coordinates>
+			<reward>132 gp</reward>
+			<level>22</level>
+		</quest>
+		<quest name="Dausen's Test of Strength" group="Tulimshar" incomplete="7">
+			<name>Dausen's Test of Strength</name>
+			<text>The final test of strength (I hope). I feel strong, but Dausen wants me even stronger.</text>
+			<text>I have accumulated {@@var2}/300 points</text>
+			<text>These points come from Giant Maggots (1), Snakes (5) and Black Scorpions (10).</text>
+			<text></text>
+			<questgiver>Lieutenant Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar</coordinates>
+			<level>29</level>
+		</quest>
+		<quest name="Dausen's Test of Strength" group="Tulimshar" complete="8">
+			<name>Dausen's Test of Strength</name>
+			<text>Yes! I have passed all of Dausen's tests and he now acknowledges my strength!</text>
+			<text></text>
+			<questgiver>Lieutenant Dausen</questgiver>
+			<coordinates x="111" y="84">Tulimshar</coordinates>
+			<reward text1="[Coal]">6 {@@1}, 200 gp</reward>
+		</quest>
+	</var>
+
+	<var id="67">
+		<quest name="Cyndala's Passion" group="Tulimshar" incomplete="1">
+			<name>Cyndala's Passion</name>
+			<text>Cyndala can make Yellow Dye but needs me to collect some materials first.</text>
+			<text>She needs: 50 GP, 50 Piou Feathers, and 1 Bottle of Sewer Water</text>
+			<text></text>
+			<questgiver>Cyndala</questgiver>
+			<coordinates x="33" y="30">Tulimshar's Laundry</coordinates>
+			<reward text1="[Yellow Dye]">{@@1}</reward>
+			<level>21</level>
+		</quest>
+		<quest name="Cyndala's Passion" group="Tulimshar" complete="2">
+			<name>Cyndala's Passion</name>
+			<text>Cyndala can now make me Yellow Dye whenever I want....for a price.</text>
+			<text>She needs: 50 GP, 50 Piou Feathers, and 1 Bottle of Sewer Water</text>
+			<text></text>
+			<questgiver>Cyndala</questgiver>
+			<coordinates x="33" y="30">Tulimshar's Laundry</coordinates>
+			<reward text1="[Yellow Dye]">{@@1}</reward>
+		</quest>
+	</var>
+
+	<var id="68">
+		<quest name="Laranja's Family Business" group="Tulimshar" incomplete="1">
+			<name>Laranja's Family Business</name>
+			<text>Laranja's father is in the dye business.</text>
+			<text>She can give me Orange Dye in exchange for some items and GP.</text>
+			<text>She needs: 3000 GP, 70 Alizarin Herbs, 60 Gamboge Herbs, 5 Piberries, 5 Piles of Ash, and 1 Bottle of Tonori Water.</text>
+			<text></text>
+			<questgiver>Laranja</questgiver>
+			<coordinates x="25" y="26">La Marine, First Deck</coordinates>
+			<reward text1="[Orange Dye]">{@@1}</reward>
+			<level>45</level>
+		</quest>
+		<quest name="Laranja's Family Business" group="Tulimshar" complete="2">
+			<name>Laranja's Family Business</name>
+			<text>Laranja can trade Orange dye whenever I want...for a price.</text>
+			<text>She needs: 3000 GP, 70 Alizarin Herbs, 60 Gamboge Herbs, 5 Piberries, 5 Piles of Ash, and 1 Bottle of Tonori Water.</text>
+			<text></text>
+			<questgiver>Laranja</questgiver>
+			<coordinates x="25" y="26">La Marine, First Deck</coordinates>
+			<reward text1="[Orange Dye]">{@@1}</reward>
+		</quest>
+	</var>
+
+	<var id="191">
+		<quest name="Tycoon's Hunt" group="Tulimshar" incomplete="2,3,5,6,8,9,11,14">
+			<name>Tycoon's Hunt</name>
+			<text>I have to report to the Tycoon.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+		</quest>
+		<quest name="Tycoon's Hunt" group="Tulimshar" incomplete="1">
+			<name>Tycoon's Hunt</name>
+			<text text1="Ratto">I already killed {@@var2}/10 {@@1}.</text>
+			<text></text>
+			<text>Only kills in the mines will be considered.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+			<level>15</level>
+		</quest>
+		<quest name="Tycoon's Hunt" group="Tulimshar" incomplete="4">
+			<name>Tycoon's Hunt</name>
+			<text text1="Cave Maggot">I already killed {@@var2}/25 {@@1}.</text>
+			<text></text>
+			<text>Only kills in the mines will be considered.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+			<level>19</level>
+		</quest>
+		<quest name="Tycoon's Hunt" group="Tulimshar" incomplete="7">
+			<name>Tycoon's Hunt</name>
+			<text text1="Cave Snake">I already killed {@@var2}/50 {@@1}.</text>
+			<text></text>
+			<text>Only kills in the mines will be considered.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+			<level>24</level>
+		</quest>
+		<quest name="Tycoon's Hunt" group="Tulimshar" incomplete="10">
+			<name>Tycoon's Hunt</name>
+			<text text1="Red Scorpion">I already killed {@@var2}/100 {@@1}.</text>
+			<text></text>
+			<text>Only kills in the mines will be considered.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+			<level>29</level>
+		</quest>
+		<quest name="Tycoon's Hunt" group="Tulimshar" complete="12">
+			<name>Tycoon's Hunt</name>
+			<text>I helped the miners.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+			<reward text1="[Miner Hat]">1x {@@1}</reward>
+		</quest>
+		<quest name="Tycoon's Hunt" group="Tulimshar" incomplete="13">
+			<name>Tycoon's Hunt</name>
+			<text>Tycoon had another task on his sleeve! This one is harder, though.</text>
+			<text text1="Black Scorpion">I already killed {@@var2}/150 {@@1}.</text>
+			<text></text>
+			<text>Only kills in the mines will be considered.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+			<reward>???</reward>
+			<level>40</level>
+		</quest>
+		<quest name="Tycoon's Hunt" group="Tulimshar" complete="15">
+			<name>Tycoon's Hunt</name>
+			<text>I did the bonus task from the Tycoon and he was very impressed.</text>
+			<text></text>
+			<questgiver>Tycoon</questgiver>
+			<coordinates x="66" y="65">Tulimshar Mines.</coordinates>
+			<reward text1="[Ruby]">1x {@@1}, 5000 GP</reward>
+		</quest>
+	</var>
+	<!-- var 192 daily quest «I will omit it here» -->
+	<var id="193">
+		<quest name="Miner Bandage" group="Tulimshar" incomplete="1">
+			<name>Miner Bandage</name>
+			<text>Caelum hurt himself while mining, and now he wants an improvised bandage.</text>
+			<text>For that, he needs:</text>
+			<text></text>
+			<text>* 20 Maggot Slimes</text>
+			<text>* 10 Bat Teeth</text>
+			<text>* 10 Cactus Drinks</text>
+			<text>*  8 Bug Legs</text>
+			<text>*  5 Scorpion Claws</text>
+			<text>*  2 Red Scorpion Stingers</text>
+			<text>*  1 cotton cloth</text>
+			<text>*  1 lifestone</text>
+			<text></text>
+			<text>Ah, these NPCs which require an empire of items...</text>
+			<text></text>
+			<questgiver>Caelum</questgiver>
+			<coordinates x="143" y="49">Tulimshar Mines.</coordinates>
+			<reward text1="[Miner Gloves]">{@@1}</reward>
+			<level>28</level>
+		</quest>
+		<quest name="Miner Bandage" group="Tulimshar" complete="2">
+			<name>Miner Bandage</name>
+			<text>Caelum hurt himself while mining, but now he has an improvised bandage.</text>
+			<text></text>
+			<questgiver>Caelum</questgiver>
+			<coordinates x="143" y="49">Tulimshar Mines.</coordinates>
+			<reward text1="[Miner Gloves]">{@@1}</reward>
+		</quest>
+	</var>
+	<!-- var 194 Pickaxe FIXME TODO MISSING -->
+
+	<var id="195">
+		<quest name="Mine Supplies Request" group="Tulimshar" incomplete="1">
+			<name>Mine Supplies Request</name>
+			<text>Naem requested me to fetch several materials.</text>
+			<text>He needs 7 Aquadas, 6 Piou Legs, 3 Cheese, 3 Half Croconuts and a Purple Blobime.</text>
+			<text>I should deliver them to his wife, Silvia, in Tulimshar.</text>
+			<text></text>
+			<text>I can break whole croconuts in the inventory screen.</text>
+			<text></text>
+			<questgiver>Naem</questgiver>
+			<coordinates x="180" y="46">Tulimshar's Mine</coordinates>
+			<level>28</level>
+		</quest>
+		<quest name="Mine Supplies Request" group="Tulimshar" incomplete="2">
+			<name>Mine Supplies Request</name>
+			<text>I should bring the Iced Bottle to Naem.</text>
+			<text>I should also tell him his wife will cook him his favorite dish.</text>
+			<text></text>
+			<text>Iced Bottle is important as the mine is above a volcano.</text>
+			<text>Some hot regions will chip away the health.</text>
+			<text>However, drinking cold water before keeps this under control.</text>
+			<text></text>
+			<questgiver>Naem</questgiver>
+			<coordinates x="180" y="46">Tulimshar's Mine</coordinates>
+			<level>28</level>
+		</quest>
+		<quest name="Mine Supplies Request" group="Tulimshar" complete="3">
+			<name>Mine Supplies Request</name>
+			<text>Naem thanked to the Iced Bottle, but did not allow passage.</text>
+			<text>I may never know what secrets lurk in the mine...</text>
+			<text></text>
+			<questgiver>Naem</questgiver>
+			<coordinates x="180" y="46">Tulimshar's Mine</coordinates>
+			<level>28</level>
+			<reward text1="[Miner Tank Top]">{@@1}</reward>
+		</quest>
+	</var>
+
+	<var id="196">
+		<!-- State 1 should not be displayed on quest log, due to unlock rule -->
+		<quest name="Becoming a Katze" group="Tulimshar" complete="2">
+			<name>Becoming a Katze</name>
+			<text>I am now both Katze's friend, as I look like a cat.</text>
+			<text>That was very costly, though:</text>
+			<text></text>
+			<text>* 250 White Fur</text>
+			<text>* 200 Milk</text>
+			<text>* 150 Duck Feather</text>
+			<text>*  50 Raw Log</text>
+			<text>*   1 Black Dye</text>
+			<text></text>
+			<text>Ah, these NPCs which require an empire of items...</text>
+			<text></text>
+			<questgiver>Katze</questgiver>
+			<coordinates x="44" y="30">Tonori Canyon, Katze's Cave.</coordinates>
+			<reward text1="[Cat Ears]">{@@1}</reward>
+			<level>48</level>
+		</quest>
+	</var>
+
+	<!-- HALINARZO QUESTS -->
+	<var id="71">
+		<!-- LiveNPCs (the ones with equipment) cannot have quest log effects -->
+		<quest name="Foxhound's Famine" group="Halinarzo" incomplete="1,2,3,4,5">
+			<name>Foxhound's Famine</name>
+			<text>A poor man in Halinarzo asks for food.</text>
+			<text>His family is starving. I should provide him all sort of delicacies.</text>
+			<text></text>
+			<wiki>Costs (Must be provided in order):</wiki>
+			<wiki>*  5 Loaves of Bread; He gives you 125gp</wiki>
+			<wiki>*  3 Hunks of Cheese; He gives you 75gp</wiki>
+			<wiki>*  1 Pink Blobime; He gives you 10gp</wiki>
+			<wiki>* 12 Plushrooms; He gives you 180gp</wiki>
+			<wiki>*  6 Cave Snake Eggs; He gives you 162gp</wiki>
+			<wiki>*  5 Snake Eggs, 5 Loaves of Bread, 5 Hunks of Cheese, 5 Aquadas, 5 Manana fruits</wiki>
+			<wiki></wiki>
+			<wiki>Ah, such a pig. :(</wiki>
+			<wiki></wiki>
+			<questgiver>Enliven Reva Foxhound</questgiver>
+			<coordinates x="89" y="57">Halinarzo (89,57)</coordinates>
+			<level>30</level>
+		</quest>
+		<quest name="Foxhound's Famine" group="Halinarzo" complete="6">
+			<name>Foxhound's Famine</name>
+			<text>I feed him, and he is forever grateful.</text>
+			<text></text>
+			<questgiver>Enliven Reva Foxhound</questgiver>
+			<coordinates x="89" y="57">Halinarzo (89,57)</coordinates>
+			<reward text1="[Bucket]">{@@1}</reward>
+			<level>35</level>
+		</quest>
+	</var>
+	<var id="72">
+		<quest name="The King Of Blackmarket" group="Halinarzo" incomplete="1">
+			<name>The King Of Blackmarket</name>
+			<text>I did a deal with Charles, an apparently famous contrabandist.</text>
+			<text>He is offering me a mask for my silence, and many items.</text>
+			<text>All the items are dropped by Sarracenus and Desert Bandits, thankfully!</text>
+			<wiki></wiki>
+			<wiki>I need to get Charles these items:</wiki>
+			<wiki></wiki>
+			<wiki>* 30 Coin Bag</wiki>
+			<wiki>*  5 Empty Bottle</wiki>
+			<wiki>*  2 Dagger</wiki>
+			<wiki>*  1 Leather Shield</wiki>
+			<wiki>* 6000 gp</wiki>
+			<text></text>
+			<questgiver>Charles</questgiver>
+			<coordinates x="24" y="105">Halinarzo Outskirts.</coordinates>
+			<reward text1="[Burglar Mask]">1x {@@1}</reward>
+			<level>30</level>
+		</quest>
+		<quest name="The King Of Blackmarket" group="Halinarzo" complete="2">
+			<name>The King Of Blackmarket</name>
+			<text>I got my mask, and won't say anyone where Charles is.</text>
+			<text>But, this is Halinarzo, and Halin is always too far from the forces of law.</text>
+			<text>I doubt the City Guard doesn't knows where and who he is already, anyway...</text>
+			<text></text>
+			<questgiver>Charles</questgiver>
+			<coordinates x="24" y="105">Halinarzo Outskirts.</coordinates>
+			<reward text1="[Burglar Mask]">1x {@@1}</reward>
+		</quest>
+	</var>
+	<var id="73">
+		<quest name="Saving a Wife's Life" group="Halinarzo" incomplete="1,2">
+			<name>Saving a Wife's Life</name>
+			<text>Joaquim need several items to save his wife's life.</text>
+			<text>I probably should help.</text>
+			<text></text>
+			<questgiver>Joaquim</questgiver>
+			<coordinates x="64" y="38">Halinarzo, Church.</coordinates>
+			<level>55</level>
+		</quest>
+		<quest name="Saving a Wife's Life" group="Halinarzo" incomplete="3">
+			<name>Saving a Wife's Life</name>
+			<text>Joaquim gave me an Elixir Of Life.</text>
+			<text>I should hurry to Halinarzo Hospital and deliver to his wife, Yumi.</text>
+			<text></text>
+			<questgiver>Joaquim</questgiver>
+			<coordinates x="64" y="38">Halinarzo, Church.</coordinates>
+		</quest>
+		<quest name="Saving a Wife's Life" group="Halinarzo" incomplete="4">
+			<name>Saving a Wife's Life</name>
+			<text>I managed to save Yumi's life.</text>
+			<text>I should return to Joaquim and claim my reward.</text>
+			<text></text>
+			<questgiver>Joaquim</questgiver>
+			<coordinates x="64" y="38">Halinarzo, Church.</coordinates>
+		</quest>
+		<quest name="Saving a Wife's Life" group="Halinarzo" complete="5">
+			<name>Saving a Wife's Life</name>
+			<text>Joaquim's wife will live. Thankfully.</text>
+			<text>He gave me material to forge something cool.</text>
+			<text>And he also gave me an Elixir Of Life. Wow.</text>
+			<text></text>
+			<questgiver>Joaquim</questgiver>
+			<coordinates x="64" y="38">Halinarzo, Church.</coordinates>
+		</quest>
+	</var>
+	<var id="74">
+		<quest name="Life Delight" group="Halinarzo" incomplete="1">
+			<name>Life Delight</name>
+			<text>Ryan loves Tonori Delight. He finds them tasty and yummy.</text>
+			<text></text>
+			<text>I should keep feeding him these to get a good payment.</text>
+			<text>There's a special reward after a few...</text>
+			<text></text>
+			<wiki>In Tulimshar in the Magic Guild, there is a person, Maxime who can make some Tonori Delight at a cost:</wiki>
+			<wiki>* 12 Maggot Slime</wiki>
+			<wiki>*  8 Plushroom</wiki>
+			<wiki>*  4 Mushroom Spores</wiki>
+			<wiki>*  3 Scorpion Stinger</wiki>
+			<wiki>*  2 Cactus Drink</wiki>
+			<wiki>*  1 Roasted Maggot</wiki>
+			<wiki>* 150 gp</wiki>
+			<wiki></wiki>
+			<wiki>- About 600 Tonori Delight required for Chef Hat</wiki>
+			<wiki>- About 26k Tonori Delight required for Elixir + Mylarin</wiki>
+			<wiki>- About 87k Tonori Delight required for Sunny Crystal</wiki>
+			<wiki></wiki>
+			<wiki>During summer, you can make more Tonori Delight than usual.</wiki>
+			<wiki>This quest is profitable, but slow.</wiki>
+			<wiki></wiki>
+			<questgiver>Ryan</questgiver>
+			<coordinates x="29" y="57">Halinarzo, Library.</coordinates>
+			<reward text1="[Chef Hat]">{@@1}</reward>
+			<level>17</level>
+		</quest>
+		<quest name="Life Delight" group="Halinarzo" complete="2">
+			<name>Life Delight</name>
+			<text>Ryan loves Tonori Delight. He finds them tasty and yummy.</text>
+			<text></text>
+			<text>I feed him plenty and he gave me a Chef Hat.</text>
+			<text>But he can always eat more...</text>
+			<text></text>
+			<questgiver>Ryan</questgiver>
+			<coordinates x="29" y="57">Halinarzo, Library.</coordinates>
+			<reward text1="[Chef Hat]">{@@1}</reward>
+		</quest>
+		<quest name="Life Delight" group="Halinarzo" complete="3">
+			<name>Life Delight</name>
+			<text>Ryan loves Tonori Delight. He finds them tasty and yummy.</text>
+			<text></text>
+			<text>I feed him plenty and he gave me a Chef Hat.</text>
+			<text>He also gave me an Elixir of Life and many Job Experience.</text>
+			<text>But he can always eat more...</text>
+			<text></text>
+			<questgiver>Ryan</questgiver>
+			<coordinates x="29" y="57">Halinarzo, Library.</coordinates>
+			<reward text1="[Chef Hat]">{@@1}</reward>
+		</quest>
+		<quest name="Life Delight" group="Halinarzo" complete="4">
+			<name>Life Delight</name>
+			<text>I fed Ryan so much Tonori Delight, he gave me the ultimate reward.</text>
+			<text>Now, THAT is a rare item... It's useful even for Savior set!</text>
+			<text></text>
+			<questgiver>Ryan</questgiver>
+			<coordinates x="29" y="57">Halinarzo, Library.</coordinates>
+		</quest>
+	</var>
+	<var id="75">
+		<quest name="Red Desert Shirt Experiment" group="Halinarzo" incomplete="1">
+			<name>Red Desert Shirt Experiment</name>
+			<text>Sawis is experimenting a kind of desert shirt to protect from sun and snakes.</text>
+			<text></text>
+			<text>He requires a leather shirt, cotton cloth, cave snake skin and snake skin.</text>
+			<text></text>
+			<questgiver>Sawis</questgiver>
+			<coordinates x="138" y="122">Canyons, Halinarzo Desert.</coordinates>
+			<level>37</level>
+		</quest>
+		<quest name="Red Desert Shirt Experiment" group="Halinarzo" complete="2">
+			<name>Red Desert Shirt Experiment</name>
+			<text>Sawis is experimenting a kind of desert shirt to protect from sun and snakes.</text>
+			<text>I got a Desert Shirt from him. I hope it works.</text>
+			<text></text>
+			<questgiver>Sawis</questgiver>
+			<coordinates x="138" y="122">Canyons, Halinarzo Desert.</coordinates>
+		</quest>
+	</var>
+	<var id="76">
+		<quest name="Church Party" group="Halinarzo" incomplete="2">
+			<name>Church Party</name>
+			<text>Alvasus need help to make a Church Party.</text>
+			<text>I should provide him 5 Roasted Maggots before Sunday.</text>
+			<text></text>
+			<questgiver>Alvasus</questgiver>
+			<coordinates x="29" y="39">Halinarzo, Church.</coordinates>
+		</quest>
+		<quest name="Church Party" group="Halinarzo" complete="3">
+			<name>Church Party</name>
+			<text>The Church Party will happen at Sunday, but I was not invited.</text>
+			<text>They might need help again next week, so it's worth checking them.</text>
+			<text></text>
+			<questgiver>Alvasus</questgiver>
+			<coordinates x="29" y="39">Halinarzo, Church.</coordinates>
+			<level>19</level>
+		</quest>
+	</var>
+	<!-- var 77 Mage Equipment FIXME TODO MISSING (skipped?) -->
+	<var id="78">
+		<quest name="Kevin's Pink Dye" group="Halinarzo" incomplete="1">
+			<name>Kevin's Pink Dye</name>
+			<text>Kevin can make Pink Dye using a byproduct of his alchemy, but he needs me to collect some materials first.</text>
+			<text>He needs: 500 GP, 1 Bottle of Tonori Water, 20 Pink Blobime, and 30 Plushroom</text>
+			<text></text>
+			<questgiver>Kevin</questgiver>
+			<coordinates x="39" y="48">Halinarzo General Store</coordinates>
+			<reward text1="[Pink Dye]">{@@1}</reward>
+			<level>12</level>
+		</quest>
+		<quest name="Kevin's Pink Dye" group="Halinarzo" complete="2">
+			<name>Kevin's Pink Dye</name>
+			<text>Kevin can now make me Pink Dye whenever I want....for a price.</text>
+			<text></text>
+			<questgiver>Kevin</questgiver>
+			<coordinates x="39" y="48">Halinarzo General Store</coordinates>
+			<reward text1="[Pink Dye]">{@@1}</reward>
+		</quest>
+	</var>
+	<!-- var 79 Speed Quest FIXME TODO MISSING -->
+
+	<!-- HURNSCALD QUESTS -->
+	<var id="91">
+		<quest name="Forest Bow" group="Hurnscald" incomplete="1">
+			<name>Forest Bow</name>
+			<text>Alan is willing to do a Forest Bow, for free...</text>
+			<text>If I get a very resistant wood chunk with Jack.</text>
+			<text>And I also need a good string, from a Fisherman in Halinarzo.</text>
+			<text></text>
+			<wiki>Now, the Fisherman from Halinarzo needs a couple things to make the string:</wiki>
+			<wiki>* 20 carps (Or 1 Roach Fish)</wiki>
+			<wiki>* 10 Roots</wiki>
+			<wiki>* 40 Dead Fire Goblins (You just need to kill them)</wiki>
+			<wiki>* 1000gp (just for the work)</wiki>
+			<wiki></wiki>
+			<questgiver>Alan</questgiver>
+			<coordinates x="89" y="58">Hurnscald, Archery Shop.</coordinates>
+			<reward text1="[Forest Bow]">{@@1}</reward>
+			<level>30</level>
+			<wiki>You can start at level 25, but bow is level 40.</wiki>
+		</quest>
+		<quest name="Forest Bow" group="Hurnscald" complete="2">
+			<name>Forest Bow</name>
+			<text>I got the Forest Bow. I hope to have fun with it!</text>
+			<text></text>
+			<questgiver>Alan</questgiver>
+			<coordinates x="89" y="58">Hurnscald, Archery Shop.</coordinates>
+			<reward text1="[Forest Bow]">{@@1}</reward>
+			<level>40</level>
+		</quest>
+	</var>
+	<var id="92">
+		<quest name="Archery Training" group="Hurnscald" incomplete="1">
+			<name>Archery Training</name>
+			<text>Gwendolyn offers archery courses.</text>
+			<text>It's not exactly cheap, but it isn't expensive either.</text>
+			<text></text>
+			<questgiver>Gwendolyn Bowmaker</questgiver>
+			<coordinates x="84" y="52">Hurnscald, Archery Shop back area.</coordinates>
+			<level>20</level>
+		</quest>
+		<quest name="Archery Training" group="Hurnscald" incomplete="2">
+			<name>Archery Training</name>
+			<text>I need a Forest Bow, because that is the only kind of bow her brother makes.</text>
+			<text>She already took my money, and won't teach me without it...</text>
+			<text></text>
+			<questgiver>Gwendolyn Bowmaker</questgiver>
+			<coordinates x="84" y="52">Hurnscald, Archery Shop back area.</coordinates>
+		</quest>
+		<quest name="Archery Training" group="Hurnscald" incomplete="3">
+			<name>Archery Training</name>
+			<text>I should prove I learnt her lesson by bringing her...</text>
+			<text>...Snake eggs. Several and from all kinds.</text>
+			<text></text>
+			<questgiver>Gwendolyn Bowmaker</questgiver>
+			<coordinates x="84" y="52">Hurnscald, Archery Shop back area.</coordinates>
+		</quest>
+		<quest name="Archery Training" group="Hurnscald" incomplete="4">
+			<name>Archery Training</name>
+			<text>I passed her class!</text>
+			<text>I think she have more thing to teach me, but am I strong enough...?</text>
+			<text></text>
+			<questgiver>Gwendolyn Bowmaker</questgiver>
+			<coordinates x="84" y="52">Hurnscald, Archery Shop back area.</coordinates>
+			<level>45</level>
+		</quest>
+		<quest name="Archery Training" group="Hurnscald" incomplete="5">
+			<name>Archery Training</name>
+			<text>She gave me the last task.</text>
+			<text>With the Forest Bow, and Training arrows, I have to hit target.</text>
+			<text>There are lot of things to consider I usually don't care about.</text>
+			<text>Can I really get over that challenge?</text>
+			<text></text>
+			<questgiver>Gwendolyn Bowmaker</questgiver>
+			<coordinates x="84" y="52">Hurnscald, Archery Shop back area.</coordinates>
+		</quest>
+		<quest name="Archery Training" group="Hurnscald" complete="6">
+			<name>Archery Training</name>
+			<text>I did it! I did it!</text>
+			<text>I mastered archery!</text>
+			<text></text>
+			<questgiver>Gwendolyn Bowmaker</questgiver>
+			<coordinates x="84" y="52">Hurnscald, Archery Shop back area.</coordinates>
+			<reward>New Skill</reward>
+		</quest>
+	</var>
+	<var id="93">
+		<quest name="The Yeti King Quest" group="Hurnscald" incomplete="1,2,3,4,5">
+			<name>The Yeti King Quest ({@@var1})</name>
+			<text>I need to find the Yeti King and convince him to fight on our side.</text>
+			<text text1="[Everburn Powder]">To (re)start this quest, I need to pour 1x {@@1} on Tulimshar Sewer.</text>
+			<text></text>
+			<text>This is a loose co-op quest. I cannot start it alone, but I can finish it alone.</text>
+			<text></text>
+			<questgiver>Celestia</questgiver>
+			<coordinates x="102" y="69">Hurnscald, Town Hall.</coordinates>
+			<level>35</level>
+			<wiki>You should attempt to get level 60 before doing this quest.</wiki>
+		</quest>
+		<quest name="The Yeti King Quest" group="Hurnscald" complete="6,7">
+			<name>The Yeti King Quest ({@@var1})</name>
+			<text>I can now return home, and optionally report Celestia the result.</text>
+			<text>The Yeti King gave me a reward, maybe I should do that again!</text>
+			<text></text>
+			<questgiver>Celestia</questgiver>
+			<coordinates x="102" y="69">Hurnscald, Town Hall.</coordinates>
+		</quest>
+	</var>
+	<var id="94">
+		<quest name="Celestia Tea Party" group="Hurnscald" incomplete="1">
+			<name>Celestia Tea Party</name>
+			<text>Celestia need many sweets to replace the lack of Cookies.</text>
+			<text>I could help her, too much sugar is bad to health!</text>
+			<wiki></wiki>
+			<wiki>To have a proper tea party, we'll need:</wiki>
+			<wiki></wiki>
+			<wiki>* 50 Acorn</wiki>
+			<wiki>* 40 Chocolate Bar</wiki>
+			<wiki>* 20 Chocolate Mouboo</wiki>
+			<wiki>* 15 Candy</wiki>
+			<wiki>* 15 Orange Cupcake</wiki>
+			<wiki>* 10 Cherry Cake</wiki>
+			<wiki>*  5 Gingerbread Man</wiki>
+			<wiki>*  2 Chocolate Biscuit</wiki>
+			<text></text>
+			<questgiver>Celestia</questgiver>
+			<coordinates x="102" y="69">Hurnscald, Town Hall.</coordinates>
+			<level>35</level>
+		</quest>
+		<quest name="Celestia Tea Party" group="Hurnscald" complete="2">
+			<name>Celestia Tea Party</name>
+			<text>I gave lot of sweeties to Celestia, and now I can drink tea!</text>
+			<text>Her tea regens some Mana. Maybe in future, she gives me some for travel?</text>
+			<text></text>
+			<questgiver>Celestia</questgiver>
+			<coordinates x="102" y="69">Hurnscald, Town Hall.</coordinates>
+		</quest>
+	</var>
+	<var id="95">
+		<quest name="Hurnscald Crops" group="Hurnscald" incomplete="1">
+			<name>Hurnscald Crops</name>
+			<text>Pinkies are ravaging Hinnak's Fields. He wants 10 antennas.</text>
+			<text>But he won't reward you without at least a 100 pinkies sacrifice.</text>
+			<text></text>
+			<text>Current Kills: {@@var2}</text>
+			<wiki>You also need 20 agi to begin this quest.</wiki>
+			<text></text>
+			<questgiver>Hinnak</questgiver>
+			<coordinates x="105" y="30">Hurnscald Fields.</coordinates>
+			<level>20</level>
+		</quest>
+		<quest name="Hurnscald Crops" group="Hurnscald" incomplete="2">
+			<name>Hurnscald Crops</name>
+			<text>Hinnak's farm is safe, but Hurnscald food supply is far from secured.</text>
+			<text>I should help his friend, Oscar, on the west farm.</text>
+			<text></text>
+			<questgiver>Hinnak</questgiver>
+			<coordinates x="105" y="30">Hurnscald Fields.</coordinates>
+		</quest>
+		<quest name="Hurnscald Crops" group="Hurnscald" incomplete="3">
+			<name>Hurnscald Crops</name>
+			<text>Oscar is also having problems with pinkies. He want 10 pink legs for a soup.</text>
+			<text>But he won't reward you without at least a 100 pinkies sacrifice.</text>
+			<text></text>
+			<text>Current Kills: {@@var2}</text>
+			<wiki>You also need 30 agi to begin this quest.</wiki>
+			<text></text>
+			<questgiver>Oscar</questgiver>
+			<coordinates x="187" y="84">Woodlands Central Area.</coordinates>
+		</quest>
+		<quest name="Hurnscald Crops" group="Hurnscald" incomplete="4">
+			<name>Hurnscald Crops</name>
+			<text>Oscar was very satisfied.</text>
+			<text>He and Hinnak prepared a reward for you.</text>
+			<text>Redeem it at the Town Hall.</text>
+			<text></text>
+			<questgiver>Airlia</questgiver>
+			<coordinates x="102" y="69">Hurnscald, Town Hall.</coordinates>
+			<reward text1="[Scythe]">{@@1}</reward>
+		</quest>
+		<quest name="Hurnscald Crops" group="Hurnscald" complete="5">
+			<name>Hurnscald Crops</name>
+			<text>The crops are safe! Finally!</text>
+			<text>Hinnak and his wife might still need help, but...</text>
+			<text>...that's not my problem anymore.</text>
+		</quest>
+	</var>
+	<!-- var 96 is hidden -->
+	<var id="97">
+		<quest name="Hurnscald Bandits" group="Hurnscald" incomplete="1">
+			<name>Hurnscald Bandits</name>
+			<text>Bandits frequently raid Hurnscald Tavern and steal stuff.</text>
+			<text>They're often caught, but the slimes in the mines eat the keys!</text>
+			<text>I should bring her 5 [Treasure Key] to fix that slimey problem.</text>
+			<text></text>
+			<questgiver>Helena</questgiver>
+			<coordinates x="65" y="55">Hurnscald, Inn.</coordinates>
+			<level>30</level>
+		</quest>
+		<quest name="Hurnscald Bandits" group="Hurnscald" incomplete="2,4">
+			<name>Hurnscald Bandits</name>
+			<text>I helped Helena, but she might have another task to me.</text>
+			<text>I wonder if I am strong enough to help her!</text>
+			<text></text>
+			<questgiver>Helena</questgiver>
+			<coordinates x="65" y="55">Hurnscald, Inn.</coordinates>
+		</quest>
+		<quest name="Hurnscald Bandits" group="Hurnscald" incomplete="3">
+			<name>Hurnscald Bandits</name>
+			<text>Helena was cursed to don't enter the bandit cave!</text>
+			<text>She wants to give me a great mission, but first,</text>
+			<text>I need to collect some Bandit Hoods and prove my worth.</text>
+			<text></text>
+			<questgiver>Helena</questgiver>
+			<coordinates x="65" y="55">Hurnscald, Inn.</coordinates>
+			<level>40</level>
+		</quest>
+		<quest name="Hurnscald Bandits" group="Hurnscald" incomplete="5">
+			<name>Hurnscald Bandits</name>
+			<text>Helena sent me to kill the Bandit Lord in the Bandit Cave.</text>
+			<text>But first, I need to find her friend and get the key to his lair.</text>
+			<text></text>
+			<questgiver>Helena</questgiver>
+			<coordinates x="65" y="55">Hurnscald, Inn.</coordinates>
+			<reward text1="[Forest Armor]">{@@1}</reward>
+			<level>45</level>
+		</quest>
+		<quest name="Hurnscald Bandits" group="Hurnscald" incomplete="6">
+			<name>Hurnscald Bandits</name>
+			<text>Helena sent me to kill the Bandit Lord in the Bandit Cave.</text>
+			<text>The Bandit Lord is inside a locked cave, but fear not. I got the key.</text>
+			<text>The only problem now, is finding his lair in these pesky caves!</text>
+			<text></text>
+			<questgiver>Helena</questgiver>
+			<coordinates x="65" y="55">Hurnscald, Inn.</coordinates>
+			<reward text1="[Forest Armor]">{@@1}</reward>
+		</quest>
+		<quest name="Hurnscald Bandits" group="Hurnscald" incomplete="7">
+			<name>Hurnscald Bandits</name>
+			<text>The bandit lord is dead. I should claim my reward with Helena.</text>
+			<text></text>
+			<questgiver>Helena</questgiver>
+			<coordinates x="65" y="55">Hurnscald, Inn.</coordinates>
+			<reward text1="[Forest Armor]">{@@1}</reward>
+		</quest>
+		<quest name="Hurnscald Bandits" group="Hurnscald" complete="8">
+			<name>Hurnscald Bandits</name>
+			<text>I'm now friends with Helena.</text>
+			<text>Every day, I can bring her some Treasure Keys or Bandit Hoods.</text>
+			<text>The keys will also help with Melina's beer supply - great!</text>
+			<text></text>
+			<questgiver>Helena</questgiver>
+			<coordinates x="65" y="55">Hurnscald, Inn.</coordinates>
+		</quest>
+	</var>
+	<var id="98">
+		<quest name="Injuried Mouboo" group="Hurnscald" incomplete="1">
+			<name>Injuried Mouboo</name>
+			<text>I found a cursed and injuried mouboo near Hurnscald's roads.</text>
+			<text>His fate is up to me... What should I do?</text>
+			<text></text>
+			<coordinates x="144" y="80">Southeast Woodlands.</coordinates>
+		</quest>
+		<quest name="Injuried Mouboo" group="Hurnscald" complete="2">
+			<name>Injuried Mouboo</name>
+			<text>I found a cursed and injuried mouboo near Hurnscald's roads.</text>
+			<text>I decided to soothe its wounds. Now it sleeps peacefully.</text>
+			<text>The curse... I'm not sure I can break it.</text>
+			<text></text>
+			<coordinates x="144" y="80">Southeast Woodlands.</coordinates>
+		</quest>
+		<quest name="Injuried Mouboo" group="Hurnscald" complete="3">
+			<name>Injuried Mouboo</name>
+			<text>I found a cursed and injuried mouboo near Hurnscald's roads.</text>
+			<text>I decided to soothe its wounds, and warned Sagratha about it.</text>
+			<text>We were capable to break its curse.</text>
+			<text></text>
+			<text>It refuses to stand, but this is not a problem. Let it rest.</text>
+			<text></text>
+			<coordinates x="144" y="80">Southeast Woodlands.</coordinates>
+		</quest>
+		<quest name="Injuried Mouboo" group="Hurnscald" complete="9">
+			<name>Injuried Mouboo</name>
+			<text>I found a cursed and injuried mouboo near Hurnscald's roads.</text>
+			<text>I killed it.</text>
+			<text>On its death breath, it warned me about a Moubootaur or whatever.</text>
+			<text></text>
+			<coordinates x="144" y="80">Southeast Woodlands.</coordinates>
+		</quest>
+	</var>
+	<var id="99">
+		<quest name="Blood Donor" group="Hurnscald" complete="1">
+			<name>Blood Donor</name>
+			<text>I donated blood to Hurnscald Hospital.</text>
+			<text></text>
+			<text>This quest can be repeated every 30 days.</text>
+			<text></text>
+			<questgiver>Nurse</questgiver>
+			<coordinates x="31" y="79">Hurnscald Hospital.</coordinates>
+			<reward>EXP. Other possible rewards: Chocolate, Water, Bread.</reward>
+		</quest>
+		<quest name="Blood Donor" group="Hurnscald" incomplete="2">
+			<name>Blood Donor</name>
+			<text>I am donating blood to Hurnscald Hospital.</text>
+			<text>I must stay in this bed for three minutes.</text>
+			<text>I cannot move, use skills or items, nor attack.</text>
+			<text></text>
+			<text>If I disconnect, I'll be penalized!</text>
+			<text>This quest can be repeated every 30 days.</text>
+			<text></text>
+			<questgiver>Nurse</questgiver>
+			<coordinates x="31" y="79">Hurnscald Hospital.</coordinates>
+			<reward>EXP. Other possible rewards: Chocolate, Water, Bread.</reward>
+		</quest>
+	</var>
+	<var id="100">
+		<quest name="Elderly Couple's Request" group="Hurnscald" incomplete="1">
+			<name>Carla's Request</name>
+			<text>The elderly couple in woodland may need help.</text>
+			<text></text>
+			<questgiver>Carla</questgiver>
+			<coordinates x="104" y="31">Southeast Woodlands.</coordinates>
+			<level>25</level>
+		</quest>
+		<quest name="Elderly couple's Request" group="Hurnscald" incomplete="2">
+			<name>Carla's Request</name>
+			<text>Woody's wife needs help.</text>
+			<text></text>
+			<questgiver>Carla</questgiver>
+			<coordinates x="104" y="31">Southeast Woodlands.</coordinates>
+			<level>25</level>
+		</quest>
+		<quest name="Elderly couple's Request" group="Hurnscald" incomplete="3">
+			<name>Woody's Request</name>
+			<text>Woody's wife was helped.</text>
+			<text>Now I can visit Woody</text>
+			<text></text>
+			<questgiver>Carla</questgiver>
+			<coordinates x="103" y="29">Southeast Woodlands.</coordinates>
+			<level>26</level>
+		</quest>
+		<quest name="Elderly couple's Request" group="Hurnscald" incomplete="4">
+			<name>Woody's Request</name>
+			<text>Woody's wife was helped.</text>
+			<text>Woody offered to craft [Squirrel Boots] for me!</text>
+			<text></text>
+			<questgiver>Woody</questgiver>
+			<coordinates x="36" y="43">Southeast Woodlands.</coordinates>
+			<level>26</level>
+		</quest>
+		<quest name="Elderly couple's Request" group="Hurnscald" complete="5">
+			<name>Woody's Request</name>
+			<text>I helped Woody's family and learnt to respect elderly.</text>
+			<text>These [Squirrel Boots] make me faster, good call!</text>
+			<text></text>
+			<questgiver>Woody</questgiver>
+			<coordinates x="36" y="43">Southeast Woodlands.</coordinates>
+		</quest>
+	</var>
+	<var id="101">
+		<quest name="Paul's Bounty" group="Hurnscald" incomplete="1,2,3,4,5,6,7,8,9,10">
+			<name>Paul's Bounty</name>
+			<text>Paul have put a bounty for Monster Points.</text>
+			<text>It's a good way to reinforce my experience.</text>
+			<text></text>
+			<questgiver>Lieutenant Paul</questgiver>
+			<coordinates x="71" y="24">Hurnscald</coordinates>
+			<reward>EXP</reward>
+			<level>20</level>
+			<wiki>Quest goes up to level 60 if you get interested.</wiki>
+		</quest>
+		<quest name="Paul's Bounty" group="Hurnscald" complete="10,11,12,13,14,15,16,17,18,19,20">
+			<name>Paul's Bounty</name>
+			<text>Paul have put a bounty for Monster Points.</text>
+			<text>It's a good way to reinforce my experience.</text>
+			<text></text>
+			<text>Note: Continuing past this point might be a waste of time.</text>
+			<text></text>
+			<questgiver>Lieutenant Paul</questgiver>
+			<coordinates x="71" y="24">Hurnscald</coordinates>
+			<reward>EXP</reward>
+		</quest>
+	</var>
+	<!-- var 102 secret -->
+	<!-- var 103 can't write here -->
+	<var id="104">
+		<quest name="Sagratha Campaign" group="Hurnscald" incomplete="1">
+			<name>Sagratha Campaign</name>
+			<wiki>**Prerequisite: You must have HEALED the Injuried Mouboo.**</wiki>
+			<wiki></wiki>
+			<text>Wyara told me to visit Sagratha, in order to free the Mouboo from the curse.</text>
+			<text></text>
+			<questgiver>Wyara</questgiver>
+		</quest>
+		<quest name="Sagratha Campaign" group="Hurnscald" incomplete="2">
+			<name>Sagratha Campaign</name>
+			<wiki>**Prerequisite: Blue Sage Quest complete.**</wiki>
+			<wiki>The level requeriment is implicit</wiki>
+			<wiki></wiki>
+			<text>Sagratha was not home.</text>
+			<text>Wyara told me to check her house for signs of battle.</text>
+			<text></text>
+			<questgiver>Wyara</questgiver>
+			<level>36</level>
+		</quest>
+		<quest name="Sagratha Campaign" group="Hurnscald" incomplete="3">
+			<name>Sagratha Campaign</name>
+			<text>Sagratha was not home.</text>
+			<text>I should use the secret window to visit some nearby caves.</text>
+			<text>I hope Sagratha is safe and sound.</text>
+			<text></text>
+			<wiki>You'll have to break three seals.</wiki>
+			<wiki>Just walk in them to open the dialog.</wiki>
+			<wiki>The breaking will drain your mana, so watch out.</wiki>
+			<wiki>Also, do not leave the small chambers while breaking seals.</wiki>
+			<wiki></wiki>
+			<wiki>All options to pass through the chasm to the third Seal works.</wiki>
+			<wiki>Except for crafting a bridge, all of them have a chance to fail.</wiki>
+			<wiki>To jump, carry at most 1.5kg and make an agi build.</wiki>
+			<wiki>To climb the walls, have miner or leather gloves, and focus on strength and vitality.</wiki>
+			<wiki>Crafting Skill can be learnt during Player Storyline, in Frostia's Throne Room.</wiki>
+			<wiki></wiki>
+			<wiki>Take care to don't be overwhelmed with monsters while breaking seals!</wiki>
+			<wiki>Death in this stage will NOT reset already broken seals.</wiki>
+			<questgiver>Wyara</questgiver>
+		</quest>
+		<quest name="Sagratha Campaign" group="Hurnscald" incomplete="4">
+			<name>Sagratha Campaign</name>
+			<text>I managed to pass through the magic barrier.</text>
+			<text>I wonder where she could have went?</text>
+			<text></text>
+			<wiki>You'll need to solve a riddle at the end.</wiki>
+			<wiki>Failing to answer it, will cause the seals to break.</wiki>
+			<wiki></wiki>
+			<wiki>The answer is a monster. It may be used as mount.</wiki>
+			<wiki>It's passive but cooperates when attacked in groups.</wiki>
+			<wiki>When dead, it drops at least an edible item and a drink.</wiki>
+			<wiki>Also, some solitary NPC will mourn the death.</wiki>
+			<wiki></wiki>
+			<wiki>If you still don't know what is the answer, then</wiki>
+			<wiki>you have not paid attention to the lone hut which...</wiki>
+			<wiki>...you just used to get here.</wiki>
+			<questgiver>Wyara</questgiver>
+		</quest>
+		<quest name="Sagratha Campaign" group="Hurnscald" incomplete="5">
+			<name>Sagratha Campaign</name>
+			<text>Where am I?</text>
+			<text>I'm not seeing Sagratha. Is it just me?</text>
+			<text></text>
+			<wiki>Protip: You can interact with objects.</wiki>
+			<wiki>To trigger the quest, move in front to the obelisk.</wiki>
+			<wiki>You'll be entirely frozen during the shortscene.</wiki>
+			<wiki>Shortscene ends when both NPCs start walking again.</wiki>
+			<questgiver>Wyara</questgiver>
+		</quest>
+		<quest name="Sagratha Campaign" group="Hurnscald" incomplete="6">
+			<name>Sagratha Campaign</name>
+			<text>Mission accomplished, now to leave this place.</text>
+			<text></text>
+			<questgiver>Wyara</questgiver>
+		</quest>
+		<quest name="Sagratha Campaign" group="Hurnscald" complete="7">
+			<name>Sagratha Campaign</name>
+			<text>Mission accomplished and reward collected.</text>
+			<text>Sagratha can teach me Summoning Magic.</text>
+			<text></text>
+			<wiki>Protip: If Sagratha loathes you, ask Wyara for help.</wiki>
+			<questgiver>Wyara</questgiver>
+		</quest>
+	</var>
+	<!-- var 105 Blossom and 106 Thorn FIXME TODO MISSING -->
+	<!-- var 107 LoFPass and 108 Pirate Cave FIXME TODO MISSING -->
+	<!-- var 109 Teddy Bear and 110 Gemini Sisters FIXME TODO MISSING -->
+
+	<!-- NIVALIS QUESTS -->
+	<var id="111">
+		<quest name="Someone In The Well" group="Nivalis" incomplete="1">
+			<name>Someone in the Well</name>
+			<text>Someone fell into the well, near Nivalis.</text>
+			<text>I should ask someone for help, but who...?</text>
+			<text></text>
+			<questgiver>???</questgiver>
+			<coordinates x="110" y="101">Winterlands.</coordinates>
+		</quest>
+		<quest name="Someone In The Well" group="Nivalis" complete="2">
+			<name>Someone in the Well</name>
+			<text>I asked Miler to get that person out of the hole they've struck themselves into.</text>
+			<text>I wonder who that person was, anyway?</text>
+			<text></text>
+			<questgiver>???</questgiver>
+			<coordinates x="110" y="101">Winterlands.</coordinates>
+		</quest>
+	</var>
+	<var id="112">
+		<quest name="Cindy's Quest" group="Nivalis" incomplete="1,2,3,4">
+			<name>Cindy's Quest</name>
+			<text>Form a party and rescue Cindy from evil Yetis!</text>
+			<text>Failure will be penalized!</text>
+			<text></text>
+			<wiki>**Warning:** You must have rescued Mercury from the well to do this quest!</wiki>
+			<wiki></wiki>
+			<wiki>The quest pre-requisite is secret, but you can obtain tips for it ingame.</wiki>
+			<wiki>To obtain them, talk to these NPCs in this order:</wiki>
+			<wiki>The Yeti who talks about Mercury, then Angela, then Blue Sage</wiki>
+			<wiki>And by last, Celestia in Hurnscald Townhall.</wiki>
+			<wiki></wiki>
+			<wiki>Read carefully Mercury's instructions! This is a **global quest**.</wiki>
+			<wiki></wiki>
+			<questgiver>Angela</questgiver>
+			<level>60</level>
+		</quest>
+		<quest name="Cindy's Quest" group="Nivalis" complete="5">
+			<name>Cindy's Quest</name>
+			<text>Form a party and rescue Cindy from evil Yetis!</text>
+			<text>Failure will be penalized!</text>
+			<text></text>
+			<questgiver>Angela</questgiver>
+		</quest>
+	</var>
+	<var id="113">
+		<quest name="Tulimshar Goods" group="Nivalis" complete="1,3">
+			<name>Tulimshar Goods</name>
+			<text>Baktar wants items from Tulimshar.</text>
+			<text>If I get accross some, I should give these to him.</text>
+			<text></text>
+			<questgiver>Baktar</questgiver>
+		</quest>
+		<quest name="Tulimshar Goods" group="Nivalis" incomplete="2">
+			<name>Tulimshar Goods</name>
+			<text>Khafar told me Braknar was a fierce warrior and was also known as Arvek.</text>
+			<text>Would it, perchance, be someone I know?</text>
+			<text></text>
+			<questgiver>Khafar</questgiver>
+		</quest>
+	</var>
+	<!-- var 114 Agostine is not compatible either because it gives me trouble -->
+	<!-- var 155 TODO -->
+	<var id="116">
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="1">
+			<name>Blue Sage Investigation</name>
+			<wiki>**This quest is part of player quest!**</wiki>
+			<text>Elias told me to wait for him to deliver Airlia's letter.</text>
+			<text></text>
+			<questgiver>Airlia</questgiver>
+			<level>36</level>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="2">
+			<name>Blue Sage Investigation</name>
+			<text>I should go talk to the Blue Sage and see if he needs help.</text>
+			<text></text>
+			<wiki>Protip: Peetu is at the northeast corner.</wiki>
+			<wiki>Talk to him until he calms down. You'll need Sea Drops,</wiki>
+			<wiki>a Mouboo Figurine from Audsbel Quest, and a Chocolate Bar.</wiki>
+			<wiki></wiki>
+			<wiki>The items will NOT be consumed by Peetu!</wiki>
+			<wiki></wiki>
+			<questgiver>Airlia</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="3">
+			<name>Blue Sage Investigation</name>
+			<text>Peetu asked you to talk with Oskari.</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="4">
+			<name>Blue Sage Investigation</name>
+			<text>Oskari asked you to report to Peetu, and see what others think of Peetu.</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="5">
+			<name>Blue Sage Investigation</name>
+			<text>We should report to Elias about the cause of the incident.</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="6">
+			<name>Blue Sage Investigation</name>
+			<text>Elias is concerned with a masked visitor.</text>
+			<text></text>
+			<text>We should ask staff if they've seen something suspcious and report back.</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="7">
+			<name>Blue Sage Investigation</name>
+			<text>We should report to Elias what we've found about the masked visitor.</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="8">
+			<name>Blue Sage Investigation</name>
+			<text>We should deliver Elias's report to Oskari.</text>
+			<text></text>
+			<text>Don't forget, Oskari wanted to know what others thought of Peetu!</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="9">
+			<name>Blue Sage Investigation</name>
+			<text>Oskari needs Peetu to investigate the cause.</text>
+			<text></text>
+			<text>Go talk to Peetu.</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="10">
+			<name>Blue Sage Investigation</name>
+			<text>Peetu have confirmed the causes. We have everything we needed.</text>
+			<text></text>
+			<text>Go report to Blue Sage Nikolai we're done with the investigation.</text>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" incomplete="11">
+			<name>Blue Sage Investigation</name>
+			<text>Blue sage thanked me for the help, even if he knew everything all along.</text>
+			<text></text>
+			<text>He is writing letters. I should ask him soon.</text>
+			<wiki>Protip: He takes exact 30 seconds to finish them.</wiki>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+		<quest name="Blue Sage Investigation" group="Nivalis" complete="12">
+			<name>Blue Sage Investigation</name>
+			<text>We're done with this incident. Saboutage against sages.</text>
+			<text>But... who could be behind all this?</text>
+			<wiki></wiki>
+			<wiki>Protip: Sagratha Quest have been unlocked now.</wiki>
+			<wiki>Continue Main Quest to learn crafting.</wiki>
+			<text></text>
+			<questgiver>Blue Sage Nikolai</questgiver>
+		</quest>
+	</var>
+	<var id="117">
+		<quest name="Blue Sage - Slimes" group="Nivalis" incomplete="1">
+			<name>Blue Sage - Slimes</name>
+			<text>Pyry needs help to clear the library from slime nests.</text>
+			<text></text>
+			<text>The library is divided in nine quadrands. I need to check all.</text>
+			<text></text>
+			<questgiver>Pyry</questgiver>
+			<level>36</level>
+		</quest>
+		<quest name="Blue Sage - Slimes" group="Nivalis" complete="2">
+			<name>Blue Sage - Slimes</name>
+			<text>Pyry needs help to clear the library from slime nests.</text>
+			<text></text>
+			<text>That was hard work, but I completed it.</text>
+			<text></text>
+			<wiki>**Protip: Reward must be claimed with Mirjami, southwest of library.**</wiki>
+			<questgiver>Pyry</questgiver>
+		</quest>
+	</var>
+	<var id="118">
+		<quest name="Blue Sage - Pagemakers" group="Nivalis" complete="1">
+			<name>Blue Sage - Pagemakers</name>
+			<text>I helped the staff to make new books for Blue Sage's Library.</text>
+			<text></text>
+			<wiki>**Protip: Reward must be claimed with Blue Sage.**</wiki>
+			<level>36</level>
+		</quest>
+	</var>
+	<var id="119">
+		<quest name="Blue Sage - Pagefinders" group="Nivalis" complete="1">
+			<name>Blue Sage - Pagefinders</name>
+			<text>Ensio needs help to collect lost bookpages.</text>
+			<text></text>
+			<wiki>Slimes at them. They can be found during Slimes quest and in underground.</wiki>
+			<wiki>Undergrounds are unlocked after main quest completion.</wiki>
+			<text></text>
+			<questgiver>Ensio</questgiver>
+			<level>36</level>
+		</quest>
+		<quest name="Blue Sage - Pagefinders" group="Nivalis" complete="2">
+			<name>Blue Sage - Pagefinders</name>
+			<text>Ensio needed help to collect lost bookpages.</text>
+			<text></text>
+			<text>That was hard work, but I completed it.</text>
+			<text></text>
+			<questgiver>Ensio</questgiver>
+		</quest>
+	</var>
+	<var id="120">
+		<quest name="Mede's Teal Dye" group="Nivalis" incomplete="1">
+			<name>Mede's Teal Dye</name>
+			<text>Mede can make Teal Dye but needs me to collect some materials first.</text>
+			<text>He needs: 1500 GP, 60 Cobalt Herbs, 25 Blue Coral, 5 Ice Cubes, and 1 Bottle of Iced Water</text>
+			<text></text>
+			<questgiver>Mede</questgiver>
+			<coordinates x="26" y="28">Nivalis Indoors</coordinates>
+			<reward text1="[Teal Dye]">{@@1}</reward>
+			<level>35</level>
+		</quest>
+		<quest name="Mede's Teal Dye" group="Nivalis" complete="2">
+			<name>Mede's Teal Dye</name>
+			<text>Mede can now make me Teal Dye whenever I want....for a price.</text>
+			<text></text>
+			<questgiver>Mede</questgiver>
+			<coordinates x="26" y="28">Nivalis Indoors</coordinates>
+			<reward text1="[Teal Dye]">{@@1}</reward>
+		</quest>
+	</var>
+	<var id="121">
+		<quest name="Henry's Shady Dealings" group="Nivalis" incomplete="1">
+			<name>Henry's Shady Dealings</name>
+			<text>Henry ran out of poison and, for certain reasons, needs it.</text>
+			<text text1="[Nymph Poison]">Surely giving him 24 {@@1} will be ethical and correct.</text>
+			<text>And if it is not, then his payment will be enough.</text>
+			<text></text>
+			<questgiver>Henry S.</questgiver>
+			<coordinates x="24" y="38">Nivalis Indoors</coordinates>
+			<level>70</level>
+		</quest>
+		<quest name="Henry's Shady Dealings" group="Nivalis" complete="2">
+			<name>Henry's Shady Dealings</name>
+			<text>Mede can now make me Teal Dye whenever I want....for a price.</text>
+			<text></text>
+			<questgiver>Henry S.</questgiver>
+			<coordinates x="24" y="38">Nivalis Indoors</coordinates>
+			<reward>10,000 Monster Points</reward>
+		</quest>
+	</var>
+
+	<!-- FROSTIA QUESTS -->
+	<!-- var 131-142 FIXME TODO MISSING -->
+	<!-- The quest log is based on the friendly version of the dialogues.
+The following quests are missing:
++ 131 Wolf Necklace
++ 132 Homunculus
++ [AF King's Cap](q/133) (Lv 47)
++ [Stolen Mirrors](q/134) (Lv 50)
++ [Poison Research](q/135) (Lv 40)
++ [Favorite Fruit](q/137) (Lv 52)
++ [Talindra's Exquisite Tea](q/140) (Lv 65)
++ [Gaelira's Expensive Tastes](q/141) (Lv 52)
++ 142 Jhon Coffee
+ -->
+	<var id="135">
+		<quest name="Water Purification" group="Frostia" incomplete="1">
+			<name>Water Purification</name>
+			<text>Rydel needs 3 Bottles of Divine Water.</text>
+			<text></text>
+			<text>He plans in studying its properties to improve the town water supply.</text>
+			<text>However, the only well for Divine Water is in Aeros...</text>
+			<text></text>
+			<text>I don't suppose I can go to the Floating Island at my leisure?</text>
+			<text></text>
+			<questgiver>Rydel</questgiver>
+			<coordinates x="32" y="26">Frostia</coordinates>
+			<level>50</level>
+		</quest>
+		<quest name="Water Purification" group="Frostia" complete="2">
+			<name>Water Purification</name>
+			<text>Rydel told me his project may take years but will be worth it.</text>
+			<text>He also said you need to say the name of the wizard of Aethyr</text>
+			<text>to open Aethyr gates, but he didn't knew anything else.</text>
+			<text></text>
+			<questgiver>Rydel</questgiver>
+			<coordinates x="32" y="26">Frostia</coordinates>
+			<reward>Experience</reward>
+		</quest>
+	</var>
+	<var id="138">
+		<quest name="Meriel's Secret Request" group="Frostia" incomplete="1">
+			<name>Meriel's Secret Request</name>
+			<text>Meriel needs 18 Purple Blobime, but I'm not sure why.</text>
+			<text></text>
+			<text>It should be totally fine to give her a poisonous substance</text>
+			<text>for unspecified projects.</text>
+			<text></text>
+			<questgiver>Meriel</questgiver>
+			<coordinates x="114" y="45">Frostia</coordinates>
+			<level>42</level>
+		</quest>
+		<quest name="Meriel's Secret Request" group="Frostia" complete="2">
+			<name>Meriel's Secret Request</name>
+			<text>Meriel told me about how some elves founded Aethyr, but contact was lost.</text>
+			<text></text>
+			<questgiver>Meriel</questgiver>
+			<coordinates x="114" y="45">Frostia</coordinates>
+			<reward>Advanced Equipment Blueprint</reward>
+		</quest>
+	</var>
+	<var id="139">
+		<quest name="Saevel's Equipment Refinery" group="Frostia" incomplete="1">
+			<name>Saevel's Equipment Refinery</name>
+			<text>Saevel is making some powerful equipment for himself.</text>
+			<text>However, he ran out of materials to refine it.</text>
+			<text></text>
+			<text>He needs you to bring him 1 Arcanum Stone.</text>
+			<text></text>
+			<questgiver>Saevel</questgiver>
+			<coordinates x="38" y="23">Frostia Indoors</coordinates>
+			<level>47</level>
+		</quest>
+		<quest name="Saevel's Equipment Refinery" group="Frostia" complete="2">
+			<name>Saevel's Equipment Refinery</name>
+			<text>Saevel told me about how powerful elves of old live in Aethyr.</text>
+			<text>He also said for over a century, Frostia and Aethyr doesn't contact each other.</text>
+			<text></text>
+			<questgiver>Saevel</questgiver>
+			<coordinates x="38" y="23">Frostia Indoors</coordinates>
+			<reward>Basic and Intermediary Equipment Blueprints</reward>
+		</quest>
+	</var>
+
+	<!-- FORTRESS TOWN QUESTS -->
+	<var id="151">
+		<quest name="The Great Slime Hunt" group="Fortress" incomplete="1">
+			<name>The Great Slime Hunt</name>
+			<text>Kill at least one million slimes.</text>
+			<text></text>
+			<text>Cadis will reward me when I succeed.</text>
+			<text>He will not assign me another quest before this one is complete.</text>
+			<text></text>
+			<text>Progress: {@@var2}/1000000.</text>
+			<text></text>
+			<questgiver>Commander Cadis</questgiver>
+			<coordinates x="59" y="87">Fortress Town</coordinates>
+			<reward>???</reward>
+		</quest>
+		<quest name="The Great Slime Hunt" group="Fortress" complete="2">
+			<name>The Great Slime Hunt</name>
+			<text>I have killed over one million slimess.</text>
+			<text>Man, what a chore it was!</text>
+			<text></text>
+			<questgiver>Commander Cadis</questgiver>
+			<coordinates x="59" y="87">Fortress Town</coordinates>
+			<reward text1="[Mysterious Fruit]" text2="[Strange Coin]">{@@1}, 100x {@@2} and some other items.</reward>
+		</quest>
+	</var>
+
+	<var id="152">
+		<quest name="The Great Over 100 Hunt" group="Fortress" incomplete="1">
+			<name>The Great Over 100 Hunt</name>
+			<text>Kill one million or more monsters of at least level 100.</text>
+			<text></text>
+			<text>Cadis will reward me when I succeed.</text>
+			<text>He will not assign me another quest before this one is complete.</text>
+			<text></text>
+			<text>Progress: {@@var2}/1000000.</text>
+			<text></text>
+			<questgiver>Commander Cadis</questgiver>
+			<coordinates x="59" y="87">Fortress Town</coordinates>
+			<reward>???</reward>
+		</quest>
+		<quest name="The Great Over 100 Hunt" group="Fortress" complete="2">
+			<name>The Great Over 100 Hunt</name>
+			<text>I have killed over one million monsters of at least level 100.</text>
+			<text>Man, what a chore it was!</text>
+			<text></text>
+			<questgiver>Commander Cadis</questgiver>
+			<coordinates x="59" y="87">Fortress Town</coordinates>
+			<reward text1="[Mysterious Fruit]" text2="[Strange Coin]">{@@1}, 100x {@@2} and some other items.</reward>
+		</quest>
+	</var>
+
+	<var id="153">
+		<quest name="The Great Ranged Hunt" group="Fortress" incomplete="1">
+			<name>The Great Ranged Hunt</name>
+			<text>Kill one million or more monsters that can attack from at least 3 tiles away.</text>
+			<text></text>
+			<text>Cadis will reward me when I succeed.</text>
+			<text>He will not assign me another quest before this one is complete.</text>
+			<text></text>
+			<text>Progress: {@@var2}/1000000.</text>
+			<text></text>
+			<questgiver>Commander Cadis</questgiver>
+			<coordinates x="59" y="87">Fortress Town</coordinates>
+			<reward>???</reward>
+		</quest>
+		<quest name="The Great Ranged Hunt" group="Fortress" complete="2">
+			<name>The Great Ranged Hunt</name>
+			<text>I have killed over one million ranged monsters.</text>
+			<text>Man, what a chore it was!</text>
+			<text></text>
+			<questgiver>Commander Cadis</questgiver>
+			<coordinates x="59" y="87">Fortress Town</coordinates>
+			<reward text1="[Mysterious Fruit]" text2="[Strange Coin]">{@@1}, 100x {@@2} and some other items.</reward>
+		</quest>
+	</var>
+
+	<var id="154">
+		<quest name="The Mana Tree" group="Fortress" incomplete="1">
+			<name>The Mana Tree</name>
+			<text>Amelia seemed depressed, so I gave her a toy to cheer up.</text>
+			<text></text>
+			<text>I should wait a while and see if she's feeling better.</text>
+			<text>The hero's passing hit hard everyone, after all.</text>
+			<text></text>
+			<questgiver>Amelia</questgiver>
+			<coordinates x="30" y="129">Artis Ruins</coordinates>
+		</quest>
+		<quest name="The Mana Tree" group="Fortress" incomplete="2">
+			<name>The Mana Tree</name>
+			<text>Amelia told me about a Tree in some cave on Fortress Island.</text>
+			<text></text>
+			<text>She warned it was dangerous, and that she was sure the tree</text>
+			<text>was sad with the war, just like her.</text>
+			<text></text>
+			<text>Maybe we should visit that tree?</text>
+			<text></text>
+			<questgiver>Amelia</questgiver>
+			<coordinates x="30" y="129">Artis Ruins</coordinates>
+		</quest>
+		<quest name="The Mana Tree" group="Fortress" complete="3">
+			<name>The Mana Tree</name>
+			<text>There's a tree in some cave on Fortress Island.</text>
+			<text></text>
+			<text>I can forage it every few days for a fruit.</text>
+			<text></text>
+			<questgiver>Amelia</questgiver>
+			<coordinates x="30" y="129">Artis Ruins</coordinates>
+			<reward text1="[Manapple]">{@@1}</reward>
+		</quest>
+	</var>
+
+
+	<!-- AETHYRA QUESTS -->
+	<!-- var 171 Tyrca and 172 Tametomo FIXME TODO MISSING -->
+
+
+	<!-- LILIT KINDGOM QUESTS -->
+	<var id="250">
+		<quest name="Lilit Kingdom Pass" group="Lilit" complete="1">
+			<name>Lilit Kingdom Pass</name>
+			<text>I was authorized to visit the magic fairy Kingdom of Lilit.</text>
+			<text></text>
+			<questgiver>Yetifly</questgiver>
+			<coordinates x="97" y="69">Lilit Kingdom, Trial Cave.</coordinates>
+		</quest>
+	</var>
+	<var id="251">
+		<quest name="Fairy Nemesis" group="Lilit" incomplete="1">
+			<name>Fairy Nemesis</name>
+			<text>Well, not exactly.</text>
+			<text>Shaabty wants me to kill 150 Mountain Snakes in Lilit</text>
+			<text>and bring back at least two snakes skins as a proof.</text>
+			<text></text>
+			<text>I've heard fairies hate snakes, but this is a lot of hatred.</text>
+			<text></text>
+			<questgiver>Shaabty</questgiver>
+			<text>Lilit Island, Indoors.</text>
+		</quest>
+		<quest name="Fairy Nemesis" group="Lilit" incomplete="2">
+			<name>Fairy Nemesis</name>
+			<text>After showing Shaabty how snakes are killed,</text>
+			<text>She offered me some Leather Trousers.</text>
+			<text></text>
+			<text>I need 10 Leather Patches and 8000 GP.</text>
+			<text></text>
+			<questgiver>Shaabty</questgiver>
+			<text>Lilit Island, Indoors.</text>
+		</quest>
+		<quest name="Fairy Nemesis" group="Lilit" incomplete="3">
+			<name>Fairy Nemesis</name>
+			<text>Shaabty is making trousers for me.</text>
+			<text>I need to wait her to finish.</text>
+			<text></text>
+			<questgiver>Shaabty</questgiver>
+			<text>Lilit Island, Indoors.</text>
+		</quest>
+		<quest name="Fairy Nemesis" group="Lilit" complete="4">
+			<name>Fairy Nemesis</name>
+			<text>After slaying several Mountain Snakes in Lilit,</text>
+			<text>Shaabty made some Leather Trousers for me.</text>
+			<text></text>
+			<questgiver>Shaabty</questgiver>
+			<text>Lilit Island, Indoors.</text>
+		</quest>
+	</var>
+	<var id="252">
+		<quest name="Pirates of S.A.R.A.H." group="Lilit" incomplete="1">
+			<name>Pirates of S.A.R.A.H.</name>
+			<text>The Elder requested my help with restocking the island's supplies.</text>
+			<text>Apparently the island was recently raided by pirates,</text>
+			<text>suspected of working with S.A.R.A.H.</text>
+			<text></text>
+			<wiki>For this mission, I'll need:</wiki>
+			<wiki>* 300 Moss</wiki>
+			<wiki>* 250 Roasted Maggots</wiki>
+			<wiki>* 20 Fish Box</wiki>
+			<wiki>* 1 Crystallized Maggot</wiki>
+			<wiki></wiki>
+			<questgiver>Elder</questgiver>
+			<coordinates x="28" y="73">Duck Island.</coordinates>
+			<reward text1="[Rubber Ducky]">{@@1}</reward>
+			<level>50</level>
+		</quest>
+		<quest name="Pirates of S.A.R.A.H." group="Lilit" incomplete="2">
+			<name>Pirates of S.A.R.A.H.</name>
+			<text>The supplies have been restocked,</text>
+			<text>but scouts report unusual activity from the tritan pirates.</text>
+			<text></text>
+			<text>Perhaps I should talk to the Elder...</text>
+			<text></text>
+			<questgiver>Elder</questgiver>
+			<coordinates x="28" y="73">Duck Island.</coordinates>
+			<level>75</level>
+		</quest>
+		<quest name="Pirates of S.A.R.A.H." group="Lilit" incomplete="3">
+			<name>Pirates of S.A.R.A.H.</name>
+			<text>Here will be text for Pirate Attack.</text>
+			<text></text>
+			<text>This is not yet implemented ingame.</text>
+			<text>YOU HAVE BEEN TROLLED BY THE DUCK KING</text>
+			<text>YOU NOW HAVE TO QUACK THREE TIMES.</text>
+			<text></text>
+			<questgiver>Elder</questgiver>
+			<coordinates x="28" y="73">Duck Island.</coordinates>
+			<level>75</level>
+		</quest>
+		<quest name="Pirate of S.A.R.A.H" group="Lilit" complete="4">
+			<name>Pirates of S.A.R.A.H.</name>
+			<text>The tritans have been defeated and I have been initiated into the Duck Side.</text>
+			<text>The Elder has granted me permission to use Duck Dungeon, a sort of training grounds.</text>
+			<text></text>
+			<text>Yet something doesn't quite feel right...</text>
+			<text>Who are the ducks, really?</text>
+			<text></text>
+			<questgiver>Elder</questgiver>
+			<coordinates x="28" y="73">Duck Island.</coordinates>
+		</quest>
+	</var>
+	<!-- var 253 Ivanize FIXME TODO MISSING -->
+	<var id="254">
+		<quest name="Raify's Nefarious Plan" group="Lilit" incomplete="1">
+			<name>Raify's Proposal</name>
+			<text>Raify really hates Pious and asked me to help him.</text>
+			<text>He asked me to help him exterminate several pious and will reward me if I bring back proof of my deed.</text>
+			<text>Raify needs: 50 Forest Piou Feathers and 50 Mana Piou Feathers as proof.</text>
+			<text>I also need to give him 1 Bottle of Woodland Water and 2500 GP to get my reward.</text>
+			<text></text>
+			<text>Should I accept this task?</text>
+			<text></text>
+			<questgiver>Raify</questgiver>
+			<coordinates x="87" y="34">Lilit - Sanctuary</coordinates>
+			<reward text1="[Lime Dye]">{@@1}</reward>
+			<level>40</level>
+		</quest>
+		<quest name="Raify's Nefarious Plan" group="Lilit" incomplete="2">
+			<name>Piou Slayer</name>
+			<text>I have accepted Raify's mission.</text>
+			<text>I am sure all adventurers have to do things like this from time to time.</text>
+			<text></text>
+			<text>Raify needs: 50 Forest Piou Feathers and 50 Mana Piou Feathers as proof.</text>
+			<text>I also need to give him 1 Bottle of Woodland Water and 2500 GP to finish my reward.</text>
+			<text></text>
+			<questgiver>Raify</questgiver>
+			<coordinates x="87" y="34">Lilit - Sanctuary</coordinates>
+			<reward text1="[Lime Dye]">{@@1}</reward>
+		</quest>
+		<quest name="Raify's Nefarious Plan" group="Lilit" complete="3">
+			<name>Mission accomplished.</name>
+			<text>Raify can make us Lime Dye anytime we want...for a price.</text>
+			<text></text>
+			<questgiver>Raify</questgiver>
+			<coordinates x="87" y="34">Lilit - Sanctuary</coordinates>
+			<reward text1="[Lime Dye]">{@@1}</reward>
+		</quest>
+	</var>
+		<var id="246">
+		<quest name="Piou Arrows" group="Piou Isles" incomplete="1,2">
+			<name>Piou Arrows</name>
+			<text>The piou blacksmith Glim ran out of arrows, so I gave him an arrow box, and he asked for more.</text>
+			<text>I can keep supplying him with boxes if I want to make some money.</text>
+			<text></text>
+			<questgiver>Glim</questgiver>
+			<coordinates x="82" y="28">Piou Isles - Blacksmith</coordinates>
+			<reward>64 EXP, 50 GP.</reward>
+		</quest>
+		<quest name="Piou Arrows" group="Piou Isles" complete="2">
+			<name>Piou Arrows</name>
+			<text>The piou blacksmith Glim ran out of arrows, so I gave him an arrow box, and he asked for more.</text>
+			<text>I can keep supplying him with boxes if I want to make some money.</text>
+			<text></text>
+			<text>##2Repeatable Quest##0</text>
+			<text></text>
+			<questgiver>Glim</questgiver>
+			<coordinates x="82" y="28">Piou Isles - Blacksmith</coordinates>
+			<reward>Experience and Gold.</reward>
+		</quest>
+	</var>
+	<var id="247">
+		<quest name="Supply Restock" group="Piou Isles" incomplete="1">
+			<name>Supply Restock</name>
+			<text>Pirates have been raiding the piou supply lines.</text>
+			<text>The piou chef asked me to bring supplies to restock their stores.</text>
+			<text></text>
+			<questgiver>Piou Chef</questgiver>
+			<coordinates x="35" y="75">Piou Houses - Bank</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Supply Restock" group="Piou Isles" complete="2">
+			<name>Supply Restock</name>
+			<text>The chef was happy with my speediness, so he gave me a bit of gold.</text>
+			<text>I'm glad I could help, he's a likable little piou.</text>
+			<text></text>
+			<questgiver>Piou Chef</questgiver>
+			<coordinates x="35" y="75">Piou Houses - Bank</coordinates>
+			<reward>Experience and Gold.</reward>
+		</quest>
+	</var>
+		<var id="248">
+		<quest name="Missing Hatchling" group="Piou Isles" incomplete="1">
+			<name>Missing Hatchling</name>
+			<text>One of Nurse May's charges has escaped, and she can't leave her other charges to retrieve it.</text>
+			<wiki>A palace guard spotted it at the castle, so I should probably start there.</wiki>
+			<wiki></wiki>
+			<questgiver>May</questgiver>
+			<coordinates x="28" y="24">Piou Nursery</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Missing Hatchling" group="Piou Isles" complete="2">
+			<name>Missing Hatchling</name>
+			<text>I finally caught the slippery little hatchling, and it's back in May's charge... For now.</text>
+			<text></text>
+			<questgiver>May</questgiver>
+			<coordinates x="28" y="24">Piou Nursery</coordinates>
+			<reward>Experience.</reward>
+		</quest>
+	</var>
+		<var id="249">
+		<quest name="Knighthood" group="Piou Isles" incomplete="1,2">
+			<name>Knighthood</name>
+			<text>Princess Pouf asked me to pit myself against her knights to prove my worthiness.</text>
+			<wiki>You can find Piou Knights in the Training Room below the Throne Room.</wiki>
+			<wiki></wiki>
+			<questgiver>Pouf</questgiver>
+			<coordinates x="38" y="23">Piou Castle - Throne Room</coordinates>
+			<reward>Unknown.</reward>
+		</quest>
+		<quest name="Knighthood" group="Piou Isles" complete="3">
+			<name>Knighthood</name>
+			<text>I defeated 8 of Princess Pouf's knights, and was made an Honorary Piou Knight in recognition of my deeds.</text>
+			<text>Hey, at least the position comes with a pretty neat steed.</text>
+			<text></text>
+			<questgiver>Pouf</questgiver>
+			<coordinates x="38" y="23">Piou Castle - Throne Room</coordinates>
+			<reward text1="[Bronze Pin]">{@@1}.</reward>
+		</quest>
+	</var>
+
+	<!-- LAND OF FIRE VILLAGE QUESTS -->
+	<var id="270">
+		<quest name="A Tea For Two" group="LoF Village" incomplete="1">
+			<name>A Tea For Two</name>
+			<text>The Doctor asked me for various herbs, and a haste potion.</text>
+			<wiki></wiki>
+			<wiki>Items Required:</wiki>
+			<wiki>* 150 Mauve Herb</wiki>
+			<wiki>* 150 Cobalt Herb</wiki>
+			<wiki>* 150 Gamboge Herb</wiki>
+			<wiki>* 100 Alizarin Herb</wiki>
+			<wiki>*  50 Shadow Herb</wiki>
+			<wiki>*  10 Haste Potion</wiki>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+			<level>30</level>
+		</quest>
+		<quest name="A Tea For Two" group="LoF Village" complete="2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18">
+			<name>A Tea For Two</name>
+			<text>The Doctor had his tea, and he can make more for me.</text>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+		</quest>
+		<quest name="An Early Christmas" group="LoF Village" incomplete="3">
+			<name>An Early Christmas</name>
+			<text>Bring the Doctor's Tea to Miler, a friend from The Doctor.</text>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+			<level>40</level>
+		</quest>
+		<quest name="An Early Christmas" group="LoF Village" incomplete="4">
+			<name>An Early Christmas</name>
+			<text>Mission complete, tea delivered.</text>
+			<text>Seems like Miler lost something, though...</text>
+			<text></text>
+			<questgiver>Miler</questgiver>
+			<coordinates x="41" y="24">Winterlands, Steampunk House.</coordinates>
+		</quest>
+		<quest name="An Early Christmas" group="LoF Village" incomplete="5">
+			<name>An Early Christmas</name>
+			<text>Miler lost a precious ring.</text>
+			<text>I must bring Present Boxes to Miler pry them open with his screwdriver.</text>
+			<text>LoF Technology is awesome. The slimes have them, gotta kill lots!</text>
+			<text></text>
+			<questgiver>Miler</questgiver>
+			<coordinates x="41" y="24">Winterlands, Steampunk House.</coordinates>
+		</quest>
+		<quest name="An Early Christmas" group="LoF Village" complete="6,7,8,9,10,11,12,13,14,15,16,17,18">
+			<name>An Early Christmas</name>
+			<text>Miler recovered his ring and thanked me.</text>
+			<text>I guess for him, Christmas just came.</text>
+			<text>I thought he asked me to come by later, though?</text>
+			<text></text>
+			<questgiver>Miler</questgiver>
+			<coordinates x="41" y="24">Winterlands, Steampunk House.</coordinates>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" incomplete="6">
+			<name>The Order Request</name>
+			<text>Miler asked me to talk to him later.</text>
+			<text></text>
+			<text>I think I should talk again to him.</text>
+			<text></text>
+			<questgiver>Miler</questgiver>
+			<coordinates x="41" y="24">Winterlands, Steampunk House.</coordinates>
+			<level>50</level>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" incomplete="7">
+			<name>The Order Request</name>
+			<text>Miler deposited everything in the Bank.</text>
+			<text>But the bank won't let a third party to withdraw.</text>
+			<text></text>
+			<text>I should go to Lilit's Bank.</text>
+			<text>The storage fairy will be willing to ignore the rules</text>
+			<text>But only if I bring her some Snake Skin.</text>
+			<text></text>
+			<questgiver>Miler</questgiver>
+			<coordinates x="41" y="24">Winterlands, Steampunk House.</coordinates>
+			<level>50</level>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" incomplete="8">
+			<name>The Order Request</name>
+			<text>The Storage Fairy gave me a Death Potion.</text>
+			<text>She advised me to deliver it to Henry in the Inn.</text>
+			<text></text>
+			<text>She also told me to remember a passphrase:</text>
+			<text>The Shadow Tortuga won the race against the Panthom Lord.</text>
+			<text></text>
+			<questgiver>Storage Fairy</questgiver>
+			<coordinates x="108" y="44">Lilit.</coordinates>
+			<level>50</level>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" incomplete="9">
+			<name>The Order Request</name>
+			<text>I gave the Death Potion to Henry.</text>
+			<text></text>
+			<text>He now thinks I'm part of some Order.</text>
+			<text>I was instructed to deliver some items to Pachua:</text>
+			<text>10x Honey</text>
+			<text>1x Elixir of Life</text>
+			<text></text>
+			<text>Pachua is in Tonori Canyon.</text>
+			<text></text>
+			<questgiver>Henry</questgiver>
+			<coordinates x="24" y="38">Nivalis Inn</coordinates>
+			<level>50</level>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" incomplete="10">
+			<name>The Order Request</name>
+			<text>I should report back to Henry.</text>
+			<text></text>
+			<questgiver>Henry</questgiver>
+			<coordinates x="24" y="38">Nivalis Inn</coordinates>
+			<level>55</level>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" incomplete="11">
+			<name>The Order Request</name>
+			<text>Henry asked me to investigate a cabin northwest of Nivalis.</text>
+			<text></text>
+			<text>I should go west of Nivalis, then north.</text>
+			<text>It'll be dangerous.</text>
+			<text></text>
+			<questgiver>Henry</questgiver>
+			<coordinates x="24" y="38">Nivalis Inn</coordinates>
+			<level>50</level>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" incomplete="12">
+			<name>The Order Request</name>
+			<text>I should report back to Henry.</text>
+			<text></text>
+			<questgiver>Henry</questgiver>
+			<coordinates x="24" y="38">Nivalis Inn</coordinates>
+			<level>57</level>
+		</quest>
+		<quest name="The Order Request" group="LoF Village" complete="13,14,15,16,17,18">
+			<name>The Order Request</name>
+			<text>Whatever this order does, is no good.</text>
+			<text>Their symbol is a red cross on a skull.</text>
+			<text></text>
+			<text>Where have I seen this symbol before...?</text>
+			<text></text>
+			<questgiver>Henry</questgiver>
+			<coordinates x="24" y="38">Nivalis Inn</coordinates>
+			<level>57</level>
+		</quest>
+		<quest name="Histories Of Past" group="LoF Village" incomplete="13">
+			<name>Histories Of Past</name>
+			<text>##1##BWARNING:##b This is a high priority quest!##0</text>
+			<text></text>
+			<text>I am poisoned!</text>
+			<text>I must seek the Doctor in LoF immediately!</text>
+			<wiki></wiki>
+			<wiki>Player will be constantly poisoned until they visit the Doctor.</wiki>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+			<level>57</level>
+		</quest>
+		<quest name="Histories Of Past" group="LoF Village" incomplete="14">
+			<name>Histories Of Past</name>
+			<text></text>
+			<text>The doctor helped me, but it is temporary.</text>
+			<text>I must find a way to travel to the past!</text>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+			<level>70</level>
+		</quest>
+		<quest name="Histories Of Past" group="LoF Village" incomplete="15">
+			<name>Histories Of Past</name>
+			<text></text>
+			<text>I can use the Time Flask now.</text>
+			<text>I should come prepared for everything.</text>
+			<text></text>
+			<text>Including, bring friends if I can.</text>
+			<wiki>Hint: Bring apples and be level 80+</wiki>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+			<level>70</level>
+		</quest>
+		<quest name="Histories Of Past" group="LoF Village" incomplete="16">
+			<name>Histories Of Past</name>
+			<text></text>
+			<text>I saw the Great Fire.</text>
+			<text></text>
+			<text>...</text>
+			<text></text>
+			<text>I really should talk to The Doctor.</text>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+			<level>70</level>
+		</quest>
+		<quest name="Histories Of Past" group="LoF Village" complete="17,18">
+			<name>Histories Of Past</name>
+			<text></text>
+			<text>I learned too much.</text>
+			<text>Everything comes down to the Moubootaur.</text>
+			<text>I fear the day I'll face it...</text>
+			<text></text>
+			<questgiver>The Doctor</questgiver>
+			<coordinates x="75" y="68">Dimond's Cove, Third Floor.</coordinates>
+			<level>70</level>
+		</quest>
+	</var>
+	<var id="271">
+		<quest name="True Buccaneer" group="LoF Village" incomplete="1">
+			<name>True Buccaneer</name>
+			<text>Arr, I was told that George needs help! Gotta help pirates, 'cause I'm so cool! Arr!</text>
+		</quest>
+		<quest name="True Buccaneer" group="LoF Village" incomplete="2">
+			<name>True Buccaneer</name>
+			<text>Arr, I should return with 30 Beer, 30 Casino Coins and 50 Empty Bottles! Arr Yarr!</text>
+			<text></text>
+			<questgiver>George</questgiver>
+			<coordinates x="26" y="36">Sincerity Island</coordinates>
+		</quest>
+		<quest name="True Buccaneer" group="LoF Village" incomplete="3">
+			<name>True Buccaneer</name>
+			<text>Yarr, I got a nice hat for helping! Arr, he might need help later!</text>
+			<text></text>
+			<questgiver>George</questgiver>
+			<coordinates x="26" y="36">Sincerity Island</coordinates>
+			<reward text1="[Sailor Hat]">{@@1}</reward>
+			<level>40</level>
+		</quest>
+		<quest name="True Buccaneer" group="LoF Village" incomplete="4">
+			<name>True Buccaneer</name>
+			<text>Arr, I should return with 50 Potatoz, 40 Dragonfruit and something to read. What a demanding capt'n!</text>
+			<text></text>
+			<questgiver>George</questgiver>
+			<coordinates x="26" y="36">Sincerity Island</coordinates>
+			<level>60</level>
+		</quest>
+		<quest name="True Buccaneer" group="LoF Village" complete="5">
+			<name>True Buccaneer</name>
+			<text>Yarr, I got an even nicer hat for helping!</text>
+			<text></text>
+			<questgiver>George</questgiver>
+			<coordinates x="26" y="36">Sincerity Island</coordinates>
+			<reward text1="[Corsair Hat]">{@@1}</reward>
+			<level>60</level>
+		</quest>
+	</var>
+	<var id="272">
+		<quest name="Slaying the Fafi Dragon" group="LoF Village" incomplete="1">
+			<name>Slaying the Fafi Dragon</name>
+			<text>Susanne asked me to slay the Fafi Dragon which roams this island.</text>
+			<text></text>
+			<questgiver>Susanne</questgiver>
+			<coordinates x="31" y="26">Secret Island, Fairy House.</coordinates>
+			<level>53</level>
+		</quest>
+		<quest name="Slaying the Fafi Dragon" group="LoF Village" incomplete="2">
+			<name>Slaying the Fafi Dragon</name>
+			<text>The dragon was slain. I need to report to Susanne.</text>
+			<text></text>
+			<questgiver>Susanne</questgiver>
+			<coordinates x="31" y="26">Secret Island, Fairy House.</coordinates>
+		</quest>
+		<quest name="Slaying the Fafi Dragon" group="LoF Village" complete="3">
+			<name>Slaying the Fafi Dragon</name>
+			<text>I can pay Susanne some items for a respawn.</text>
+			<text></text>
+			<questgiver>Susanne</questgiver>
+			<coordinates x="31" y="26">Secret Island, Fairy House.</coordinates>
+			<reward text1="[Fafi Mask]">{@@1}</reward>
+		</quest>
+	</var>
+	<!-- var 273 daily -->
+	<var id="274">
+		<quest name="Pet Caring Guild" group="LoF Village" complete="1">
+			<name>Pet Caring Guild</name>
+			<text>I paid the expensive fee, and now I'm affiliated with the Pet Caring Guild.</text>
+			<text></text>
+			<text>If my pet runs away, they can give another one to me... For a fee.</text>
+			<text></text>
+			<questgiver>Pet Detective</questgiver>
+			<coordinates x="192" y="23">LoF Village, Noble District.</coordinates>
+		</quest>
+	</var>
+	<var id="275">
+		<quest name="Call Of Dusty" group="LoF Village" complete="1">
+			<name>Call Of Dusty</name>
+			<text>I'm supposed to kill some boss in a desert canyon.</text>
+			<text>They stole pyndragon's gunstaves, so they're dangerous.</text>
+			<text>Wasn't that enough, it is a timed quest, and it is a party PVP area.</text>
+			<text></text>
+			<text>The challenges starts hourly, when the minute clock reaches the zero.</text>
+			<text>They're over when the minute clock reaches fifteen regardless of a winner.</text>
+			<text></text>
+			<questgiver>Colonel DUSTMAN</questgiver>
+			<coordinates x="180" y="193">Heroes Hold, Main Castle.</coordinates>
+			<reward text1="[Dustynator 2000]">{@@1}</reward>
+			<level>50</level>
+		</quest>
+	</var>
+	<var id="276">
+		<quest name="Heroes Hold" group="LoF Village" incomplete="1">
+			<name>Heroes Hold</name>
+			<text>I accepted to seek for Colonel DUSTMAN's men, and he showed me how to access the Heroes Hold dungeons.</text>
+			<text>The Heroes Hold is a high level area for the best of the best players.</text>
+			<text>In other words: for heroes. Like myself, I hope.</text>
+			<text></text>
+			<questgiver>Colonel DUSTMAN</questgiver>
+			<coordinates x="180" y="193">Heroes Hold, Main Castle.</coordinates>
+			<level>40</level>
+		</quest>
+		<quest name="Heroes Hold" group="LoF Village" complete="2">
+			<name>Heroes Hold</name>
+			<text>I could not find Colonel DUSTMAN's men, but he still rewarded me.</text>
+			<text></text>
+			<text>The Heroes Hold is a high level area for the best of the best players.</text>
+			<text>In other words: for heroes. Like myself, I hope.</text>
+			<text></text>
+			<questgiver>Colonel DUSTMAN</questgiver>
+			<coordinates x="180" y="193">Heroes Hold, Main Castle.</coordinates>
+		</quest>
+		<quest name="Heroes Hold" group="LoF Village" incomplete="3">
+			<name>Heroes Hold</name>
+			<text>I accepted to seek for DUSTMAN's men, and he open the Heroes Hold for me.</text>
+			<text>The Heroes Hold is a high level area for the best of best players.</text>
+			<text>In other words: for heroes. Like myself, I hope.</text>
+			<text></text>
+			<text>Ultimate and Supreme floors should now be open.</text>
+			<text>Can I survive them, aware of the penalties?</text>
+			<text>...Only one way to find out, I guess.</text>
+			<text></text>
+			<text>##1##BWARNING:##b You need to wait further releases to continue this quest!##0</text>
+			<questgiver>Colonel DUSTMAN</questgiver>
+			<coordinates x="180" y="193">Heroes Hold, Main Castle.</coordinates>
+		</quest>
+	</var>
+	<var id="277">
+		<quest name="Culinary Contest" group="LoF Village" incomplete="1">
+			<name>Culinary Contest</name>
+			<text>Dimond's Cove chef wants to beat Ryan in a cooking contest, and he thought up an ultimate recipe.</text>
+			<text>For that, he needs some Small Mushrooms and Mouboo Steaks.</text>
+			<text></text>
+			<questgiver>Dimond's Cove Chef</questgiver>
+			<coordinates x="55" y="144">LoF Village, Dimond's Cove.</coordinates>
+			<reward text1="[Butcher Knife]">{@@1}</reward>
+			<level>34</level>
+		</quest>
+		<quest name="Culinary Contest" group="LoF Village" complete="2">
+			<name>Culinary Contest</name>
+			<text>Dimond's Cove chef wants to beat Ryan in a cooking contest, and he thought up an ultimate recipe.</text>
+			<text>I gave him what he wanted, and he went to cook.</text>
+			<text>On hindsight, he never told me when the contest will be. I wanted to watch.</text>
+			<text></text>
+			<questgiver>Dimond's Cove Chef</questgiver>
+			<coordinates x="55" y="144">LoF Village, Dimond's Cove.</coordinates>
+			<reward text1="[Butcher Knife]">{@@1}</reward>
+		</quest>
+	</var>
+	<var id="278">
+		<quest name="A Towel For A Hitchhiker" group="LoF Village" complete="1,2">
+			<name>A Towel For A Hitchhiker</name>
+			<text>Help the stranger who only knows about Hitchhiker Guide's to Galaxy.</text>
+			<text></text>
+			<text>This quest is only available on days 18~25.</text>
+			<text>It must be February, May, August or September to do this quest.</text>
+			<text></text>
+			<questgiver>Stranger</questgiver>
+			<coordinates x="44" y="37">LoF Village.</coordinates>
+		</quest>
+	</var>
+	<!-- var 279 Barbara FIXME TODO MISSING -->
+
+	<var id="280">
+		<quest name="Axzell's Civic Pride" group="LoF Village" incomplete="1">
+			<name>Axzell's Civic Pride</name>
+			<text>Axzell can make Red Dye but needs me to collect some materials first.</text>
+			<text>He needs: 3500 GP, 200 Alizarin Herbs, 20 Coral, 10 Sulfur Powder, and 1 Bottle of Sewer Water.</text>
+			<text></text>
+			<questgiver>Axzell</questgiver>
+			<coordinates x="25" y="30">LoF Alchemy Shop</coordinates>
+			<reward text1="[Red Dye]">{@@1}</reward>
+			<level>50</level>
+		</quest>
+		<quest name="Axzell's Civic Pride" group="LoF Village" complete="2">
+			<name>Axzell's Civic Pride</name>
+			<text>Axzell can now make me Red Dye whenever I want....for a price.</text>
+			<text>He needs: 3500 GP, 200 Alizarin Herbs, 20 Coral, 10 Sulfur Powder, and 1 Bottle of Sewer Water.</text>
+			<text></text>
+			<questgiver>Axzell</questgiver>
+			<coordinates x="25" y="30">LoF Alchemy Shop</coordinates>
+			<reward text1="[Red Dye]">{@@1}</reward>
+		</quest>
+	</var>
+
+	<var id="281">
+		<quest name="Inspector Quest" group="LoF Village" incomplete="1">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You should ask around the Land of Fire.</text>
+			<text></text>
+			<wiki>Talk to Dimond's Chef, Kenton, Axzell, Dimond's Chef again, Pet Detective, Shannon, Zack, Jenny, Dimond, Phil, Lora Tay, and report back to Anselmo.</wiki>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward>1,000 GP</reward>
+			<level>48</level>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" incomplete="2">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You should ask around Hurnscald.</text>
+			<text></text>
+			<wiki>Talk to Laranja, Helena, Gwendolyn, Hinnak, Nicholas, Airlia and report back to Anselmo.</wiki>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward>600 GP</reward>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" incomplete="3">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You should talk to Halinarzo guards.</text>
+			<text></text>
+			<wiki>Talk to Jacob, Corina, Jhon, Laurie and Amy, then report back to Anselmo.</wiki>
+			<wiki>All of the guards are outside.</wiki>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward>1,400 GP</reward>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" incomplete="4">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You should bring the leather suitcase to Katze.</text>
+			<text></text>
+			<wiki>Katze is in the cave below the chasm in the Canyon Caves. There's a river flowing to the right chasm.</wiki>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward>???</reward>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" incomplete="5">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You should ask Katze about the robberies.</text>
+			<text></text>
+			<wiki>Katze will ask for some vendor which sells Cheese in Tulimshar. Nard's shipkeeper sells cheese, so reply with her name.</wiki>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward text1="[Golden Apple]">{@@1}</reward>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" incomplete="6">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You should report back to him.</text>
+			<text></text>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward text1="[Pile of Ash]">5x {@@1}</reward>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" incomplete="7">
+			<name>Inspector Quest</name>
+			<text>An emergency happened.</text>
+			<text>Head to the Ritual Cave in Jack's Basement and talk to Clauquer.</text>
+			<text></text>
+			<wiki>Jack's Basement is in a house northwest of Dimond's Cove, still in the main town area.</wiki>
+			<wiki>The chambers are sort-of hidden. Make sure to have at least 10 piles of ash on you before heading there.</wiki>
+			<wiki>Monsters won't respawn in the Ritual Cave, but you are on a clock.</wiki>
+			<wiki></wiki>
+			<wiki>Talk to the Summoning Altar again after defeating the boss.</wiki>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward text1="[Silver Boss Gift]">{@@1}</reward>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" incomplete="8">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You should report back to him.</text>
+			<text></text>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+			<reward>2,000 GP, Inspector Set</reward>
+		</quest>
+		<quest name="Inspector Quest" group="LoF Village" complete="9">
+			<name>Inspector Quest</name>
+			<text>Anselmo asked you to investigate a string of robberies.</text>
+			<text>You did, and now you're a junior (intern) officer of LoF police.</text>
+			<text></text>
+			<questgiver>Anselmo</questgiver>
+			<coordinates x="77" y="104">Land of Fire Village</coordinates>
+		</quest>
+	</var>
+
+	<!-- WIKI Quests -->
+	<var id="300">
+		<quest name="Summer Quests" group="Seasonal" complete="1337">
+			<name>Summer Quest</name>
+			<text>During summer, the following drops are available:</text>
+			<text>- Cocktails (common drop)</text>
+			<text>- Sunglasses (rare drop)</text>
+			<text></text>
+			<text>During summer, the following quests are available:</text>
+			<text>- Luffyx Summer Shorts Quest</text>
+			<text>- Ched's Cocktail Collection Quest</text>
+			<text></text>
+			<text>During summer, Tonori Delight production is raised.</text>
+		</quest>
+	</var>
+
+	<var id="301">
+		<quest name="Autumn Quests" group="Seasonal" complete="1337">
+			<name>Autumn Quest</name>
+			<text>During autumn, the following drops are available:</text>
+			<text>- Pumpkandy Seed (common drop)</text>
+			<text></text>
+			<text>During autumn, the following quests are available:</text>
+			<text>- Hasan's Great Scorpion Hunting Quest</text>
+			<text></text>
+			<text>Pumpkandy seed can be planted and candies harvested.</text>
+		</quest>
+	</var>
+
+	<var id="302">
+		<quest name="Winter Quests" group="Seasonal" complete="1337">
+			<name>Winter Quest</name>
+			<text>During winter, the following drops are available:</text>
+			<text>- Caramel Candy and Snowflake (common drop)</text>
+			<text>- Chocolate Biscuit and Ginger Bread Man drops more often</text>
+			<text>- Reinboo Wand (rare drop, mouboo only)</text>
+			<text></text>
+			<text>During winter, the following quests are available:</text>
+			<text>- Serge's Knit Hat Quest</text>
+			<text></text>
+		</quest>
+	</var>
+
+	<var id="303">
+		<quest name="Spring Quests" group="Seasonal" complete="1337">
+			<name>Spring Quest</name>
+			<text>During spring, the following quests are available:</text>
+			<text>- Paxel's Windy Helmet Quest</text>
+			<text></text>
+		</quest>
+	</var>
+
+	<!-- WIKI Quests -->
+	<var id="304">
+		<quest name="Sponsor Quests" group="Special" complete="1337">
+			<name>Sponsor Quest</name>
+			<text>Sponsors have access to special, monthly quests.</text>
+			<text>These quests allow to sell some items to NPC</text>
+			<text>(eg. 7 black scorpion stingers) for normal sell price.</text>
+			<text></text>
+			<text>However, they'll get from 1 to 4 Strange Coins as reward.</text>
+			<text>There's no experience gain. You can only sell once.</text>
+			<text>These exclusive quests are available on sponsor's maps.</text>
+			<text></text>
+			<text>Strange Coins can also be obtained at daily login, events, and gift boxes.</text>
+			<text>It's not a premium currency. You cannot buy Strange Coins.</text>
+		</quest>
+	</var>
+
+	<var id="308">
+		<quest name="Christmas Quests" group="Special" complete="1337">
+			<name>Christmas Quest</name>
+			<text>During christmas, the following quests are available:</text>
+			<text>- Frostia's Mountains Gift Collector Quest</text>
+			<text>- Golbarez Money Scheme Quest</text>
+			<text>- Christmas Cook and Storage Master Quests</text>
+			<text>- (main) Lost Christmas Boxes Quest</text>
+		</quest>
+	</var>
+
+
+	<!-- TEST QUESTS -->
+	<!--
+	<var id="1000">
+		<quest name="Test quest" group="Tests" complete="2" incomplete="1">
+			<name>Testing quest name with var1={@@var1}</name>
+			<text>Quest text1 with vars: {@@var1}, {@@var2}, {@@var3}</text>
+			<text>Time: {@@time}</text>
+			<questgiver>Giver vars: {@@var1}, {@@var2}, {@@var3}</questgiver>
+			<coordinates x="1" y="1">Vars: {@@var1}, {@@var2}, {@@var3}</coordinates>
+			<reward>Reward: {@@var1}, {@@var2}, {@@var3}</reward>
+		</quest>
+	</var>
+	<var id="00">
+		<quest name="Saxso Chest" group="Tests" complete="1">
+			<name>Saxso Chest</name>
+			<text>I managed to open the chest on Saxso's house.</text>
+			<text></text>
+			<questgiver>Nurse</questgiver>
+			<coordinates x="31" y="79">Candor Island, Saxso's House.</coordinates>
+			<reward text1="[Tooth Necklace]">{@@1}</reward>
+		</quest>
+	</var>
+	-->
 </quests>

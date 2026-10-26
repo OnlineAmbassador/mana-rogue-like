@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
+<!-- Spider xml for new sprite -->
 <sprite>
   <imageset name="base" src="graphics/sprites/monsters/spider.png|W;R" width="35" height="35"/>
   <action name="stand" imageset="base">

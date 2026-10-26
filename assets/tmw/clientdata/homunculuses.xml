@@ -1,5 +1,606 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Author: 4144
-Copyright (C) 2016 Evol Online -->
+<!-- Author: 4144, Jesusalva, Duke M
+Copyright (C) 2016 Evol Online
+Copyright (C) 2019-2024 Moubootaur Legends -->
+
+<!--
+	Basic attributes (default values used for homunculus here):
+		hoverCursor
+		targetOffsetX
+		targetOffsetY
+		nameOffsetX
+		nameOffsetY
+		sortOffsetY
+		hpBarOffsetX
+		hpBarOffsetY
+	
+	Walking attribute (defaults to walk, default used here for homunculus)
+		walkType
+			walk, ground, fly, air, all, wall, monsterwall, swim, water
+			(walkswim, swimwalk (legacy))
+			
+	AI attributes (used here!)
+		startFollowDistance
+			If the distance gets greater than this, the homunculus moves to the owner.
+		followDistance
+			The distance in tiles for following owner (walk follow)
+		warpDistance
+			The distance at which the homunculus warps to the owner
+		offsetX
+			The normal stand offset. Positive is to the right, assuming the owner is facing
+			towards player. Or: positive is to the left of the owner.
+		offsetY
+			The normal stand offset. Positive is down, assuming the owner facing towards
+			player. Or: In the direction the owner looks.
+		sitOffsetX
+			The same for sit
+		sitOffsetY
+			The same for sit
+		moveOfsetX
+		moveOffsetY
+			The relative follow position. X and Y as above.
+		deadOffsetX
+		deadOffsetY
+			Don't know for what this is.
+		attackOffsetX
+		attackOffsetY
+			That seems to set the attack distance. 
+			A negative Y offset means: n steps behind the player char.
+			So for ranged homunculi set a negative value here.
+		thinkTime
+			Standard value is 100. Probably how fast the AI checks and applies these values here.
+		directionType
+			The direction in which the homunculus looks. Depends on owner.
+				0: Unknown (maybe random)
+				1: Looking to the owner
+				2:
+				3:
+				4: Opposite direction as owner
+		sitDirectionType
+			Same as directionType
+		deadDirectionType
+			Unknown
+		attackDirectionType
+			Purpose unknown
+	Unknown:
+		maxHP
+			No idea if this does anything useful. This value should be controlled by server.
+		deadSortOffsetY
+			Unknown
+		colors
+			Unknown
+			
+		#################################################################################
+		
+	Hint for players:
+	It is possible to override these settings with a local file. To do so,
+	create a "local" directory in the updates folder. On Linux this is
+	${HOME}/.local/share/mana/updates/updates.tmw2.org
+	Then in that folder put a copy of the homunculuses.xml file and
+	edit it as wanted. These modifications are local only. So outfit
+	changes are only visible to you locally. But movement modifications
+	are visible globally because they are controlled by the client. But they
+	too apply locally only. So if you want your melee homunculus to stay
+	behind, just set a negative attack Y offset (To be tested!).
+	
+	see src/resources/beingcommon.cpp
+-->
+
+
 <homunculuses>
+
+	<!--======================================================================-->
+	<!-- Mage attack range = 7 -->
+	<homunculus
+		id="6001"
+		name="Mage"
+		startFollowDistance="3"
+		followDistance="-8"
+		warpDistance="11"
+		offsetX="1"
+		offsetY="-5"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="-8"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="-7"
+		thinkTime="100"
+		directionType="1"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="1"
+	>
+		<!-- 
+		Sprites to use (tag <sprite>), has a "variant" attribute.
+		Different attack types (tag <attack>)
+			id
+			effect-id
+			hit-effect-id
+			action		default=attack
+					others found so far: attack_distance, attack_magic
+			skyaction	default=skyattack (no idea what these do)
+			wateraction	default=waterattack
+			rideaction	default=rideattack
+			missile-particle For ranged attack?
+			missile-z
+			missile-lifetime
+			missile-speed
+			missile-diedistance
+		fx, <particlefx> node	
+		Sounds for different events (<sound> tag)
+			Events: hit, miss, hurt, spawn, die	sit sittop, move
+	-->
+
+		<sprite>races/human-female.xml</sprite>
+		<!-- for hair colors see itemcolors.xml, section list name="hairS" 
+		The simple hair colors don't work here. -->
+		<sprite>hairstyles/hairstyle19.xml|#2b2b2b,3d2613,3f3f3f,4e3117,585858,774c20,858585,8f5d22,a7a7a7,ae772d,d6d6d6,dbae5c,ffffff,f7e1ad</sprite>
+		<sprite>equipment/head/wizardhat.xml|#4f0a76,8010c0,d699f7</sprite>
+		<sprite>equipment/feet/boots-female.xml</sprite>
+		<sprite>equipment/chest/silkrobe-female.xml|#3c1554,6d3195,c987d1</sprite>
+		<sprite>equipment/weapons/weapon-staff.xml</sprite>
+		<!-- <attack id="382" action="attack_distance"/> -->
+		<!-- <attack id="382" action="attack_magic"/> -->
+		<!-- Probably only id "1" is ever used -->
+		<!-- It seems even a ranged homunculus does not have action="attack_distance" -->
+<!--		<attack id="1" missile-particle="graphics/particles/misc.firebolt.xml" action="attack_distance"/>-->
+		<attack id="1" missile-particle="graphics/particles/misc.firebolt.xml"/>
+		<attack id="2" missile-particle="graphics/particles/darkblueflame.particle.xml" action="attack_magic"/>
+		<sound event="hit">monsters/shroom/shroomhit.ogg</sound>
+<!--		<sound event="hurt">monsters/piou/hurt2.ogg</sound>
+		<sound event="spawn">monsters/piou/spawn1.ogg</sound>-->
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6002"
+		name="Tanker"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="0"
+		offsetY="2"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<sprite>races/human-male.xml</sprite>
+		<sprite>hairstyles/hairstyle26.xml|#2b2b2b,000002,3f3f3f,020004,585858,0d0d13,858585,181c20,a7a7a7,2b302d,d6d6d6,616b64,ffffff,c7ccbf</sprite> <!-- black -->
+		<sprite>equipment/feet/boots-male.xml|#3f221d,754d23,f5cea4</sprite> <!-- brown -->
+		<sprite>equipment/hands/cottongloves-male.png|#3f221d,754d23,f5cea4</sprite>
+		<sprite>equipment/legs/trousers-male.xml</sprite>
+		<sprite>equipment/chest/lightplatemail-male.xml</sprite>
+		<sprite>equipment/head/infantryhelmet.xml</sprite>
+		<sprite>equipment/weapons/bugslayer.xml</sprite>
+		<sprite>equipment/shields/bladeshield.xml</sprite>
+		<!-- same sound as in items.xml -->
+		<sound event="hit">weapons/piouslayer/hit1.ogg</sound>
+		<sound event="miss">weapons/piouslayer/miss1.ogg</sound>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6003"
+		name="Agile"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="1"
+		offsetY="-1"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="1"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="1"
+	>
+		<sprite>races/human-female.xml</sprite>
+		<sprite>hairstyles/hairstyle16.xml|#2b2b2b,470320,3f3f3f,570c27,585858,8e2b41,858585,a42d2d,a7a7a7,c82525,d6d6d6,e89687,ffffff,fcd4a4</sprite>
+		<sprite>equipment/feet/assassinboots-female.xml</sprite>
+		<sprite>equipment/hands/assassingloves-female.xml</sprite>
+		<sprite>equipment/chest/assassinchest-female.xml</sprite>
+		<sprite>equipment/legs/assassinpants-female.xml</sprite>
+		<sprite>equipment/weapons/backsword.xml</sprite>
+		<sound event="hit">weapons/piouslayer/hit1.ogg</sound>
+		<sound event="miss">weapons/piouslayer/miss1.ogg</sound>
+		<!-- TODO: specific katana sound -->
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6004"
+		name="Strong"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="0"
+		offsetY="2"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<sprite>races/human-male.xml</sprite>
+		<sprite>hairstyles/hairstyle14.xml|#2b2b2b,273a2e,3f3f3f,2f4a37,585858,2c5235,858585,3a6935,a7a7a7,4b802c,d6d6d6,8bb449,ffffff,d2e489</sprite> <!-- Forest Green -->
+		<sprite>equipment/feet/bromenalboots-male.xml</sprite>
+		<sprite>equipment/hands/bromenalgloves-male.xml</sprite>
+		<sprite>equipment/legs/jeanschaps-male.xml</sprite>
+		<sprite>equipment/chest/trainingshirt-male.xml</sprite>
+		<sprite>equipment/head/vikinghelmet.xml</sprite>
+		<sprite>equipment/weapons/kanabo.xml</sprite>
+		<!-- same as in items.xml -->
+		<sound event="hit">weapons/piouslayer/hit1.ogg</sound>
+		<sound event="hit">weapons/piouslayer/hit2.ogg</sound>
+		<sound event="miss">weapons/axe/miss.ogg</sound>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6005"
+		name="Lucky"
+		targetOffsetX="0"
+		targetOffsetY="12"
+		startFollowDistance="3"
+		followDistance="-5"
+		warpDistance="11"
+		offsetX="1"
+		offsetY="-5"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="1"
+		moveOffsetY="-5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="-9"
+		thinkTime="100"
+		directionType="1"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="1"
+	>
+		<sprite>races/human-female.xml</sprite>
+		<sprite>hairstyles/hairstyle18.xml|#2b2b2b,273a2e,3f3f3f,2f4a37,585858,2c5235,858585,3a6935,a7a7a7,4b802c,d6d6d6,8bb449,ffffff,d2e489</sprite> <!-- forest green -->
+		<sprite>equipment/head/leprechaunhat.xml</sprite>
+<!--		<sprite>equipment/head/fairyhat.xml</sprite> --> <!-- other option, would look nice too -->
+		<sprite>equipment/feet/boots-female.xml|#3f221d,754d23,f5cea4</sprite> <!-- brown -->
+		<sprite>equipment/hands/cottongloves-female.xml|#3f221d,754d23,f5cea4</sprite>
+		<sprite>equipment/legs/bandittrousers-female.xml</sprite>
+		<sprite>equipment/chest/forestarmor-female.xml</sprite>
+		<!-- Copied from Robin Bandit: -->
+		<sprite>monsters/accessories/banditbow.xml|#48488c,48488e,48488f,695c21,5f5fbe,827229,6e6edb,9493a4,a4adff,bab8c2,bcbbc6,e3eaff;#332c19,443a20,453b1e,61532d,87733d,a58d4d</sprite>
+		<attack id="1" missile-particle="graphics/particles/training-arrow.xml"/>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6006"
+		name="Accurate"
+		targetOffsetX="0"
+		targetOffsetY="8"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="1"
+		offsetY="-5"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="-5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="-5"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<!--
+			The accurate is a piou? In server data it is a demi-human like
+			the others. But if this is wanted...
+		<sprite>monsters/tipiou.xml</sprite>
+		-->
+		<!-- New sprite copied from grenadier, except hat -->
+		<sprite>races/human-male-medium.xml</sprite>
+		<sprite>hairstyles/hairstyle01.xml</sprite>
+		<sprite>equipment/chest/sorcererrobe-male.xml|#5178a0,1a294c;#d5b02c</sprite>
+		<sprite>equipment/legs/cottontrousers-male.xml|#5178a0,1a294c</sprite>
+		<sprite>equipment/head/bowlerhat.xml</sprite>
+		<sprite>equipment/neck/monocle.xml</sprite>
+		<sprite>equipment/neck/mustache.xml</sprite>
+		<sprite>equipment/hands/cottongloves-male.xml|#4e2e18,c8752f</sprite>
+		<sprite>equipment/feet/boots-male.xml|#212121,444444</sprite>
+		<!-- TODO: gun effects/animations -->
+		<sprite>equipment/weapons/gun.xml</sprite>
+		<!-- same as in items.xml -->
+		<sound event="hit">weapons/gun/hit1.ogg</sound>
+		<sound event="miss">weapons/gun/miss1.ogg</sound>
+		<sound event="miss">weapons/gun/miss2.ogg</sound>
+		<sound event="miss">weapons/gun/miss3.ogg</sound>
+		<attack id="1" critical-hit-effect-id="31" hit-effect-id="402" missile-particle="graphics/particles/lobbed-object.xml"/>
+	</homunculus>
+	<!--======================================================================-->
+	<!-- 
+		Allrounder is melee.
+		Since it is not specialized in melee, maybe an attack offset
+		of -2 (2 steps behind player char) is better for keeping
+		it alive? To be tested.
+	-->
+	<homunculus
+		id="6007"
+		name="All Rounder"
+		startFollowDistance="3"
+		followDistance="2"
+		targetOffsetX="1"
+		targetOffsetY="-2"
+		warpDistance="11"
+		offsetX="1"
+		offsetY="-1"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="1"
+		attackOffsetY="-1"
+		thinkTime="100"
+		directionType="1"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="1"
+	>
+		<sprite>races/human-female.xml</sprite>
+		<sprite>hairstyles/hairstyle20.xml|#2b2b2b,471c26,3f3f3f,591f20,585858,8f2f2c,858585,a63e25,a7a7a7,c85a2f,d6d6d6,f39855,ffffff,ffe3b6</sprite> <!-- copper blonde -->
+		<sprite>equipment/head/deserthelmet.xml</sprite>
+		<sprite>equipment/feet/boots-female.xml|#3f221d,754d23,f5cea4</sprite> <!-- brown -->
+		<sprite>equipment/hands/cottongloves-female.xml|#3f221d,754d23,f5cea4</sprite>
+		<sprite>equipment/legs/cottonskirt-female.xml|#594d36,b49b6c,f4d293</sprite>
+		<sprite>equipment/chest/leathershirt-female.xml|#3f221d,754d23,f5cea4</sprite>
+		<sprite>equipment/weapons/sword-iron.xml</sprite>
+		<sprite>equipment/shields/buckler.xml</sprite>
+		<!-- same as in items.xml -->
+		<sound event="hit">weapons/knife/hit1.ogg</sound>
+		<sound event="miss">weapons/knife/miss1.ogg</sound>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6008"
+		name="Superior Machine"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="0"
+		offsetY="2"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<sprite>races/human-male.xml</sprite>
+		<sprite>hairstyles/hairstyle21.xml|#311623,451a25,602222,7d2b26,9a3416,ca7e55,e2b88f</sprite>
+		<sprite>equipment/feet//boots-male.xml|#3f221d,754d23,f5cea4</sprite> <!-- brown -->
+		<sprite>equipment/hands/cottongloves-male.png|#2d2d41,4c4d9a,7b7b99</sprite> <!-- blue gray -->
+		<sprite>equipment/legs/trousers-male.xml</sprite>
+		<sprite>equipment/chest/lightplatemail-male.xml</sprite>
+		<sprite>equipment/head/prsmhelmet.xml</sprite>
+		<sprite>equipment/weapons/dragon-sword.xml</sprite>
+		<!-- TODO: There is no such item in items.xml.
+			So maybe find a better sound for it. -->
+		<sound event="hit">weapons/piouslayer/hit1.ogg</sound>
+		<sound event="hit">weapons/piouslayer/hit2.ogg</sound>
+		<sound event="miss">weapons/piouslayer/miss1.ogg</sound>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6010"
+		name="Elli"
+		startFollowDistance="2"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="0"
+		offsetY="2"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<sprite>monsters/elli.xml</sprite>
+		<!-- TODO: Add sound -->
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6020"
+		name="Ranger"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="0"
+		offsetY="2"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<sprite>races/human-female.xml</sprite>
+		<sprite>hairstyles/hairstyle20.xml|#37273b,422c48,615282,6f78ab,90abcd,96cdd9,d1e9eb</sprite>
+		<sprite>equipment/chest/forestarmor-female.xml</sprite>
+		<sprite>equipment/head/fairyhat.xml</sprite>
+		<sprite>equipment/feet/boots-female.xml|#3f221d,754d23,f5cea4</sprite> <!-- brown -->
+		<sprite>equipment/hands/cottongloves-female.xml|#3f221d,754d23,f5cea4</sprite>
+		<sprite>equipment/legs/cottonskirt-female.xml|#594d36,b49b6c,f4d293</sprite>
+		<!-- TODO: staff or bow? What is better? -->
+<!--		<sprite>equipment/weapons/staff-wizard.xml</sprite>-->
+		<sprite>monsters/accessories/banditbow.xml|#48488c,48488e,48488f,695c21,5f5fbe,827229,6e6edb,9493a4,a4adff,bab8c2,bcbbc6,e3eaff;#332c19,443a20,453b1e,61532d,87733d,a58d4d</sprite>
+		<attack id="1" missile-particle="graphics/particles/training-arrow.xml"/>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6021"
+		name="Warrior"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="0"
+		offsetY="2"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<sprite>races/human-female.xml</sprite>
+		<sprite>hairstyles/hairstyle20.xml|#37273b,422c48,615282,6f78ab,90abcd,96cdd9,d1e9eb</sprite>
+		<sprite>equipment/feet/bromenalboots-female.xml</sprite>
+		<sprite>equipment/hands/bromenalgloves-female.xml</sprite>
+		<sprite>equipment/legs/bromenalpants-female.xml</sprite>
+		<sprite>equipment/chest/bromenalchest-female.xml</sprite>
+		<sprite>equipment/head/bromenalhelmet.xml</sprite>
+		<sprite>equipment/weapons/sword-bronze.xml</sprite>
+		<!-- TODO: Replace braknar shield with bromenal shield
+			as soon as there is a sprite for it. -->
+		<sprite>equipment/shields/braknar.xml</sprite> 
+		<sound event="hit">weapons/knife/hit1.ogg</sound>
+		<sound event="hit">weapons/piouslayer/hit1.ogg</sound>
+		<sound event="hit">weapons/piouslayer/hit2.ogg</sound>
+		<sound event="miss">weapons/axe/miss.ogg</sound>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6022"
+		name="Stalwart"
+		startFollowDistance="3"
+		followDistance="2"
+		targetOffsetX="1"
+		targetOffsetY="-2"
+		warpDistance="11"
+		offsetX="1"
+		offsetY="-1"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="1"
+		attackOffsetY="-1"
+		thinkTime="100"
+		directionType="1"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="1"
+	>
+		<sprite>races/human-female.xml</sprite>
+		<sprite>equipment/chest/copperarmor-female.xml</sprite>
+		<!-- Alternate option, but copper armor is prefered by Duke M.:
+		<sprite>equipment/chest/trainingshirt-female.xml</sprite>
+		-->
+		<sprite>hairstyles/hairstyle20.xml|#37273b,422c48,615282,6f78ab,90abcd,96cdd9,d1e9eb</sprite>
+		<sprite>equipment/head/centurionhelmet.xml</sprite>
+		<sprite>equipment/feet/boots-female.xml|#3f221d,754d23,f5cea4</sprite> <!-- brown -->
+		<sprite>equipment/hands/cottongloves-female.xml|#3f221d,754d23,f5cea4</sprite>
+		<sprite>equipment/legs/cottonskirt-female.xml|#594d36,b49b6c,f4d293</sprite>
+		<sprite>equipment/weapons/shortgladius.xml</sprite>
+		<sprite>equipment/shields/braknar.xml</sprite>
+		<sound event="hit">weapons/piouslayer/hit1.ogg</sound>
+		<sound event="hit">weapons/piouslayer/hit2.ogg</sound>
+		<sound event="miss">weapons/piouslayer/miss1.ogg</sound>
+	</homunculus>
+	<!--======================================================================-->
+	<homunculus
+		id="6023"
+		name="Paladin"
+		startFollowDistance="3"
+		followDistance="1"
+		warpDistance="11"
+		offsetX="0"
+		offsetY="2"
+		sitOffsetX="1"
+		sitOffsetY="0"
+		moveOffsetX="0"
+		moveOffsetY="5"
+		deadOffsetX="0"
+		deadOffsetY="0"
+		attackOffsetX="0"
+		attackOffsetY="2"
+		thinkTime="100"
+		directionType="2"
+		sitDirectionType="1"
+		deadDirectionType="1"
+		attackDirectionType="4"
+	>
+		<sprite>races/human-female.xml</sprite>
+		<sprite>equipment/chest/leathershirt-female.xml|#3f221d,754d23,f5cea4</sprite>
+		<sprite>hairstyles/hairstyle20.xml|#37273b,422c48,615282,6f78ab,90abcd,96cdd9,d1e9eb</sprite>
+		<sprite>equipment/head/archangelhelmet.xml</sprite>
+		<sprite>equipment/feet/boots-female.xml|#2d2d41,4c4d9a,7b7b99</sprite> <!-- blue gray -->
+		<sprite>equipment/hands/cottongloves-female.xml|#2d2d41,4c4d9a,7b7b99</sprite> <!-- blue gray -->
+		<sprite>equipment/legs/warlord-female.xml</sprite>
+		<sprite>equipment/weapons/sword-iron.xml</sprite>
+		<sound event="hit">weapons/piouslayer/hit1.ogg</sound>
+		<sound event="hit">weapons/piouslayer/hit2.ogg</sound>
+		<sound event="miss">weapons/piouslayer/miss1.ogg</sound>
+	</homunculus>
+
 </homunculuses>
