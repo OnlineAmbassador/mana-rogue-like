@@ -148,6 +148,12 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 
 ## Run locally and publish
 
+### GitHub Pages playtest
+
+The repository includes a GitHub Actions workflow that publishes the game whenever changes are pushed to `main`. To enable it, open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**. The first deployment starts after the next push to `main`; later deployments can also be started from the **Actions** tab with **Deploy to GitHub Pages → Run workflow**.
+
+Once deployment finishes, playtest at <https://onlineambassador.github.io/mana-rogue-like/>.
+
 The game is static files only, so it can be hosted anywhere (GitHub Pages, itch.io HTML5, Netlify, any web server). Upload `index.html`, `style.css`, `game.js` and the `assets` folder. Note that `assets/tmw` is a full TMW client-data snapshot of about 250 MB; the game itself reads only around 10 MB of it, so trimming unused files makes hosting much lighter. Keep the licence files (`assets/tmw/clientdata/LICENSE`, `ART_LICENSE`, `GPL`, `CC BY-SA 3.0`) with whatever you publish.
 
 Clone the project and its TMW client-data submodule:

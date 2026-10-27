@@ -13,7 +13,23 @@
       <div id="controls" aria-live="polite"></div>
     </div>
 
-    <canvas id="game" width="960" height="540"></canvas>
+    <div class="game-stage" id="game-stage">
+      <canvas id="game" width="960" height="540"></canvas>
+      <div class="touch-controls" id="touch-controls" aria-label="Touch controls" hidden>
+        <div class="touch-stick" id="touch-stick" aria-label="Move">
+          <div class="stick-base"><div class="stick-knob" id="stick-knob"></div></div>
+        </div>
+        <div class="touch-utilities" aria-label="Actions">
+          <button type="button" data-touch-action="dash" aria-label="Dash">↗<span>Dash</span></button>
+          <button type="button" data-touch-action="bomb" aria-label="Bomb">✦<span>Bomb</span></button>
+          <button type="button" data-touch-action="interact" aria-label="Interact">E<span>Use</span></button>
+          <button type="button" data-touch-action="ability" aria-label="Ability">★<span>Skill</span></button>
+          <button type="button" data-touch-action="item" aria-label="Use item">Q<span>Item</span></button>
+          <button type="button" data-touch-action="pause" aria-label="Pause">Ⅱ<span>Pause</span></button>
+        </div>
+        <button class="touch-attack" id="touch-attack" type="button" aria-label="Attack, auto-aim">⚔<span>Attack</span></button>
+      </div>
+    </div>
 
     <div class="message" id="message">Choose a delver to begin the descent.</div>
 

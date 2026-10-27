@@ -58,7 +58,7 @@ body {
 }
 
 #game {
-  width: min(960px, 92vw);
+  width: 100%;
   height: auto;
   background: #181d18;
   border: 3px solid rgba(223, 183, 102, 0.76);
@@ -66,6 +66,15 @@ body {
   display: block;
   box-shadow: 0 0 24px rgba(102, 185, 167, 0.16);
   touch-action: none;
+}
+
+.game-stage {
+  position: relative;
+  width: min(960px, 92vw);
+}
+
+.touch-controls {
+  display: none;
 }
 
 .message {
@@ -80,9 +89,17 @@ body {
 }
 
 @media (max-width: 680px) {
+  body {
+    place-content: start center;
+    padding: 8px 0;
+  }
+
   .hud {
+    width: 96vw;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.45rem 0.75rem;
+    margin-bottom: 0.45rem;
+    padding: 0.55rem 0.7rem;
   }
 
   #stats {
@@ -92,5 +109,121 @@ body {
   #controls {
     grid-column: 1 / -1;
     text-align: left;
+  }
+
+  .game-stage {
+    width: 100vw;
+  }
+
+  #game {
+    border-radius: 0;
+  }
+
+  .message {
+    width: 96vw;
+    margin-top: 0.45rem;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.82rem;
+  }
+}
+
+@media (pointer: coarse), (max-width: 680px) {
+  .touch-controls:not([hidden]) {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .touch-stick,
+  .touch-attack,
+  .touch-utilities button {
+    color: #fff0d1;
+    border: 2px solid rgba(233, 197, 126, 0.82);
+    background: rgba(15, 23, 19, 0.6);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 0 12px rgba(102, 185, 167, 0.12);
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .touch-stick {
+    position: absolute;
+    left: 3%;
+    bottom: 7%;
+    width: clamp(76px, 24vw, 112px);
+    aspect-ratio: 1;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    pointer-events: auto;
+  }
+
+  .stick-base {
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(233, 197, 126, 0.68);
+    border-radius: 50%;
+    background: rgba(15, 23, 19, 0.48);
+    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.4);
+  }
+
+  .stick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 42%;
+    aspect-ratio: 1;
+    border: 2px solid rgba(242, 227, 196, 0.9);
+    border-radius: 50%;
+    background: rgba(102, 185, 167, 0.62);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .touch-attack {
+    position: absolute;
+    right: 4%;
+    bottom: 8%;
+    width: clamp(66px, 20vw, 92px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    pointer-events: auto;
+    font-size: 1.65rem;
+  }
+
+  .touch-attack span,
+  .touch-utilities span {
+    display: block;
+    font: bold 0.55rem Arial, sans-serif;
+    text-transform: uppercase;
+  }
+
+  .touch-utilities {
+    position: absolute;
+    top: 3%;
+    right: 2%;
+    display: flex;
+    gap: clamp(2px, 1vw, 8px);
+    pointer-events: auto;
+  }
+
+  .touch-utilities button {
+    display: grid;
+    place-content: center;
+    width: clamp(34px, 10vw, 44px);
+    aspect-ratio: 1;
+    padding: 0;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 0.82rem;
+  }
+
+  .touch-controls button:active,
+  .touch-controls button.is-pressed {
+    background: rgba(102, 185, 167, 0.78);
+    transform: scale(0.94);
   }
 }

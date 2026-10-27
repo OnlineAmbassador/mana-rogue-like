@@ -751,6 +751,11 @@ const characterChapters = {
 };
 const keys = {};
 const gamepadInput = { connected: false, family: 'xbox', moveX: 0, moveY: 0, dpadX: 0, dpadY: 0, dpadFacing: false, aimX: 1, aimY: 0, aimActive: false, shoot: false };
+const touchInput = { moveX: 0, moveY: 0, attack: false, stickPointer: null, attackPointer: null };
+const touchControlsEl = document.getElementById('touch-controls');
+const touchStickEl = document.getElementById('touch-stick');
+const stickKnobEl = document.getElementById('stick-knob');
+const touchAttackEl = document.getElementById('touch-attack');
 const previousGamepadButtons = new Map();
 const pointer = { x: canvas.width / 2, y: canvas.height / 2, down: false };
 let previousMenuDirection = 0;
@@ -3589,13 +3594,24 @@ function attackOriginY() {
 
 // Aim from the body (where shots leave), not the feet, so the cursor lines up with where projectiles travel.
 function currentAimAngle() {
-  return pointer.down
-    ? Math.atan2(pointer.y + camera.y - attackOriginY(), pointer.x + camera.x - player.x)
-    : Math.atan2(player.lookY, player.lookX);
+  if (pointer.down) return Math.atan2(pointer.y + camera.y - attackOriginY(), pointer.x + camera.x - player.x);
+  if (touchInput.attack) {
+    let target = null;
+    let nearestDistance = 620;
+    for (const enemy of enemies) {
+      const distance = distanceBetween(player, enemy);
+      if (distance < nearestDistance) {
+        target = enemy;
+        nearestDistance = distance;
+      }
+    }
+    if (target) return Math.atan2(target.y - attackOriginY(), target.x - player.x);
+  }
+  return Math.atan2(player.lookY, player.lookX);
 }
 
 function meleeInputHeld() {
-  return pointer.down || gamepadInput.shoot;
+  return pointer.down || gamepadInput.shoot || touchInput.attack;
 }
 
 // Melee swings on press and repeats while held. Charge mode turns holding into one crushing charged swing.
@@ -3623,7 +3639,7 @@ function updateMeleeInput(dt) {
     }
   }
   if (meleeInputHeld()) {
-    if (pointer.down) {
+    if (pointer.down || touchInput.attack) {
       const angle = currentAimAngle();
       player.lookX = Math.cos(angle);
       player.lookY = Math.sin(angle);
@@ -3699,7 +3715,7 @@ function updateBowInput(dt) {
     }
   }
   if (meleeInputHeld()) {
-    if (pointer.down) {
+    if (pointer.down || touchInput.attack) {
       const angle = currentAimAngle();
       player.lookX = Math.cos(angle);
       player.lookY = Math.sin(angle);
@@ -3807,7 +3823,7 @@ function shoot(options = null) {
   player.attackAnimationTimer = player.attackAnimationStyle === 'bow' ? 0.4 : 0.32;
   const baseAngle = currentAimAngle();
   const attackOriginY = player.y - 34;
-  if (pointer.down) {
+  if (pointer.down || touchInput.attack) {
     player.lookX = Math.cos(baseAngle);
     player.lookY = Math.sin(baseAngle);
   }
@@ -5595,8 +5611,8 @@ function useConsumable() {
 function startDash() {
   if (mode !== 'playing' || dashCooldown > 0 || dashTimer > 0) return;
   if (currentRoom && (currentRoom.type === 'shop' || currentRoom.type === 'bank')) return;
-  const dx = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0) + gamepadInput.moveX;
-  const dy = (keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0) + gamepadInput.moveY;
+  const dx = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0) + gamepadInput.moveX + touchInput.moveX;
+  const dy = (keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0) + gamepadInput.moveY + touchInput.moveY;
   const length = Math.hypot(dx, dy);
   dashVector = length > 0.1 ? { x: dx / length, y: dy / length } : { x: player.lookX, y: player.lookY };
   dashTimer = 0.16;
@@ -6601,11 +6617,15 @@ function update(dt) {
 
   const keyboardMoveX = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0);
   const keyboardMoveY = (keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0);
-  const moveX = clamp(keyboardMoveX + gamepadInput.moveX, -1, 1);
-  const moveY = clamp(keyboardMoveY + gamepadInput.moveY, -1, 1);
+  const moveX = clamp(keyboardMoveX + gamepadInput.moveX + touchInput.moveX, -1, 1);
+  const moveY = clamp(keyboardMoveY + gamepadInput.moveY + touchInput.moveY, -1, 1);
   const keyboardLength = Math.hypot(keyboardMoveX, keyboardMoveY);
-  if (keyboardLength > 0 && !gamepadInput.dpadFacing && !gamepadInput.aimActive &&
-      !pointer.down && !gamepadInput.shoot) {
+  const touchLength = Math.hypot(touchInput.moveX, touchInput.moveY);
+  if (touchLength > 0 && !touchInput.attack) {
+    player.lookX = touchInput.moveX / touchLength;
+    player.lookY = touchInput.moveY / touchLength;
+  } else if (keyboardLength > 0 && !gamepadInput.dpadFacing && !gamepadInput.aimActive &&
+      !pointer.down && !gamepadInput.shoot && !touchInput.attack) {
     player.lookX = keyboardMoveX / keyboardLength;
     player.lookY = keyboardMoveY / keyboardLength;
   }
@@ -6691,8 +6711,8 @@ function update(dt) {
   player.fireCooldown = Math.max(0, player.fireCooldown - dt * curioMultiplier('fire'));
   player.fizzleTimer = Math.max(0, (player.fizzleTimer || 0) - dt);
   const moving = !!(keys.ArrowRight || keys.d || keys.ArrowLeft || keys.a || keys.ArrowDown || keys.s ||
-    keys.ArrowUp || keys.w) || Math.hypot(gamepadInput.moveX, gamepadInput.moveY) >= 0.15 || dashTimer > 0;
-  updateStyleRecharge(dt, moving, pointer.down || gamepadInput.shoot);
+    keys.ArrowUp || keys.w) || Math.hypot(gamepadInput.moveX, gamepadInput.moveY) >= 0.15 || touchLength >= 0.15 || dashTimer > 0;
+  updateStyleRecharge(dt, moving, pointer.down || gamepadInput.shoot || touchInput.attack);
   updateClassSignature(dt);
   updateChaos(dt);
   player.damageFlashTimer = Math.max(0, player.damageFlashTimer - dt);
