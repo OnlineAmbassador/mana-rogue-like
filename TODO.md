@@ -21,5 +21,13 @@
 - [x] Give each regional boss a distinct 3+ attack rotation and movement signature, route minibosses through species-specific boss AI with lower health, and use available TMW walk/attack animation frames.
 - [x] Increase secret-room bonus treasure variety and frequency: zenny, an extra upgrade chance, and occasional bombs or hearts.
 
+## Publishing and performance
+- [x] Auto quality mode (disables glow, caps particles when frame time is high).
+- [x] Fix missing asset paths and draw familiars.
+- [ ] Trim `assets/tmw` to the ~10 MB the game uses (about 250 MB now) before hosting.
+- [ ] Preload sound effects into Web Audio buffers instead of per-sound Audio pools.
+- [ ] Render the canvas at devicePixelRatio for sharper high-DPI displays.
+- [ ] Playtest balance: charge damage, projectile drop, AI difficulty, HUD layout.
+
 ## Final polish
 - [ ] Finish the broader art-direction and game-feel pass across regions, combat feedback, and reward presentation.

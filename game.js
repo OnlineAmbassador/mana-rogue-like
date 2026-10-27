@@ -1,5 +1,31 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+
+// Auto quality: when frames run slow, glow (shadowBlur) is switched off and particles are capped.
+const quality = { low: false, avgMs: 16.7, slowFor: 0, fastFor: 0 };
+const nativeShadowBlur = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+Object.defineProperty(ctx, 'shadowBlur', {
+  get() { return nativeShadowBlur.get.call(this); },
+  set(value) { nativeShadowBlur.set.call(this, quality.low ? 0 : value); },
+});
+const MAX_PARTICLES = 400;
+const MAX_PARTICLES_LOW = 120;
+
+function updateQuality(dtSeconds) {
+  quality.avgMs += (dtSeconds * 1000 - quality.avgMs) * 0.08;
+  if (quality.avgMs > 26) {
+    quality.slowFor += dtSeconds;
+    quality.fastFor = 0;
+  } else if (quality.avgMs < 19) {
+    quality.fastFor += dtSeconds;
+    quality.slowFor = 0;
+  }
+  if (!quality.low && quality.slowFor > 2) quality.low = true;
+  else if (quality.low && quality.fastFor > 10) {
+    quality.low = false;
+    quality.slowFor = 0;
+  }
+}
 const statsEl = document.getElementById('stats');
 const messageEl = document.getElementById('message');
 const controlsEl = document.getElementById('controls');
@@ -7,7 +33,7 @@ const controlsEl = document.getElementById('controls');
 // Rooms vary in size; wide and tall rooms keep the same area as large ones.
 const ROOM_SIZES = {
   small: { w: 960, h: 540 },
-  large: { w: 1600, h: 900 },
+  large: { w: 1504, h: 804 },
   wide: { w: 2000, h: 720 },
   tall: { w: 1000, h: 1440 },
 };
@@ -34,6 +60,156 @@ const gameMusic = {
   step: 0,
   nextBeat: 0,
 };
+const AUDIO_STORAGE_KEY = 'mana-hollow-sanctum-audio';
+const audioSettings = (() => {
+  // volume = music, sfxVolume = shots/monsters, tts = null until the player is asked.
+  const defaults = { volume: 0.7, sfxVolume: 0.8, tts: null };
+  try {
+    const stored = JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) || '{}');
+    const clamp01 = (value, fallback) => (Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback);
+    return {
+      volume: clamp01(stored.volume, defaults.volume),
+      sfxVolume: stored.sfx === false && !Number.isFinite(stored.sfxVolume) ? 0 : clamp01(stored.sfxVolume, defaults.sfxVolume),
+      tts: typeof stored.tts === 'boolean' ? stored.tts : null,
+    };
+  } catch (error) {
+    return defaults;
+  }
+})();
+let audioSliderDragging = null;
+
+function musicTargetGain() {
+  return gameMusic.enabled ? 0.3 * audioSettings.volume : 0;
+}
+
+function applyAudioSettings() {
+  if (gameMusic.gain && gameMusic.context) {
+    gameMusic.gain.gain.setTargetAtTime(musicTargetGain(), gameMusic.context.currentTime, 0.05);
+  }
+  try {
+    localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify(audioSettings));
+  } catch (error) {
+    // Storage may be unavailable; settings simply won't persist.
+  }
+}
+
+function volumeSliderBounds() {
+  return { x: 24, y: 40, width: 170, height: 14 };
+}
+
+function sfxSliderBounds() {
+  return { x: 24, y: 76, width: 170, height: 14 };
+}
+
+function ttsButtonBounds() {
+  return { x: 24, y: 100, width: 170, height: 22 };
+}
+
+function ttsPromptBounds(yes) {
+  return { x: canvas.width / 2 + (yes ? -190 : 30), y: 330, width: 160, height: 44 };
+}
+
+function setVolumeFromPointer(px, which = audioSliderDragging) {
+  const bounds = which === 'sfx' ? sfxSliderBounds() : volumeSliderBounds();
+  const value = Math.min(1, Math.max(0, (px - bounds.x) / bounds.width));
+  if (which === 'sfx') audioSettings.sfxVolume = value;
+  else audioSettings.volume = value;
+  applyAudioSettings();
+}
+
+function setTextToSpeech(enabled) {
+  audioSettings.tts = enabled;
+  applyAudioSettings();
+  if (!enabled) {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    stopPrologueNarration();
+    stopChapterNarration();
+  } else if (mode === 'prologue') {
+    startPrologueNarration();
+  } else if (mode === 'chapter' && activeChapter) {
+    startChapterNarration(activeChapter);
+  }
+}
+
+// Returns true when the click was consumed by the audio panel.
+function handleAudioPanelPointerDown(px, py) {
+  if (pointInBounds(px, py, volumeSliderBounds())) {
+    audioSliderDragging = 'music';
+    setVolumeFromPointer(px);
+    return true;
+  }
+  if (pointInBounds(px, py, sfxSliderBounds())) {
+    audioSliderDragging = 'sfx';
+    setVolumeFromPointer(px);
+    return true;
+  }
+  if (pointInBounds(px, py, ttsButtonBounds())) {
+    setTextToSpeech(audioSettings.tts !== true);
+    return true;
+  }
+  return false;
+}
+
+function drawTtsPrompt() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(8, 10, 9, 0.92)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f2e3c4';
+  ctx.font = 'bold 28px Georgia';
+  ctx.fillText('Read the story aloud?', canvas.width / 2, 230);
+  ctx.fillStyle = '#d6d0be';
+  ctx.font = '16px Arial';
+  ctx.fillText('Turn on text-to-speech narration for the prologue and chapter intros.', canvas.width / 2, 268);
+  ctx.fillText('You can change this later with the narration button.', canvas.width / 2, 292);
+  for (const [yes, label] of [[true, 'YES (Y)'], [false, 'NO (N)']]) {
+    const bounds = ttsPromptBounds(yes);
+    ctx.fillStyle = yes ? '#30443b' : '#4a3a2a';
+    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    ctx.strokeStyle = '#d9bd83';
+    ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    ctx.fillStyle = '#fff0d1';
+    ctx.font = 'bold 15px Arial';
+    ctx.fillText(label, bounds.x + bounds.width / 2, bounds.y + 28);
+  }
+  ctx.restore();
+}
+
+function ttsPromptActive() {
+  return audioSettings.tts === null && mode === 'prologue';
+}
+
+function drawAudioPanel() {
+  const slider = volumeSliderBounds();
+  const sfxSlider = sfxSliderBounds();
+  const tts = ttsButtonBounds();
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 11px Arial';
+  for (const [label, bounds, value] of [
+    ['MUSIC', slider, audioSettings.volume],
+    ['SFX (shots & monsters)', sfxSlider, audioSettings.sfxVolume],
+  ]) {
+    ctx.fillStyle = '#d9c796';
+    ctx.fillText(`${label}  ${Math.round(value * 100)}%`, bounds.x, bounds.y - 8);
+    ctx.fillStyle = '#2b2f2c';
+    ctx.fillRect(bounds.x, bounds.y + 4, bounds.width, 6);
+    ctx.fillStyle = '#e9c57e';
+    ctx.fillRect(bounds.x, bounds.y + 4, bounds.width * value, 6);
+    ctx.fillStyle = '#fff0d1';
+    ctx.fillRect(bounds.x + bounds.width * value - 4, bounds.y, 8, bounds.height);
+  }
+  const ttsOn = audioSettings.tts === true;
+  ctx.fillStyle = ttsOn ? '#30443b' : '#4a2f2f';
+  ctx.fillRect(tts.x, tts.y, tts.width, tts.height);
+  ctx.strokeStyle = ttsOn ? '#a5c79b' : '#c98a8a';
+  ctx.strokeRect(tts.x, tts.y, tts.width, tts.height);
+  ctx.fillStyle = '#f0f0e0';
+  ctx.textAlign = 'center';
+  ctx.fillText(`NARRATION (TTS) [T]: ${ttsOn ? 'ON' : 'OFF'}`, tts.x + tts.width / 2, tts.y + 15);
+  ctx.restore();
+}
+
 const musicMelody = [57, 60, 64, 60, 55, 60, 64, 60, 57, 60, 65, 62, 55, 59, 62, 59];
 const musicChords = [[45, 48, 52], [41, 45, 48], [48, 52, 55], [43, 47, 50]];
 const prologueNarrations = [1, 2, 3].map((segment) => {
@@ -68,7 +244,8 @@ function loadAsset(path) {
 }
 
 function playSound(path, volume = 0.4) {
-  if (typeof Audio === 'undefined') return;
+  if (typeof Audio === 'undefined' || audioSettings.sfxVolume <= 0) return;
+  volume *= audioSettings.sfxVolume;
   let pool = soundPools.get(path);
   if (!pool) {
     pool = Array.from({ length: 4 }, () => {
@@ -124,7 +301,7 @@ function startGameMusic() {
   if (!gameMusic.context) {
     gameMusic.context = new AudioContextType();
     gameMusic.gain = gameMusic.context.createGain();
-    gameMusic.gain.gain.value = 0.22;
+    gameMusic.gain.gain.value = musicTargetGain();
     gameMusic.gain.connect(gameMusic.context.destination);
   }
   if (gameMusic.timer !== null || gameMusic.starting) return;
@@ -140,17 +317,47 @@ function startGameMusic() {
   });
 }
 
+let narratorVoiceCache = null;
+
+// Voices load asynchronously; picking once (and waiting for the list) keeps the speech fallback on one voice.
+function pickNarratorVoice() {
+  if (narratorVoiceCache) return narratorVoiceCache;
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) return null;
+  narratorVoiceCache = voices.find((voice) => voice.lang.startsWith('en') &&
+    /andrew|brian|roger|ryan|guy|christopher|natural/i.test(voice.name)) ||
+    voices.find((voice) => voice.lang.startsWith('en')) || voices[0];
+  return narratorVoiceCache;
+}
+
+function speakWithNarrator(utterance, onReady) {
+  const speak = () => {
+    const voice = pickNarratorVoice();
+    if (voice) utterance.voice = voice;
+    onReady?.();
+    window.speechSynthesis.speak(utterance);
+  };
+  if (pickNarratorVoice() || window.speechSynthesis.getVoices().length > 0) {
+    speak();
+    return;
+  }
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    window.speechSynthesis.removeEventListener('voiceschanged', once);
+    speak();
+  };
+  window.speechSynthesis.addEventListener('voiceschanged', once);
+  setTimeout(once, 600);
+}
+
 function startPrologueSpeechFallback(pageIndex) {
   if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
   if (prologueSpeechFallbackActive && window.speechSynthesis.speaking) return true;
   window.speechSynthesis.cancel();
   const page = prologuePages[pageIndex];
   const utterance = new SpeechSynthesisUtterance(`${page.heading}. ${page.title}. ${page.text}`);
-  const voices = window.speechSynthesis.getVoices();
-  const narratorVoice = voices.find((voice) => voice.lang.startsWith('en') &&
-    /andrew|brian|roger|ryan|guy|christopher|natural/i.test(voice.name)) ||
-    voices.find((voice) => voice.lang.startsWith('en'));
-  if (narratorVoice) utterance.voice = narratorVoice;
   utterance.lang = 'en-US';
   utterance.rate = 0.94;
   utterance.pitch = 1;
@@ -167,12 +374,14 @@ function startPrologueSpeechFallback(pageIndex) {
   };
   activePrologueSpeech = utterance;
   prologueSpeechFallbackActive = true;
-  window.speechSynthesis.speak(utterance);
+  speakWithNarrator(utterance, () => {
+    if (activePrologueSpeech !== utterance || mode !== 'prologue') utterance.text = '';
+  });
   return true;
 }
 
 function startPrologueNarration() {
-  if (mode !== 'prologue') return false;
+  if (mode !== 'prologue' || audioSettings.tts !== true) return false;
   const audio = prologueNarrations[prologuePage];
   if (activePrologueNarration !== prologuePage) stopPrologueNarration();
   activePrologueNarration = prologuePage;
@@ -184,10 +393,11 @@ function startPrologueNarration() {
     playback.then(() => {
       prologueNarrationNeedsGesture = false;
     }).catch(() => {
+      // Autoplay was blocked: wait for a gesture and retry the recorded voice rather than mixing in a second voice.
       prologueNarrationNeedsGesture = true;
       if (mode !== 'prologue' || activePrologueNarration !== prologuePage) return;
-      if (startPrologueSpeechFallback(prologuePage)) return;
-      showMessage('Narration is unavailable in this browser.', 4);
+      if (audio.error && startPrologueSpeechFallback(prologuePage)) return;
+      showMessage('Press a key or click to start the narration.', 4);
     });
   } else {
     prologueNarrationNeedsGesture = false;
@@ -206,17 +416,8 @@ function stopPrologueNarration() {
   activePrologueNarration = -1;
 }
 
-function toggleGameMusic() {
-  gameMusic.enabled = !gameMusic.enabled;
-  if (gameMusic.gain && gameMusic.context) {
-    gameMusic.gain.gain.setTargetAtTime(gameMusic.enabled ? 0.22 : 0, gameMusic.context.currentTime, 0.08);
-  }
-  if (gameMusic.enabled) startGameMusic();
-  showMessage(`Music ${gameMusic.enabled ? 'on' : 'off'}.`, 1.5);
-}
-
-const heartImage = loadAsset('items/equipment/charms/heart-of-isis.png');
-const stoneImage = loadAsset('items/equipment/ammo/stoneprojectile-icon.png');
+const heartImage =  loadAsset('items/equipment/charms/heartofisis.png');
+const stoneImage = loadAsset('items/equipment/ammo/roundstone.png');
 const eliteHatImage = loadAsset('items/equipment/head/wizardhat.png');
 const linkedShieldImage = loadAsset('items/equipment/shields/steelshield.png');
 const luckCharmImage = loadAsset('items/equipment/charms/fourleafclover.png');
@@ -232,7 +433,66 @@ const shopItemIconImages = {
   'element-fire': loadAsset('items/equipment/charms/firescroll.png'),
   'element-lightning': loadAsset('items/equipment/weapons/scepter.png'),
   'element-gas': loadAsset('items/generic/darkdesertmushroom.png'),
+  'ammo-mana': loadAsset('items/equipment/charms/spectralorb.png'),
+  'ammo-arrows': loadAsset('items/equipment/ammo/arrow.png'),
+  'ammo-blows': loadAsset('items/equipment/ammo/arrow.png'),
+  'curio-hot-take': loadAsset('items/equipment/weapons/kanabo.png'),
+  'curio-sole': loadAsset('items/equipment/charms/heartofisis.png'),
+  'curio-trigger': loadAsset('items/equipment/weapons/kunai.png'),
+  'curio-heavy-metal': loadAsset('items/equipment/weapons/kanabo.png'),
+  'curio-mana-cafe': loadAsset('items/equipment/charms/spectralorb.png'),
+  'curio-dice': loadAsset('items/equipment/charms/astralcube.png'),
+  'curio-wild-card': loadAsset('items/equipment/charms/firescroll.png'),
+  'mod-windup': loadAsset('items/equipment/weapons/kanabo.png'),
+  'mod-flurry': loadAsset('items/equipment/weapons/kunai.png'),
+  'mod-cinder': loadAsset('items/equipment/charms/firescroll.png'),
+  'mod-pierce': loadAsset('items/equipment/ammo/ironarrow.png'),
+  'mod-draw': loadAsset('items/equipment/ammo/ironarrow.png'),
+  'mod-quiver': loadAsset('items/equipment/ammo/arrow.png'),
+  'mod-storm-arrows': loadAsset('items/equipment/ammo/tolchiarrow.png'),
+  'mod-splash': loadAsset('items/equipment/charms/astralcube.png'),
+  'mod-chain': loadAsset('items/equipment/weapons/legendwand.png'),
+  'mod-lingering': loadAsset('items/equipment/charms/spectralorb.png'),
 };
+// One distinct client-data icon per catalogue entry (overrides the shared ones above).
+const uniqueItemIconPaths = {
+  pearl: 'generic/silvereasteregg', prism: 'generic/gempowder', feather: 'generic/butterfly',
+  'heart-vessel-i': 'charms/heartofisis', 'heart-vessel-ii': 'generic/diseasedheart', 'heart-vessel-iii': 'generic/bloodstone',
+  'luck-up-i': 'charms/fourleafclover', 'luck-up-ii': 'generic/brokenfourleafamulet',
+  'range-lens': 'generic/flawedlens', 'range-lens-ii': 'generic/silvermirror', 'range-lens-iii': 'charms/treasuremap',
+  'frost-rune': 'generic/snowflake', 'spore-bloom': 'generic/mushroomspores', 'bonded-aegis': 'shields/steelshield',
+  'element-fire': 'charms/firescroll', 'element-lightning': 'weapons/scepter', 'element-gas': 'generic/darkdesertmushroom',
+  'learn-magic': 'charms/grimoir', 'learn-brawl': 'generic/leatherpatch', 'learn-bow': 'weapons/woodenbow',
+  'iron-sword': 'weapons/sword', 'swift-daggers': 'weapons/dagger',
+  'ammo-mana': 'charms/spectralorb', 'ammo-arrows': 'ammo/arrow', 'ammo-blows': 'generic/ironingot',
+  'curio-hot-take': 'weapons/kanabo', 'curio-sole': 'charms/redstocking', 'curio-trigger': 'weapons/kunai',
+  'curio-heavy-metal': 'weapons/blacksmithsaxe', 'curio-mana-cafe': 'generic/emptybottle',
+  'curio-sweat': 'charms/oldtowel', 'curio-brain': 'generic/brain', 'curio-quiver-me': 'ammo/cursedarrow',
+  'curio-shake': 'generic/mysteriousbottle', 'curio-overdraw': 'generic/coinbag', 'curio-mana-lisa': 'generic/spellbookpage',
+  'curio-dice': 'charms/astralcube', 'curio-wild-card': 'generic/casinocoins', 'curio-run-on': 'generic/scroll',
+  'mod-windup': 'weapons/halberd', 'mod-flurry': 'weapons/whip', 'mod-cinder': 'generic/coal',
+  'mod-pierce': 'ammo/ironarrow', 'mod-draw': 'weapons/championshipbow', 'mod-quiver': 'ammo/trainingarrow',
+  'mod-storm-arrows': 'ammo/tolchiarrow', 'mod-splash': 'ammo/mortararrow', 'mod-chain': 'weapons/legendwand',
+  'mod-lingering': 'charms/snowmanglobe',
+  'silk-shorts': 'generic/cottoncloth', 'leather-legguards': 'generic/processedfur', 'leather-vest': 'generic/fur',
+  'ratto-companion': 'generic/rattotail', 'croc-companion': 'generic/crocclaw', 'wisp-companion': 'generic/ectoplasm',
+  'jacko-companion': 'generic/jackolantern', 'bosspinkie-companion': 'generic/pinkantenna', 'bat-companion': 'generic/batwing',
+  'bluepar-companion': 'generic/tentacles', 'frog-companion': 'generic/tongue', 'mouboo-companion': 'charms/plushmouboo',
+  'skeleton-companion': 'generic/skull', 'slime-companion': 'generic/maggotslime', 'snake-companion': 'generic/hardspike',
+  'spider-companion': 'generic/silkcocoon', 'spider-queen-companion': 'generic/crystallizedmaggot',
+  'golem-companion': 'generic/ore', 'slime-mother-companion': 'generic/wumpus-egg', 'reaper-companion': 'weapons/scythe',
+  'serqet-companion': 'generic/deserttablet', 'banditlord-companion': 'generic/bandithood', 'snowman-boss-companion': 'charms/santaglobe',
+  'yetiking-companion': 'generic/frozenyetitear', 'forestdragon-companion': 'generic/dragonscales', 'nightdragon-companion': 'charms/dragonstar',
+  'snowman-companion': 'generic/icecube', 'yeti-companion': 'generic/yeticlaw', 'vampirebat-companion': 'generic/vampirebatwing',
+  'frostiana-companion': 'generic/icebottle', 'troll-companion': 'generic/warpedlog', 'junglefowl-companion': 'generic/halfeggshell',
+  'fluffy-companion': 'generic/whitefur', 'snail-companion': 'generic/tortugashell', 'scorpion-companion': 'generic/squichyclaws',
+  'bee-companion': 'generic/bentneedle', 'bandit-companion': 'generic/lockpicks', 'zombie-companion': 'generic/zombieear',
+  'spore-sower-companion': 'generic/grassseeds',
+  'mana-tonic': 'generic/fluopowder', 'bomb-bundle': 'generic/powder', 'mana-burst': 'generic/elemental',
+};
+for (const [id, path] of Object.entries(uniqueItemIconPaths)) {
+  shopItemIconImages[id] = loadAsset(`items/${path.startsWith('generic/') ? '' : 'equipment/'}${path}.png`);
+}
 const sacredRoomTiles = loadAsset('tilesets/desert_castle_interior.png');
 const castleWallTiles = loadAsset('tilesets/desert_castle.png');
 const desertObstacleTiles = loadAsset('tilesets/desert1.png');
@@ -280,7 +540,11 @@ const clothingSprites = {
     femaleImage: loadAsset('sprites/equipment/legs/shorts-female.png'),
     frameWidth: 64, frameHeight: 64,
   },
-  leatherLegguards: { image: loadAsset('sprites/equipment/legs/assassin-female.png'), frameWidth: 64, frameHeight: 64 },
+  leatherLegguards: {
+    image: loadAsset('sprites/equipment/legs/assassinpants-male.png'),
+    femaleImage: loadAsset('sprites/equipment/legs/assassinpants-female.png'),
+    frameWidth: 64, frameHeight: 64,
+  },
   leatherVest: {
     image: loadAsset('sprites/equipment/chest/leathershirt-male.png'),
     femaleImage: loadAsset('sprites/equipment/chest/leathershirt-female.png'),
@@ -330,8 +594,8 @@ const monsterSprites = {
 const banditBowImage = loadAsset('sprites/monsters/accessories/banditbow.png');
 const obstacleSprites = [
   { image: loadAsset('sprites/monsters/loghead.png'), frameWidth: 45, frameHeight: 43, frames: [0], scale: 1.55, hp: 1, radius: 23, type: 'solid' },
-  { image: loadAsset('sprites/monsters/mushroom-red.png'), frameWidth: 42, frameHeight: 33, frames: [0, 10, 20, 30], scale: 1.55, hp: 2, radius: 18, type: 'bomb-only' },
-  { image: loadAsset('sprites/monsters/grass.png'), frameWidth: 32, frameHeight: 64, frames: [0], scale: 1.35, hp: 3, radius: 15, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3 },
+  { image: loadAsset('sprites/monsters/redmushroom.png'), frameWidth: 42, frameHeight: 33, frames: [0, 10, 20, 30], scale: 1.55, hp: 2, radius: 18, type: 'bomb-only' },
+  { image: loadAsset('sprites/monsters/forestmushroom.png'), frameWidth: 42, frameHeight: 40, frames: [0], scale: 1.35, hp: 3, radius: 15, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3 },
   { image: desertObstacleTiles, frameWidth: 32, frameHeight: 32, frames: [27], scale: 1.6, hp: 2, radius: 18, type: 'bomb-only' },
   { image: loadAsset('sprites/monsters/plant.png'), frameWidth: 46, frameHeight: 42, frames: [0], scale: 1.3, hp: 3, radius: 18, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3 },
 ];
@@ -360,7 +624,7 @@ const shopItemCatalog = [
   { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther', cost: 7, kind: 'passive' },
   { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Extend projectile range another 35%', cost: 10, kind: 'passive' },
   { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range; shots pierce solid barriers', cost: 13, kind: 'passive' },
-  { id: 'frost-rune', name: 'Frost Rune', description: 'Freeze nearby foes; slows bosses (C)', cost: 9, kind: 'ability' },
+  { id: 'frost-rune', name: 'Frost Rune', description: 'Auto-elemental: freezes nearby foes, slows bosses', cost: 9, kind: 'ability' },
   { id: 'spore-bloom', name: 'Spore Bloom', description: 'Player bombs release a slowing spore burst', cost: 10, kind: 'ability', unlockAfterEnemyAbility: 'spore-burst' },
   { id: 'bonded-aegis', name: 'Bonded Aegis', description: 'Block three hits with a TMW steel shield', cost: 11, kind: 'ability', unlockAfterEnemyAbility: 'twin-shield' },
   { id: 'element-fire', name: 'Ember Sigil', description: 'Fire attacks ignite gas clouds', cost: 8, kind: 'element', element: 'fire', unlockAtSeconds: 300, unlockAfterEnemyAbility: 'fire-burst' },
@@ -371,6 +635,33 @@ const shopItemCatalog = [
   { id: 'learn-bow', name: 'Trail-Worn Bow', description: 'Learn to fire arrows', cost: 7, kind: 'skill', style: 'bow', unlockAfterEnemyAbility: 'arrow-shot' },
   { id: 'iron-sword', name: 'Iron Sword', description: 'A longer, heavier melee strike', cost: 7, kind: 'weapon', style: 'melee', weapon: 'sword' },
   { id: 'swift-daggers', name: 'Swift Daggers', description: 'Quick, close twin strikes', cost: 7, kind: 'weapon', style: 'melee', weapon: 'daggers' },
+  { id: 'ammo-mana', name: 'Mana Vials', description: 'Magic reserve +8 max, +0.3 charge per kill, 35% harder hits (stacks)', cost: 4, kind: 'ammo', style: 'magic', amount: 8 },
+  { id: 'ammo-arrows', name: 'Arrow Bundle', description: 'Bow reserve +8 max, +0.3 charge per kill, 35% harder hits (stacks)', cost: 4, kind: 'ammo', style: 'bow', amount: 8 },
+  { id: 'ammo-blows', name: 'Whetstone Kit', description: 'Sword stamina +8 max, recovers faster while standing still (stacks)', cost: 4, kind: 'ammo', style: 'melee', amount: 8 },
+  { id: 'curio-hot-take', name: 'Hot Take', description: 'Attack up, but you walk slower', cost: 5, kind: 'curio', quip: 'HOT TAKE! Your hits sting, your feet drag.', effects: { damage: 1.4, speed: 0.9 } },
+  { id: 'curio-sole', name: 'Sole Survivor', description: 'Speed up, attack down', cost: 5, kind: 'curio', quip: 'SOLE SURVIVOR! Fleet of foot, soft of fist.', effects: { speed: 1.2, damage: 0.85 } },
+  { id: 'curio-trigger', name: 'Trigger Happy', description: 'Fire rate up, attack down', cost: 5, kind: 'curio', quip: 'TRIGGER HAPPY! More swings, fewer bruises.', effects: { fire: 1.3, damage: 0.8 } },
+  { id: 'curio-heavy-metal', name: 'Heavy Metal', description: 'Big attack up, fire rate down', cost: 6, kind: 'curio', quip: 'HEAVY METAL! It rocks. It is also slow.', effects: { damage: 1.6, fire: 0.75 } },
+  { id: 'curio-mana-cafe', name: 'Mana-Cafe Latte', description: 'Small speed and fire rate up', cost: 6, kind: 'curio', quip: 'MANA-CAFE LATTE! Jittery, but in a good way.', effects: { speed: 1.12, fire: 1.15 } },
+  { id: 'curio-sweat', name: 'Sweat Equity', description: 'Sword stamina up, attack down', cost: 5, kind: 'curio', quip: 'SWEAT EQUITY! Deep reserves, shallow hits.', effects: { stamina: 1.5, damage: 0.85 } },
+  { id: 'curio-brain', name: 'Brainstorm', description: 'Mana up, speed down', cost: 5, kind: 'curio', quip: 'BRAINSTORM! Big thoughts, heavy head.', effects: { mana: 1.5, speed: 0.92 } },
+  { id: 'curio-quiver-me', name: 'Quiver Me Timbers', description: 'Arrows up, fire rate down', cost: 5, kind: 'curio', quip: 'QUIVER ME TIMBERS! So many arrows, so little hurry.', effects: { arrows: 1.5, fire: 0.9 } },
+  { id: 'curio-shake', name: 'Protein Shake-Down', description: 'Attack up, stamina up', cost: 7, kind: 'curio', quip: 'PROTEIN SHAKE-DOWN! Gains everywhere.', effects: { damage: 1.25, stamina: 1.3 } },
+  { id: 'curio-overdraw', name: 'Overdrawn Account', description: 'Attack up, arrows up, speed down', cost: 7, kind: 'curio', quip: 'OVERDRAWN ACCOUNT! Arrows to burn, legs to spare.', effects: { damage: 1.2, arrows: 1.3, speed: 0.9 } },
+  { id: 'curio-mana-lisa', name: 'Mana Lisa', description: 'Mana up, fire rate up', cost: 6, kind: 'curio', quip: 'MANA LISA! That smile is just a spell.', effects: { mana: 1.3, fire: 1.2 } },
+  { id: 'curio-run-on', name: 'Run-On Sentence', description: 'Speed up, stamina down', cost: 5, kind: 'curio', quip: 'RUN-ON SENTENCE! Fast, but out of breath.', effects: { speed: 1.25, stamina: 0.8 } },
+  { id: 'curio-dice', name: 'Roll With It', description: 'A random status change in every room', cost: 6, kind: 'curio', quip: 'ROLL WITH IT! Every room is a new gamble.', chaos: 'room' },
+  { id: 'curio-wild-card', name: 'Wild Card', description: 'A random status change every few seconds', cost: 6, kind: 'curio', quip: 'WILD CARD! Fortune changes by the minute.', chaos: 'timed' },
+  { id: 'mod-windup', name: 'Wind-Up Wraps', description: 'Melee: charge mode builds faster and hits harder', cost: 7, kind: 'mod', style: 'melee' },
+  { id: 'mod-flurry', name: 'Flurry Gauntlets', description: 'Melee: lightning-fast jabs, lighter hits', cost: 7, kind: 'mod', style: 'melee' },
+  { id: 'mod-cinder', name: 'Cinder Edge', description: 'Melee: swings leave a wall of fire', cost: 8, kind: 'mod', style: 'melee', unlockAfterEnemyAbility: 'fire-burst' },
+  { id: 'mod-pierce', name: 'Piercing Heads', description: 'Bow: arrows fly through foes', cost: 7, kind: 'mod', style: 'bow' },
+  { id: 'mod-draw', name: 'Longbow Draw', description: 'Bow: charge mode draws faster', cost: 7, kind: 'mod', style: 'bow' },
+  { id: 'mod-quiver', name: 'Rapid Quiver', description: 'Bow: rapid mode fires faster, lighter arrows', cost: 7, kind: 'mod', style: 'bow', unlockAfterEnemyAbility: 'arrow-shot' },
+  { id: 'mod-storm-arrows', name: 'Storm Fletching', description: 'Bow: arrows chain lightning between foes', cost: 9, kind: 'mod', style: 'bow', unlockAfterEnemyAbility: 'lightning-shot' },
+  { id: 'mod-splash', name: 'Impact Core', description: 'Magic: shots burst on hit or on the ground', cost: 8, kind: 'mod', style: 'magic' },
+  { id: 'mod-chain', name: 'Storm Conduit', description: 'Magic: shots chain lightning between foes', cost: 9, kind: 'mod', style: 'magic', unlockAfterEnemyAbility: 'lightning-shot' },
+  { id: 'mod-lingering', name: 'Lingering Mana', description: 'Magic: shots leave a damaging cloud', cost: 8, kind: 'mod', style: 'magic', unlockAfterEnemyAbility: 'spore-burst' },
   { id: 'silk-shorts', name: 'Silk Shorts', description: 'Light legs increase movement speed', cost: 6, kind: 'clothing', slot: 'legs', sprite: 'silkShorts', speedBonus: 32, armorBonus: 0 },
   { id: 'leather-legguards', name: 'Leather Legguards', description: 'Heavy legs slow you down but absorb two hits', cost: 8, kind: 'clothing', slot: 'legs', sprite: 'leatherLegguards', speedBonus: -18, armorBonus: 2 },
   { id: 'leather-vest', name: 'Leather Vest', description: 'A sturdy vest that absorbs one hit', cost: 7, kind: 'clothing', slot: 'chest', sprite: 'leatherVest', speedBonus: 0, armorBonus: 1 },
@@ -397,6 +688,7 @@ const characterRoster = [
   { id: 'candor-runner', name: 'Candor Runner', className: 'Scout', startingStyle: 'bow', styleLabel: 'Quick arrows', hairStyle: 'candor', raceHead: 'humanFemale', sprite: 'female', color: '#f5b86c', hue: 25, speed: 285, hp: 4, damage: 1, fireDelay: 0.34, trait: 'Very fast, slow draw', unlock: 'Defeat Boss Pinkie' },
   { id: 'world-edge-pilgrim', name: 'World-Edge Pilgrim', className: 'Pilgrim', startingStyle: 'magic', styleLabel: 'Patient casting', hairStyle: 'pilgrim', raceHead: 'elfMale', sprite: 'elf', color: '#b9d9a0', hue: 35, speed: 210, hp: 8, damage: 1, fireDelay: 0.3, trait: 'Patient casting, slower pace', unlock: 'Find a secret room' },
   { id: 'hurnscald-herbalist', name: 'Hurnscald Herbalist', className: 'Herbalist', startingStyle: 'magic', styleLabel: 'Frost magic', hairStyle: 'herbalist', raceHead: 'elfFemale', sprite: 'elfFemale', color: '#86d69c', hue: 65, speed: 200, hp: 7, damage: 1, fireDelay: 0.27, startingAbility: 'frost-rune', trait: 'Starts with Frost Rune', unlock: 'Reach Hurnscald' },
+  { id: 'mycelia-sporeling', name: 'Hurnscald Sporeling', className: 'Sporeling', startingStyle: 'magic', styleLabel: 'Spore magic', hairStyle: 'herbalist', hat: 'shroomhat', raceHead: 'elfFemale', sprite: 'elfFemale', color: '#d78be7', hue: 300, speed: 205, hp: 6, damage: 1, fireDelay: 0.27, trait: 'Mushroom hat, spore pods', unlock: 'Available' },
   { id: 'ironbound', name: 'Ironbound', className: 'Sentinel', startingStyle: 'melee', styleLabel: 'Heavy blows', hairStyle: 'ironbound', raceHead: 'orcMale', sprite: 'orc', color: '#c7b8a2', hue: 15, speed: 158, hp: 11, damage: 3, fireDelay: 0.4, startingBombs: 4, trait: 'Strong and slow', unlock: 'Defeat a sentinel' },
   { id: 'artis-archivist', name: 'Artis Archivist', className: 'Scholar', startingStyle: 'magic', styleLabel: 'Measured spells', hairStyle: 'archivist', raceHead: 'tritanMale', sprite: 'tritan', color: '#c4a6df', hue: 115, speed: 218, hp: 4, damage: 3, fireDelay: 0.32, trait: 'Heavy hits, fragile', unlock: 'Reach Artis' },
   { id: 'glass-quill', name: 'Glass Quill', className: 'Scribe', startingStyle: 'bow', styleLabel: 'Piercing shots', hairStyle: 'quill', raceHead: 'raijinFemale', sprite: 'raijin', color: '#f0a2a2', hue: 155, speed: 230, hp: 3, damage: 3, fireDelay: 0.36, projectileSpeed: 620, trait: 'High damage, very fragile', unlock: 'Defeat the Spider Queen' },
@@ -408,6 +700,7 @@ const characterRoster = [
   { id: 'frostia-reclaimer', name: 'Frostia Reclaimer', className: 'Reclaimer', startingStyle: 'melee', styleLabel: 'Heavy fists', hairStyle: 'ironbound', raceHead: 'tritanMale', sprite: 'tritan', color: '#88bdcf', hue: 205, speed: 170, hp: 10, damage: 2, fireDelay: 0.38, trait: 'High health, slow attacks', unlock: 'Defeat Yeti King' },
   { id: 'fortress-keeper', name: 'Fortress Keeper', className: 'Warden', startingStyle: 'magic', styleLabel: 'Rooted magic', hairStyle: 'herbalist', raceHead: 'elfMale', sprite: 'elf', color: '#99c98a', hue: 80, speed: 205, hp: 6, damage: 2, fireDelay: 0.27, trait: 'Steady, modest speed', unlock: 'Defeat Forest Dragon' },
   { id: 'world-edge-veteran', name: 'World Edge Veteran', className: 'Veteran', startingStyle: 'bow', styleLabel: 'Last light', hairStyle: 'archivist', raceHead: 'orcMale', sprite: 'orc', color: '#c0a1d4', hue: 260, speed: 155, hp: 12, damage: 3, fireDelay: 0.42, trait: 'Very tough, very slow', unlock: 'Defeat Night Dragon' },
+  { id: 'random', name: 'Random Delver', className: '???', startingStyle: 'melee', styleLabel: 'Roll the dice', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'neutral', color: '#ffffff', hue: 300, speed: 200, hp: 6, damage: 1, fireDelay: 0.25, trait: 'Surprise me!', unlock: 'Available', random: true },
 ];
 const rosterPageSize = 5;
 const prologuePages = [
@@ -457,7 +750,7 @@ const characterChapters = {
   'world-edge-veteran': { heading: 'WORLD EDGE VETERAN', title: 'The Last Light', text: 'The Night Dragon has fallen. At the very end of the map, a veteran lifts a bow to the last light. Very tough, very slow, and still standing when everyone else is gone.' },
 };
 const keys = {};
-const gamepadInput = { connected: false, moveX: 0, moveY: 0, dpadX: 0, dpadY: 0, dpadFacing: false, aimX: 1, aimY: 0, aimActive: false, shoot: false };
+const gamepadInput = { connected: false, family: 'xbox', moveX: 0, moveY: 0, dpadX: 0, dpadY: 0, dpadFacing: false, aimX: 1, aimY: 0, aimActive: false, shoot: false };
 const previousGamepadButtons = new Map();
 const pointer = { x: canvas.width / 2, y: canvas.height / 2, down: false };
 let previousMenuDirection = 0;
@@ -470,6 +763,15 @@ let codexScroll = 0;
 let selectedIndex = 0;
 let character;
 let currentFloor = 1;
+const playerVelocity = { x: 0, y: 0 };
+const lastPlayerSample = { x: 0, y: 0 };
+let dashTimer = 0;
+let dashCooldown = 0;
+let dashVector = { x: 0, y: 0 };
+let blanksHeld = 1;
+let xpPoints = 0;
+let xpLevel = 1;
+const XP_PER_LEVEL = (level) => 6 + level * 4;
 const finalFloor = 9;
 let score = 0;
 let killStreak = 0;
@@ -489,6 +791,7 @@ let elapsed = 0;
 let messageTimer = 0;
 let autosaveTimer = 0;
 let frostNovaCooldown = 0;
+let frostActive = false;
 const cameraShakeProfiles = {
   bomb: { duration: 0.2, intensity: 4, frequency: 44, style: 'snap' },
   playerHeavyHit: { duration: 0.24, intensity: 8, frequency: 34, style: 'snap' },
@@ -565,8 +868,420 @@ const player = {
   attackAnimationTimer: 0,
   attackAnimationStyle: 'hand',
   meleeSwings: [],
+  meleeCharge: 0,
+  meleeBuffer: null,
+  pendingSwing: null,
 };
 
+const MELEE_CHARGE_TIME = 0.65;
+const MELEE_BASE_SCALE = 2.6;
+const BOW_TAP_WINDOW = 0.22;
+const BOW_CHARGE_TIME = 0.75;
+const MAX_CHARGE_SHOTS = 4;
+
+// Per-weapon fire mode: rapid (hold to keep firing), charge (hold, release to unleash), triple (bow only).
+const fireModes = { melee: 'rapid', bow: 'rapid', magic: 'rapid' };
+const fireModeOptions = { melee: ['rapid', 'charge'], bow: ['rapid', 'charge', 'triple'], magic: ['rapid', 'charge'] };
+const fireModeInfo = {
+  rapid: { label: 'RAPID', text: 'hold to keep attacking' },
+  charge: { label: 'CHARGE', text: 'hold to power up, release to unleash' },
+  triple: { label: 'TRIPLE', text: 'three arrows per shot, each a bit weaker' },
+};
+
+function fireMode(style = activeCombatStyle) {
+  return fireModes[style] || 'rapid';
+}
+
+function cycleFireMode() {
+  if (mode !== 'playing') return;
+  const style = currentAttackStyle();
+  const options = fireModeOptions[style];
+  if (options.length < 2) return;
+  fireModes[style] = options[(options.indexOf(fireMode(style)) + 1) % options.length];
+  player.meleeCharge = 0;
+  player.bowHold = 0;
+  player.chargeFraction = 0;
+  player.magicHold = 0;
+  popOverPlayer({ icon: 'mode', color: '#ffd27a' });
+  const info = fireModeInfo[fireModes[style]];
+  showMessage(`${style} mode: ${info.label} - ${info.text}.`, 2);
+}
+
+function activeWeaponMod(style) {
+  return shopItemCatalog.find((item) => item.kind === 'mod' && item.style === style && ownedItems.has(item.id)) || null;
+}
+
+// Class and race shape how each weapon style performs. Race flavour follows the Mana World lore:
+// Talpan (humans) are adaptable, Tritan are water-attuned scholars, Raijin are swift and storm-touched,
+// elves are attuned to mana, orcs are brawny and mana-poor.
+const classProfiles = {
+  // pool/growth: size of the native resource bar and how much it grows per level.
+  Mage: { magic: 1.35, melee: 0.8, bow: 0.9, pool: 44, growth: 3.5 },
+  Warrior: { melee: 1.45, meleeRate: 0.9, magic: 0.7, bow: 0.85, pool: 34, growth: 3 },
+  Rogue: { bowRate: 1.4, melee: 0.9, magic: 0.8, pool: 34, growth: 2.5 },
+  Scout: { bowRate: 1.25, bow: 0.95, pool: 30, growth: 2.2 },
+  Pilgrim: { magic: 1.1, pool: 36, growth: 3 },
+  Herbalist: { magic: 1.15, pool: 38, growth: 3 },
+  Sporeling: { magic: 1.15, pool: 40, growth: 3 },
+  Sentinel: { melee: 1.5, meleeRate: 0.85, magic: 0.6, pool: 40, growth: 3.2 },
+  Scholar: { magic: 1.5, melee: 0.7, bow: 0.8, pool: 46, growth: 3.5 },
+  Scribe: { bow: 1.3, pool: 26, growth: 2 },
+  Delver: { melee: 1.0, meleeRate: 1.2, pool: 30, growth: 2.5 },
+  Keeper: { magic: 1.2, pool: 38, growth: 3 },
+  Guard: { melee: 1.25, meleeRate: 0.95, bow: 0.9, pool: 32, growth: 2.8 },
+  Ranger: { bow: 1.2, bowRate: 1.2, pool: 32, growth: 2.4 },
+  Oracle: { magic: 1.3, melee: 0.8, pool: 40, growth: 3.2 },
+  Reclaimer: { melee: 1.3, meleeRate: 0.9, pool: 32, growth: 2.8 },
+  Veteran: { bow: 1.3, melee: 1.15, bowRate: 0.9, pool: 30, growth: 2.4 },
+};
+
+// Signature perks make each class play differently beyond its weapon style.
+const classSignatures = {
+  // active: true gives the class a dedicated key-4 ability on its own cooldown; it never replaces keys 1-3.
+  Sentinel: { label: 'Bomb Forge', desc: 'Key 4: forge a free bomb at your feet', active: true, cooldown: 6, color: '#ffad59' },
+  Scribe: { label: 'Laser Quill', desc: 'Key 4: fire a piercing laser beam', active: true, cooldown: 5, color: '#ff7a9c' },
+  Keeper: { label: 'Spirit Nova', desc: 'Key 4: release a spirit blast around you', active: true, cooldown: 9, color: '#b9ffd8' },
+  Sporeling: { label: 'Spore Bloom', desc: 'Magic slot fires spore pods that burst into spores' },
+  Scout: { label: 'Wind Step', desc: 'Dash recovers twice as fast' },
+  Pilgrim: { label: 'Patient Well', desc: 'Mana trickles back even while walking' },
+  Delver: { label: 'Second Wind', desc: 'Stamina trickles back even while moving' },
+  Scholar: { label: 'Quick Study', desc: 'Gains 30% more XP' },
+  Herbalist: { label: 'Frost Bloom', desc: 'Starts with a Frost Rune; kills chill nearby foes' },
+};
+function classSignature(entry = character) {
+  return classSignatures[entry?.className] || null;
+}
+const raceProfiles = {
+  humanMale: {}, humanFemale: {},
+  elfMale: { magic: 1.08 },
+  elfFemale: { magic: 1.08, bowRate: 1.05 },
+  orcMale: { melee: 1.15, magic: 0.9 },
+  tritanMale: { magic: 1.05 },
+  raijinFemale: { bowRate: 1.1, magic: 1.05 },
+};
+
+function characterProfile(entry = character) {
+  const cls = classProfiles[entry?.className] || {};
+  const race = raceProfiles[entry?.raceHead] || {};
+  const pick = (key) => (cls[key] ?? 1) * (race[key] ?? 1);
+  return {
+    melee: pick('melee'), meleeRate: pick('meleeRate'), bow: pick('bow'), bowRate: pick('bowRate'),
+    magic: pick('magic'),
+  };
+}
+
+// Each class is native to one style (unlimited use). Other ranged styles are locked until bought
+// in a shop, then run on limited charges; bought charges hit harder than the class baseline.
+const BOUGHT_AMMO_DAMAGE = 1.35;
+const resourceByStyle = {
+  magic: { id: 'ammo-mana', key: 'mana', label: 'mana' },
+  bow: { id: 'ammo-arrows', key: 'arrows', label: 'arrows' },
+  melee: { id: 'ammo-blows', key: 'blows', label: 'stamina' },
+};
+
+// Out of ammo on a non-native weapon: drop back to the class's base weapon so attacks never silently fail.
+function fallBackToBaseStyle(emptyStyle) {
+  const base = nativeStyle();
+  if (emptyStyle === base || styleAmmo(base) < 1) return false;
+  showMessage(`Out of ${resourceByStyle[emptyStyle].label}: back to ${base}.`, 1.8);
+  activeCombatStyle = base;
+  player.meleeCharge = 0;
+  player.bowHold = 0;
+  player.chargeFraction = 0;
+  updateHud();
+  return true;
+}
+
+function nativeStyle() {
+  return character?.startingStyle || 'magic';
+}
+
+// All three styles can be equipped from the start. Each has a resource bar: the class's native style
+// has a large bar that refills on its own while standing still; the others run on small, kill-charged bars.
+function styleUnlocked() {
+  return true;
+}
+
+// True for the weapons that are not the class's specialty (kill-charged, bought-ammo bonus).
+function styleIsLimited(style) {
+  return style !== nativeStyle();
+}
+
+function styleLevel(style) {
+  return player.ammoLevel?.[style] || 0;
+}
+
+function nativePoolSize() {
+  const profile = classProfiles[character?.className] || {};
+  return profile.pool ?? 30;
+}
+
+function nativePoolGrowth() {
+  return (classProfiles[character?.className] || {}).growth ?? 2.5;
+}
+
+function styleCapacity(style) {
+  const levels = Math.max(0, xpLevel - 1);
+  const base = styleIsLimited(style) ? 4 + 0.5 * levels : nativePoolSize() + nativePoolGrowth() * levels;
+  const resourceKey = { melee: 'stamina', bow: 'arrows', magic: 'mana' }[style];
+  return Math.round((base + 8 * styleLevel(style)) * curioMultiplier(resourceKey));
+}
+
+function styleKillCharge(style) {
+  return (styleIsLimited(style) ? 0.25 : 0.5) + 0.3 * styleLevel(style);
+}
+
+// How much one attack drains; the native style is cheap so a class can fight for a good while.
+function styleCost(style) {
+  if (styleIsLimited(style)) return 1;
+  return style === 'magic' ? 0.4 : style === 'bow' ? 0.6 : 1;
+}
+
+function chargeStylesFromKill(weight = 1) {
+  for (const style of Object.keys(resourceByStyle)) {
+    const key = resourceByStyle[style].key;
+    player[key] = Math.min(styleCapacity(style), (player[key] || 0) + styleKillCharge(style) * weight);
+  }
+}
+
+function styleAmmo(style) {
+  return Math.floor((player[resourceByStyle[style].key] || 0) / styleCost(style) + 1e-6);
+}
+
+function spendStyleAmmo(style, amount = styleCost(style)) {
+  const key = resourceByStyle[style].key;
+  if ((player[key] || 0) < amount - 1e-6) return false;
+  player[key] = Math.max(0, player[key] - amount);
+  return true;
+}
+
+// Native bars refill while the player stands still and isn't attacking; some classes also trickle while moving.
+function updateStyleRecharge(dt, moving, attacking) {
+  const native = nativeStyle();
+  const sig = character?.className;
+  for (const style of Object.keys(resourceByStyle)) {
+    const key = resourceByStyle[style].key;
+    const cap = styleCapacity(style);
+    let rate = 0;
+    if (style === native) {
+      if (!moving && !attacking) rate = Math.max(2, cap * 0.07);
+      else if (moving && !attacking && ((sig === 'Pilgrim' && style === 'magic') || (sig === 'Delver' && style === 'melee'))) rate = cap * 0.025;
+    } else if (style === 'melee' && !moving && !attacking) {
+      rate = 0.5 + 0.25 * styleLevel('melee');
+    }
+    if (rate > 0) player[key] = Math.min(cap, (player[key] || 0) + rate * dt);
+  }
+}
+
+// A weapon mod on a style the class is naturally good at gets an extra boost.
+function styleSynergy(style) {
+  const profile = characterProfile();
+  const strong = style === 'melee' ? profile.melee >= 1.2 : style === 'bow' ? profile.bow >= 1.2 || profile.bowRate >= 1.2 : profile.magic >= 1.2;
+  return strong && Boolean(activeWeaponMod(style));
+}
+
+// Isaac-style pun call-outs so every pickup announces what it just did to you.
+const itemQuips = {
+  'mod-windup': 'WIND-UP WRAPS! Charge mode winds up faster.',
+  'mod-flurry': 'FLURRY GAUNTLETS! Jab jab jab, tiny hits.',
+  'mod-cinder': 'CINDER EDGE! Your swings are on fire (literally).',
+  'mod-pierce': 'PIERCING HEADS! Arrows go straight through.',
+  'mod-draw': 'LONGBOW DRAW! Charge mode draws faster.',
+  'mod-quiver': 'RAPID QUIVER! Quiver in fear, foes.',
+  'mod-storm-arrows': 'STORM FLETCHING! Arrows are shockingly good.',
+  'mod-splash': 'IMPACT CORE! Shots go boom on landing.',
+  'mod-chain': 'STORM CONDUIT! Spark joy, then spark foes.',
+  'mod-lingering': 'LINGERING MANA! It really hangs around.',
+};
+
+const chaosStatuses = [
+  { text: 'HASTE-BIT! Speed up', speed: 1.35 },
+  { text: 'LEAD-ING ROLE! Speed down', speed: 0.7 },
+  { text: 'BERSERK-LEY! Attack up', damage: 1.6 },
+  { text: 'WIMP-LEDON! Attack down', damage: 0.6 },
+  { text: 'RAPID FIRE-ANT! Fire rate up', fire: 1.5 },
+  { text: 'SLOTH MOTION! Fire rate down', fire: 0.6 },
+  { text: 'GHOST RIDER! Brief invulnerability', ghost: true },
+];
+let chaosStatus = null;
+let chaosTimer = 0;
+
+const effectKeyLabels = {
+  damage: 'ATTACK', speed: 'SPEED', fire: 'FIRE RATE', stamina: 'STAMINA', mana: 'MANA', arrows: 'ARROWS',
+};
+// Plain-language tags for non-curio pickups so the player always sees what they just got.
+const itemEffectTags = {
+  pearl: ['+ATTACK', '+SHOT SIZE'],
+  prism: ['+TRIPLE SHOT', '-SHOT DAMAGE EACH'],
+  feather: ['+FIRE RATE', '+SHOT SPEED'],
+  'range-lens': ['+RANGE'], 'range-lens-ii': ['+RANGE'], 'range-lens-iii': ['+RANGE', '+SHOTS PIERCE WALLS'],
+  'frost-rune': ['+AUTO FROST PULSE'], 'spore-bloom': ['+BOMBS RELEASE SPORES'], 'bonded-aegis': ['+3 HIT SHIELD'],
+  'element-fire': ['+FIRE MAGIC'], 'element-lightning': ['+LIGHTNING MAGIC'], 'element-gas': ['+MIASMA MAGIC'],
+  'learn-magic': ['+MAGIC SKILL'], 'learn-brawl': ['+BRAWL SKILL'], 'learn-bow': ['+BOW SKILL'],
+  'iron-sword': ['+SWORD REACH', '+HEAVY SWING'], 'swift-daggers': ['+TWIN STRIKES'],
+  'ammo-mana': ['+MAGIC RESERVE', '+MANA PER KILL'], 'ammo-arrows': ['+ARROW RESERVE', '+ARROWS PER KILL'],
+  'ammo-blows': ['+STAMINA RESERVE', '+FASTER RECOVERY'],
+  'mod-windup': ['+FASTER CHARGE', '-SWING SPEED'], 'mod-flurry': ['+JAB SPEED', '-HIT DAMAGE'],
+  'mod-cinder': ['+FIRE WALL ON SWING'], 'mod-pierce': ['+ARROWS PIERCE'], 'mod-draw': ['+FASTER DRAW'],
+  'mod-quiver': ['+RAPID ARROW RATE', '-LIGHTER ARROWS'], 'mod-storm-arrows': ['+CHAIN LIGHTNING ARROWS'],
+  'mod-splash': ['+SPLASH DAMAGE'], 'mod-chain': ['+CHAIN LIGHTNING SHOTS'], 'mod-lingering': ['+DAMAGE CLOUD'],
+  'silk-shorts': ['+SPEED'], 'leather-legguards': ['+ARMOR 2', '-SPEED'], 'leather-vest': ['+ARMOR 1'],
+};
+
+function itemEffectTagsFor(item) {
+  if (item.effects) {
+    return Object.entries(item.effects).map(([key, value]) =>
+      `${value > 1 ? '+' : '-'}${effectKeyLabels[key] || key.toUpperCase()}`);
+  }
+  if (item.id.startsWith('heart-vessel-')) return ['+MAX HEART'];
+  if (item.id.startsWith('luck-up-')) return ['+LUCK'];
+  if (item.id.startsWith('sanctum-blessing')) return ['+MAX HEART', '+ATTACK'];
+  if (item.chaos) return [item.chaos === 'room' ? '?RANDOM STATUS EACH ROOM' : '?RANDOM STATUS EVERY FEW SECONDS'];
+  return itemEffectTags[item.id] || [item.description || ''].filter(Boolean);
+}
+
+const pickupBanner = { title: '', tags: [], timer: 0 };
+// Brief icons that float up above the player's head whenever something changes; the pause screen keeps the full list.
+const overheadPops = [];
+function popOverPlayer({ icon, color = '#ffe38a', image = null }) {
+  if (overheadPops.length >= 4) overheadPops.shift();
+  overheadPops.push({ icon, color, image, born: elapsed });
+}
+
+function showPickupBanner(title, tags) {
+  pickupBanner.title = title;
+  pickupBanner.tags = tags;
+  pickupBanner.timer = 5;
+  const gains = tags.filter((tag) => tag.startsWith('+')).length;
+  const losses = tags.filter((tag) => tag.startsWith('-')).length;
+  if (gains) popOverPlayer({ icon: 'up', color: '#8fe39a' });
+  if (losses) popOverPlayer({ icon: 'down', color: '#f08a8a' });
+}
+
+function drawOverheadPops() {
+  const life = 1.8;
+  for (let i = overheadPops.length - 1; i >= 0; i -= 1) {
+    if (elapsed - overheadPops[i].born > life) overheadPops.splice(i, 1);
+  }
+  overheadPops.forEach((pop, index) => {
+    const age = elapsed - pop.born;
+    const fade = Math.min(1, (life - age) / 0.5, age / 0.12 + 0.6);
+    const cx = player.x + (index - (overheadPops.length - 1) / 2) * 26;
+    const cy = player.y - 82 - Math.min(1, age / 0.35) * 10 - age * 8;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, fade);
+    ctx.fillStyle = 'rgba(8, 10, 12, 0.85)';
+    ctx.strokeStyle = pop.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = pop.color;
+    ctx.strokeStyle = pop.color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2.2;
+    const icon = pop.image?.complete && pop.image.naturalWidth > 0 ? pop.image : null;
+    if (icon) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(icon, cx - 8, cy - 8, 16, 16);
+    } else if (pop.icon === 'up' || pop.icon === 'down') {
+      const dir = pop.icon === 'up' ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + dir * -6);
+      ctx.lineTo(cx - 6, cy + dir * 1);
+      ctx.lineTo(cx + 6, cy + dir * 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(cx - 2, cy + (dir < 0 ? 0 : -6), 4, 6);
+    } else if (pop.icon === 'unlock') {
+      ctx.strokeRect(cx - 5, cy - 1, 10, 7);
+      ctx.beginPath();
+      ctx.arc(cx + 1, cy - 2, 4, Math.PI, Math.PI * 1.9);
+      ctx.stroke();
+    } else if (pop.icon === 'heart') {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 6);
+      ctx.bezierCurveTo(cx - 9, cy, cx - 6, cy - 8, cx, cy - 3);
+      ctx.bezierCurveTo(cx + 6, cy - 8, cx + 9, cy, cx, cy + 6);
+      ctx.fill();
+    } else if (pop.icon === 'key') {
+      ctx.beginPath();
+      ctx.arc(cx - 3, cy, 3, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + 7, cy);
+      ctx.moveTo(cx + 5, cy);
+      ctx.lineTo(cx + 5, cy + 3);
+      ctx.stroke();
+    } else if (pop.icon === 'bomb') {
+      ctx.beginPath();
+      ctx.arc(cx, cy + 2, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + 3, cy - 3);
+      ctx.lineTo(cx + 6, cy - 7);
+      ctx.stroke();
+    } else if (pop.icon === 'mode') {
+      for (const offset of [-4, 0, 4]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + offset, cy + 5);
+        ctx.lineTo(cx + offset, cy - 5);
+        ctx.stroke();
+      }
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+
+function curioMultiplier(key) {
+  let multiplier = chaosStatus?.[key] || 1;
+  for (const item of shopItemCatalog) {
+    if (item.kind === 'curio' && item.effects?.[key] && ownedItems.has(item.id)) multiplier *= item.effects[key];
+  }
+  return multiplier;
+}
+
+function rollChaosStatus(duration) {
+  const next = chaosStatuses[Math.floor(Math.random() * chaosStatuses.length)];
+  chaosStatus = next;
+  chaosTimer = duration;
+  if (next.ghost) player.invuln = Math.max(player.invuln, 3);
+  showMessage(next.text, 2.2);
+  const parts = Object.entries(next).filter(([key]) => effectKeyLabels[key]).map(([key, value]) =>
+    `${value > 1 ? '+' : '-'}${effectKeyLabels[key]}`);
+  showPickupBanner('Status change', next.ghost ? ['+BRIEF INVULNERABILITY'] : parts);
+}
+
+function updateChaos(dt, roomEntered = false) {
+  const room = ownedItems.has('curio-dice');
+  const timed = ownedItems.has('curio-wild-card');
+  if (!room && !timed) {
+    chaosStatus = null;
+    return;
+  }
+  if (roomEntered) {
+    if (room) rollChaosStatus(600);
+    return;
+  }
+  chaosTimer -= dt;
+  if (timed && chaosTimer <= 0) rollChaosStatus(14);
+}
+
+function spawnCurioDrop(x, y, room) {
+  const stocked = new Set((currentRoom?.shopStock || []).map((item) => item.id));
+  const pool = shopItemCatalog.filter((item) => item.kind === 'curio' && !ownedItems.has(item.id) &&
+    !stocked.has(item.id) && !reservedUpgradeIds.has(item.id));
+  if (pool.length === 0) return false;
+  pickups.push({ x, y, kind: 'curio', item: pool[Math.floor(Math.random() * pool.length)], room });
+  return true;
+}
+const FIRE_RATE_SCALE = 0.82;
+const PARRY_WINDOW = 0.13;
 const projectiles = [];
 const enemyProjectiles = [];
 const particles = [];
@@ -576,6 +1291,8 @@ const pickups = [];
 const bombs = [];
 const breakables = [];
 const groundHazards = [];
+const bossStrikes = [];
+let playerStillTimer = 0;
 const lightningArcs = [];
 
 function clamp(value, min, max) {
@@ -611,14 +1328,15 @@ function updateGroundHazards(dt) {
     const hazard = groundHazards[index];
     hazard.ttl -= dt;
     hazard.damageCooldown -= dt;
-    if (hazard.kind === 'miasma' && hazard.owner === 'player') {
+    if ((hazard.kind === 'miasma' || hazard.kind === 'fire') && hazard.owner === 'player') {
       if (hazard.damageCooldown <= 0) {
         for (const enemy of [...enemies]) {
           if (distanceBetween(enemy, hazard) <= enemy.radius + hazard.radius) {
             damageEnemy(enemy, hazard.damage, hazard.x, hazard.y);
+            if (hazard.kind === 'fire') enemy.burnTimer = Math.max(enemy.burnTimer || 0, 1.2);
           }
         }
-        hazard.damageCooldown = 0.85;
+        hazard.damageCooldown = hazard.kind === 'fire' ? 0.5 : 0.85;
       }
     } else if (distanceBetween(player, hazard) < player.radius + hazard.radius) {
       if (hazard.slow) player.groundSlowTimer = Math.max(player.groundSlowTimer, 0.15);
@@ -860,19 +1578,17 @@ function speakChapter(text) {
   if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  const voices = window.speechSynthesis.getVoices();
-  const narratorVoice = voices.find((voice) => voice.lang.startsWith('en') &&
-    /andrew|brian|roger|ryan|guy|christopher|natural/i.test(voice.name)) ||
-    voices.find((voice) => voice.lang.startsWith('en'));
-  if (narratorVoice) utterance.voice = narratorVoice;
   utterance.lang = 'en-US';
   utterance.rate = 0.94;
   utterance.volume = 0.9;
-  window.speechSynthesis.speak(utterance);
+  speakWithNarrator(utterance, () => {
+    if (mode !== 'chapter') utterance.text = '';
+  });
 }
 
 function startChapterNarration(card) {
   stopChapterNarration();
+  if (audioSettings.tts !== true) return;
   const audio = new Audio(`assets/audio/intro-${card.key.replace(':', '-')}.ogg`);
   audio.volume = 0.76;
   chapterAudio = audio;
@@ -928,24 +1644,120 @@ function persistRunAfterBankTransaction() {
   saveRunState();
 }
 
+function padLabels() {
+  return gamepadInput.family === 'ps'
+    ? { a: '✕', b: '○', x: '□', y: '△', lb: 'L1', rb: 'R1', lt: 'L2', rt: 'R2', menu: 'Options' }
+    : { a: 'A', b: 'B', x: 'X', y: 'Y', lb: 'LB', rb: 'RB', lt: 'LT', rt: 'RT', menu: 'Menu' };
+}
+
+const CONTROLS_STORAGE_KEY = 'mana-controls-v1';
+// key: default keyboard key (lower-case event.key); pad: default standard-mapping button index.
+const bindingActions = [
+  { id: 'dash', label: 'Dash', desc: 'Quick burst of speed with brief invulnerability', key: ' ', pad: 5 },
+  { id: 'bomb', label: 'Bomb', desc: 'Drop a bomb (near a bank vault: withdraw on pad)', key: 'f', pad: 1 },
+  { id: 'item', label: 'Use consumable', desc: 'Drink or use the next stored item', key: 'q', pad: 6 },
+  { id: 'shock', label: 'Shockwave', desc: 'Clear enemy bullets and shove foes away', key: 'r', pad: 3 },
+  { id: 'ability', label: 'Class ability', desc: 'Your class signature (also right-click)', key: '4', pad: 15 },
+  { id: 'fireMode', label: 'Weapon mode', desc: 'Rapid / Charge (all weapons) / Triple (bows)', key: 'b', pad: 14 },
+  { id: 'nextWeapon', label: 'Next weapon', desc: 'Cycle melee, bow, magic (also mouse wheel)', key: 'tab', pad: 4 },
+  { id: 'weapon1', label: 'Select melee', desc: 'Jump straight to melee', key: '1', keyOnly: true },
+  { id: 'weapon2', label: 'Select bow', desc: 'Jump straight to the bow', key: '2', keyOnly: true },
+  { id: 'weapon3', label: 'Select magic', desc: 'Jump straight to magic', key: '3', keyOnly: true },
+  { id: 'interact', label: 'Interact / buy', desc: 'Buy, talk, open doors (Shift+E: bank withdraw)', key: 'e', pad: 0 },
+  { id: 'map', label: 'Map', desc: 'Open or close the full map', key: 'm', pad: 8 },
+  { id: 'journal', label: 'Journal', desc: 'Open or close your story notes', key: 'j', pad: 13 },
+];
+const reservedKeys = new Set(['w', 'a', 's', 'd', 'p', 'escape', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright',
+  'enter', 'delete', 'backspace']);
+const reservedPadButtons = new Set([2, 7, 9]);
+const bindings = { key: {}, pad: {} };
+
+function resetBindings(device) {
+  for (const action of bindingActions) {
+    if (device !== 'pad') bindings.key[action.id] = action.key;
+    if (device !== 'key') bindings.pad[action.id] = action.pad ?? null;
+  }
+}
+
+function loadBindings() {
+  resetBindings();
+  try {
+    const stored = JSON.parse(localStorage.getItem(CONTROLS_STORAGE_KEY) || '{}');
+    for (const action of bindingActions) {
+      if (typeof stored.key?.[action.id] === 'string') bindings.key[action.id] = stored.key[action.id];
+      const padValue = stored.pad?.[action.id];
+      if (padValue === null || Number.isInteger(padValue)) bindings.pad[action.id] = padValue;
+    }
+    // Saves made before L1 became the default weapon swap still hold R3 and an unbound L1.
+    if (bindings.pad.nextWeapon === 11 && !Object.values(bindings.pad).includes(4)) bindings.pad.nextWeapon = 4;
+  } catch (error) {
+    resetBindings();
+  }
+}
+
+function saveBindings() {
+  try {
+    localStorage.setItem(CONTROLS_STORAGE_KEY, JSON.stringify(bindings));
+  } catch (error) {
+    // Bindings still work for this session if storage is blocked.
+  }
+}
+
+loadBindings();
+
+function actionForKey(key) {
+  return bindingActions.find((action) => bindings.key[action.id] === key)?.id || null;
+}
+
+function actionForPad(index) {
+  return bindingActions.find((action) => !action.keyOnly && bindings.pad[action.id] === index)?.id || null;
+}
+
+function keyLabel(key) {
+  if (!key) return '—';
+  const names = { ' ': 'SPACE', shift: 'SHIFT', tab: 'TAB', control: 'CTRL', alt: 'ALT', arrowup: '↑',
+    arrowdown: '↓', arrowleft: '←', arrowright: '→', enter: 'ENTER' };
+  return names[key] || key.toUpperCase();
+}
+
+function padButtonLabel(index) {
+  const p = padLabels();
+  const names = [p.a, p.b, p.x, p.y, p.lb, p.rb, p.lt, p.rt, gamepadInput.family === 'ps' ? 'Share' : 'Back',
+    p.menu, 'L3', 'R3', 'D-Up', 'D-Down', 'D-Left', 'D-Right'];
+  return names[index] || `Btn ${index}`;
+}
+
+// Label for an action on whichever device the player touched last; `long` adds the fixed extras (wheel, right-click).
+function bindLabel(id, long = false) {
+  if (lastInputMode === 'controller') {
+    const button = bindings.pad[id];
+    return button === null || button === undefined ? '—' : padButtonLabel(button);
+  }
+  const base = keyLabel(bindings.key[id]);
+  if (!long) return base;
+  if (id === 'ability') return `${base} / Right-Click`;
+  if (id === 'nextWeapon') return `${base} / Mouse Wheel`;
+  return base;
+}
+
 function updateControlsHint() {
   if (!controlsEl) return;
   let lines;
   if (mode === 'playing' || mode === 'paused') {
     const hasItem = consumables.some((item) => item.count > 0);
-    const optional = [];
-    if (ownedItems.has('frost-rune')) optional.push(lastInputMode === 'controller' ? 'Y Frost' : 'C Frost');
-    if (lastInputMode === 'controller') {
-      lines = [
-        `LS Move/Face · X/RS Fire · D-Pad Face · LB ${elementDisplayName(activeMagicElement).toUpperCase()} · RB Style`,
-        [`A Interact`, `B Bomb`, `Y ${hasItem ? 'Item' : 'No Item'}`, 'LT Frost', ...optional, 'Start Pause'].join(' · '),
-      ];
-    } else {
-      lines = [
-        `WASD Move · LMB Aim/Attack · T ${elementDisplayName(activeMagicElement).toUpperCase()} · F Style`,
-        ['E Interact', 'B Bomb', `Q ${hasItem ? 'Item' : 'No Item'}`, ...optional, 'P Pause'].join(' · '),
-      ];
-    }
+    const sig = classSignature()?.active ? classSignature().label : null;
+    const pad = lastInputMode === 'controller';
+    const b = (id) => bindLabel(id, true);
+    lines = [
+      `${pad ? `LS Move · RS Aim+Fire (or ${padLabels().rt})` : 'WASD Move · Mouse Aim + Left-Click Attack'} · ${b('dash')} Dash · ` +
+        `${b('nextWeapon')} Weapon · ${b('fireMode')} Mode · ${b('interact')} Interact`,
+      [`${b('item')} Item${hasItem ? '' : ' (none)'}`, `${b('shock')} Shockwave (${blanksHeld})`, `${b('bomb')} Bomb (${bombsHeld})`,
+        sig ? `${b('ability')} ${sig}` : null, `${b('map')} Map`, pad ? `${padLabels().menu} Pause` : 'P Pause'].filter(Boolean).join(' · '),
+    ];
+  } else if (mode === 'controls') {
+    lines = lastInputMode === 'controller'
+      ? ['D-Pad Move · A Rebind · X Clear · LB/RB Switch Tab · B Back']
+      : ['↑/↓ Choose · Enter Rebind · Del Clear · ←/→ Switch Tab · Esc Back'];
   } else if (mode === 'prologue') {
     lines = lastInputMode === 'controller'
       ? ['D-Pad / LS Read · A/Start Continue']
@@ -958,12 +1770,17 @@ function updateControlsHint() {
     lines = lastInputMode === 'controller'
       ? ['D-Pad Browse · LB/RB Change Tab · B Close']
       : ['↑/↓ Browse · ←/→ Change Tab · K/ESC Close'];
+  } else if (mode === 'tutorial') {
+    lines = lastInputMode === 'controller'
+      ? ['D-Pad / A Change Page · B Back']
+      : ['←/→ Change Page · H/ESC Back'];
   } else {
     lines = lastInputMode === 'controller'
-      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex']
-      : ['←/→ Select · Enter Descend · K Codex'];
+      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex · Y How to Play · Back Controls']
+      : ['←/→ Select · Enter Descend · K Codex · H How to Play · C Controls'];
   }
-  controlsEl.textContent = lines.join('\n');
+  const hintText = lines.join('\n');
+  if (controlsEl.textContent !== hintText) controlsEl.textContent = hintText;
 }
 
 function updateHud() {
@@ -1046,7 +1863,7 @@ function isUpgradeAvailable(item) {
 function createShopStock() {
   const abilityCount = ownedAbilityCount();
   const available = shopItemCatalog.filter((item) => {
-    if (item.kind === 'companion') return false;
+    if (item.kind === 'companion' || item.kind === 'ammo') return false;
     if (item.kind === 'consumable') return true;
     if (!isUpgradeAvailable(item)) return false;
     if (item.id.startsWith('heart-vessel-') && !heartVesselAllowed()) return false;
@@ -1084,7 +1901,35 @@ function createShopStock() {
       purchased: false,
     };
   }
+  // Every shop sells ammo for a limited style so non-native classes can always fuel or unlock it.
+  const ammoOffers = shopItemCatalog.filter((item) => item.kind === 'ammo' && styleIsLimited(item.style));
+  if (ammoOffers.length > 0 && stock.length > 0) {
+    const lowest = Math.min(...ammoOffers.map((item) => styleLevel(item.style)));
+    const pool = ammoOffers.filter((item) => styleLevel(item.style) === lowest);
+    const offer = pool[Math.floor(Math.random() * pool.length)];
+    stock[0] = { ...offer, cost: Math.min(8, offer.cost + Math.floor(Math.max(0, currentFloor - 1) / 2)), purchased: false };
+  }
   return stock;
+}
+
+function shopItemStillValid(item) {
+  if (item.purchased || item.kind === 'consumable' || item.kind === 'ammo') return true;
+  if (item.kind === 'companion') return companions.length < 2 && !ownedItems.has(item.id);
+  if (ownedItems.has(item.id)) return false;
+  if (item.kind === 'ability' && ownedAbilityCount() >= 2) return false;
+  if (item.kind === 'skill' && combatStyles.has(item.style)) return false;
+  return true;
+}
+
+// Swap out any offer the player can no longer buy (already owned, slots full) before they see it.
+function refreshShopStock(room) {
+  if (!room.shopStock || room.shopStock.every(shopItemStillValid)) return;
+  const fresh = createShopStock().filter((candidate) =>
+    !room.shopStock.some((item) => item.id === candidate.id));
+  room.shopStock = room.shopStock.map((item) => {
+    if (shopItemStillValid(item)) return item;
+    return fresh.shift() || { ...item, purchased: true, soldOut: true };
+  });
 }
 
 function createRoom(x, y, type = 'normal') {
@@ -1116,13 +1961,8 @@ function roomKey(room) {
 }
 
 function applyRoomSize(room) {
-  if (!room.sizeKey) {
-    const roll = Math.random();
-    room.sizeKey = ['shop', 'bank', 'start', 'secret', 'shrine'].includes(room.type) ? 'small'
-      : room.type === 'boss' ? 'large'
-        : roll < 0.25 ? 'small' : roll < 0.55 ? 'large' : roll < 0.8 ? 'wide' : 'tall';
-  }
-  const size = ROOM_SIZES[room.sizeKey] || ROOM_SIZES.large;
+  if (!room.sizeKey) room.sizeKey = 'small';
+  const size = ROOM_SIZES[room.sizeKey] || ROOM_SIZES.small;
   ROOM_W = size.w;
   ROOM_H = size.h;
 }
@@ -1168,6 +2008,7 @@ function restoreRoomRuntime(room) {
   bombs.push(...runtime.bombs);
   groundHazards.push(...(runtime.groundHazards || []));
   for (const obstacle of runtime.breakables) {
+    if (room.type === 'shop' || room.type === 'bank') continue;
     const { spriteIndex, roomKey: obstacleRoomKey, ...state } = obstacle;
     breakables.push({
       ...state,
@@ -1227,6 +2068,7 @@ function serializeRun() {
       speed: player.speed, damage: player.damage, armor: player.armor,
       aegisCharges: player.aegisCharges,
       luck: player.luck,
+      mana: player.mana, arrows: player.arrows, blows: player.blows, ammoLevel: player.ammoLevel,
       lookX: player.lookX, lookY: player.lookY,
       fireCooldown: player.fireCooldown, invuln: player.invuln,
     },
@@ -1249,6 +2091,7 @@ function serializeRun() {
     meleeWeapons: [...meleeWeapons],
     activeCombatStyle,
     frostNovaCooldown,
+    frostActive,
     equippedClothing: {
       legs: equippedClothing.legs?.id || null,
       chest: equippedClothing.chest?.id || null,
@@ -1360,11 +2203,12 @@ function restoreRun() {
   }
   activeMagicElement = magicElements.has(saved.activeMagicElement) ? saved.activeMagicElement : 'bubble';
   combatStyles.clear();
-  for (const style of saved.combatStyles || []) combatStyles.add(style);
+  for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
   meleeWeapons.clear();
   for (const item of saved.meleeWeapons || []) meleeWeapons.add(item);
   activeCombatStyle = saved.activeCombatStyle;
   frostNovaCooldown = saved.frostNovaCooldown || 0;
+  frostActive = Boolean(saved.frostActive);
   equippedClothing.legs = shopItemCatalog.find((item) => item.id === saved.equippedClothing?.legs) || null;
   equippedClothing.chest = shopItemCatalog.find((item) => item.id === saved.equippedClothing?.chest) || null;
   consumables.length = 0;
@@ -1406,7 +2250,7 @@ function resumeGame() {
   if (mode !== 'paused') return;
   mode = 'playing';
   messageTimer = 0;
-  messageEl.textContent = 'Room clear. Move to a doorway to continue.';
+  messageEl.textContent = '';
 }
 
 function exitToTitle() {
@@ -1445,11 +2289,10 @@ const regionalBossClues = {
 function createUpgradeReward(idSuffix, dungeonRooms) {
   const abilityCount = ownedAbilityCount() + reservedAbilityCount();
   const upgrades = shopItemCatalog.filter((item) =>
-    ['passive', 'skill', 'weapon', 'clothing', 'ability', 'element'].includes(item.kind) &&
+    ['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind) &&
     (item.kind === 'skill' ? !combatStyles.has(item.style) : !ownedItems.has(item.id)) &&
     isUpgradeAvailable(item) &&
     (!item.id.startsWith('heart-vessel-') || heartVesselAllowed()) &&
-    (!['ability', 'element'].includes(item.kind) || save.purchasedAbilityIds.includes(item.id)) &&
     (item.kind !== 'ability' || abilityCount < 2) &&
     !reservedUpgradeIds.has(item.id) &&
     !dungeonRooms.some((room) => room.shopStock?.some((stockItem) => stockItem.id === item.id)),
@@ -1467,6 +2310,18 @@ function createUpgradeReward(idSuffix, dungeonRooms) {
 }
 
 function generateDungeon() {
+  let lastError = null;
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    try {
+      return generateDungeonAttempt();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+function generateDungeonAttempt() {
   const occupied = new Map();
   const keyFor = (x, y) => `${x},${y}`;
   const startRoom = createRoom(0, 3, 'start');
@@ -1512,29 +2367,29 @@ function generateDungeon() {
     return null;
   };
 
+  const MAX_ROOMS = 10;
   const mainPath = [startRoom];
   let cursor = startRoom;
-  for (let x = 1; x <= 6; x += 1) {
-    const nextY = Math.max(0, Math.min(6, cursor.y + Math.floor(Math.random() * 3) - 1));
-    if (nextY !== cursor.y) {
-      const bend = addConnectedRoom(cursor, cursor.x, nextY);
-      if (!bend) throw new Error('Could not create the main route through the dungeon.');
-      mainPath.push(bend);
-      cursor = bend;
-    }
-    const next = addConnectedRoom(cursor, x, nextY, x === 6 ? 'boss' : 'normal');
+  for (let step = 1; step <= 4; step += 1) {
+    const options = randomize([
+      { x: cursor.x + 1, y: cursor.y }, { x: cursor.x + 1, y: cursor.y },
+      { x: cursor.x, y: cursor.y - 1 }, { x: cursor.x, y: cursor.y + 1 },
+      { x: cursor.x - 1, y: cursor.y },
+    ]).filter(({ x, y }) => x >= 0 && x <= 6 && y >= 0 && y <= 6 && !occupied.has(keyFor(x, y)));
+    const choice = options[0];
+    const next = choice && addConnectedRoom(cursor, choice.x, choice.y, step === 4 ? 'boss' : 'normal');
     if (!next) throw new Error('Could not create the main route through the dungeon.');
     mainPath.push(next);
     cursor = next;
   }
 
-  if (!attachRoom([startRoom], 'normal')) {
+  const extraExit = attachRoom([startRoom], 'normal');
+  if (!extraExit) {
     throw new Error('Could not create a second ordinary exit from the starting room.');
   }
 
-  const secretHostCandidates = mainPath.filter((room) => room.type === 'normal' && room.x >= 2);
-  const secretHost = randomize(secretHostCandidates.filter((room) => room.x >= 4 && room.x <= 5))
-    .concat(randomize(secretHostCandidates.filter((room) => room.x < 4 || room.x > 5)))
+  const secretHostCandidates = mainPath.filter((room) => room.type === 'normal');
+  const secretHost = randomize(secretHostCandidates)
     .find((room) => freeNeighbors(room).length > 0);
   if (!secretHost) throw new Error('Could not place the hidden sacred room.');
   const secretDirection = randomize(directions.filter((direction) =>
@@ -1557,12 +2412,11 @@ function generateDungeon() {
   secretHost.secretExit = { direction: secretDirection.name, room: secret };
   occupied.set(keyFor(secret.x, secret.y), secret);
 
-  const specialPath = mainPath.filter((room) => room.type === 'normal' && room.x >= 2 && room.x <= 5);
+  const specialPath = mainPath.filter((room) => room.type === 'normal');
   const shopRoom = attachRoom(specialPath, 'shop');
   const miniBossRoom = attachRoom(specialPath, 'miniboss');
   const lockTarget = attachRoom(specialPath, 'normal');
-  const bankRoom = attachRoom(specialPath, 'bank');
-  if (!shopRoom || !miniBossRoom || !lockTarget || !bankRoom) {
+  if (!shopRoom || !miniBossRoom || !lockTarget) {
     throw new Error('Could not place all special rooms in the generated dungeon.');
   }
   shopRoom.shopStock = createShopStock();
@@ -1584,14 +2438,17 @@ function generateDungeon() {
   if (Math.random() < 0.45) {
     secret.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-secret`, [...occupied.values()]);
   }
-  const shrineRoom = Math.random() < 0.35 ? attachRoom(specialPath, 'shrine') : null;
+  const shrineRoom = occupied.size < MAX_ROOMS && Math.random() < 0.35 ? attachRoom(specialPath, 'shrine') : null;
   if (shrineRoom) {
     shrineRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-shrine`, [...occupied.values()]);
   }
 
-  for (const source of randomize(mainPath.filter((room) => room.type === 'normal' && room.x >= 1 && room.x <= 5))) {
-    if (Math.random() < 0.45) attachRoom([source], 'normal');
-  }
+  // Exactly one oversized room per map; never the boss, shop, secret, shrine, or start room.
+  const largeCandidates = [...occupied.values()].filter((room) => ['normal', 'miniboss'].includes(room.type));
+  const largeRoom = randomize(largeCandidates)[0];
+  const largeKeys = ['large', 'wide', 'tall'];
+  for (const room of occupied.values()) room.sizeKey = 'small';
+  if (largeRoom) largeRoom.sizeKey = largeKeys[Math.floor(Math.random() * largeKeys.length)];
 
   return { rooms: [...occupied.values()], startRoom };
 }
@@ -1656,11 +2513,12 @@ function createEnemy(kind, x, y, boss = false) {
   };
   const spec = specs[kind];
   const floorProgress = Math.max(0, currentFloor - 1);
-  // A boss takes at least 25 good hits, plus more as the player collects abilities and items.
+  // Bosses are long fights: roughly 150+ good hits, growing with floor, abilities, items and multi-shot volleys.
   const meleeBonus = combatStyles.has('melee') && meleeWeapons.has('sword') ? 2 : 0;
   const goodHit = Math.max(1, player.damage + weapon.damageBonus + meleeBonus);
-  const hitsToKill = 25 + ownedAbilityCount() * 4 + Math.floor(ownedItems.size / 3) + floorProgress * 3;
-  const bossHp = goodHit * hitsToKill;
+  const volleyFactor = 1 + (weapon.shotCount - 1) * 0.5;
+  const hitsToKill = (95 + ownedAbilityCount() * 8 + Math.floor(ownedItems.size / 2) * 2 + floorProgress * 22) * volleyFactor;
+  const bossHp = Math.ceil(goodHit * hitsToKill);
   const baseEnemyHp = Math.ceil(spec.hp * (1 + floorProgress * 0.2));
   const enemyHp = Math.max(baseEnemyHp, strongestPlayerSingleHit() + 1);
   const maxHp = boss ? bossHp : enemyHp;
@@ -1774,6 +2632,38 @@ function createBreakableAt(x, y, preferredSprite) {
   };
 }
 
+// Obstacles are deliberate: indestructible pillars are mirrored cover against ranged enemies, and
+// a breakable cache in a corner always pays out (heart if hurt, otherwise zenny or a bomb).
+// Door lanes and the room centre stay clear.
+function placeRoomObstacles(room) {
+  if (room.type !== 'normal' && room.type !== 'shrine') return;
+  const roll = Math.random();
+  const spots = [];
+  const solid = obstacleSprites[0];
+  if (roll < 0.3) {
+    spots.push([0.3, 0.3, solid], [0.7, 0.3, solid], [0.3, 0.7, solid], [0.7, 0.7, solid]);
+  } else if (roll < 0.5) {
+    spots.push([0.3, 0.3, solid], [0.7, 0.7, solid]);
+  }
+  const cachePool = (obstacleSpritesByFloor[currentFloor] || obstacleSpritesByFloor[3])
+    .filter((sprite) => sprite.type === 'bomb-only');
+  if (cachePool.length && Math.random() < 0.35) {
+    const cornerX = Math.random() < 0.5 ? 0.1 : 0.9;
+    const cornerY = Math.random() < 0.5 ? 0.16 : 0.84;
+    spots.push([cornerX, cornerY, cachePool[Math.floor(Math.random() * cachePool.length)], true]);
+  }
+  for (const [fx, fy, sprite, cache] of spots) {
+    const position = { x: ROOM_W * fx, y: ROOM_H * fy };
+    const clear = distanceBetween(position, player) > sprite.radius + player.radius + 60 &&
+      enemies.every((enemy) => distanceBetween(position, enemy) > sprite.radius + enemy.radius + 20);
+    if (!clear) continue;
+    const obstacle = createBreakableAt(position.x, position.y, sprite);
+    obstacle.room = room;
+    if (cache) obstacle.purposeDrop = true;
+    breakables.push(obstacle);
+  }
+}
+
 function spawnRewardRelics(room, count = 3) {
   if (room.treasureClaimed || !room.rewardRoom) return;
   const availableObstacles = obstacleSpritesByFloor[currentFloor] || obstacleSpritesByFloor[3];
@@ -1818,7 +2708,15 @@ function damageObstacle(obstacle, damage = 1, source = 'projectile') {
   if (!obstacle.dropConsumed) {
     obstacle.dropConsumed = true;
     const bombDrop = source === 'bomb' && Math.random() < 0.5;
-    if (bombDrop || obstacle.guaranteedDrop) {
+    if (obstacle.purposeDrop) {
+      const hurt = player.hp < player.maxHp;
+      const roll = Math.random();
+      if (roll < 0.14 && spawnCurioDrop(obstacle.x, obstacle.y, obstacle.room)) {
+        // curio spawned
+      } else if (hurt && roll < 0.5) pickups.push({ x: obstacle.x, y: obstacle.y, kind: 'heart', room: obstacle.room });
+      else if (roll < 0.8) spawnCoin(obstacle.x, obstacle.y);
+      else pickups.push({ x: obstacle.x, y: obstacle.y, kind: 'bomb', room: obstacle.room });
+    } else if (bombDrop || obstacle.guaranteedDrop) {
       const coinDrop = !bombDrop && Math.random() < 0.6 && reserveCoin();
       pickups.push({
         x: obstacle.x,
@@ -1833,8 +2731,10 @@ function damageObstacle(obstacle, damage = 1, source = 'projectile') {
       }
     } else {
       const roll = Math.random();
-      if (roll < 0.08) spawnCoin(obstacle.x, obstacle.y);
-      else if (roll < 0.12) pickups.push({ x: obstacle.x, y: obstacle.y, kind: 'heart' });
+      if (roll < 0.05 + player.luck * 0.02 && spawnCurioDrop(obstacle.x, obstacle.y, obstacle.room)) {
+        // curio spawned
+      } else if (roll < 0.13) spawnCoin(obstacle.x, obstacle.y);
+      else if (roll < 0.17) pickups.push({ x: obstacle.x, y: obstacle.y, kind: 'heart' });
     }
   }
   if (!obstacle.ambushConsumed && obstacle.ambushChance > 0) {
@@ -1889,11 +2789,10 @@ function updateBreakables(dt) {
 }
 
 function grantUpgrade(item, source = 'descent') {
-    if (['ability', 'element'].includes(item.kind) && source !== 'shop' &&
-        !save.purchasedAbilityIds.includes(item.id)) {
-      showMessage(`${item.name} must first be purchased from a shop.`, 3);
-      return false;
-    }
+  if (ownedItems.has(item.id) && !['consumable', 'ammo'].includes(item.kind)) {
+    showMessage(`You already own ${item.name}.`, 2);
+    return false;
+  }
   if (!isUpgradeAvailable(item)) {
     showMessage('That upgrade is not available yet.', 2);
     return false;
@@ -1922,7 +2821,7 @@ function grantUpgrade(item, source = 'descent') {
     weapon.damageBonus += 1;
   } else if (item.id === 'prism') {
     const previousShotCount = weapon.shotCount;
-    weapon.shotCount = Math.min(3, weapon.shotCount + 2);
+    weapon.shotCount = Math.min(5, weapon.shotCount + 4);
     weapon.shotDamageMultiplier *= previousShotCount / weapon.shotCount;
   } else if (item.id === 'feather') {
     weapon.fireDelay = Math.max(0.11, weapon.fireDelay * 0.7);
@@ -1935,12 +2834,21 @@ function grantUpgrade(item, source = 'descent') {
   } else if (item.kind === 'weapon') {
     combatStyles.add('melee');
     meleeWeapons.add(item.weapon);
+  } else if (item.kind === 'mod') {
+    // One modifier per weapon style: a new one replaces the old, which can be bought again later.
+    for (const other of shopItemCatalog) {
+      if (other.kind === 'mod' && other.style === item.style) ownedItems.delete(other.id);
+    }
+    player.meleeCharge = 0;
+    player.bowHold = 0;
   } else if (item.kind === 'element') {
     combatStyles.add('magic');
     magicElements.add(item.element);
     activeMagicElement = item.element;
+    frostActive = false;
   } else if (item.id === 'frost-rune') {
     frostNovaCooldown = 0;
+    frostActive = true;
   } else if (item.id === 'bonded-aegis') {
     player.aegisCharges = 3;
   }
@@ -1951,11 +2859,16 @@ function grantUpgrade(item, source = 'descent') {
   showMessage(
     item.kind === 'clothing'
       ? `${item.name} equipped. Speed ${player.speed}; armor ${player.armor}.`
-      : attackMorphs[item.id]
+      : item.quip || itemQuips[item.id]
+        ? `${item.quip || itemQuips[item.id]} (${item.description || attackMorphs[item.id]?.label || ''})${
+          item.kind === 'mod' && styleSynergy(item.style) ? ` CLASS SYNERGY: ${character.className} supercharges it!` : ''}`
+        : attackMorphs[item.id]
         ? `${item.name} acquired. Your attacks change: ${attackMorphs[item.id].label}.`
         : `${item.name} acquired. Your mana answers to practice, not birthright.`,
     3,
   );
+  showPickupBanner(item.name, itemEffectTagsFor(item));
+  popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[item.id] });
   return true;
 }
 
@@ -2031,6 +2944,24 @@ function applyEliteMutation(enemy) {
 
 let enemyLinkSequence = 0;
 
+// From floor 3 onward, some ordinary monsters gain the signature attack patterns of mini bosses.
+function applyBossAIPromotion(enemy) {
+  enemies.push(enemy);
+  if (enemy.boss || enemy.miniBoss || enemy.linkId || currentFloor < 3) return enemy;
+  const bossCapable = ['scorpion', 'bandit', 'mouboo', 'spider', 'bluepar', 'skeleton', 'zombie', 'spore-sower',
+    'junglefowl', 'snowman', 'yeti', 'vampirebat', 'frostiana', 'troll'];
+  if (!bossCapable.includes(enemy.kind)) return enemy;
+  const chance = Math.min(0.4, (currentFloor - 2) * 0.1);
+  if (Math.random() >= chance) return enemy;
+  enemy.bossAI = true;
+  enemy.phase = 1;
+  enemy.maxHp = Math.ceil(enemy.maxHp * 1.25);
+  enemy.hp = enemy.maxHp;
+  enemy.speed *= 0.85;
+  enemy.eliteGlow = true;
+  return enemy;
+}
+
 function linkEnemyTwins(first, second) {
   const roomKey = currentRoom ? `${currentRoom.x}-${currentRoom.y}` : 'test-room';
   const linkId = `${currentFloor}-${roomKey}-${enemyLinkSequence}`;
@@ -2083,7 +3014,13 @@ function spawnRoom(room) {
   pickups.length = 0;
   bombs.length = 0;
   groundHazards.length = 0;
+  bossStrikes.length = 0;
+  lightningArcs.length = 0;
+  sporePods.length = 0;
+  laserBeams.length = 0;
   breakables.length = 0;
+  playerStillTimer = 0;
+  updateChaos(0, true);
   for (const companion of companions) {
     companion.hp = companion.maxHp;
     companion.respawnTimer = 0;
@@ -2098,6 +3035,7 @@ function spawnRoom(room) {
     pickups.push({ x: ROOM_W / 2, y: ROOM_H / 2, kind: 'upgrade', item: room.rewardUpgrade, room });
   }
   room.visited = true;
+  if (room.type === 'shop') refreshShopStock(room);
   if (restoreRoomRuntime(room)) {
     room.visited = true;
     room.entered = true;
@@ -2106,6 +3044,11 @@ function spawnRoom(room) {
   }
   if (room.type === 'shop' || room.type === 'bank' || room.type === 'start') {
     room.cleared = true;
+    if (room.type !== 'start') {
+      for (let index = breakables.length - 1; index >= 0; index -= 1) {
+        if (!breakables[index].room || breakables[index].room === room) breakables.splice(index, 1);
+      }
+    }
   } else if (room.type === 'secret') {
     room.cleared = true;
   } else if (room.type === 'boss') {
@@ -2129,10 +3072,10 @@ function spawnRoom(room) {
       const miniBoss = createEnemy(kind, ROOM_W * 0.68, ROOM_H * 0.5);
       miniBoss.miniBoss = true;
       miniBoss.phase = 1;
-      miniBoss.hp = Math.max(18 + currentFloor * 3, strongestPlayerSingleHit() + 1);
+      miniBoss.hp = Math.max(45 + currentFloor * 15, strongestPlayerSingleHit() * 6);
       miniBoss.maxHp = miniBoss.hp;
-      miniBoss.radius = Math.max(miniBoss.radius, 22);
-      miniBoss.speed *= 0.75;
+      miniBoss.radius = Math.max(miniBoss.radius * 1.4, 28);
+      miniBoss.speed = Math.max(miniBoss.speed * 1.5, 90 + currentFloor * 8);
       miniBoss.title = {
         croc: 'MARSH KRAB', scorpion: 'DUNE STALKER', bandit: 'ROAD CAPTAIN',
         bosspinkie: 'PINKIE MATRIARCH',
@@ -2153,14 +3096,13 @@ function spawnRoom(room) {
     const kinds = enemyKindsForCurrentMap();
     const emptyRoomChance = [0.4, 0.25, 0.12][currentFloor - 1] || 0.12;
     if (room.type === 'shrine' || Math.random() >= emptyRoomChance) {
-      const count = (room.type === 'shrine' ? 2 + currentFloor : 1 + currentFloor + Math.floor(Math.random() * 2)) + roomAreaBonus();
+      const count = Math.max(2, (room.type === 'shrine' ? 2 + currentFloor : currentFloor + Math.floor(Math.random() * 2)) + roomAreaBonus());
       let linkedPairSpawned = false;
       for (let i = 0; i < count; i += 1) {
         const kind = kinds[Math.floor(Math.random() * kinds.length)];
         const spawn = findEnemySpawnPosition(180 + Math.random() * (ROOM_W - 360), 120 + Math.random() * (ROOM_H - 240));
         if (!spawn) continue;
-        const enemy = applyEliteMutation(createEnemy(kind, spawn.x, spawn.y));
-        enemies.push(enemy);
+        const enemy = applyBossAIPromotion(applyEliteMutation(createEnemy(kind, spawn.x, spawn.y)));
         if (!linkedPairSpawned && currentFloor >= 2 && i < count - 1 && Math.random() < 0.16) {
           const twinPosition = findEnemySpawnPosition(spawn.x + 70, spawn.y + 18, enemy.radius, 0);
           if (twinPosition) {
@@ -2172,28 +3114,7 @@ function spawnRoom(room) {
         }
       }
     }
-    const availableObstacles = obstacleSpritesByFloor[currentFloor] || obstacleSpritesByFloor[3];
-    const obstacleCount = Math.floor(Math.random() * (Math.min(3, currentFloor + 1) + 1)) + roomAreaBonus();
-    for (let i = 0; i < obstacleCount; i += 1) {
-      const sprite = availableObstacles[Math.floor(Math.random() * availableObstacles.length)];
-      let position;
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        const candidate = { x: 120 + Math.random() * (ROOM_W - 240), y: 100 + Math.random() * (ROOM_H - 200) };
-        const clearsPlayer = distanceBetween(candidate, player) > sprite.radius + player.radius + 36;
-        const clearsEnemies = enemies.every((enemy) =>
-          distanceBetween(candidate, enemy) > sprite.radius + enemy.radius + 18,
-        );
-        if (clearsPlayer && clearsEnemies && breakables.every((other) =>
-          distanceBetween(candidate, other) > sprite.radius + other.radius + 18,
-        )) {
-          position = candidate;
-          break;
-        }
-      }
-      if (position) {
-        breakables.push(createBreakableAt(position.x, position.y, sprite));
-      }
-    }
+    placeRoomObstacles(room);
     if (enemies.length === 0) room.cleared = true;
   }
   if (room.rewardRoom && !room.treasureClaimed) spawnRewardRelics(room, room.type === 'secret' ? 3 : 2);
@@ -2253,13 +3174,20 @@ function spawnRoom(room) {
 
 function beginRun() {
   stopPrologueNarration();
-  const entry = characterRoster[selectedIndex];
+  let entry = characterRoster[selectedIndex];
   if (!isCharacterUnlocked(entry)) {
     showMessage(`${entry.name} is locked: ${entry.unlock}.`, 3);
     return;
   }
-
+  const rolledRandom = Boolean(entry.random);
+  if (rolledRandom) {
+    const pool = characterRoster.filter((candidate) => !candidate.random && isCharacterUnlocked(candidate));
+    entry = pool[Math.floor(Math.random() * pool.length)];
+  }
+  chaosStatus = null;
+  chaosTimer = 0;
   character = entry;
+  if (rolledRandom) showMessage(`FATE-FUL CHOICE! You are ${entry.name} today.`, 3);
   unlockPlaytimeItems(false);
   runProgressionSnapshot = createRunProgressionSnapshot();
   storyLog.length = 0;
@@ -2290,7 +3218,15 @@ function beginRun() {
   weapon.shotDamageMultiplier = weapon.fireDelay / (entry.fireDelay || 0.23);
   weapon.damageBonus = 0;
   frostNovaCooldown = 0;
+  frostActive = entry.startingAbility === 'frost-rune';
+  fireModes.melee = 'rapid';
+  fireModes.bow = 'rapid';
+  fireModes.magic = 'rapid';
   ownedItems.clear();
+  player.mana = 0;
+  player.blows = 0;
+  player.ammoLevel = { melee: 0, bow: 0, magic: 0 };
+  player.arrows = 0;
   magicElements.clear();
   magicElements.add('bubble');
   activeMagicElement = 'bubble';
@@ -2298,20 +3234,41 @@ function beginRun() {
   meleeWeapons.clear();
   meleeWeapons.add('hands');
   reservedUpgradeIds.clear();
-  combatStyles.add(entry.startingStyle);
+  for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
   activeCombatStyle = entry.startingStyle;
   if (entry.startingAbility) ownedItems.add(entry.startingAbility);
   consumables.length = 0;
   companions.length = 0;
   player.meleeSwings = [];
-  player.radius = 12;
+  player.spin = null;
+  player.meleeCharge = 0;
+  player.meleeBuffer = null;
+  player.pendingSwing = null;
   player.x = ROOM_W / 2;
   player.y = ROOM_H / 2;
   player.fireCooldown = 0;
   player.invuln = 0;
   mapOrder = createMapOrder();
   currentFloor = 1;
-  score = 0;
+  dashTimer = 0;
+  dashCooldown = 0;
+  blanksHeld = 1;
+  xpPoints = 0;
+  xpLevel = 1;
+  player.mana = 0;
+  player.arrows = 0;
+  player.blows = 0;
+  player.ammoLevel = { melee: 0, bow: 0, magic: 0 };
+  player[resourceByStyle[entry.startingStyle].key] = styleCapacity(entry.startingStyle);
+  player.laserCharge = 0;
+  player.signatureCooldown = 0;
+  player.powerHat = null;
+  sporePods.length = 0;
+  bossStrikes.length = 0;
+  groundHazards.length = 0;
+  lightningArcs.length = 0;
+  player.classKills = 0;
+  laserBeams.length = 0;
   coins = 0;
   resetFloorCoins();
   keysHeld = 0;
@@ -2400,8 +3357,8 @@ function enterDoor(direction) {
   saveRunState();
 }
 
-const MAX_PLAYER_VOLLEY = 4;
-const MAX_PLAYER_PROJECTILES = 64;
+const MAX_PLAYER_VOLLEY = 8;
+const MAX_PLAYER_PROJECTILES = 140;
 
 // The two newest morph-capable items define how shots look and behave; some trade power for flair.
 const attackMorphs = {
@@ -2430,6 +3387,23 @@ function activeAttackMorph() {
   return morph;
 }
 
+// Chain lightning: arcs from the struck enemy to the nearest others.
+function chainLightningFrom(origin, damage, links) {
+  let source = origin;
+  const struck = new Set([origin]);
+  for (let link = 0; link < links; link += 1) {
+    const next = enemies
+      .filter((enemy) => !struck.has(enemy) && distanceBetween(enemy, source) < 190)
+      .sort((a, b) => distanceBetween(a, source) - distanceBetween(b, source))[0];
+    if (!next) return;
+    struck.add(next);
+    lightningArcs.push({ x1: source.x, y1: source.y, x2: next.x, y2: next.y, ttl: 0.18 });
+    damageEnemy(next, Math.max(1, Math.round(damage * 0.6)), source.x, source.y);
+    addParticles(next.x, next.y, magicElementPalette.lightning, 6, 70);
+    source = next;
+  }
+}
+
 function applyMorphLanding(projectile, primaryTarget) {
   if (projectile.owner === 'companion') return;
   if (projectile.explode) {
@@ -2452,70 +3426,390 @@ function spawnPlayerProjectile(projectile) {
     const expendableIndex = projectiles.findIndex((entry) => entry.owner === 'companion');
     projectiles.splice(expendableIndex >= 0 ? expendableIndex : 0, 1);
   }
-  projectiles.push({ ...projectile, owner: projectile.owner || 'player' });
+  const ttl0 = projectile.ttl || 0.5;
+  const curve = (projectile.dropCurve || (projectile.type === 'arrow' ? 2.2 : 2.6)) + weapon.rangeLevel * 0.5;
+  projectiles.push({ ...projectile, owner: projectile.owner || 'player', born: elapsed, ttl0, dropCurve: curve });
 }
 
-function shoot() {
-  if (mode !== 'playing') return;
-  const learnedStyles = [...combatStyles];
-  const rangedStyles = learnedStyles.filter((style) => style === 'magic' || style === 'bow');
-  const attackDelay = rangedStyles.length > 0 ? weapon.fireDelay : character.fireDelay || 0.3;
-  if (player.fireCooldown > 0) return;
-  player.attackPulse = 0.14;
-  player.attackAnimationStyle = combatStyles.has('bow') ? 'bow' : 'hand';
-  player.attackAnimationTimer = player.attackAnimationStyle === 'bow' ? 0.4 : 0.32;
-  const baseAngle = pointer.down
-    ? Math.atan2(pointer.y + camera.y - player.y, pointer.x + camera.x - player.x)
+function performMeleeSwing(baseAngle, damageScale = 1, charged = false) {
+  const originY = attackOriginY();
+  const ownedWeapons = [...meleeWeapons];
+  const reachBoost = charged ? 1.25 : 1;
+  const arc = charged ? Math.PI : 0.95;
+  const reachOf = (item) => (item === 'sword' ? 92 : item === 'daggers' ? 53 : 66) * reachBoost;
+  const strikeRange = Math.max(...ownedWeapons.map(reachOf));
+  const meleeProfile = characterProfile().melee * (styleSynergy('melee') ? 1.2 : 1);
+  const damage = Math.max(1, Math.round((player.damage + weapon.damageBonus +
+    ownedWeapons.reduce((bonus, item) => bonus + (item === 'sword' ? 2 : item === 'daggers' ? 1 : 0), 0)) * damageScale * meleeProfile));
+  const angleTo = (target) => {
+    const toTarget = Math.atan2(target.y - originY, target.x - player.x);
+    return Math.atan2(Math.sin(toTarget - baseAngle), Math.cos(toTarget - baseAngle));
+  };
+  for (const enemy of [...enemies]) {
+    const distance = Math.hypot(enemy.x - player.x, enemy.y - originY);
+    if (distance <= strikeRange + enemy.radius && Math.abs(angleTo(enemy)) < arc &&
+      hasLineOfSight(player, enemy)) {
+      const element = getActiveAttackElement();
+      if (element) {
+        resolveElementalImpact({
+          x: enemy.x, y: enemy.y,
+          vx: Math.cos(baseAngle), vy: Math.sin(baseAngle),
+          damage, element,
+        }, enemy);
+      } else {
+        damageEnemy(enemy, damage, player.x, originY);
+      }
+    }
+  }
+  for (let index = breakables.length - 1; index >= 0; index -= 1) {
+    const obstacle = breakables[index];
+    const distance = Math.hypot(obstacle.x - player.x, obstacle.y - originY);
+    if (distance > strikeRange + obstacle.radius || Math.abs(angleTo(obstacle)) >= arc) continue;
+    damageObstacle(obstacle, damage, 'melee');
+  }
+  ownedWeapons.forEach((item, index) => {
+    const duration = (charged ? 0.38 : 0.2) + index * 0.035;
+    player.meleeSwings.push({
+      angle: baseAngle,
+      timer: duration,
+      maxTimer: duration,
+      reach: reachOf(item),
+      hitReach: strikeRange,
+      arc,
+      weapon: item,
+      charged,
+      spin: charged,
+      element: getActiveAttackElement(),
+    });
+  });
+  if (charged) {
+    player.spin = { angle: baseAngle, timer: 0.38, duration: 0.38 };
+    triggerCameraShake?.('charge');
+  }
+  if (activeWeaponMod('melee')?.id === 'mod-cinder') spawnFireWall(baseAngle, damage, charged);
+  addParticles(player.x + Math.cos(baseAngle) * 44, originY + Math.sin(baseAngle) * 44,
+    charged ? '#fff2a0' : combatPalette.melee, 7 + ownedWeapons.length * 3, 100);
+  updateHud();
+}
+
+// Cinder Edge: the swing smacks the ground ahead into a short wall of fire (and detonates miasma clouds).
+// Melee-native classes that buy mana can burn a charge per swing to turn it into an elemental blow.
+function infuseMeleeSwing(angle, charged) {
+  const element = getActiveAttackElement() || 'bubble';
+  const base = Math.max(1, (player.damage + weapon.damageBonus) * 2);
+  const reach = charged ? 150 : 110;
+  const originY = attackOriginY();
+  const inFront = enemies.filter((enemy) => {
+    const toEnemy = Math.atan2(enemy.y - originY, enemy.x - player.x);
+    const diff = Math.atan2(Math.sin(toEnemy - angle), Math.cos(toEnemy - angle));
+    return Math.abs(diff) < 1.2 && Math.hypot(enemy.x - player.x, enemy.y - originY) < reach + enemy.radius;
+  });
+  if (element === 'fire') {
+    spawnFireWall(angle, base, charged);
+  } else if (element === 'lightning') {
+    const target = inFront.sort((a, b) => distanceBetween(a, player) - distanceBetween(b, player))[0];
+    if (target) {
+      damageEnemy(target, Math.round(base * 0.8), player.x, player.y);
+      chainLightningFrom(target, base, 3);
+    }
+  } else if (element === 'gas') {
+    createGroundHazard(clamp(player.x + Math.cos(angle) * 80, 50, ROOM_W - 50), clamp(player.y + Math.sin(angle) * 80, 50, ROOM_H - 50), 'miasma', 'player', { radius: 44, duration: 4 });
+  } else {
+    for (const enemy of inFront) enemy.slowTimer = Math.max(enemy.slowTimer || 0, 2);
+  }
+  addParticles(player.x + Math.cos(angle) * 50, originY + Math.sin(angle) * 50, magicElementPalette[element] || '#62d9ee', 12, 140);
+}
+
+function spawnFireWall(angle, swingDamage, charged) {
+  const distances = charged ? [50, 85, 120, 155] : [50, 85, 120];
+  for (const distance of distances) {
+    if (groundHazards.filter((hazard) => hazard.owner === 'player' && hazard.kind === 'fire').length >= 12) return;
+    const x = clamp(player.x + Math.cos(angle) * distance, 50, ROOM_W - 50);
+    const y = clamp(player.y + Math.sin(angle) * distance, 50, ROOM_H - 50);
+    igniteMiasmaAt(x, y);
+    createGroundHazard(x, y, 'fire', 'player', {
+      radius: 30, duration: charged ? 3.2 : 2.4, damage: Math.max(1, Math.round(swingDamage * 0.4)),
+    });
+  }
+}
+
+// A sword swing that meets an enemy projectile inside its first instants sends it back at the enemies.
+function updateSwordParry() {
+  if (!meleeWeapons.has('sword')) return;
+  const originY = attackOriginY();
+  for (const swing of player.meleeSwings) {
+    if (swing.weapon !== 'sword' || swing.maxTimer - swing.timer > PARRY_WINDOW) continue;
+    for (let index = enemyProjectiles.length - 1; index >= 0; index -= 1) {
+      const incoming = enemyProjectiles[index];
+      if (['hook', 'spore-orb'].includes(incoming.kind)) continue;
+      const distance = Math.hypot(incoming.x - player.x, incoming.y - originY);
+      if (distance > swing.reach + incoming.radius + 12) continue;
+      const toProjectile = Math.atan2(incoming.y - originY, incoming.x - player.x);
+      const diff = Math.atan2(Math.sin(toProjectile - swing.angle), Math.cos(toProjectile - swing.angle));
+      if (Math.abs(diff) >= 0.95) continue;
+      const target = enemies
+        .filter((enemy) => hasLineOfSight(incoming, enemy))
+        .sort((a, b) => distanceBetween(incoming, a) - distanceBetween(incoming, b))[0];
+      const returnAngle = target ? Math.atan2(target.y - incoming.y, target.x - incoming.x) : swing.angle;
+      const speed = Math.max(420, Math.hypot(incoming.vx, incoming.vy) * 1.25);
+      enemyProjectiles.splice(index, 1);
+      spawnPlayerProjectile({
+        x: incoming.x,
+        y: incoming.y,
+        vx: Math.cos(returnAngle) * speed,
+        vy: Math.sin(returnAngle) * speed,
+        radius: Math.max(6, incoming.radius),
+        size: 1,
+        color: '#fff2a0',
+        type: 'tear',
+        damage: Math.max(2, (player.damage + weapon.damageBonus) * 2),
+        ttl: 1.4,
+        trailTimer: 0,
+        parried: true,
+      });
+      addParticles(incoming.x, incoming.y, '#fff2a0', 14, 160);
+      playSound('weapons/axe/hit.ogg', 0.25);
+      streakCallout.timer = streakCallout.duration;
+      streakCallout.x = player.x;
+      streakCallout.y = player.y - 96;
+      streakCallout.text = 'PARRY!';
+      hitStopTimer = Math.max(hitStopTimer, 0.04);
+    }
+  }
+}
+
+function currentAttackStyle() {
+  if (combatStyles.has(activeCombatStyle)) return activeCombatStyle;
+  return [...combatStyles][0] || 'melee';
+}
+
+function attackOriginY() {
+  return player.y - 34;
+}
+
+// Aim from the body (where shots leave), not the feet, so the cursor lines up with where projectiles travel.
+function currentAimAngle() {
+  return pointer.down
+    ? Math.atan2(pointer.y + camera.y - attackOriginY(), pointer.x + camera.x - player.x)
     : Math.atan2(player.lookY, player.lookX);
+}
+
+function meleeInputHeld() {
+  return pointer.down || gamepadInput.shoot;
+}
+
+// Melee swings on press and repeats while held. Charge mode turns holding into one crushing charged swing.
+function meleeChargeTime() {
+  return MELEE_CHARGE_TIME * (activeWeaponMod('melee')?.id === 'mod-windup' ? 0.7 : 1);
+}
+
+function updateMeleeInput(dt) {
+  if (currentAttackStyle() !== 'melee') {
+    player.meleeCharge = 0;
+    player.meleeBuffer = null;
+    player.chargeFraction = 0;
+    return;
+  }
+  const canCharge = fireMode('melee') === 'charge';
+  const chargeTime = meleeChargeTime();
+  if (player.meleeBuffer) {
+    player.meleeBuffer.timer -= dt;
+    if (player.fireCooldown <= 0) {
+      const { charged } = player.meleeBuffer;
+      player.meleeBuffer = null;
+      performMeleeAttack(charged);
+    } else if (player.meleeBuffer.timer <= 0) {
+      player.meleeBuffer = null;
+    }
+  }
+  if (meleeInputHeld()) {
+    if (pointer.down) {
+      const angle = currentAimAngle();
+      player.lookX = Math.cos(angle);
+      player.lookY = Math.sin(angle);
+    }
+    if (!canCharge) {
+      player.meleeCharge = 0;
+      if (player.fireCooldown <= 0) performMeleeAttack(false);
+    } else {
+      const before = player.meleeCharge;
+      player.meleeCharge += dt;
+      if (before < chargeTime && player.meleeCharge >= chargeTime) {
+        playSound('system/click.ogg', 0.25);
+        addParticles(player.x, attackOriginY(), '#fff2a0', 12, 120);
+      }
+    }
+  } else if (player.meleeCharge > 0) {
+    const charged = player.meleeCharge >= chargeTime;
+    player.meleeCharge = 0;
+    if (player.fireCooldown > 0) player.meleeBuffer = { charged, timer: 0.18 };
+    else performMeleeAttack(charged);
+  }
+  player.chargeFraction = canCharge ? clamp(player.meleeCharge / chargeTime, 0, 1) : 0;
+}
+
+function performMeleeAttack(charged) {
+  if (mode !== 'playing' || player.fireCooldown > 0) return;
+  const meleeLimited = styleIsLimited('melee');
+  if (styleAmmo('melee') < 1) {
+    if (fallBackToBaseStyle('melee')) return;
+    if (!player.fizzleTimer || player.fizzleTimer <= 0) {
+      showMessage('No stamina! Stand still to recover, or switch weapons.', 1.8);
+      player.fizzleTimer = 2;
+    }
+    return;
+  }
+  spendStyleAmmo('melee');
+  const baseAngle = currentAimAngle();
+  player.lookX = Math.cos(baseAngle);
+  player.lookY = Math.sin(baseAngle);
+  player.attackPulse = 0.14;
+  player.attackAnimationStyle = 'hand';
+  player.attackAnimationTimer = 0.32;
+  const flurry = activeWeaponMod('melee')?.id === 'mod-flurry';
+  const normalCooldown = Math.max(0.5, (character.fireDelay || 0.3) * FIRE_RATE_SCALE * 2.4) *
+    (flurry ? 0.4 : 1) / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
+  const normalScale = flurry ? 1.0 : MELEE_BASE_SCALE;
+  // A charged swing deals the damage of every normal swing it replaces (hold time plus recovery), so DPS stays equal.
+  const chargedScale = normalScale * clamp((meleeChargeTime() + normalCooldown * 1.3) / normalCooldown, 1, MAX_CHARGE_SHOTS);
+  performMeleeSwing(baseAngle, charged ? chargedScale : normalScale, charged);
+  if (nativeStyle() === 'melee' && ownedItems.has('ammo-mana') && (player.mana || 0) >= 1) {
+    player.mana -= 1;
+    infuseMeleeSwing(baseAngle, charged);
+  }
+  // Heavy, deliberate swings (Diablo-style); only Flurry Gauntlets speed them up.
+  player.fireCooldown = Math.max(0.5, (character.fireDelay || 0.3) * FIRE_RATE_SCALE * 2.4) *
+    (charged ? 1.3 : flurry ? 0.4 : 1) / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
+  playSound('weapons/barehands/hit1.ogg', 0.2);
+}
+
+function bowChargeTime() {
+  return BOW_CHARGE_TIME * (activeWeaponMod('bow')?.id === 'mod-draw' ? 0.7 : 1);
+}
+
+// Bow: rapid and triple modes tap-fire; charge mode draws a heavy piercing arrow.
+function updateBowInput(dt) {
+  const canDraw = fireMode('bow') === 'charge';
+  const drawTime = bowChargeTime();
+  if (player.bowBuffer > 0) {
+    player.bowBuffer -= dt;
+    if (player.fireCooldown <= 0) {
+      player.bowBuffer = 0;
+      shoot({ quick: true });
+    }
+  }
+  if (meleeInputHeld()) {
+    if (pointer.down) {
+      const angle = currentAimAngle();
+      player.lookX = Math.cos(angle);
+      player.lookY = Math.sin(angle);
+    }
+    if (!canDraw) {
+      player.bowHold = 0;
+      player.chargeFraction = 0;
+      if (player.fireCooldown <= 0) shoot({ quick: true });
+      return;
+    }
+    const pressed = !player.bowHold;
+    player.bowHold = (player.bowHold || 0) + dt;
+    if (pressed) {
+      if (player.fireCooldown <= 0) shoot({ quick: true });
+      else player.bowBuffer = 0.15;
+    }
+    player.chargeFraction = clamp((player.bowHold - BOW_TAP_WINDOW) / drawTime, 0, 1);
+  } else {
+    const charge = canDraw ? clamp(((player.bowHold || 0) - BOW_TAP_WINDOW) / drawTime, 0, 1) : 0;
+    if (charge >= 0.3) shoot({ charge });
+    player.bowHold = 0;
+    player.chargeFraction = 0;
+  }
+}
+
+// Magic: rapid mode streams shots; charge mode holds to build a bigger, piercing bolt.
+function updateMagicInput(dt) {
+  if (fireMode('magic') !== 'charge') {
+    player.magicHold = 0;
+    player.chargeFraction = 0;
+    if (meleeInputHeld()) shoot();
+    return;
+  }
+  const chargeTime = 0.9;
+  if (meleeInputHeld()) {
+    player.magicHold = (player.magicHold || 0) + dt;
+    player.chargeFraction = clamp(player.magicHold / chargeTime, 0, 1);
+  } else {
+    const charge = clamp((player.magicHold || 0) / chargeTime, 0, 1);
+    player.magicHold = 0;
+    player.chargeFraction = 0;
+    if (charge >= 0.25) shoot({ magicCharge: charge });
+    else if (charge > 0) shoot({ magicCharge: 0.01 });
+  }
+}
+
+function shoot(options = null) {
+  if (mode !== 'playing') return;
+  const style = currentAttackStyle();
+  // Melee swings are driven by updateMeleeInput so shooting and swinging never overlap.
+  if (style === 'melee') return;
+  // Bow shots come from updateBowInput: tap for a quick arrow, hold for a charged one.
+  if (style === 'bow' && !options) return;
+  const learnedStyles = [style];
+  const rangedStyles = learnedStyles;
+  const attackDelay = weapon.fireDelay;
+  const bowCharge = style === 'bow' ? options?.charge || 0 : 0;
+  const magicCharge = style === 'magic' ? options?.magicCharge || 0 : 0;
+  const tripleBow = style === 'bow' && !bowCharge && fireMode('bow') === 'triple';
+  if (player.fireCooldown > 0 && !bowCharge && !magicCharge) return;
+  const mod = activeWeaponMod(style);
+  const modId = mod?.id;
+  const bowPierce = modId === 'mod-pierce';
+  const rapidQuiver = modId === 'mod-quiver';
+  const chainCount = modId === 'mod-chain' || modId === 'mod-storm-arrows' ? 2 : 0;
+  const modExplode = modId === 'mod-splash' ? 58 : 0;
+  const modDrop = modId === 'mod-lingering' ? 'long' : null;
+  const profile = characterProfile();
+  const synergy = styleSynergy(style);
+  if (!styleUnlocked(style)) return;
+  const limited = styleIsLimited(style);
+  if (styleAmmo(style) < 1) {
+    if (fallBackToBaseStyle(style)) return;
+    if (!player.fizzleTimer || player.fizzleTimer <= 0) {
+      showMessage(`Out of ${resourceByStyle[style].label}! ${limited ? 'Kill foes to recharge' : 'Stand still to recharge'}, or switch weapons.`, 1.8);
+      player.fizzleTimer = 2;
+    }
+    return;
+  }
+  // Rogues who learn magic can spend a charge to infuse an arrow with their active element.
+  const infuse = style === 'bow' && !limited && ownedItems.has('ammo-mana') && (player.mana || 0) >= 1;
+  const boughtBoost = (limited ? BOUGHT_AMMO_DAMAGE : 1) * (infuse ? 1.35 : 1);
+  const styleDamage = (style === 'magic' ? profile.magic : style === 'bow' ? profile.bow : 1) *
+    (synergy ? 1.15 : 1) * boughtBoost;
+  const normalInterval = attackDelay * FIRE_RATE_SCALE / (style === 'bow' ? profile.bowRate * (synergy ? 1.15 : 1) : 1);
+  const holdSeconds = bowCharge ? BOW_TAP_WINDOW + bowCharge * bowChargeTime() : magicCharge * 0.9;
+  // Charged shots deal the damage of every normal shot they replace (hold time plus recovery), so DPS stays equal.
+  const chargeMul = bowCharge || magicCharge ? clamp((holdSeconds + normalInterval) / normalInterval, 1, MAX_CHARGE_SHOTS) : 1;
+  const bowDamageMul = (style === 'magic' ? (magicCharge ? chargeMul : 1) : style !== 'bow' ? 1 : bowCharge ? chargeMul : rapidQuiver ? 0.6 : 1) * styleDamage *
+    (tripleBow ? 0.6 : 1);
+  const bowDelayMul = (style !== 'bow' ? 1 : bowCharge ? 1 : rapidQuiver ? 0.55 : 1) * (tripleBow ? 1.35 : 1) /
+    (style === 'bow' ? profile.bowRate * (synergy ? 1.15 : 1) : 1);
+  spendStyleAmmo(style);
+  if (style === 'magic' && character?.className === 'Sporeling') {
+    player.attackPulse = 0.14;
+    player.attackAnimationStyle = 'hand';
+    player.attackAnimationTimer = 0.32;
+    launchSporePod(currentAimAngle());
+    player.fireCooldown = attackDelay * FIRE_RATE_SCALE * 2.4;
+    return;
+  }
+  if (infuse) player.mana -= 1;
+  player.attackPulse = 0.14;
+  player.attackAnimationStyle = style === 'bow' ? 'bow' : 'hand';
+  player.attackAnimationTimer = player.attackAnimationStyle === 'bow' ? 0.4 : 0.32;
+  const baseAngle = currentAimAngle();
   const attackOriginY = player.y - 34;
   if (pointer.down) {
     player.lookX = Math.cos(baseAngle);
     player.lookY = Math.sin(baseAngle);
-  }
-  if (combatStyles.has('melee')) {
-    const ownedWeapons = [...meleeWeapons];
-    const strikeRange = Math.max(...ownedWeapons.map((item) => item === 'sword' ? 92 : item === 'daggers' ? 53 : 66));
-    const damage = player.damage + weapon.damageBonus +
-      ownedWeapons.reduce((bonus, item) => bonus + (item === 'sword' ? 2 : item === 'daggers' ? 1 : 0), 0);
-    for (const enemy of [...enemies]) {
-      const dx = enemy.x - player.x;
-      const dy = enemy.y - attackOriginY;
-      const distance = Math.hypot(dx, dy);
-      const angleDifference = Math.atan2(Math.sin(Math.atan2(dy, dx) - baseAngle), Math.cos(Math.atan2(dy, dx) - baseAngle));
-      if (distance <= strikeRange + enemy.radius && Math.abs(angleDifference) < 0.95 &&
-        hasLineOfSight(player, enemy)) {
-        const element = getActiveAttackElement();
-        if (element) {
-          resolveElementalImpact({
-            x: enemy.x, y: enemy.y,
-            vx: Math.cos(baseAngle), vy: Math.sin(baseAngle),
-            damage, element,
-          }, enemy);
-        } else {
-          damageEnemy(enemy, damage, player.x, attackOriginY);
-        }
-      }
-    }
-    for (let index = breakables.length - 1; index >= 0; index -= 1) {
-      const obstacle = breakables[index];
-      const dx = obstacle.x - player.x;
-      const dy = obstacle.y - attackOriginY;
-      const distance = Math.hypot(dx, dy);
-      const angleDifference = Math.atan2(Math.sin(Math.atan2(dy, dx) - baseAngle), Math.cos(Math.atan2(dy, dx) - baseAngle));
-      if (distance > strikeRange + obstacle.radius || Math.abs(angleDifference) >= 0.95) continue;
-      damageObstacle(obstacle, damage, 'melee');
-    }
-    player.meleeSwings = ownedWeapons.map((item, index) => ({
-      angle: baseAngle,
-      timer: 0.2 + index * 0.035,
-      maxTimer: 0.2 + index * 0.035,
-      reach: item === 'sword' ? 92 : item === 'daggers' ? 53 : 66,
-      weapon: item,
-      element: getActiveAttackElement(),
-    }));
-    addParticles(player.x + Math.cos(baseAngle) * 44, attackOriginY + Math.sin(baseAngle) * 44,
-      combatPalette.melee, 7 + ownedWeapons.length * 3, 100);
-    updateHud();
   }
   const morph = activeAttackMorph();
   const orderedStyles = [...rangedStyles].sort((first, second) =>
@@ -2526,11 +3820,12 @@ function shoot() {
     const styleOffset = rangedStyles.length > 1 && style !== activeCombatStyle
       ? style === 'magic' ? -0.08 : 0.08
       : 0;
-    const element = getActiveAttackElement();
+    const element = style === 'bow' && !infuse ? null : getActiveAttackElement();
     const fusedElementalShot = !morph.surround && ownedItems.has('prism') && Boolean(element) && weapon.shotCount > 1;
-    const shotCount = Math.min(morph.surround ? 4 : fusedElementalShot ? 1 : weapon.shotCount, volleyBudget);
+    const baseShots = tripleBow ? Math.max(3, weapon.shotCount) : weapon.shotCount;
+    const shotCount = Math.min(morph.surround ? 4 : fusedElementalShot ? 1 : baseShots, volleyBudget);
     volleyBudget -= shotCount;
-    const spread = shotCount === 1 ? 0 : 0.16;
+    const spread = shotCount === 1 ? 0 : shotCount > 3 ? 0.13 : 0.16;
     for (let shot = 0; shot < shotCount; shot += 1) {
       const angle = morph.surround
         ? baseAngle + styleOffset + shot * Math.PI / 2
@@ -2544,28 +3839,32 @@ function shoot() {
       spawnPlayerProjectile({
         x: player.x + vx * 18,
         y: attackOriginY + vy * 18,
-        vx: vx * weapon.projectileSpeed * (fusedElementalShot ? 1.18 : 1) * morph.speedMul,
-        vy: vy * weapon.projectileSpeed * (fusedElementalShot ? 1.18 : 1) * morph.speedMul,
-        radius: 6 * weapon.tearSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul,
-        size: weapon.tearSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul,
+        vx: vx * weapon.projectileSpeed * (fusedElementalShot ? 1.18 : 1) * morph.speedMul * (bowCharge ? 1.35 : 1),
+        vy: vy * weapon.projectileSpeed * (fusedElementalShot ? 1.18 : 1) * morph.speedMul * (bowCharge ? 1.35 : 1),
+        radius: 6 * weapon.tearSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul * (bowCharge ? 1.1 + bowCharge * 0.2 : 1) * (magicCharge ? 1.1 + magicCharge * 0.2 : 1),
+        size: weapon.tearSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul * (bowCharge ? 1.1 + bowCharge * 0.2 : 1) * (magicCharge ? 1.1 + magicCharge * 0.2 : 1),
         color: style !== 'bow' && morph.color ? morph.color : element ? elementColors[element]
           : style === 'bow' ? '#d8b577' : (weapon.shotCount > 1 ? combatPalette.volley : combatPalette.arcane),
         type: style === 'bow' ? 'arrow' : 'elemental',
         element,
-        damage: Math.max(1, Math.round((player.damage + weapon.damageBonus) * damageMultiplier * morph.damageMul)),
-        ttl: 0.5 * weapon.rangeMultiplier,
+        glow: style === 'bow' && infuse ? element || 'bubble' : null,
+        damage: Math.max(1, Math.round((player.damage + weapon.damageBonus) * damageMultiplier * morph.damageMul * bowDamageMul)),
+        ttl: 0.5 * weapon.rangeMultiplier * (bowCharge ? 1.4 : 1),
+        dropCurve: bowCharge ? 3.2 : magicCharge ? 3 : undefined,
         piercesWalls: weapon.rangeLevel >= 3,
         fused: fusedElementalShot,
         shape: style === 'bow' ? null : morph.shape,
         pulse: morph.pulse,
-        drop: morph.drop,
-        explode: morph.explode,
+        drop: modDrop || morph.drop,
+        explode: Math.max(morph.explode, modExplode, infuse ? 40 : 0),
         slowOnHit: morph.slowOnHit,
+        pierce: style === 'bow' ? (bowPierce ? 9 : bowCharge ? 3 : 0) : magicCharge >= 0.5 ? 3 : 0,
+        chain: chainCount,
         trailTimer: 0,
       });
     }
   }
-  player.fireCooldown = rangedStyles.length > 0 ? attackDelay * morph.delayMul : attackDelay;
+  player.fireCooldown = attackDelay * morph.delayMul * FIRE_RATE_SCALE * bowDelayMul;
   if (activeCombatStyle === 'bow' && rangedStyles.includes('bow')) {
     playSound('weapons/bow/shoot.ogg', 0.22);
   } else if (activeCombatStyle === 'magic' && rangedStyles.includes('magic')) {
@@ -2599,31 +3898,24 @@ function fireCompanionsWithPlayer(angle, styles) {
   }
 }
 
-function cycleCombatStyle() {
-  const available = [...combatStyles];
-  if (available.length < 2) {
-    showMessage('Your path is yours to choose. Learn another style from a keeper.', 2);
-    return;
-  }
+function cycleCombatStyle(step = 1) {
+  const available = ['melee', 'bow', 'magic'].filter(styleUnlocked);
   const index = available.indexOf(activeCombatStyle);
-  activeCombatStyle = available[(index + 1) % available.length];
-  showMessage(`${activeCombatStyle} leads the attack; all learned styles still fire together.`, 2);
-  updateHud();
+  selectCombatStyle(available[(index + step + available.length) % available.length]);
 }
 
-function cycleMagicElement() {
-  const available = [...magicElements];
-  if (available.length < 2) {
-    showMessage('Water magic is ready. Find an elemental sigil to change it.', 2.5);
-    return;
-  }
-  const index = available.indexOf(activeMagicElement);
-  activeMagicElement = available[(index + 1) % available.length];
-  showMessage(`${elementDisplayName(activeMagicElement).toUpperCase()} magic selected.`, 1.8);
+function selectCombatStyle(style) {
+  activeCombatStyle = style;
+  player.meleeCharge = 0;
+  player.bowHold = 0;
+  player.chargeFraction = 0;
+  showMessage(`${style} equipped.`, 1);
   updateHud();
 }
 
 function addParticles(x, y, color, count = 4, speed = 80) {
+  const room = (quality.low ? MAX_PARTICLES_LOW : MAX_PARTICLES) - particles.length;
+  count = Math.min(quality.low ? Math.ceil(count / 2) : count, Math.max(0, room));
   for (let i = 0; i < count; i += 1) {
     const angle = Math.random() * Math.PI * 2;
     const velocity = Math.random() * speed;
@@ -2662,7 +3954,20 @@ function fireEnemyProjectile(enemy) {
     bee: '#e4c34f', bandit: '#b47762', zombie: '#8ca27b',
     venom: '#9ac84d', 'web-glob': '#e1dce5', arrow: '#a87645',
   };
-  const baseAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+  let aimX = player.x;
+  let aimY = player.y;
+  if (!enemy.boss && currentFloor >= 2) {
+    // Lead the target a little so standing still or running in a straight line gets punished.
+    const lead = Math.min(0.55, 0.15 + (currentFloor - 2) * 0.12) * Math.min(1, distanceBetween(enemy, player) / 260);
+    aimX += playerVelocity.x * lead;
+    aimY += playerVelocity.y * lead;
+  }
+  if (!enemy.boss && !enemy.miniBoss && !enemy.inBurst && !specialKind && currentFloor >= 3 &&
+    enemy.kind !== 'wisp' && Math.random() < Math.min(0.5, (currentFloor - 2) * 0.15)) {
+    enemy.burstRemaining = 2;
+    enemy.burstTimer = 0.14;
+  }
+  const baseAngle = Math.atan2(aimY - enemy.y, aimX - enemy.x);
   const count = specialKind ? 1 : enemy.boss || enemy.tripleShot ? 3 : 1;
   const spread = enemy.boss && enemy.phase >= 2 ? 0.14 : 0.38;
   const floorProgress = Math.max(0, currentFloor - 1);
@@ -2728,23 +4033,32 @@ function throwClusterOrb(enemy) {
   addParticles(enemy.x, enemy.y, '#d490e9', 8, 32);
 }
 
-function burstClusterOrb(orb) {
+function burstClusterOrb(orb, owner = 'enemy') {
   const shardCount = 8;
   const shardSpeed = 172;
   playSound('monsters/mushroom/spawn2.ogg', 0.24);
   for (let index = 0; index < shardCount; index += 1) {
     const angle = (Math.PI * 2 * index) / shardCount;
-    enemyProjectiles.push({
+    const shard = {
       x: orb.x,
       y: orb.y,
       vx: Math.cos(angle) * shardSpeed,
       vy: Math.sin(angle) * shardSpeed,
       radius: 5,
       color: '#d78be7',
-      damage: 1,
       ttl: 1.6,
-      kind: 'spore-shard',
-    });
+    };
+    if (owner === 'player') {
+      spawnPlayerProjectile({
+        ...shard,
+        size: 1,
+        type: 'spore-shard',
+        damage: Math.max(1, Math.ceil((player.damage + weapon.damageBonus) * 0.75)),
+        trailTimer: 0,
+      });
+    } else {
+      enemyProjectiles.push({ ...shard, damage: 1, kind: 'spore-shard' });
+    }
   }
   addParticles(orb.x, orb.y, '#e5a0f2', 14, 90);
 }
@@ -3163,7 +4477,7 @@ function resolveUniqueBossAttack(enemy, phaseTwo) {
   } else if (signature === 'yeti-slam') {
     triggerCameraShake('groundPound');
     const radius = phaseTwo ? 120 : 88;
-    if (distanceBetween(target, player) < radius) damagePlayer();
+    if (distanceBetween(target, player) < radius) damagePlayer(contactDamage(enemy));
     createGroundHazard(target.x, target.y, 'web');
     fireBossVolley(enemy, target, phaseTwo ? 8 : 5, Math.PI / 3, 190, 'ice-orb', '#9fe7f3');
   } else if (signature === 'yeti-charge') {
@@ -3427,7 +4741,8 @@ function slimeMotherCrash(enemy, phaseTwo) {
       'ooze',
     );
   }
-  for (let index = 0; index < (phaseTwo ? 3 : 2) && enemies.length < 8; index += 1) {
+  const aliveMinions = () => enemies.filter((other) => other.surpriseSpawn && other.kind === 'slime').length;
+  for (let index = 0; index < (phaseTwo ? 3 : 2) && aliveMinions() < 3; index += 1) {
     const angle = Math.random() * Math.PI * 2;
     const spawn = findEnemySpawnPosition(enemy.x + Math.cos(angle) * 90, enemy.y + Math.sin(angle) * 90, 18, 0, enemy);
     if (!spawn) continue;
@@ -3439,6 +4754,11 @@ function slimeMotherCrash(enemy, phaseTwo) {
     enemies.push(minion);
   }
   addParticles(enemy.x, enemy.y, '#d94e63', 20, 140);
+}
+
+// Minibosses hit hard enough to be feared: 2 damage early, 3 from floor 3.
+function contactDamage(enemy) {
+  return enemy.miniBoss ? Math.min(2, 1 + Math.floor(currentFloor / 3)) : 1;
 }
 
 function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) {
@@ -3485,12 +4805,12 @@ function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) 
     const closest = { x: previous.x + projection * lineX, y: previous.y + projection * lineY };
     if (!enemy.chargeHit && distanceBetween(player, closest) < player.radius + enemy.radius * 0.72) {
       enemy.chargeHit = true;
-      damagePlayer();
+      damagePlayer(contactDamage(enemy));
     }
     if (enemy.stateTimer <= 0) {
       if (enemy.signature === 'yeti-slam') {
         triggerCameraShake('groundPound');
-        if (distanceBetween(player, enemy) < player.radius + (phaseTwo ? 112 : 82)) damagePlayer();
+        if (distanceBetween(player, enemy) < player.radius + (phaseTwo ? 112 : 82)) damagePlayer(contactDamage(enemy));
         createGroundHazard(enemy.x, enemy.y, 'web');
       }
       if (enemy.signature === 'slime-crash') slimeMotherCrash(enemy, phaseTwo);
@@ -3501,7 +4821,15 @@ function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) 
     return;
   }
   if (enemy.behavior === 'signature-windup') {
-    if (enemy.stateTimer <= 0) resolveUniqueBossAttack(enemy, phaseTwo);
+    if (enemy.stateTimer <= 0) {
+      const projectileCount = enemyProjectiles.length;
+      resolveUniqueBossAttack(enemy, phaseTwo);
+      if (enemy.miniBoss) {
+        for (let index = projectileCount; index < enemyProjectiles.length; index += 1) {
+          if (enemyProjectiles[index].damage > 0) enemyProjectiles[index].damage = contactDamage(enemy);
+        }
+      }
+    }
     return;
   }
   if (enemy.behavior === 'signature-recover') {
@@ -3509,12 +4837,13 @@ function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) 
     return;
   }
   const spacing = distance > 90 ? 1 : 0;
-  if (enemy.boss) {
-    // Bosses never stand still: they strafe constantly while closing in.
+  if (enemy.boss || enemy.miniBoss) {
+    // Bosses and minibosses never stand still: they strafe constantly while closing in.
     const strafe = Math.sin(elapsed * 0.9 + enemy.x * 0.01) >= 0 ? 1 : -1;
+    const pressure = enemy.miniBoss ? 1.25 : 1;
     moveEnemy(enemy,
-      (directionX * (distance > 90 ? 1 : 0.3) - directionY * strafe * 0.55) * enemy.speed,
-      (directionY * (distance > 90 ? 1 : 0.3) + directionX * strafe * 0.55) * enemy.speed, dt);
+      (directionX * (distance > 90 ? 1 : 0.3) - directionY * strafe * 0.55) * enemy.speed * pressure,
+      (directionY * (distance > 90 ? 1 : 0.3) + directionX * strafe * 0.55) * enemy.speed * pressure, dt);
   } else {
     moveEnemy(enemy, directionX * enemy.speed * spacing, directionY * enemy.speed * spacing, dt);
   }
@@ -3526,8 +4855,8 @@ function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) 
   enemy.signatureTarget = { x: player.x, y: player.y };
   enemy.chargeHit = false;
   enemy.behavior = 'signature-windup';
-  enemy.stateTimer = phaseTwo ? 0.42 : 0.68;
-  enemy.attackCooldown = phaseTwo ? 2.6 : 3.7;
+  enemy.stateTimer = phaseTwo ? 0.42 : enemy.miniBoss ? 0.55 : 0.68;
+  enemy.attackCooldown = enemy.miniBoss ? (phaseTwo ? 1.5 : 2.2) : phaseTwo ? 2.6 : 3.7;
   playEnemyAttackSound(enemy, 0.24);
 }
 
@@ -3759,6 +5088,10 @@ function createBossObstacle(x, y, sprite) {
 }
 
 function dropLoot(x, y, boss = false) {
+  const gems = boss ? 8 : 1 + (Math.random() < 0.35 ? 1 : 0);
+  for (let gem = 0; gem < gems; gem += 1) {
+    pickups.push({ x: x + (Math.random() - 0.5) * 36, y: y + (Math.random() - 0.5) * 36, kind: 'xp' });
+  }
   if (boss) {
     const abilityCount = ownedAbilityCount() + reservedAbilityCount();
     const abilities = shopItemCatalog.filter((item) => item.kind === 'ability' &&
@@ -3797,6 +5130,7 @@ function spawnEnemyOffspring(enemy) {
 }
 
 function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, ignoreFirstHitCap = false) {
+  if (damage > 0) damage = Math.max(1, Math.round(damage * curioMultiplier('damage')));
   if (enemy.linkId && enemy.linkShieldCharges > 0) {
     const twin = enemies.find((candidate) => candidate !== enemy && candidate.linkId === enemy.linkId);
     if (twin) {
@@ -3844,6 +5178,8 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
   }
   if (enemy.hp <= 0) {
     score += enemy.boss ? 100 : 10;
+    chargeStylesFromKill(enemy.boss ? 4 : enemy.miniBoss ? 2 : 1);
+    onClassKill(enemy);
     killStreak = killStreakTimer > 0 ? killStreak + 1 : 1;
     killStreakTimer = 3.2;
     if (killStreak % 3 === 0) {
@@ -3881,6 +5217,11 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
     }
     spawnEnemyOffspring(enemy);
     if (wasBoss) {
+      for (const minion of enemies.splice(0)) addParticles(minion.x, minion.y, minion.color || '#ffffff', 10, 110);
+      enemyProjectiles.length = 0;
+      bossStrikes.length = 0;
+      groundHazards.length = 0;
+      for (let i = bombs.length - 1; i >= 0; i--) if (bombs[i].owner === 'enemy') bombs.splice(i, 1);
       playSound('special/fanfare.ogg', 0.45);
       save.arcanist = true;
       queueChapter('character:arcanist', characterChapters.arcanist);
@@ -3988,7 +5329,25 @@ function shopPedestalPosition(index) {
 let walkInCooldown = 0;
 
 function bankPadPosition(withdraw) {
-  return { x: ROOM_W / 2 + (withdraw ? 130 : -130), y: ROOM_H / 2 + 140 };
+  return { x: ROOM_W / 2 + (withdraw ? 200 : -200), y: 160 };
+}
+
+function hasVault(room) {
+  return room.type === 'shop' || room.type === 'bank';
+}
+
+function nearestShopSlot() {
+  if (currentRoom.type !== 'shop' || !currentRoom.shopStock) return -1;
+  let best = -1;
+  let bestDistance = player.radius + 70;
+  currentRoom.shopStock.forEach((item, slot) => {
+    const dist = distanceBetween(player, shopPedestalPosition(slot));
+    if (!item.purchased && dist < bestDistance) {
+      best = slot;
+      bestDistance = dist;
+    }
+  });
+  return best;
 }
 
 // Shop items, the bank pad, the menhir, the descent pad, and key doors all trigger on contact.
@@ -3999,16 +5358,7 @@ function updateWalkInInteractions(dt) {
     currentRoom.descendArmed = true;
   }
   if (walkInCooldown > 0) return;
-  if (currentRoom.type === 'shop' && currentRoom.shopStock) {
-    const index = currentRoom.shopStock.findIndex((item, slot) => !item.purchased &&
-      distanceBetween(player, shopPedestalPosition(slot)) < player.radius + 26);
-    if (index >= 0) {
-      walkInCooldown = 1.1;
-      buyShopItem(index);
-      return;
-    }
-  }
-  if (currentRoom.type === 'bank') {
+  if (hasVault(currentRoom)) {
     if (coins > 0 && distanceBetween(player, bankPadPosition(false)) < 44) {
       walkInCooldown = 1.5;
       interact();
@@ -4019,11 +5369,6 @@ function updateWalkInInteractions(dt) {
       interact(true);
       return;
     }
-  }
-  if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 60) {
-    walkInCooldown = 8;
-    interact();
-    return;
   }
   if (currentRoom.type === 'boss' && currentRoom.cleared && currentRoom.descendArmed &&
       distanceBetween(player, { x: ROOM_W * 0.72, y: ROOM_H / 2 }) < 40) {
@@ -4043,9 +5388,11 @@ function updateWalkInInteractions(dt) {
 function interact(withdrawFromBank = false) {
   if (mode !== 'playing') return;
   if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 86) {
-    recordStory('Soul Menhir', `You touched the Soul Menhir at the start of ${currentFloorTheme().name}; this descent is saved from here.`);
-    saveRunState();
-    showMessage('Soul Menhir touched. Your descent is saved here.', 2.5);
+    const pun = menhirPuns[menhirPunIndex % menhirPuns.length];
+    menhirPunIndex = (menhirPunIndex + 1 + Math.floor(Math.random() * 3)) % menhirPuns.length;
+    showMessage(`Soul Menhir: "${pun}"`, 4);
+    const position = soulMenhirPosition();
+    addParticles(position.x, position.y - 40, '#b9a6ff', 16, 90);
     return;
   }
   if (currentRoom.type === 'boss' && currentRoom.cleared) {
@@ -4063,6 +5410,7 @@ function interact(withdrawFromBank = false) {
       return;
     }
     currentFloor += 1;
+    blanksHeld += 1;
     if (currentRegionId() === 'hurnscald' && unlockCharacter('hurnscald-herbalist')) {
       showMessage('Unlocked: Hurnscald Herbalist.', 3);
     }
@@ -4081,8 +5429,14 @@ function interact(withdrawFromBank = false) {
     showMessage(`Chapter ${currentFloor}: the trail descends deeper into the sanctum.`, 5);
     return;
   }
-  if (currentRoom.type === 'bank' &&
-      distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240) {
+  const shopSlot = withdrawFromBank ? -1 : nearestShopSlot();
+  if (shopSlot >= 0) {
+    buyShopItem(shopSlot);
+    return;
+  }
+  if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
+      (withdrawFromBank || distanceBetween(player, bankPadPosition(false)) < 160 ||
+        distanceBetween(player, bankPadPosition(true)) < 160)) {
     if (withdrawFromBank) {
       const amount = save.bankedZenny;
       if (amount <= 0) showMessage('Your vault is empty.', 2);
@@ -4106,7 +5460,7 @@ function interact(withdrawFromBank = false) {
     return;
   }
   if (currentRoom.type === 'shop' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 150) {
-    showMessage('Walk into an item on a pedestal to buy it.', 2);
+    showMessage('Stand next to an item and press E to buy it.', 2);
     return;
   }
 
@@ -4146,7 +5500,7 @@ function buyShopItem(index) {
     showMessage(`You already know how to ${item.style === 'melee' ? 'brawl' : item.style === 'bow' ? 'use a bow' : 'cast magic'}.`, 2);
     return;
   }
-  if (item.kind !== 'consumable' && ownedItems.has(item.id)) {
+  if (item.kind !== 'consumable' && item.kind !== 'ammo' && ownedItems.has(item.id)) {
     showMessage(`${item.name} is already equipped.`, 2);
     return;
   }
@@ -4156,7 +5510,7 @@ function buyShopItem(index) {
   }
   coins -= item.cost;
   item.purchased = true;
-  if (['passive', 'skill', 'weapon', 'clothing', 'ability', 'element'].includes(item.kind)) {
+  if (['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind)) {
     if (!grantUpgrade(item, 'shop')) {
       coins += item.cost;
       item.purchased = false;
@@ -4170,13 +5524,24 @@ function buyShopItem(index) {
   } else if (item.kind === 'companion') {
     ownedItems.add(item.id);
     companions.push(createCompanion(item));
+  } else if (item.kind === 'ammo') {
+    const resource = resourceByStyle[item.style];
+    ownedItems.add(item.id);
+    player.ammoLevel = player.ammoLevel || {};
+    player.ammoLevel[item.style] = styleLevel(item.style) + 1;
+    player[resource.key] = Math.min(styleCapacity(item.style), (player[resource.key] || 0) + item.amount);
+    const rate = item.style === 'melee'
+      ? `recovers ${(0.5 + 0.25 * styleLevel('melee')).toFixed(2)}/s standing still`
+      : `+${styleKillCharge(item.style).toFixed(2)} per kill`;
+    showMessage(`${item.name}! Reserve ${styleCapacity(item.style)} max, ${rate} (${Math.floor(player[resource.key])} ${resource.label} now)`, 3.5);
   } else if (item.kind === 'consumable') {
     const stack = consumables.find((entry) => entry.id === item.id);
     if (stack) stack.count += 1;
     else consumables.push({ id: item.id, name: item.name, count: 1 });
   }
+  if (powerHatByItem[item.id]) player.powerHat = { item: item.id, hat: powerHatByItem[item.id] };
   updateHud();
-  if (!['passive', 'skill', 'weapon', 'clothing', 'ability', 'element'].includes(item.kind)) {
+  if (!['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element', 'ammo'].includes(item.kind)) {
     showMessage(`${item.name} acquired: ${item.description}.${item.kind === 'consumable' ? ' Press Q to use it.' : ''}`, 3);
   }
 }
@@ -4227,12 +5592,197 @@ function useConsumable() {
   showMessage('None of your consumables can help right now.', 2);
 }
 
-function useFrostNova() {
-  if (mode !== 'playing' || !ownedItems.has('frost-rune')) return;
-  if (frostNovaCooldown > 0) {
-    showMessage(`Frost Rune recharging: ${Math.ceil(frostNovaCooldown)}s.`, 1.5);
+function startDash() {
+  if (mode !== 'playing' || dashCooldown > 0 || dashTimer > 0) return;
+  if (currentRoom && (currentRoom.type === 'shop' || currentRoom.type === 'bank')) return;
+  const dx = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0) + gamepadInput.moveX;
+  const dy = (keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0) + gamepadInput.moveY;
+  const length = Math.hypot(dx, dy);
+  dashVector = length > 0.1 ? { x: dx / length, y: dy / length } : { x: player.lookX, y: player.lookY };
+  dashTimer = 0.16;
+  dashCooldown = character?.className === 'Scout' ? 0.42 : 0.85;
+  player.invuln = Math.max(player.invuln, 0.24);
+  addParticles(player.x, player.y, '#cfe8ff', 8, 90);
+  playSound('weapons/bow/shoot.ogg', 0.12);
+}
+
+// Gungeon-style shockwave (blank): erases enemy projectiles and shoves nearby foes away.
+function useBlank() {
+  if (mode !== 'playing') return;
+  if (blanksHeld <= 0) {
+    showMessage('No shockwaves left. You earn one each floor.', 1.5);
     return;
   }
+  blanksHeld -= 1;
+  for (const shot of enemyProjectiles) addParticles(shot.x, shot.y, '#ffffff', 4, 70);
+  enemyProjectiles.length = 0;
+  for (const enemy of enemies) {
+    if (distanceBetween(player, enemy) > 220) continue;
+    const angle = Math.atan2(enemy.y - player.y, enemy.x - player.x);
+    moveEnemy(enemy, Math.cos(angle) * 40 / 0.1, Math.sin(angle) * 40 / 0.1, 0.1);
+  }
+  player.invuln = Math.max(player.invuln, 0.5);
+  addParticles(player.x, player.y, '#ffffff', 28, 220);
+  playSound('special/fanfare.ogg', 0.1);
+  showMessage(`SHOCKWAVE! ${blanksHeld} left.`, 1.2);
+  updateHud();
+}
+
+// Vampire Survivors-style XP: each level grants a random boon, Hades-style.
+function gainXp(amount) {
+  if (character?.className === 'Scholar') amount *= 1.3;
+  xpPoints += amount;
+  while (xpPoints >= XP_PER_LEVEL(xpLevel)) {
+    xpPoints -= XP_PER_LEVEL(xpLevel);
+    xpLevel += 1;
+    // The native bar grows with level and the new capacity arrives filled.
+    const nativeKey = resourceByStyle[nativeStyle()].key;
+    player[nativeKey] = Math.min(styleCapacity(nativeStyle()), (player[nativeKey] || 0) + nativePoolGrowth());
+    const boons = [
+      ['Swift Boon: +speed', () => { player.speed *= 1.05; }],
+      ['Might Boon: +1 damage', () => { player.damage += 1; }],
+      ['Frenzy Boon: faster firing', () => { weapon.fireDelay = Math.max(0.12, weapon.fireDelay * 0.93); }],
+      ['Vigor Boon: heal 1', () => { player.hp = Math.min(player.maxHp, player.hp + 1); }],
+      ['Reach Boon: longer range', () => { weapon.rangeMultiplier *= 1.06; }],
+    ];
+    const [label, apply] = boons[Math.floor(Math.random() * boons.length)];
+    apply();
+    streakCallout.timer = streakCallout.duration;
+    streakCallout.x = player.x;
+    streakCallout.y = player.y - 70;
+    streakCallout.text = `LEVEL ${xpLevel}! ${label}`;
+    addParticles(player.x, player.y, '#7ee8ff', 16, 140);
+    playSound('special/fanfare.ogg', 0.1);
+  }
+  updateHud();
+}
+
+const laserBeams = [];
+
+function fireLaserBeam(angle, damage) {
+  const originX = player.x;
+  const originY = player.y - 34;
+  const length = 720;
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  for (const enemy of [...enemies]) {
+    const along = (enemy.x - originX) * dx + (enemy.y - 20 - originY) * dy;
+    if (along < 0 || along > length) continue;
+    const off = Math.abs((enemy.x - originX) * dy - (enemy.y - 20 - originY) * dx);
+    if (off <= (enemy.radius || 18) + 10) damageEnemy(enemy, damage, enemy.x, enemy.y, true);
+  }
+  laserBeams.push({ x: originX, y: originY, dx, dy, length, timer: 0.22 });
+  playSound('weapons/bow/shoot.ogg', 0.25);
+}
+
+function updateClassSignature(dt) {
+  for (let i = laserBeams.length - 1; i >= 0; i -= 1) {
+    laserBeams[i].timer -= dt;
+    if (laserBeams[i].timer <= 0) laserBeams.splice(i, 1);
+  }
+  if (player.signatureCooldown > 0) player.signatureCooldown = Math.max(0, player.signatureCooldown - dt);
+  for (let i = sporePods.length - 1; i >= 0; i -= 1) {
+    const pod = sporePods[i];
+    pod.x += pod.vx * dt;
+    pod.y += pod.vy * dt;
+    pod.ttl -= dt;
+    pod.fuse -= dt;
+    if (pod.fuse <= 0 || pod.ttl <= 0) {
+      burstClusterOrb(pod, 'player');
+      sporePods.splice(i, 1);
+    }
+  }
+}
+
+// Key 4: the class's own ability, kept separate from the sword/bow/mana slots.
+function useClassSignature() {
+  if (mode !== 'playing') return;
+  const sig = classSignature();
+  if (!sig?.active) return;
+  if (player.signatureCooldown > 0) {
+    showMessage(`${sig.label} recharging: ${Math.ceil(player.signatureCooldown)}s.`, 1);
+    return;
+  }
+  const cls = character.className;
+  const angle = currentAimAngle();
+  if (cls === 'Sentinel') {
+    if (bombs.some((bomb) => bomb.owner !== 'enemy' && bomb.fuse > 0)) return;
+    bombsHeld += 1;
+    placeBomb();
+  } else if (cls === 'Scribe') {
+    fireLaserBeam(angle, 3 * player.damage * characterProfile().bow);
+  } else if (cls === 'Keeper') {
+    addParticles(player.x, player.y, '#b9ffd8', 24, 200);
+    for (const other of [...enemies]) {
+      if (distanceBetween(player, other) < 230) damageEnemy(other, 4, player.x, player.y);
+    }
+  } else if (cls === 'Sporeling') {
+    launchSporePod(angle);
+  }
+  player.signatureCooldown = sig.cooldown;
+  showMessage(`${sig.label}!`, 1);
+}
+
+// Same pod as the mushroom enemy's spore burst: a slow orb that bursts into eight shards.
+function launchSporePod(angle) {
+  playSound('monsters/mushroom/spawn1.ogg', 0.22);
+  sporePods.push({
+    x: player.x, y: attackOriginY(),
+    vx: Math.cos(angle) * 96, vy: Math.sin(angle) * 96,
+    radius: 13, ttl: 1.65, fuse: 1.05,
+  });
+  addParticles(player.x, attackOriginY(), '#d490e9', 8, 32);
+}
+
+const sporePods = [];
+
+function drawSporePods() {
+  for (const pod of sporePods) {
+    const pulse = 1 + Math.sin(pod.fuse * 18) * 0.12;
+    ctx.save();
+    ctx.fillStyle = '#c878df';
+    ctx.strokeStyle = '#f1c9fa';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pod.x, pod.y, pod.radius * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function onClassKill(enemy) {
+  const cls = character?.className;
+  player.classKills = (player.classKills || 0) + 1;  if (cls === 'Herbalist') {
+    for (const other of enemies) {
+      if (other !== enemy && !other.boss && distanceBetween(enemy, other) < 140) {
+        other.freezeTimer = Math.max(other.freezeTimer || 0, 1.2);
+        addParticles(other.x, other.y, '#67d9ff', 6, 80);
+      }
+    }
+  }
+}
+
+function drawLaserBeams() {
+  for (const beam of laserBeams) {
+    const fade = Math.max(0, beam.timer / 0.22);
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#ff7a9c';
+    ctx.lineWidth = 12 * fade + 2;
+    ctx.beginPath();
+    ctx.moveTo(beam.x, beam.y);
+    ctx.lineTo(beam.x + beam.dx * beam.length, beam.y + beam.dy * beam.length);
+    ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4 * fade + 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function castFrostNova() {
   const radius = 250;
   let affected = 0;
   for (const enemy of enemies) {
@@ -4244,31 +5794,20 @@ function useFrostNova() {
   }
   frostNovaCooldown = 12;
   addParticles(player.x, player.y, '#7be6ff', 20, 170);
-  showMessage(affected ? 'Frost Rune! Nearby foes are frozen; bosses are slowed.' : 'Frost Rune pulsed, but no foes were in range.', 2.5);
+  showMessage(affected ? 'Frost pulse! Nearby foes are frozen; bosses are slowed.' : 'Frost pulsed, but no foes were in range.', 2);
   saveRunState();
+}
+
+// Frost is an automatic elemental: while it is the last elemental found, it pulses by itself when foes crowd in.
+function updateAutoFrost() {
+  if (mode !== 'playing' || !frostActive || !ownedItems.has('frost-rune') || frostNovaCooldown > 0) return;
+  if (!enemies.some((enemy) => distanceBetween(player, enemy) < 150)) return;
+  castFrostNova();
 }
 
 function triggerSporeBloom(bomb) {
   if (bomb.owner === 'enemy' || !ownedItems.has('spore-bloom')) return;
-  for (let index = 0; index < 8; index += 1) {
-    const angle = index * Math.PI / 4;
-    projectiles.push({
-      x: bomb.x,
-      y: bomb.y,
-      vx: Math.cos(angle) * 180,
-      vy: Math.sin(angle) * 180,
-      radius: 6,
-      size: 1.1,
-      color: '#d78be7',
-      type: 'spore-shard',
-      damage: Math.max(1, Math.ceil((player.damage + weapon.damageBonus) * 0.75)),
-      ttl: 1.1,
-      trailTimer: 0,
-      owner: 'player',
-    });
-  }
-  addParticles(bomb.x, bomb.y, '#e5a0f2', 12, 78);
-  playSound('monsters/mushroom/spawn2.ogg', 0.2);
+  burstClusterOrb({ x: bomb.x, y: bomb.y }, 'player');
 }
 
 function vibrateController(damageAmount) {
@@ -4356,6 +5895,187 @@ function moveEnemy(enemy, vx, vy, dt) {
   }
 }
 
+const calmMobBehaviors = new Set(['hover', 'crawl', 'patrol']);
+
+// Shared tactics for ordinary mobs: dodging, pack spacing and flanking, burst fire and a low-health enrage.
+// Returns true while the mob is busy dodging so its archetype logic is skipped.
+function applyMobTactics(enemy, dt, directionX, directionY, distance) {
+  const floorScale = Math.max(0, currentFloor - 1);
+  enemy.dodgeCooldown = Math.max(0, (enemy.dodgeCooldown ?? 0.8) - dt);
+  enemy.tacticTimer = (enemy.tacticTimer ?? Math.random() * 1.2) - dt;
+
+  if (!enemy.enraged && enemy.maxHp >= 4 && enemy.hp <= enemy.maxHp * 0.3) {
+    enemy.enraged = true;
+    enemy.speed *= 1.25;
+    enemy.attackCooldown = Math.min(enemy.attackCooldown, 0.4);
+    addParticles(enemy.x, enemy.y, '#ff5a3c', 10, 90);
+  }
+  if (enemy.enraged) enemy.attackCooldown -= dt * 0.5;
+
+  if (enemy.burstRemaining > 0) {
+    enemy.burstTimer -= dt;
+    if (enemy.burstTimer <= 0) {
+      enemy.burstRemaining -= 1;
+      enemy.burstTimer = 0.14;
+      enemy.inBurst = true;
+      fireEnemyProjectile(enemy);
+      enemy.inBurst = false;
+    }
+  }
+
+  if (enemy.dodgeTimer > 0) {
+    enemy.dodgeTimer -= dt;
+    moveEnemy(enemy, enemy.dodgeX * enemy.speed * 3.4, enemy.dodgeY * enemy.speed * 3.4, dt);
+    return true;
+  }
+
+  if (!calmMobBehaviors.has(enemy.behavior)) return false;
+
+  if (enemy.dodgeCooldown <= 0) {
+    for (const shot of projectiles) {
+      if (shot.owner === 'companion') continue;
+      const rx = enemy.x - shot.x;
+      const ry = enemy.y - shot.y;
+      const shotSpeed = Math.hypot(shot.vx, shot.vy) || 1;
+      const ahead = (rx * shot.vx + ry * shot.vy) / shotSpeed;
+      if (ahead < 20 || ahead > 190) continue;
+      const side = (rx * -shot.vy + ry * shot.vx) / shotSpeed;
+      if (Math.abs(side) > enemy.radius + shot.radius + 22) continue;
+      enemy.dodgeCooldown = Math.max(0.9, 2.4 - floorScale * 0.25);
+      if (Math.random() > Math.min(0.75, 0.2 + floorScale * 0.15)) break;
+      const sign = side >= 0 ? 1 : -1;
+      enemy.dodgeX = (-shot.vy / shotSpeed) * sign;
+      enemy.dodgeY = (shot.vx / shotSpeed) * sign;
+      enemy.dodgeTimer = 0.16;
+      addParticles(enemy.x, enemy.y, '#ffffff', 3, 40);
+      return true;
+    }
+  }
+
+  let nearestAlly = null;
+  let nearestDistance = Infinity;
+  const meleeArchetypes = ['charger', 'leaper', 'stalker', 'diver'];
+  if (meleeArchetypes.includes(enemy.archetype) && distance < 420) {
+    // Hades-style attack tokens: only a few melee mobs may commit at once; the rest circle and wait.
+    const maxAttackers = Math.min(3, 1 + Math.floor(currentFloor / 2));
+    const engaged = enemies.filter((other) => other !== enemy && meleeArchetypes.includes(other.archetype) &&
+      !calmMobBehaviors.has(other.behavior)).length;
+    if (engaged >= maxAttackers && enemy.attackCooldown <= 0.3) {
+      const ring = 215;
+      const radial = distance > ring + 30 ? 0.8 : distance < ring - 30 ? -0.8 : 0;
+      const side = enemy.strafeDirection || 1;
+      moveEnemy(enemy,
+        (directionX * radial - directionY * side * 0.6) * enemy.speed,
+        (directionY * radial + directionX * side * 0.6) * enemy.speed, dt);
+      enemy.attackCooldown = Math.max(enemy.attackCooldown, 0.25);
+      return true;
+    }
+  }
+  for (const ally of enemies) {
+    if (ally === enemy || ally.boss) continue;
+    const gap = distanceBetween(enemy, ally);
+    if (gap < nearestDistance) {
+      nearestDistance = gap;
+      nearestAlly = ally;
+    }
+    const spacing = enemy.radius + ally.radius + 10;
+    if (gap < spacing && gap > 0) {
+      moveEnemy(enemy, ((enemy.x - ally.x) / gap) * enemy.speed * 0.8,
+        ((enemy.y - ally.y) / gap) * enemy.speed * 0.8, dt);
+    }
+  }
+  if (nearestAlly && enemy.tacticTimer <= 0 && nearestDistance < 180) {
+    const relX = nearestAlly.x - enemy.x;
+    const relY = nearestAlly.y - enemy.y;
+    const cross = -directionY * relX + directionX * relY;
+    // Circle the opposite way from the nearest ally so the pack surrounds the player.
+    enemy.strafeDirection = cross >= 0 ? -1 : 1;
+    enemy.tacticTimer = 1.2 + Math.random();
+  }
+  return false;
+}
+
+function spawnBossStrike(x, y, radius, duration, damage, knockFrom = null) {
+  if (bossStrikes.length >= 14) return;
+  bossStrikes.push({
+    x: clamp(x, 70, ROOM_W - 70),
+    y: clamp(y, 70, ROOM_H - 70),
+    radius, duration, timer: duration, damage, knockFrom,
+  });
+}
+
+function updateBossStrikes(dt) {
+  for (let index = bossStrikes.length - 1; index >= 0; index -= 1) {
+    const strike = bossStrikes[index];
+    if (strike.knockFrom && enemies.includes(strike.knockFrom)) {
+      strike.x = strike.knockFrom.x;
+      strike.y = strike.knockFrom.y;
+    }
+    strike.timer -= dt;
+    if (strike.timer > 0) continue;
+    bossStrikes.splice(index, 1);
+    addParticles(strike.x, strike.y, '#ff6a4a', 14, 150);
+    triggerCameraShake('groundPound');
+    if (distanceBetween(player, strike) < strike.radius + player.radius * 0.6) {
+      damagePlayer(strike.damage);
+      if (strike.knockFrom && mode === 'playing') {
+        const angle = Math.atan2(player.y - strike.y, player.x - strike.x);
+        player.x = clamp(player.x + Math.cos(angle) * 90, 12, ROOM_W - 12);
+        player.y = clamp(player.y + Math.sin(angle) * 90, 12, ROOM_H - 12);
+      }
+    }
+  }
+}
+
+// Bosses punish both standing still and running in straight lines: strikes land where the player
+// is, where they are heading, and on both sides of that path. Up close the boss smacks hard.
+function applyBossPressure(enemy, dt, directionX, directionY, distance) {
+  if (enemy.x < 0 || enemy.x > ROOM_W || enemy.y < 0 || enemy.y > ROOM_H) return;
+  const mini = !enemy.boss;
+  const phaseTwo = enemy.phase >= 2;
+  const still = playerStillTimer > 0.9;
+  enemy.pressureCooldown = (enemy.pressureCooldown ?? 2.5) - dt;
+  enemy.smackCooldown = Math.max(0, (enemy.smackCooldown ?? 1.2) - dt);
+
+  if (enemy.smackCooldown <= 0 && distance < enemy.radius + 100) {
+    spawnBossStrike(enemy.x, enemy.y,     enemy.radius + 105, 0.65, mini || currentFloor < 4 ? 1 : 2, enemy);
+        enemy.smackCooldown = phaseTwo ? 2.4 : 3.2;
+    playEnemyAttackSound(enemy, 0.2);
+  }
+
+  // A stationary player is hunted: the boss closes in faster the longer they stay put.
+  if (still && calmBossStates.has(enemy.behavior) && distance > enemy.radius + 50) {
+    const hunt = Math.min(1.1, 0.5 + (playerStillTimer - 0.9) * 0.25);
+    moveEnemy(enemy, directionX * enemy.speed * hunt, directionY * enemy.speed * hunt, dt);
+  }
+
+  if (enemy.pressureCooldown > 0) return;
+  enemy.pressureCooldown = (still ? 2.0 : phaseTwo ? 3.4 : 4.4) * (mini ? 1.4 : 1);
+  const lead = still ? 0.2 : 0.95;
+  const futureX = player.x + playerVelocity.x * lead;
+  const futureY = player.y + playerVelocity.y * lead;
+  const speed = Math.hypot(playerVelocity.x, playerVelocity.y);
+  const sideX = speed > 20 ? -playerVelocity.y / speed : Math.cos(Math.random() * Math.PI * 2);
+  const sideY = speed > 20 ? playerVelocity.x / speed : Math.sin(Math.random() * Math.PI * 2);
+  const strikeRadius = mini ? 50 : 60;
+  const warning = still ? 0.85 : 1.1;
+  const damage = 1;
+  spawnBossStrike(player.x, player.y, strikeRadius, warning, damage);
+  spawnBossStrike(futureX, futureY, strikeRadius, warning + 0.1, damage);
+  spawnBossStrike(futureX + sideX * 110, futureY + sideY * 110, strikeRadius, warning + 0.2, damage);
+  spawnBossStrike(futureX - sideX * 110, futureY - sideY * 110, strikeRadius, warning + 0.2, damage);
+  if (phaseTwo && still) {
+    for (let index = 0; index < 4; index += 1) {
+      const angle = index * Math.PI / 2 + Math.PI / 4;
+      spawnBossStrike(player.x + Math.cos(angle) * 140, player.y + Math.sin(angle) * 140,
+        strikeRadius, warning + 0.35, damage);
+    }
+  }
+  showMessage(still ? 'Keep moving!' : 'The boss marks the ground!', 1.2);
+}
+
+const calmBossStates = new Set(['jacko-idle', 'hover', 'crawl', 'patrol']);
+
 function updateEnemy(enemy, dt) {
   enemy.freezeTimer = Math.max(0, enemy.freezeTimer || 0);
   enemy.slowTimer = Math.max(0, enemy.slowTimer || 0);
@@ -4390,12 +6110,13 @@ function updateEnemy(enemy, dt) {
   const directionY = dy / distance;
   const visible = distance < 430 && hasLineOfSight(enemy, player);
   enemy.attackCooldown -= dt * (enemy.boss || enemy.miniBoss
-    ? 1 + Math.max(0, currentFloor - 1) * 0.06 : 1) * (enemy.boss ? 1.3 : 1);
+    ? 1 + Math.max(0, currentFloor - 1) * 0.06 : 1 + Math.max(0, currentFloor - 1) * 0.08) * (enemy.boss ? 1.3 : 1);
   enemy.stateTimer -= dt;
   enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
   enemy.spitFlash = Math.max(0, enemy.spitFlash - dt);
 
-  if (enemy.boss || enemy.miniBoss) {
+  if (enemy.boss || enemy.miniBoss || enemy.bossAI) {
+    if (enemy.boss || enemy.miniBoss) applyBossPressure(enemy, dt, directionX, directionY, distance);
     updateBossExtras(enemy, dt);
     if (enemy.kind === 'spider-queen') {
       updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible);
@@ -4410,6 +6131,7 @@ function updateEnemy(enemy, dt) {
   }
 
   if (enemy.linkId && updateLinkedTwin(enemy, dt)) return;
+  if (applyMobTactics(enemy, dt, directionX, directionY, distance)) return;
 
   if (enemy.archetype === 'cluster-caster') {
     if (enemy.behavior === 'cluster-windup') {
@@ -4444,7 +6166,7 @@ function updateEnemy(enemy, dt) {
       if (spawn) {
         enemies.push(createEnemy('fluffy', spawn.x, spawn.y));
         addParticles(spawn.x, spawn.y, '#f5e5c8', 9, 42);
-        playSound('monsters/fluffy/hit.ogg', 0.12);
+        playSound('monsters/fluffy/hit1.ogg', 0.12);
       }
       enemy.summonCooldown = 9 + Math.random() * 3;
     }
@@ -4688,17 +6410,6 @@ function updateEnemy(enemy, dt) {
         enemy.attackCooldown = enemy.kind === 'mouboo' ? 3.8 : 2.8;
       }
       enemy.spawnCooldown -= dt;
-      if (enemy.kind === 'croc' && enemy.spawnCooldown <= 0 && breakables.length < 8) {
-        const offset = Math.random() * Math.PI * 2;
-        const x = clamp(enemy.x + Math.cos(offset) * 54, 80, ROOM_W - 80);
-        const y = clamp(enemy.y + Math.sin(offset) * 54, 80, ROOM_H - 80);
-        const obstaclePool = obstacleSpritesByFloor[currentFloor] || obstacleSpritesByFloor[3];
-        const sprite = obstaclePool[Math.floor(Math.random() * obstaclePool.length)];
-        if (distanceBetween(player, { x, y }) > player.radius + 50) {
-          breakables.push(createBreakableAt(x, y, sprite));
-        }
-        enemy.spawnCooldown = 7 + Math.random() * 4;
-      }
     }
     return;
   }
@@ -4865,20 +6576,19 @@ function update(dt) {
       persistSave();
     }
     frostNovaCooldown = Math.max(0, frostNovaCooldown - dt);
+    updateAutoFrost();
     killStreakTimer = Math.max(0, killStreakTimer - dt);
     if (killStreakTimer === 0) killStreak = 0;
     streakCallout.timer = Math.max(0, streakCallout.timer - dt);
     autosaveTimer += dt;
-    if (autosaveTimer >= 2) {
+    if (autosaveTimer >= 12) {
       autosaveTimer = 0;
       saveRunState();
     }
   }
   if (messageTimer > 0) {
     messageTimer -= dt;
-    if (messageTimer <= 0 && mode === 'playing') {
-      messageEl.textContent = currentRoom.cleared ? 'Room clear. Move to a doorway to continue.' : 'Clear the room to open its doors.';
-    }
+    if (messageTimer <= 0 && mode === 'playing') messageEl.textContent = '';
   }
   if (mode !== 'playing' || showMap || showStoryJournal) return;
   updateBreakables(dt);
@@ -4895,15 +6605,23 @@ function update(dt) {
   const moveY = clamp(keyboardMoveY + gamepadInput.moveY, -1, 1);
   const keyboardLength = Math.hypot(keyboardMoveX, keyboardMoveY);
   if (keyboardLength > 0 && !gamepadInput.dpadFacing && !gamepadInput.aimActive &&
-      !pointer.down && !keys[' '] && !gamepadInput.shoot) {
+      !pointer.down && !gamepadInput.shoot) {
     player.lookX = keyboardMoveX / keyboardLength;
     player.lookY = keyboardMoveY / keyboardLength;
   }
   const length = Math.hypot(moveX, moveY) || 1;
-  const groundSpeed = player.speed * (player.groundSlowTimer > 0 ? 0.55 : 1);
+  const groundSpeed = player.speed * curioMultiplier('speed') * (player.groundSlowTimer > 0 ? 0.55 : 1);
   player.moving = moveX !== 0 || moveY !== 0;
-  player.x += (moveX / length) * groundSpeed * dt;
-  player.y += (moveY / length) * groundSpeed * dt;
+  dashCooldown = Math.max(0, dashCooldown - dt);
+  if (dashTimer > 0) {
+    dashTimer = Math.max(0, dashTimer - dt);
+    player.x += dashVector.x * 620 * dt;
+    player.y += dashVector.y * 620 * dt;
+    if (Math.random() < 0.6) addParticles(player.x, player.y - 8, '#cfe8ff', 1, 30);
+  } else {
+    player.x += (moveX / length) * groundSpeed * dt;
+    player.y += (moveY / length) * groundSpeed * dt;
+  }
   if (player.windPush?.timer > 0) {
     player.windPush.timer -= dt;
     player.x += player.windPush.vx * dt;
@@ -4933,15 +6651,55 @@ function update(dt) {
   }
   player.x = clamp(player.x, 12, ROOM_W - 12);
   player.y = clamp(player.y, 12, ROOM_H - 12);
+  if (dt > 0) {
+    const blend = Math.min(1, dt * 10);
+    playerVelocity.x += ((player.x - lastPlayerSample.x) / dt - playerVelocity.x) * blend;
+    playerVelocity.y += ((player.y - lastPlayerSample.y) / dt - playerVelocity.y) * blend;
+    if (Math.hypot(playerVelocity.x, playerVelocity.y) > 700) {
+      playerVelocity.x = 0;
+      playerVelocity.y = 0;
+    }
+  }
+  lastPlayerSample.x = player.x;
+  lastPlayerSample.y = player.y;
+  playerStillTimer = Math.hypot(playerVelocity.x, playerVelocity.y) < 45 ? playerStillTimer + dt : 0;
+  updateBossStrikes(dt);
   resolveDoorCrossing();
   updateWalkInInteractions(dt);
 
-  if (pointer.down || keys[' '] || gamepadInput.shoot) shoot();
-  player.fireCooldown = Math.max(0, player.fireCooldown - dt);
+  const attackStyle = currentAttackStyle();
+  if (attackStyle === 'melee') updateMeleeInput(dt);
+  else if (attackStyle === 'bow') {
+    player.meleeCharge = 0;
+    updateBowInput(dt);
+  } else {
+    player.meleeCharge = 0;
+    player.bowHold = 0;
+    updateMagicInput(dt);
+  }
+  if (player.spin) {
+    player.spin.timer -= dt;
+    if (player.spin.timer <= 0) {
+      player.spin = null;
+    } else {
+      // Zelda-style spin: the body turns a full circle while the blade sweeps.
+      const spinAngle = player.spin.angle + (1 - player.spin.timer / player.spin.duration) * Math.PI * 2;
+      player.lookX = Math.cos(spinAngle);
+      player.lookY = Math.sin(spinAngle);
+    }
+  }
+  player.fireCooldown = Math.max(0, player.fireCooldown - dt * curioMultiplier('fire'));
+  player.fizzleTimer = Math.max(0, (player.fizzleTimer || 0) - dt);
+  const moving = !!(keys.ArrowRight || keys.d || keys.ArrowLeft || keys.a || keys.ArrowDown || keys.s ||
+    keys.ArrowUp || keys.w) || Math.hypot(gamepadInput.moveX, gamepadInput.moveY) >= 0.15 || dashTimer > 0;
+  updateStyleRecharge(dt, moving, pointer.down || gamepadInput.shoot);
+  updateClassSignature(dt);
+  updateChaos(dt);
   player.damageFlashTimer = Math.max(0, player.damageFlashTimer - dt);
   player.invuln = Math.max(0, player.invuln - dt);
   player.attackPulse = Math.max(0, player.attackPulse - dt);
   player.attackAnimationTimer = Math.max(0, player.attackAnimationTimer - dt);
+  updateSwordParry();
   player.meleeSwings = player.meleeSwings.filter((swing) => {
     swing.timer -= dt;
     return swing.timer > 0;
@@ -4951,7 +6709,7 @@ function update(dt) {
     updateEnemy(enemy, dt);
     if (distanceBetween(player, enemy) < enemy.radius + player.radius + 2) {
       if (player.invuln <= 0 && enemy.behavior === 'roll') triggerCameraShake('charge');
-      damagePlayer();
+      damagePlayer(contactDamage(enemy));
     }
   }
   updateCompanions(dt);
@@ -4975,7 +6733,7 @@ function update(dt) {
     projectile.ttl -= dt;
     projectile.trailTimer -= dt;
     if (projectile.trailTimer <= 0) {
-      particles.push({
+      if (particles.length < (quality.low ? MAX_PARTICLES_LOW : MAX_PARTICLES)) particles.push({
         x: projectile.x, y: projectile.y,
         vx: -projectile.vx * 0.08 + (Math.random() - 0.5) * 20,
         vy: -projectile.vy * 0.08 + (Math.random() - 0.5) * 20,
@@ -4989,7 +6747,8 @@ function update(dt) {
     const rockIndex = breakables.findIndex((rock) => !rock.broken &&
       !(projectile.piercesWalls && rock.type === 'solid') &&
       distanceBetween(projectile, rock) < projectile.radius + rock.radius);
-    const enemy = enemies.find((candidate) => distanceBetween(projectile, candidate) < projectile.radius + candidate.radius);
+    const enemy = enemies.find((candidate) => !(projectile.hitEnemies && projectile.hitEnemies.includes(candidate)) &&
+      distanceBetween(projectile, candidate) < projectile.radius + candidate.radius);
     if (rockIndex >= 0) {
       damageObstacle(breakables[rockIndex], 1, 'projectile');
       applyMorphLanding(projectile, null);
@@ -5002,9 +6761,16 @@ function update(dt) {
         enemy.slowTimer = Math.max(enemy.slowTimer || 0, 0.75);
       }
       if (projectile.slowOnHit) enemy.slowTimer = Math.max(enemy.slowTimer || 0, projectile.slowOnHit);
+      if (projectile.chain) chainLightningFrom(enemy, projectile.damage, projectile.chain);
       applyMorphLanding(projectile, enemy);
       addParticles(projectile.x, projectile.y, projectile.color, 6, 100);
-      projectiles.splice(i, 1);
+      if (projectile.pierce > 0) {
+        projectile.pierce -= 1;
+        (projectile.hitEnemies ||= []).push(enemy);
+        projectile.damage = Math.max(1, Math.round(projectile.damage * 0.85));
+      } else {
+        projectiles.splice(i, 1);
+      }
     } else if (projectile.ttl <= 0 || projectile.x < 0 || projectile.x > ROOM_W || projectile.y < 0 || projectile.y > ROOM_H) {
       applyMorphLanding(projectile, null);
       projectiles.splice(i, 1);
@@ -5069,11 +6835,37 @@ function update(dt) {
 
   for (let i = pickups.length - 1; i >= 0; i -= 1) {
     const pickup = pickups[i];
+    if (pickup.kind === 'xp') {
+      const pull = distanceBetween(player, pickup);
+      if (pull < 130 && pull > player.radius + 14) {
+        pickup.x += ((player.x - pickup.x) / pull) * 360 * dt;
+        pickup.y += ((player.y - pickup.y) / pull) * 360 * dt;
+        continue;
+      }
+    }
     if (distanceBetween(player, pickup) > player.radius + 14) continue;
+    if (pickup.kind === 'heart' && player.hp >= player.maxHp) continue;
+    if (pickup.kind === 'xp') gainXp(1);
     if (pickup.kind === 'coin') coins += 1;
-    if (pickup.kind === 'heart') player.hp = Math.min(player.maxHp, player.hp + 1);
-    if (pickup.kind === 'key') keysHeld += 1;
-    if (pickup.kind === 'bomb') bombsHeld += 1;
+    if (pickup.kind === 'heart') {
+      player.hp = Math.min(player.maxHp, player.hp + 1);
+      popOverPlayer({ icon: 'heart', color: '#ff7b8e' });
+    }
+    if (pickup.kind === 'key') {
+      keysHeld += 1;
+      popOverPlayer({ icon: 'key', color: '#ffe18b' });
+    }
+    if (pickup.kind === 'bomb') {
+      bombsHeld += 1;
+      popOverPlayer({ icon: 'bomb', color: '#f2c774' });
+    }
+    if (pickup.kind === 'curio') {
+      if (ownedItems.has(pickup.item.id)) {
+        pickups.splice(i, 1);
+        continue;
+      }
+      if (!grantUpgrade(pickup.item, 'drop')) continue;
+    }
     if (pickup.guaranteedTreasure && pickup.room) pickup.room.treasureClaimed = true;
     if (pickup.kind === 'upgrade') {
       pickup.room.rewardClaimed = true;
@@ -5117,7 +6909,7 @@ function update(dt) {
     if (currentRoom.type === 'boss') {
       showMessage('The guardian is defeated. The seal opens; the descent continues.', 5);
     } else {
-      showMessage('Room clear. Doors unlocked.', 2.5);
+      popOverPlayer({ icon: 'unlock', color: '#8fe39a' });
     }
   }
   updateHud();
@@ -5230,27 +7022,81 @@ function drawRoomFloor() {
   for (const direction of directions) {
     const secretDoor = currentRoom.secretExit?.direction === direction.name &&
       !currentRoom.secretExit.room.hidden;
-    const hasDoor = (currentRoom.links[direction.name] || secretDoor) && currentRoom.cleared;
+    const hasDoor = currentRoom.links[direction.name] || secretDoor;
     if (!hasDoor) continue;
     const locked = currentRoom.lockedDoors[direction.name] === true;
-    ctx.fillStyle = locked ? '#a77d42' : '#5f7652';
-    if (direction.name === 'up' || direction.name === 'down') {
-      ctx.fillRect(ROOM_W / 2 - 42, direction.name === 'up' ? 40 : ROOM_H - 64, 84, 24);
-      ctx.fillStyle = locked ? '#fff0bd' : '#dce8c8';
-      ctx.font = 'bold 11px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(locked ? (keysHeld > 0 ? 'KEY' : 'LOCKED') : 'OPEN', ROOM_W / 2, direction.name === 'up' ? 56 : ROOM_H - 48);
+    const sealed = !currentRoom.cleared;
+    const vertical = direction.name === 'up' || direction.name === 'down';
+    const centerX = vertical ? ROOM_W / 2 : direction.name === 'left' ? 32 : ROOM_W - 32;
+    const centerY = vertical ? (direction.name === 'up' ? 32 : ROOM_H - 32) : ROOM_H / 2;
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    if (!vertical) ctx.rotate(Math.PI / 2);
+    // Door is drawn as a 96x56 panel facing "up"; sealed and locked doors are solid, open doors are a green archway.
+    if (sealed || locked) {
+      ctx.fillStyle = sealed ? '#4a2a2a' : '#6b4a26';
+      ctx.fillRect(-48, -28, 96, 56);
+      ctx.strokeStyle = sealed ? '#b55a5a' : '#e0b45e';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(-47, -27, 94, 54);
+      ctx.strokeStyle = sealed ? '#2a1515' : '#3d2a14';
+      ctx.lineWidth = 2;
+      for (let bar = -30; bar <= 30; bar += 20) {
+        ctx.beginPath();
+        ctx.moveTo(bar, -26);
+        ctx.lineTo(bar, 26);
+        ctx.stroke();
+      }
+      ctx.fillStyle = sealed ? '#d98a8a' : '#f1cf7a';
+      ctx.fillRect(-9, -4, 18, 15);
+      ctx.strokeStyle = sealed ? '#d98a8a' : '#f1cf7a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, -4, 6, Math.PI, 0);
+      ctx.stroke();
+      ctx.fillStyle = '#211e25';
+      ctx.fillRect(-1.5, 1, 3, 6);
     } else {
-      ctx.fillRect(direction.name === 'left' ? 40 : ROOM_W - 64, ROOM_H / 2 - 42, 24, 84);
-      ctx.save();
-      ctx.translate(direction.name === 'left' ? 52 : ROOM_W - 52, ROOM_H / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = locked ? '#fff0bd' : '#dce8c8';
-      ctx.font = 'bold 11px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(locked ? (keysHeld > 0 ? 'KEY' : 'LOCKED') : 'OPEN', 0, 4);
-      ctx.restore();
+      ctx.fillStyle = 'rgba(14, 18, 12, 0.85)';
+      ctx.fillRect(-42, -28, 84, 56);
+      ctx.strokeStyle = '#8cae7a';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(-42, -28, 84, 56);
     }
+    const bossDoor = currentRoom.type !== 'boss' && rooms.some((candidate) => candidate.type === 'boss' &&
+      candidate.x === currentRoom.x + direction.dx && candidate.y === currentRoom.y + direction.dy);
+    if (bossDoor) {
+      // Pulsing crimson frame and skull so the boss entrance is unmistakable.
+      const pulse = 0.55 + Math.sin(elapsed * 4) * 0.25;
+      ctx.shadowColor = `rgba(255, 60, 60, ${pulse})`;
+      ctx.shadowBlur = 22;
+      ctx.strokeStyle = `rgba(255, 70, 70, ${0.6 + pulse * 0.4})`;
+      ctx.lineWidth = 5;
+      ctx.strokeRect(-52, -32, 104, 64);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(120, 10, 20, 0.45)';
+      ctx.fillRect(-48, -28, 96, 56);
+      ctx.fillStyle = '#f4ecec';
+      ctx.beginPath();
+      ctx.arc(0, -2, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-6, 4, 12, 9);
+      ctx.fillStyle = '#3a0c12';
+      ctx.beginPath();
+      ctx.arc(-4, -3, 2.6, 0, Math.PI * 2);
+      ctx.arc(4, -3, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-0.8, 6, 1.6, 6);
+    }
+    ctx.restore();
+    ctx.fillStyle = bossDoor ? '#ff9a9a' : sealed ? '#ffd4d4' : locked ? '#fff0bd' : '#dce8c8';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    const doorLabel = bossDoor ? (sealed ? 'BOSS · SEALED' : locked ? 'BOSS · KEY' : 'BOSS')
+      : sealed ? 'SEALED' : locked ? (keysHeld > 0 ? 'KEY' : 'LOCKED') : 'OPEN';
+    const labelX = vertical ? ROOM_W / 2 : direction.name === 'left' ? 78 : ROOM_W - 78;
+    const labelY = vertical ? (direction.name === 'up' ? 78 : ROOM_H - 70) : ROOM_H / 2 + 4;
+    ctx.fillText(doorLabel, labelX, labelY);
   }
 
   if (currentRoom.secretExit?.room.hidden) {
@@ -5461,6 +7307,7 @@ function drawEnemy(enemy) {
     const sourceX = (frame % columns) * sprite.frameWidth;
     const sourceY = Math.floor(frame / columns) * sprite.frameHeight;
     const scale = sprite.scale * (enemy.boss && enemy.kind !== 'jacko' ? 1.4 : 1) *
+      (enemy.miniBoss && !enemy.boss ? 1.5 : 1) *
       (enemy.isOffspring ? 0.58 : 1);
     const width = sprite.frameWidth * scale;
     const height = sprite.frameHeight * scale;
@@ -5812,11 +7659,33 @@ function drawPlayer() {
     frame = isBowAttack ? 11 + Math.floor(progress * 5) : 7 + Math.floor(progress * 4);
   }
   const bodyFrameIndex = directionRow * sprite.framesPerDirection + frame;
-  ctx.fillStyle = 'rgba(20, 24, 27, 0.32)';
+  ctx.fillStyle = 'rgba(14, 16, 20, 0.28)';
   ctx.beginPath();
-  ctx.ellipse(player.x, player.y + 8, 11, 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(player.x, player.y - 1, 24, 9.5, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = 'rgba(14, 16, 20, 0.34)';
+  ctx.beginPath();
+  ctx.ellipse(player.x, player.y - 1, 16, 6.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (player.chargeFraction > 0.02) {
+    ctx.save();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y - 34, 34, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = player.chargeFraction >= 1 ? '#fff2a0' : '#7fd8ff';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y - 34, 34, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.chargeFraction);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.save();
+  if (player.chargeFraction >= 1 && Math.floor(elapsed * 16) % 2 === 0) {
+    ctx.filter = 'brightness(2.2) saturate(0.6)';
+    ctx.shadowColor = '#fff2a0';
+    ctx.shadowBlur = 22;
+  }
   if (player.damageFlashTimer > 0) {
     ctx.filter = 'sepia(0.8) saturate(3.5) hue-rotate(305deg)';
     ctx.shadowColor = '#ff4058';
@@ -5831,20 +7700,83 @@ function drawPlayer() {
     const clothing = equippedClothing[slot];
     if (clothing) drawClothing(clothing, bodyFrameIndex, 0, 0, 1.45);
   }
+  const heldStyle = currentAttackStyle();
+  const glowColor = styleGlowColor(heldStyle);
   const visibleWeapon = meleeWeapons.has('sword') ? 'ironSword'
-    : meleeWeapons.has('daggers') ? 'daggers' : null;
-  if (visibleWeapon) drawClothing({ sprite: visibleWeapon }, bodyFrameIndex, 0, 0, 1.45);
-  if (player.attackAnimationTimer > 0 && player.attackAnimationStyle === 'bow' &&
-      banditBowImage.complete && banditBowImage.naturalWidth >= 128) {
+    : meleeWeapons.has('daggers') ? 'daggers' : nativeStyle() === 'melee' ? 'ironSword' : null;
+  if (heldStyle === 'melee' && visibleWeapon) {
+    ctx.save();
+    ctx.shadowColor = glowColor || (visibleWeapon === 'ironSword' ? '#c4e8ff' : '#fff0b0');
+    ctx.shadowBlur = glowColor ? 18 + Math.sin(elapsed * 9) * 4 : 8 + Math.sin(elapsed * 5) * 2;
+    drawClothing({ sprite: visibleWeapon }, bodyFrameIndex, 0, 0, 1.45);
+    ctx.restore();
+  }
+  if (heldStyle === 'bow' && banditBowImage.complete && banditBowImage.naturalWidth >= 128) {
     const rowStart = { down: 0, left: 18, up: 36, right: 54 }[direction];
-    const bowFrame = player.attackAnimationTimer > 0 && player.attackAnimationStyle === 'bow'
+    const drawing = player.attackAnimationTimer > 0 && player.attackAnimationStyle === 'bow';
+    const bowFrame = drawing
       ? rowStart + 13 + Math.min(4, Math.floor((1 - player.attackAnimationTimer / 0.4) * 5))
-      : rowStart + 1 + Math.floor(elapsed * 7) % 6;
+      : rowStart + 1;
     const bowColumns = Math.floor(banditBowImage.naturalWidth / 128);
+    ctx.save();
+    if (glowColor) {
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 16;
+    }
     ctx.drawImage(banditBowImage, (bowFrame % bowColumns) * 128,
       Math.floor(bowFrame / bowColumns) * 128, 128, 128, -60, -96, 120, 120);
+    ctx.restore();
   }
-  drawHead(character.hairStyle, direction, 0, 0, 1.45);
+  if (heldStyle === 'magic') drawCastingHands(direction, glowColor || magicElementPalette.bubble);
+  drawHead(character.hairStyle, direction, 0, 0, 1.45, wornHat());
+  ctx.restore();
+}
+
+// Colour of the element currently infusing a weapon style, or null when it is plain.
+function styleGlowColor(style) {
+  const infused = ownedItems.has('ammo-mana') && (player.mana || 0) >= 1;
+  const elementColor = magicElementPalette[getActiveAttackElement() || 'bubble'];
+  if (style === 'magic') return elementColor;
+  if (style === 'bow') return infused && !styleIsLimited('bow') ? elementColor : null;
+  if (infused && nativeStyle() === 'melee') return elementColor;
+  return activeWeaponMod('melee')?.id === 'mod-cinder' ? magicElementPalette.fire : null;
+}
+
+// Arc-reactor style chest glow in the element's colour; only visible from the front.
+function drawCastingHands(direction, color) {
+  if (direction === 'left' || direction === 'right') {
+    // Side view: only a faint sliver of the chest glow peeks past the torso.
+    const sx = direction === 'left' ? -6 : 6;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.5 + Math.sin(elapsed * 8) * 0.12;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, -41.5);
+    ctx.lineTo(sx, -38.5);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if (direction !== 'down') return;
+  const flare = 1 + (player.attackPulse > 0 ? 0.8 : 0);
+  const hands = [[0, -40]];
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [hx, hy] of hands) {
+    const radius = (2.6 + Math.sin(elapsed * 8) * 0.4) * flare;
+    const glow = ctx.createRadialGradient(hx, hy, 0, hx, hy, radius);
+    glow.addColorStop(0, '#ffffff');
+    glow.addColorStop(0.5, color);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(hx, hy, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -5981,7 +7913,58 @@ function drawHumanoid(sheet, frameIndex, x, y, scale = 1, hue = 0) {
   }
 }
 
-function drawHead(style, direction, x, y, scale = 1) {
+const hatImages = {};
+function hatImage(id) {
+  if (!hatImages[id]) hatImages[id] = loadAsset(`sprites/equipment/head/${id}.png`);
+  return hatImages[id];
+}
+
+// Hats mark what the delver has picked up; the newest powerup's hat is worn. Sporelings keep to the shroom family.
+const powerHatByItem = {
+  'element-fire': 'candlehelmet', 'element-lightning': 'funkyhat', 'element-gas': 'wickedshroomhat',
+  'frost-rune': 'earmuffs', 'bonded-aegis': 'crusadehelmet', 'spore-bloom': 'forestshroomhat',
+  'mod-windup': 'standardheadband', 'mod-flurry': 'bandana', 'mod-cinder': 'pumpkinhat',
+  'mod-pierce': 'bountyhunterhelmet', 'mod-draw': 'brimmedfeatherhat', 'mod-quiver': 'trapperhat',
+  'mod-storm-arrows': 'funkyhat', 'mod-splash': 'alchemisthelmet', 'mod-chain': 'magictophat',
+  'mod-lingering': 'witchhat', 'iron-sword': 'vikinghelmet', 'swift-daggers': 'assassinhood',
+  'heart-vessel-iii': 'crown', 'luck-up-ii': 'leprechaunhat', 'curio-hot-take': 'bull',
+  'curio-sole': 'bunnyears', 'curio-trigger': 'bhopcap', 'curio-heavy-metal': 'bucket',
+  'curio-mana-cafe': 'chefhat', 'curio-dice': 'fancyhat', 'curio-wild-card': 'operamask',
+  'ammo-mana': 'moonshroomhat', 'ammo-arrows': 'farmerhat', 'ammo-blows': 'centurionhelmet',
+  'learn-magic': 'graduationcap', 'learn-brawl': 'samuraihelmet', 'learn-bow': 'brimmedhat',
+};
+const shroomHatByItem = {
+  'element-gas': 'wickedshroomhat', 'mod-lingering': 'wickedshroomhat', 'ammo-mana': 'moonshroomhat',
+  'frost-rune': 'moonshroomhat', 'element-lightning': 'moonshroomhat',
+};
+const classHats = {
+  Mage: 'wizardhat', Warrior: 'samuraihelmet', Rogue: 'assassinhood', Scout: 'bandana', Pilgrim: 'browndeserthat',
+  Herbalist: 'wreath', Sentinel: 'centurionhelmet', Scholar: 'graduationcap', Scribe: 'brimmedfeatherhat',
+  Delver: 'minerhat', Keeper: 'darkhelm', Guard: 'soldierhelmet', Ranger: 'brimmedhat', Oracle: 'fairyhat',
+  Reclaimer: 'earmuffs', Warden: 'antlerhat', Veteran: 'warlordhelmet', Sporeling: 'shroomhat',
+};
+
+function wornHat(entry = character, powerHat = player.powerHat) {
+  if (entry?.id === 'world-edge-pilgrim') return null;
+  const baseHat = entry?.hat || classHats[entry?.className] || null;
+  if (entry?.className === 'Sporeling') return shroomHatByItem[powerHat?.item] || baseHat;
+  return powerHat?.hat || baseHat;
+}
+
+function drawHat(hat, direction, x, headY, scale) {
+  if (!hat) return;
+  const image = hatImage(hat);
+  if (!image.complete || image.naturalWidth === 0) return;
+  const frame = { down: 0, left: 1, up: 2, right: 3 }[direction] ?? 0;
+  ctx.drawImage(image, frame * 32, 0, 32, 64, x - 16 * scale, headY - 12 * scale, 32 * scale, 64 * scale);
+}
+
+function drawHead(style, direction, x, y, scale = 1, hat = null) {
+  drawHeadSprite(style, direction, x, y, scale);
+  drawHat(hat, direction, x, y - 84 * scale + 12 - (direction === 'up' ? 2 * scale : 0), scale);
+}
+
+function drawHeadSprite(style, direction, x, y, scale = 1) {
   const head = headSprites[style] || headSprites.wanderer;
   if (!head.image.complete || head.image.naturalWidth === 0) return;
   const directionFrame = { down: 0, left: 1, up: 2, right: 3 }[direction];
@@ -6057,12 +8040,36 @@ function drawFallbackBreakable(rock, width, height) {
   ctx.restore();
 }
 
+const menhirPuns = [
+  'Home is where the respawn is. Rock solid advice.',
+  "I'm a menhir of few words. Mostly 'ow' when mushrooms sit on me.",
+  "The Mana World devs said 'ship it'. Then 'patch it'. Then 'who wrote this?' Classic.",
+  "Stone-cold truth: I've been here since the first commit, and I'm still not merged.",
+  'Looking for the Mana Tree? Take a left at the bug, a right at the feature.',
+  "Don't take me for granite. Come back alive and I'll rock your world.",
+  'Tulimshar has sand, Hurnscald has trees, I have a stunning lack of legs.',
+  'They fixed lag on the server, but I still have lag on my stone-ing.',
+  "Every great volunteer project needs a landmark. I'm the one that doesn't need a patch.",
+  "Some delvers come back heroes. Others come back as a pun. Weirdly, you're both.",
+  "I'd offer you a quest, but the GMs are still arguing over the typo.",
+  'Be careful down there. Even the slimes have better uptime than the wiki.',
+];
+let menhirPunIndex = 0;
+
 function soulMenhirPosition() {
   return { x: ROOM_W / 2, y: ROOM_H / 2 - 104 };
 }
 
 function drawSoulMenhir() {
   const position = soulMenhirPosition();
+  const t = performance.now() / 1000;
+  ctx.save();
+  const glow = ctx.createRadialGradient(position.x, position.y - 34, 4, position.x, position.y - 34, 74);
+  glow.addColorStop(0, `rgba(185, 166, 255, ${0.3 + Math.sin(t * 2) * 0.08})`);
+  glow.addColorStop(1, 'rgba(185, 166, 255, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(position.x - 80, position.y - 110, 160, 160);
+  ctx.restore();
   if (soulMenhirImage.complete && soulMenhirImage.naturalWidth >= 64) {
     ctx.drawImage(soulMenhirImage, 0, 0, 64, 64, position.x - 38, position.y - 76, 76, 76);
   } else {
@@ -6080,10 +8087,21 @@ function drawSoulMenhir() {
     ctx.stroke();
   }
   ctx.save();
+  for (let i = 0; i < 9; i += 1) {
+    const phase = (t * 0.35 + i / 9) % 1;
+    const px = position.x + Math.sin(t * 1.3 + i * 2.1) * (16 + (i % 3) * 8);
+    const py = position.y + 6 - phase * 90;
+    ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.85;
+    ctx.fillStyle = i % 2 ? '#d9ccff' : '#8fe3ff';
+    ctx.beginPath();
+    ctx.arc(px, py, 1.6 + (i % 3) * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
   ctx.fillStyle = '#26352d';
   ctx.font = 'bold 12px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('SOUL MENHIR  ·  WALK IN TO SAVE', position.x, position.y + 22);
+  ctx.fillText('SOUL MENHIR  ·  E TO TALK', position.x, position.y + 22);
   ctx.restore();
 }
 
@@ -6098,7 +8116,7 @@ function drawShopItemIcon(item, centerX, centerY) {
   }
   const colors = {
     passive: '#79d3dc', skill: '#c3a7e7', weapon: '#e0bb78', clothing: '#9dce9a',
-    ability: '#86dce8', element: magicElementPalette[item.element], companion: '#e7b877', consumable: '#e89676',
+    ability: '#86dce8', mod: '#ffb35a', element: magicElementPalette[item.element], companion: '#e7b877', consumable: '#e89676',
   };
   ctx.save();
   ctx.translate(centerX, centerY);
@@ -6314,6 +8332,22 @@ function drawMorphShape(shape, color) {
 }
 
 function drawGroundHazards() {
+  for (const strike of bossStrikes) {
+    const progress = 1 - strike.timer / strike.duration;
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 40, 40, ${0.12 + progress * 0.22})`;
+    ctx.strokeStyle = `rgba(255, 90, 70, ${0.55 + progress * 0.45})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(strike.x, strike.y, strike.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = `rgba(255, 70, 50, ${0.3 + progress * 0.4})`;
+    ctx.beginPath();
+    ctx.arc(strike.x, strike.y, strike.radius * progress, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   for (const hazard of groundHazards) {
     const alpha = Math.min(0.68, hazard.ttl / 2.5);
     ctx.save();
@@ -6375,6 +8409,26 @@ function drawGroundHazards() {
   }
 }
 
+// Text over busy ground or art gets a dark outline: every fillText inside fn is stroked first.
+function withTextOutline(fn) {
+  const plainFillText = ctx.fillText;
+  ctx.fillText = function outlinedFillText(text, x, y, maxWidth) {
+    const args = maxWidth === undefined ? [text, x, y] : [text, x, y, maxWidth];
+    this.save();
+    this.strokeStyle = 'rgba(8, 6, 10, 0.92)';
+    this.lineWidth = 3.5;
+    this.lineJoin = 'round';
+    this.strokeText(...args);
+    this.restore();
+    plainFillText.apply(this, args);
+  };
+  try {
+    fn();
+  } finally {
+    ctx.fillText = plainFillText;
+  }
+}
+
 function drawWorld() {
   drawRoomFloor();
   drawGroundHazards();
@@ -6399,7 +8453,7 @@ function drawWorld() {
     ctx.fillText('KEEPER', ROOM_W / 2, ROOM_H / 2 - 28);
     ctx.fillStyle = '#d3c4a6';
     ctx.font = '12px Arial';
-    ctx.fillText('Walk into an item to buy it', ROOM_W / 2, ROOM_H / 2 + 43);
+    ctx.fillText('Stand by an item and press E to buy', ROOM_W / 2, ROOM_H / 2 + 43);
     ctx.fillStyle = '#ab8058';
     ctx.fillRect(ROOM_W / 2 - 34, ROOM_H / 2 + 18, 68, 11);
     const stock = currentRoom.shopStock || [];
@@ -6431,23 +8485,23 @@ function drawWorld() {
       ctx.font = '10px Arial';
       ctx.fillText(item.purchased ? 'SOLD' : item.description, x + 12, y + 43, 186);
       ctx.textAlign = 'center';
+      if (nearestShopSlot() === index) {
+        ctx.fillStyle = '#fff0a8';
+        ctx.font = 'bold 13px Arial';
+        ctx.fillText('[E] BUY', spot.x, spot.y - 40);
+      }
     });
   }
-  if (currentRoom.type === 'bank') {
-    ctx.fillStyle = 'rgba(35, 29, 23, 0.92)';
-    ctx.fillRect(ROOM_W / 2 - 155, ROOM_H / 2 - 82, 310, 164);
-    ctx.strokeStyle = '#d7b66e';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(ROOM_W / 2 - 155, ROOM_H / 2 - 82, 310, 164);
+  if (hasVault(currentRoom)) {
     ctx.fillStyle = '#f4d78e';
-    ctx.font = 'bold 22px Georgia';
+    ctx.font = 'bold 18px Georgia';
     ctx.textAlign = 'center';
-    ctx.fillText('Zenny Vault', ROOM_W / 2, ROOM_H / 2 - 38);
+    ctx.fillText('Zenny Vault', ROOM_W / 2, 118);
     ctx.fillStyle = '#f2e5c6';
-    ctx.font = '15px Arial';
-    ctx.fillText(`Carried: ${coins}  ·  Stored: ${save.bankedZenny}`, ROOM_W / 2, ROOM_H / 2);
-    ctx.font = '13px Arial';
-    ctx.fillText('Step on a pad  ·  A / E Deposit all  ·  B / Shift+E Withdraw all', ROOM_W / 2, ROOM_H / 2 + 38);
+    ctx.font = '14px Arial';
+    ctx.fillText(`Carried: ${coins}  ·  Stored: ${save.bankedZenny}`, ROOM_W / 2, 142);
+    ctx.font = '12px Arial';
+    ctx.fillText('Step on a pad  ·  Shift+E / B withdraw all', ROOM_W / 2, 164);
     for (const withdraw of [false, true]) {
       const pad = bankPadPosition(withdraw);
       ctx.fillStyle = withdraw ? 'rgba(120, 170, 120, 0.35)' : 'rgba(200, 160, 80, 0.35)';
@@ -6461,8 +8515,6 @@ function drawWorld() {
       ctx.font = 'bold 13px Arial';
       ctx.fillText(withdraw ? 'WITHDRAW' : 'DEPOSIT', pad.x, pad.y + 5);
     }
-    ctx.fillStyle = '#d7b66e';
-    ctx.fillRect(ROOM_W / 2 - 34, ROOM_H / 2 + 52, 68, 10);
   }
   if (currentRoom.type === 'shrine') {
     ctx.save();
@@ -6690,6 +8742,49 @@ function drawWorld() {
       ctx.fillStyle = '#fff4d5';
       ctx.fillText(pickup.item.name, bubbleX, bubbleY + 31, 82);
       ctx.restore();
+    } else if (pickup.kind === 'curio') {
+      const bob = Math.sin(elapsed * 4 + pickup.x) * 2;
+      const icon = shopItemIconImages[pickup.item.id];
+      ctx.save();
+      ctx.shadowColor = '#ffb35a';
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = 'rgba(30, 20, 8, 0.7)';
+      ctx.beginPath();
+      ctx.arc(pickup.x, pickup.y + bob, 17, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ffd37a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      if (icon?.complete && icon.naturalWidth > 0) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(icon, pickup.x - 12, pickup.y + bob - 12, 24, 24);
+      } else {
+        ctx.fillStyle = '#ffd37a';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', pickup.x, pickup.y + bob);
+      }
+      ctx.restore();
+    } else if (pickup.kind === 'xp') {
+      const bob = Math.sin(elapsed * 6 + pickup.x) * 1.5;
+      ctx.save();
+      ctx.translate(pickup.x, pickup.y + bob);
+      ctx.shadowColor = 'rgba(110, 230, 255, 0.8)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#7ee8ff';
+      ctx.strokeStyle = '#1b4a66';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(5, 0);
+      ctx.lineTo(0, 6);
+      ctx.lineTo(-5, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     } else if (pickup.kind === 'heart') {
       if (heartImage.complete && heartImage.naturalWidth > 0) {
         ctx.drawImage(heartImage, pickup.x - 12, pickup.y - 12, 24, 24);
@@ -6768,13 +8863,74 @@ function drawWorld() {
   for (const projectile of projectiles) {
     const size = 18 * (projectile.size || 1);
     ctx.save();
-    ctx.shadowColor = projectile.color;
-    ctx.shadowBlur = 14 * (projectile.size || 1);
+    if (projectiles.length <= 24) {
+      ctx.shadowColor = projectile.color;
+      ctx.shadowBlur = 14 * (projectile.size || 1);
+    }
     ctx.lineJoin = 'round';
+    // Ballistic drop: the shot sinks toward its ground shadow and lands where its range ends.
+    // Level shots fall straight down the screen toward the feet line; vertical shots instead
+    // pull their shadow in until it matches the shot. Charged arrows fly flatter.
+    const flown = clamp(1 - projectile.ttl / (projectile.ttl0 || projectile.ttl || 1), 0, 1);
+    const fall = Math.pow(flown, projectile.dropCurve || 2.4);
+    const flightAngle = Math.atan2(projectile.vy, projectile.vx);
+    const sideways = Math.abs(Math.cos(flightAngle));
+    const vertical = 1 - sideways;
+    const bodyHeight = 34;
+    const shadowRadius = size * 0.5 * ((0.45 + 0.55 * fall) * sideways + (1.7 - 0.7 * fall) * vertical);
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.18 + 0.2 * fall})`;
+    ctx.beginPath();
+    ctx.ellipse(projectile.x, projectile.y + bodyHeight * (1 - vertical * fall), shadowRadius * 1.25, shadowRadius * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.translate(0, bodyHeight * sideways * fall);
+    // Launch flash: a ring expands from the muzzle while the shot itself keeps a constant size.
+    const launchAge = projectile.born === undefined ? 1 : elapsed - projectile.born;
+    if (launchAge >= 0 && launchAge < 0.22) {
+      const t = launchAge / 0.22;
+      ctx.save();
+      ctx.globalAlpha = 0.6 * (1 - t);
+      ctx.strokeStyle = projectile.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(projectile.x, projectile.y, size * (0.5 + t * 0.9), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     if (projectile.type === 'arrow') {
       const angle = Math.atan2(projectile.vy, projectile.vx);
       ctx.translate(projectile.x, projectile.y);
       ctx.rotate(angle);
+      const arrowElement = projectile.glow || projectile.element;
+      if (arrowElement) {
+        const tint = magicElementPalette[arrowElement];
+        const s = projectile.size || 1;
+        ctx.shadowColor = tint;
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = tint;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        if (arrowElement === 'fire') {
+          // Flickering flame trailing off the arrow.
+          const flick = Math.sin(elapsed * 40 + projectile.x) * 3;
+          ctx.moveTo(8 * s, 0);
+          ctx.quadraticCurveTo(-4 * s, -8 * s - flick, -26 * s, flick * 0.5);
+          ctx.quadraticCurveTo(-4 * s, 8 * s + flick, 8 * s, 0);
+        } else if (arrowElement === 'lightning') {
+          ctx.moveTo(10 * s, 0);
+          ctx.lineTo(-2 * s, -6 * s);
+          ctx.lineTo(-6 * s, 2 * s);
+          ctx.lineTo(-22 * s, -3 * s);
+          ctx.lineTo(-8 * s, 4 * s);
+          ctx.lineTo(-2 * s, 0);
+        } else {
+          ctx.ellipse(-6 * s, 0, 18 * s, 6 * s, 0, 0, Math.PI * 2);
+        }
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       ctx.strokeStyle = '#101612';
       ctx.lineWidth = 5;
       ctx.beginPath();
@@ -6807,8 +8963,7 @@ function drawWorld() {
       ctx.fill();
       ctx.stroke();
     } else if (projectile.type === 'elemental' && projectile.shape) {
-      const pulseScale = (1 + Math.sin(elapsed * 16 + projectile.x * 0.05) * (projectile.pulse || 0)) *
-        (projectile.size || 1);
+      const pulseScale = projectile.size || 1;
       ctx.translate(projectile.x, projectile.y);
       ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
       ctx.scale(pulseScale, pulseScale);
@@ -6818,10 +8973,6 @@ function drawWorld() {
       const element = projectile.element || 'bubble';
       ctx.translate(projectile.x, projectile.y);
       ctx.rotate(angle);
-      if (projectile.pulse) {
-        const elementPulse = 1 + Math.sin(elapsed * 16 + projectile.x * 0.05) * projectile.pulse;
-        ctx.scale(elementPulse, elementPulse);
-      }
       ctx.fillStyle = magicElementPalette[element] || magicElementPalette.bubble;
       ctx.strokeStyle = '#101612';
       ctx.lineWidth = 2.5;
@@ -6878,17 +9029,15 @@ function drawWorld() {
       const angle = Math.atan2(projectile.vy, projectile.vx);
       ctx.translate(projectile.x, projectile.y);
       ctx.rotate(angle);
+      ctx.shadowBlur = 12;
       ctx.fillStyle = projectile.color;
-      ctx.strokeStyle = '#101612';
-      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(10, 0);
-      ctx.lineTo(-4, -4);
+      ctx.moveTo(8, 0);
+      ctx.lineTo(-4, -3);
       ctx.lineTo(-8, 0);
-      ctx.lineTo(-4, 4);
+      ctx.lineTo(-4, 3);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
     } else if (stoneImage.complete && stoneImage.naturalWidth > 0) {
       ctx.strokeStyle = '#101612';
       ctx.lineWidth = 2;
@@ -6988,8 +9137,34 @@ function drawWorld() {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+  const markedAngles = new Set();
   for (const swing of player.meleeSwings) {
     const progress = 1 - swing.timer / swing.maxTimer;
+    if (!markedAngles.has(swing.angle)) {
+      markedAngles.add(swing.angle);
+      // Full hit marker: the whole area the swing can strike, with a sweeping leading edge.
+      const fade = 1 - progress;
+      const arc = swing.arc || 0.95;
+      const sweep = swing.angle - arc + progress * arc * 2;
+      const markerColor = swing.charged ? '255, 242, 160' : '255, 255, 255';
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y - 34);
+      ctx.arc(player.x, player.y - 34, swing.hitReach, swing.angle - arc, swing.angle + arc);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${markerColor}, ${0.16 * fade})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${markerColor}, ${0.5 * fade})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y - 34);
+      ctx.lineTo(player.x + Math.cos(sweep) * swing.hitReach, player.y - 34 + Math.sin(sweep) * swing.hitReach);
+      ctx.strokeStyle = `rgba(${markerColor}, ${0.9 * fade})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+    }
     const swingColor = swing.element ? magicElementPalette[swing.element]
       : swing.weapon === 'sword' ? combatPalette.sword
         : swing.weapon === 'daggers' ? combatPalette.daggers : combatPalette.melee;
@@ -7001,8 +9176,10 @@ function drawWorld() {
     ctx.shadowColor = swing.weapon === 'sword' ? combatPalette.arcane : combatPalette.melee;
     ctx.shadowBlur = 18;
     ctx.beginPath();
+    const ribbonCenter = swing.spin ? swing.angle + progress * Math.PI * 2 - 0.9 : swing.angle;
+    const ribbonSpan = swing.spin ? 1.1 : 0.85;
     ctx.arc(player.x, player.y - 34, swing.reach + progress * 12,
-      swing.angle - 0.85, swing.angle + 0.85);
+      ribbonCenter - ribbonSpan, ribbonCenter + ribbonSpan);
     ctx.stroke();
     ctx.strokeStyle = swingColor;
     ctx.lineWidth -= 3;
@@ -7029,8 +9206,11 @@ function drawWorld() {
     ctx.restore();
   }
   for (const enemy of enemies) drawEnemy(enemy);
-  drawPlayer();
   for (const companion of companions) drawCompanion(companion);
+  drawPlayer();
+  drawOverheadPops();
+  drawLaserBeams();
+  drawSporePods();
   if (streakCallout.timer > 0) {
     const progress = 1 - streakCallout.timer / streakCallout.duration;
     ctx.save();
@@ -7090,7 +9270,12 @@ function drawMap() {
       room.type === 'boss' ? '#aa5e72' : room.type === 'miniboss' ? '#bd765d'
         : room.type === 'shop' ? '#d9aa66' : room.type === 'bank' ? '#d7b66e'
           : room.type === 'shrine' ? '#a77fc2' : '#514d59';
-    ctx.fillRect(x + 8, y + 8, cell - 16, cell - 16);
+    const rect = roomMapRect(room, x, y, cell);
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    if (rect.larger) {
+      ctx.strokeStyle = '#f4e3b0';
+      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    }
     ctx.fillStyle = '#e9dfd0';
     ctx.font = '12px Arial';
     ctx.fillText(room.type === 'boss' ? 'B' : room.type === 'miniboss' ? '!'
@@ -7106,8 +9291,7 @@ function drawMap() {
 
 function roomIsRevealed(room) {
   if (room.visited || room === currentRoom) return true;
-  if (room.hidden) return false;
-  if (room.type === 'secret') return !room.hidden;
+  if (room.hidden || room.type === 'secret') return false;
   return rooms.some((visitedRoom) =>
     visitedRoom.visited && Object.keys(visitedRoom.links).some((direction) => {
       const vector = directions.find((item) => item.name === direction);
@@ -7116,14 +9300,24 @@ function roomIsRevealed(room) {
   );
 }
 
+// Larger rooms are drawn larger on the maps; unvisited rooms stay a uniform size so they don't leak details.
+function roomMapRect(room, x, y, cell) {
+  const sizeKey = room.visited || room === currentRoom ? room.sizeKey : 'small';
+  const [fw, fh] = { large: [0.95, 0.85], wide: [0.95, 0.6], tall: [0.6, 0.95] }[sizeKey] || [0.6, 0.6];
+  const w = Math.round(cell * fw);
+  const h = Math.round(cell * fh);
+  return { x: Math.round(x + (cell - w) / 2), y: Math.round(y + (cell - h) / 2), w, h, larger: fw !== fh || fw > 0.9 };
+}
+
 function drawMinimap() {
   const panel = { x: canvas.width - 154, y: 12, width: 142, height: 142 };
   const cell = 16;
   const originX = panel.x + 14;
   const originY = panel.y + 25;
-  ctx.fillStyle = 'rgba(16, 14, 19, 0.48)';
+  const hostile = !currentRoom.cleared;
+  ctx.fillStyle = hostile ? 'rgba(88, 14, 20, 0.62)' : 'rgba(16, 14, 19, 0.48)';
   ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
-  ctx.strokeStyle = 'rgba(225, 201, 160, 0.62)';
+  ctx.strokeStyle = hostile ? 'rgba(235, 80, 80, 0.9)' : 'rgba(225, 201, 160, 0.62)';
   ctx.lineWidth = 1;
   ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.width - 1, panel.height - 1);
   ctx.fillStyle = '#e6d8bd';
@@ -7158,15 +9352,27 @@ function drawMinimap() {
     if (!roomIsRevealed(room)) continue;
     const x = originX + room.x * cell;
     const y = originY + room.y * cell;
-    ctx.fillStyle = room === currentRoom ? '#8ee0cf' :
+    const explored = room.visited || room === currentRoom;
+    const rect = roomMapRect(room, x, y, cell);
+    ctx.fillStyle = !explored ? (room.type === 'boss' ? '#9b2b3c' : '#4a4650') : room === currentRoom ? '#8ee0cf' :
       room.type === 'boss' ? '#bb7181' : room.type === 'miniboss' ? '#d78c69'
         : room.type === 'shop' ? '#edc878' : room.type === 'bank' ? '#e4ca75' :
         room.type === 'shrine' ? '#c69be5' :
         room.type === 'secret' ? '#c69be5' : '#aaa19a';
-    ctx.fillRect(x + 3, y + 3, cell - 6, cell - 6);
-    if (room.type === 'boss' || room.type === 'miniboss' || room.type === 'shop' ||
-      room.type === 'bank' || room.type === 'secret' || room.type === 'shrine') {
-      ctx.fillStyle = '#211e25';
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    if (explored && rect.larger) {
+      ctx.strokeStyle = '#f4e3b0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    }
+    if (room.type === 'boss') {
+      ctx.strokeStyle = `rgba(255, 90, 90, ${0.6 + Math.sin(elapsed * 4) * 0.3})`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(rect.x - 1.5, rect.y - 1.5, rect.w + 3, rect.h + 3);
+    }
+    if ((explored && (room.type === 'boss' || room.type === 'miniboss' || room.type === 'shop' ||
+      room.type === 'bank' || room.type === 'secret' || room.type === 'shrine')) || room.type === 'boss') {
+      ctx.fillStyle = room.type === 'boss' ? '#fff0f0' : '#211e25';
       ctx.font = 'bold 9px Arial';
       ctx.textAlign = 'center';
       ctx.fillText(room.type === 'boss' ? 'B' : room.type === 'miniboss' ? '!'
@@ -7177,10 +9383,328 @@ function drawMinimap() {
     if (room === currentRoom) {
       ctx.strokeStyle = '#fff1d7';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x + 2, y + 2, cell - 4, cell - 4);
+      ctx.strokeRect(rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2);
     }
-    drawRoomLeftovers(room, x, y, cell, 2.5);
+    if (explored) drawRoomLeftovers(room, x, y, cell, 2.5);
   }
+}
+
+// Bottom-left 1/2/3 weapon slots; the active one is enlarged, glowing and tagged.
+// Bottom action bar: every non-weapon button, with its key, live count and cooldown.
+// Mirrors the page's text lines (message + controls hint) into the canvas so they are visible without scrolling.
+let commentaryText = '';
+let commentaryShownAt = 0;
+
+function drawInGameCommentary() {
+  const text = messageEl.textContent || '';
+  const now = performance.now();
+  if (text !== commentaryText) {
+    commentaryText = text;
+    commentaryShownAt = now;
+  }
+  const calm = enemies.length === 0;
+  const age = (now - commentaryShownAt) / 1000;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  if (text && age < 4) {
+    const alpha = Math.min(1, (4 - age) / 0.6);
+    ctx.font = 'bold 14px Arial';
+    const width = Math.min(canvas.width - 40, ctx.measureText(text).width + 28);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(8, 10, 12, 0.78)';
+    ctx.fillRect(canvas.width / 2 - width / 2, 408, width, 26);
+    ctx.fillStyle = '#f4e8c8';
+    ctx.fillText(text.slice(0, 120), canvas.width / 2, 426, canvas.width - 48);
+  }
+  if (calm) {
+    const hint = (controlsEl.textContent || '').replace(/\n/g, ' · ');
+    ctx.globalAlpha = 0.85;
+    ctx.font = '11px Arial';
+    ctx.fillStyle = 'rgba(8, 10, 12, 0.7)';
+    ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+    ctx.fillStyle = '#d8d2b8';
+    ctx.fillText(hint, canvas.width / 2, canvas.height - 6, canvas.width - 16);
+  }
+  ctx.restore();
+}
+
+function drawActionBar() {
+  const pad = lastInputMode === 'controller';
+  const activeItem = consumables.find((item) => item.count > 0);
+  const itemTotal = consumables.reduce((sum, item) => sum + Math.max(0, item.count), 0);
+  const currentMode = fireMode(activeCombatStyle);
+  const slots = [
+    { id: 'dash', key: bindLabel('dash'), label: 'DASH', color: '#cfe8ff',
+      cooldown: dashCooldown, cooldownMax: character?.className === 'Scout' ? 0.42 : 0.85 },
+    { id: 'item', key: bindLabel('item'), label: activeItem ? activeItem.name.toUpperCase().slice(0, 9) : 'ITEM',
+      color: '#e89676', count: itemTotal, icon: activeItem ? shopItemIconImages[activeItem.id] : null },
+    { id: 'shock', key: bindLabel('shock'), label: 'SHOCKWAVE', color: '#ffffff', count: blanksHeld },
+    { id: 'bomb', key: bindLabel('bomb'), label: 'BOMB', color: '#f2c774', count: bombsHeld },
+    { id: 'mode', key: bindLabel('fireMode'), label: currentMode.toUpperCase(), color: '#ffd27a', mode: currentMode },
+  ];
+  if (frostActive && ownedItems.has('frost-rune')) {
+    slots.push({ id: 'frost', key: 'AUTO', label: 'FROST', color: '#9fd7ff', icon: shopItemIconImages['frost-rune'] });
+  }
+  const sig = classSignature();
+  if (sig?.active) {
+    slots.push({ id: 'ability', key: pad ? bindLabel('ability') : 'R-CLICK', label: sig.label.toUpperCase().slice(0, 9),
+      color: sig.color, cooldown: player.signatureCooldown, cooldownMax: sig.cooldown });
+  }
+  {
+    const elementKey = magicElements.has(activeMagicElement) ? activeMagicElement : 'bubble';
+    slots.push({ id: 'element', key: 'AUTO', label: elementDisplayName(elementKey).toUpperCase().slice(0, 9),
+      color: magicElementPalette[elementKey] || '#62d9ee', element: elementKey });
+  }
+  const gap = 4;
+  const size = Math.min(36, Math.floor(268 / slots.length) - gap);
+  const baseX = 536;
+  const baseY = 2;
+  ctx.save();
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 9px Arial';
+  ctx.fillStyle = '#bdb59f';
+  slots.forEach((slot, index) => {
+    const x = baseX + index * (size + gap);
+    const empty = (slot.count !== undefined && slot.count <= 0) || (slot.id === 'item' && !activeItem);
+    const cooling = slot.cooldown > 0;
+    ctx.globalAlpha = empty ? 0.45 : 1;
+    ctx.fillStyle = 'rgba(4, 6, 8, 0.96)';
+    ctx.fillRect(x - 2, baseY - 2, size + 4, size + 4);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 1, baseY - 1, size + 2, size + 2);
+    ctx.strokeStyle = cooling || empty ? 'rgba(235, 225, 200, 0.7)' : slot.color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, baseY + 1, size - 2, size - 2);
+    const cx = x + size / 2;
+    const cy = baseY + size / 2 + 3;
+    ctx.save();
+    ctx.strokeStyle = slot.color;
+    ctx.fillStyle = slot.color;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    if (slot.icon?.complete && slot.icon.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(slot.icon, cx - 13, cy - 13, 26, 26);
+    } else if (slot.id === 'dash') {
+      for (const offset of [-7, 3]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + offset - 4, cy - 8);
+        ctx.lineTo(cx + offset + 4, cy);
+        ctx.lineTo(cx + offset - 4, cy + 8);
+        ctx.stroke();
+      }
+    } else if (slot.id === 'shock') {
+      for (const radius of [4, 9, 14]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else if (slot.id === 'element') {
+      // Element glyph: droplet (bubble), flame (fire), bolt (lightning), cloud (gas).
+      const e = slot.element;
+      ctx.beginPath();
+      if (e === 'fire') {
+        ctx.moveTo(cx, cy - 12); ctx.quadraticCurveTo(cx + 12, cy, cx, cy + 11);
+        ctx.quadraticCurveTo(cx - 12, cy, cx, cy - 12);
+        ctx.fill();
+      } else if (e === 'lightning') {
+        ctx.moveTo(cx + 3, cy - 12); ctx.lineTo(cx - 6, cy + 1); ctx.lineTo(cx, cy + 1);
+        ctx.lineTo(cx - 3, cy + 12); ctx.lineTo(cx + 7, cy - 2); ctx.lineTo(cx + 1, cy - 2);
+        ctx.closePath(); ctx.fill();
+      } else if (e === 'gas') {
+        for (const [ox, oy, r] of [[-6, 3, 6], [3, 0, 8], [8, 5, 5]]) {
+          ctx.beginPath(); ctx.arc(cx + ox, cy + oy, r, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        ctx.moveTo(cx, cy - 12); ctx.quadraticCurveTo(cx + 11, cy + 2, cx, cy + 11);
+        ctx.quadraticCurveTo(cx - 11, cy + 2, cx, cy - 12);
+        ctx.fill();
+      }
+    } else if (slot.id === 'mode') {
+      if (slot.mode === 'charge') {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+        ctx.globalAlpha *= 0.35;
+        ctx.stroke();
+        ctx.globalAlpha /= 0.35;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 11, -Math.PI / 2, Math.PI * 0.8);
+        ctx.stroke();
+      } else if (slot.mode === 'triple') {
+        for (const angle of [-0.5, 0, 0.5]) {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy + 10);
+          ctx.lineTo(cx + Math.sin(angle) * 14, cy + 10 - Math.cos(angle) * 20);
+          ctx.stroke();
+        }
+      } else {
+        for (const offset of [-8, 0, 8]) {
+          ctx.beginPath();
+          ctx.moveTo(cx + offset, cy + 8);
+          ctx.lineTo(cx + offset, cy - 8);
+          ctx.stroke();
+        }
+      }
+    } else if (slot.id === 'bomb') {
+      ctx.beginPath();
+      ctx.arc(cx, cy + 2, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + 5, cy - 6);
+      ctx.lineTo(cx + 10, cy - 12);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.globalAlpha *= 0.85;
+      ctx.fill();
+    }
+    ctx.restore();
+    if (cooling) {
+      const fraction = clamp(slot.cooldown / (slot.cooldownMax || 1), 0, 1);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(x + 1, baseY + 1, size - 2, (size - 2) * fraction);
+    }
+    ctx.font = 'bold 9px Arial';
+    ctx.fillStyle = '#ffe38a';
+    ctx.textAlign = 'left';
+    ctx.fillText(slot.key, x + 3, baseY + 3);
+    if (slot.count !== undefined) {
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 12px Arial';
+      ctx.fillStyle = slot.count > 0 ? '#ffffff' : '#e06a6a';
+      ctx.fillText(String(slot.count), x + size - 3, baseY + size - 14);
+    }
+    ctx.textAlign = 'center';
+    ctx.font = '8px Arial';
+    ctx.fillStyle = '#a9a28f';
+    ctx.fillText(slot.label, x + size / 2, baseY + size + 3);
+    ctx.globalAlpha = 1;
+  });
+  ctx.restore();
+}
+
+function drawStyleSlots() {
+  const styles = [
+    { id: 'melee', key: '1', label: 'SWORD' },
+    { id: 'bow', key: '2', label: 'BOW' },
+    { id: 'magic', key: '3', label: 'MANA' },
+  ];
+  const size = 36;
+  const gap = 8;
+  const slotCount = 3 + (classSignature()?.active ? 1 : 0);
+  const baseX = 424 - (slotCount * size + (slotCount - 1) * gap);
+  const baseY = 2;
+  const active = currentAttackStyle();
+  ctx.save();
+  styles.forEach((style, index) => {
+    const selected = style.id === active;
+    const locked = !styleUnlocked(style.id);
+    const x = baseX + index * (size + gap);
+    const y = baseY;
+    ctx.save();
+    ctx.globalAlpha = selected ? 1 : locked ? 0.4 : 0.85;
+    if (selected) {
+      ctx.shadowColor = '#ffe38a';
+      ctx.shadowBlur = 14;
+    }
+    ctx.fillStyle = 'rgba(4, 6, 8, 0.96)';
+    ctx.fillRect(x - 2, y - 2, size + 4, size + 4);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 1, y - 1, size + 2, size + 2);
+    if (selected) ctx.fillStyle = 'rgba(70, 54, 16, 0.96)';
+    if (selected) ctx.fillRect(x, y, size, size);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = selected ? '#ffe38a' : 'rgba(235, 225, 200, 0.75)';
+    ctx.lineWidth = selected ? 3 : 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+    ctx.translate(x + size / 2, y + size / 2 + 3);
+    ctx.scale(0.78, 0.78);
+    ctx.strokeStyle = selected ? '#fff2c0' : '#cfc6b2';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (style.id === 'melee') {
+      ctx.moveTo(-11, 11);
+      ctx.lineTo(10, -10);
+      ctx.moveTo(-3, 5);
+      ctx.lineTo(3, 11);
+      ctx.stroke();
+    } else if (style.id === 'bow') {
+      ctx.arc(-4, 0, 14, -1.1, 1.1);
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-4 + Math.cos(-1.1) * 14, Math.sin(-1.1) * 14);
+      ctx.lineTo(-4 + Math.cos(1.1) * 14, Math.sin(1.1) * 14);
+      ctx.moveTo(-10, 0);
+      ctx.lineTo(13, 0);
+      ctx.stroke();
+    } else {
+      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath();
+      ctx.arc(-3, -3, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = selected ? '#ffe38a' : '#bdb59f';
+    ctx.fillText(style.key, x + 4, y + 3);
+    const ammo = styleAmmo(style.id);
+    const badge = locked ? 'LOCKED' : ammo === Infinity ? '∞' : String(ammo);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = locked ? '#d98a8a' : ammo === 0 ? '#e06a6a' : '#9fd7ff';
+    ctx.font = locked ? 'bold 8px Arial' : 'bold 12px Arial';
+    ctx.fillText(badge, x + size - 3, y + 3);
+    const mod = activeWeaponMod(style.id);
+    ctx.textAlign = 'center';
+    ctx.font = selected ? 'bold 10px Arial' : '9px Arial';
+    ctx.fillStyle = selected ? '#ffffff' : '#a9a28f';
+    ctx.fillText(mod ? mod.name : style.label, x + size / 2, y + size + 3);
+    ctx.restore();
+  });
+  const sig = classSignature();
+  if (sig?.active) {
+    const x = baseX + 3 * (size + gap);
+    const ready = !(player.signatureCooldown > 0);
+    ctx.fillStyle = 'rgba(8, 10, 12, 0.8)';
+    ctx.fillRect(x, baseY, size, size);
+    ctx.fillStyle = sig.color;
+    ctx.globalAlpha = ready ? 0.9 : 0.25;
+    ctx.beginPath();
+    ctx.arc(x + size / 2, baseY + size / 2 + 2, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = ready ? sig.color : 'rgba(220, 210, 190, 0.5)';
+    ctx.lineWidth = ready ? 3 : 1.5;
+    ctx.strokeRect(x + 0.5, baseY + 0.5, size - 1, size - 1);
+    ctx.font = 'bold 11px Arial';
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffe38a';
+    ctx.fillText('4', x + 4, baseY + 3);
+    if (!ready) {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 14px Arial';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(String(Math.ceil(player.signatureCooldown)), x + size / 2, baseY + size / 2 - 5);
+    }
+    ctx.textAlign = 'center';
+    ctx.font = '9px Arial';
+    ctx.fillStyle = '#a9a28f';
+    ctx.fillText(sig.label, x + size / 2, baseY + size + 3);
+  }
+  ctx.restore();
 }
 
 function drawGameHud() {
@@ -7189,7 +9713,7 @@ function drawGameHud() {
   const activeConsumable = consumables.find((item) => item.count > 0);
   const activeCompanions = companions.filter((companion) => companion.hp > 0).length;
   const leftHud = { x: 32, y: 2 };
-  const rightHud = { x: 560, y: 2 };
+  const rightHud = { x: -4, y: 62 };
   ctx.save();
   const drawIndicatorBorder = (x, y, width, height) => {
     ctx.save();
@@ -7216,7 +9740,6 @@ function drawGameHud() {
     const x = healthX + index * 20;
     if (index < player.hp && heartImage.complete && heartImage.naturalWidth > 0) {
       ctx.save();
-      ctx.filter = 'drop-shadow(0 0 1px #101612) drop-shadow(0 0 1px #101612)';
       ctx.drawImage(heartImage, x, leftHud.y + 34, 17, 17);
       ctx.restore();
     } else {
@@ -7245,8 +9768,12 @@ function drawGameHud() {
   }
 
   const armorX = healthX + player.maxHp * 20 + 14;
-  drawIndicatorBorder(armorX - 3, leftHud.y + 32, 20, 22);
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.lineJoin = 'round';
   ctx.fillStyle = '#e4f1ff';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(armorX + 6, leftHud.y + 34);
   ctx.lineTo(armorX + 13, leftHud.y + 37);
@@ -7255,18 +9782,81 @@ function drawGameHud() {
   ctx.lineTo(armorX, leftHud.y + 45);
   ctx.lineTo(armorX - 1, leftHud.y + 37);
   ctx.closePath();
+  ctx.stroke();
   ctx.fill();
   for (let index = 0; index < player.armor; index += 1) {
     const x = armorX + 18 + index * 14;
-    drawIndicatorBorder(x - 2, leftHud.y + 33, 14, 20);
     ctx.beginPath();
     ctx.moveTo(x + 5, leftHud.y + 35);
     ctx.lineTo(x + 10, leftHud.y + 42);
     ctx.lineTo(x + 5, leftHud.y + 50);
     ctx.lineTo(x, leftHud.y + 42);
     ctx.closePath();
+    ctx.stroke();
     ctx.fill();
   }
+  ctx.restore();
+
+  // Charge meters for the limited weapons, right under the hearts.
+  const meters = [
+    { id: 'melee', icon: '1', color: '#e8c070' },
+    { id: 'bow', icon: '2', color: '#8fd07a' },
+    { id: 'magic', icon: '3', color: '#7ab8ff' },
+  ];
+  meters.forEach((meter, row) => {
+    const y = canvas.height - 80 + row * 14;
+    const cap = styleCapacity(meter.id);
+    const have = Math.min(cap, player[resourceByStyle[meter.id].key] || 0);
+    const selected = activeCombatStyle === meter.id;
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 10px Arial';
+    ctx.fillStyle = selected ? '#ffe38a' : '#bdb59f';
+    ctx.fillText(meter.icon, 18, y + 5);
+    const barX = 30;
+    if (meter.id === 'bow') {
+      const count = Math.floor(have);
+      const icon = shopItemIconImages['ammo-arrows'];
+      const shown = Math.min(10, count);
+      ctx.shadowColor = '#000000';
+      ctx.shadowBlur = 3;
+      for (let n = 0; n < shown; n += 1) {
+        if (icon?.complete && icon.naturalWidth > 0) ctx.drawImage(icon, barX + n * 11, y - 3, 16, 16);
+        else {
+          ctx.fillStyle = meter.color;
+          ctx.fillRect(barX + n * 11, y + 3, 9, 3);
+        }
+      }
+      ctx.fillStyle = count >= 1 ? '#ffffff' : '#e06a6a';
+      ctx.fillText(count > 10 ? `x${count}` : count === 0 ? '0' : '', barX + shown * 11 + 8, y + 5);
+      ctx.restore();
+      return;
+    }
+    const barW = Math.min(150, 10 + cap * 7);
+    ctx.fillStyle = 'rgba(7, 10, 8, 0.84)';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(barX - 0.5, y - 0.5, barW + 1, 11);
+    ctx.fillRect(barX, y, barW, 10);
+    ctx.fillStyle = meter.id === 'melee' ? '#ffffff' : have >= 1 ? meter.color : '#7a4a4a';
+    ctx.fillRect(barX + 1, y + 1, (barW - 2) * (have / cap), 8);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.lineWidth = 1;
+    for (let tick = 1; tick < cap && meter.id !== 'melee'; tick += 1) {
+      const tx = Math.round(barX + 1 + ((barW - 2) * tick) / cap) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(tx, y + 1);
+      ctx.lineTo(tx, y + 9);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = selected ? '#ffe38a' : 'rgba(249, 225, 174, 0.7)';
+    ctx.strokeRect(barX + 0.5, y + 0.5, barW - 1, 9);
+    ctx.fillStyle = have >= 1 ? '#ffffff' : '#e06a6a';
+    ctx.fillText(`${Math.floor(have)}/${cap}`, barX + barW + 6, y + 5);
+    ctx.restore();
+  });
 
   const resourcesX = rightHud.x + 12;
   ctx.fillStyle = '#ffe18b';
@@ -7288,7 +9878,8 @@ function drawGameHud() {
   ctx.strokeText(coins, resourcesX + 18, rightHud.y + 17);
   ctx.fillText(coins, resourcesX + 18, rightHud.y + 17);
 
-  const keyX = resourcesX + 48;
+  const keyX = resourcesX + 2;
+  ctx.translate(0, 21);
   ctx.beginPath();
   ctx.arc(keyX + 5, rightHud.y + 15, 4, 0, Math.PI * 2);
   ctx.moveTo(keyX + 9, rightHud.y + 15);
@@ -7306,7 +9897,8 @@ function drawGameHud() {
   ctx.strokeText(keysHeld, keyX + 22, rightHud.y + 17);
   ctx.fillText(keysHeld, keyX + 22, rightHud.y + 17);
 
-  const bombX = keyX + 52;
+  const bombX = resourcesX;
+  ctx.translate(0, 21);
   ctx.fillStyle = '#e7f0f1';
   ctx.beginPath();
   ctx.arc(bombX + 7, rightHud.y + 18, 7, 0, Math.PI * 2);
@@ -7322,7 +9914,8 @@ function drawGameHud() {
   ctx.strokeText(bombsHeld, bombX + 18, rightHud.y + 17);
   ctx.fillText(bombsHeld, bombX + 18, rightHud.y + 17);
 
-  const familiarX = bombX + 50;
+  const familiarX = resourcesX;
+  ctx.translate(0, 21);
   ctx.fillStyle = '#8fe0bd';
   ctx.beginPath();
   ctx.arc(familiarX + 7, rightHud.y + 17, 7, 0, Math.PI * 2);
@@ -7347,7 +9940,7 @@ function drawGameHud() {
   if (boss) {
     const width = boss.boss ? 380 : 300;
     const x = (canvas.width - width) / 2;
-    const y = canvas.height - 31;
+    const y = 46;
     ctx.fillStyle = 'rgba(14, 12, 18, 0.72)';
     ctx.fillRect(x, y, width, 29);
     ctx.fillStyle = '#372d32';
@@ -7364,7 +9957,7 @@ function drawGameHud() {
 }
 
 function isCharacterUnlocked(entry) {
-  return entry.id === 'wanderer' || save.unlockedCharacters.includes(entry.id) ||
+  return entry.id === 'wanderer' || entry.id === 'mycelia-sporeling' || entry.random || save.unlockedCharacters.includes(entry.id) ||
     (entry.id === 'arcanist' && save.arcanist) || (entry.id === 'warden' && save.warden);
 }
 
@@ -7501,7 +10094,7 @@ function prologueButtonBounds(direction) {
 }
 
 function advancePrologue(direction) {
-  if (mode !== 'prologue') return;
+  if (mode !== 'prologue' || ttsPromptActive()) return;
   if (direction > 0 && prologuePage === prologuePages.length - 1) {
     stopPrologueNarration();
     mode = 'select';
@@ -7579,6 +10172,8 @@ function drawPrologue() {
   ctx.fillStyle = '#c5b9a6';
   ctx.font = '12px Arial';
   ctx.fillText('Use ← / →, A / D, or the controller D-pad to read the prologue.', canvas.width / 2, 520);
+  drawAudioPanel();
+  if (ttsPromptActive()) drawTtsPrompt();
 }
 
 function drawChapter() {
@@ -7635,6 +10230,25 @@ function drawCharacterSelect() {
   ctx.fillStyle = '#e4f0d7';
   ctx.font = 'bold 12px Arial';
   ctx.fillText('FIELD CODEX  [K]', codexButton.x + codexButton.width / 2, codexButton.y + 20);
+  const tutorialButton = tutorialButtonBounds();
+  const overTutorial = pointer.x >= tutorialButton.x && pointer.x <= tutorialButton.x + tutorialButton.width &&
+    pointer.y >= tutorialButton.y && pointer.y <= tutorialButton.y + tutorialButton.height;
+  ctx.fillStyle = overTutorial ? '#7a6a3a' : '#5a4d2a';
+  ctx.fillRect(tutorialButton.x, tutorialButton.y, tutorialButton.width, tutorialButton.height);
+  ctx.strokeStyle = '#e0c77c';
+  ctx.strokeRect(tutorialButton.x, tutorialButton.y, tutorialButton.width, tutorialButton.height);
+  ctx.fillStyle = '#fff1c9';
+  ctx.fillText(lastInputMode === 'controller' ? `HOW TO PLAY  [${padLabels().y}]` : 'HOW TO PLAY  [H]',
+    tutorialButton.x + tutorialButton.width / 2, tutorialButton.y + 20);
+  const controlsBtn = controlsButtonBounds();
+  ctx.fillStyle = pointInBounds(controlsBtn) ? '#52664f' : '#30443b';
+  ctx.fillRect(controlsBtn.x, controlsBtn.y, controlsBtn.width, controlsBtn.height);
+  ctx.strokeStyle = '#a5c79b';
+  ctx.strokeRect(controlsBtn.x, controlsBtn.y, controlsBtn.width, controlsBtn.height);
+  ctx.fillStyle = '#e4f0d7';
+  ctx.font = 'bold 12px Arial';
+  ctx.fillText(lastInputMode === 'controller' ? `CONTROLS  [${padLabels().back || 'Back'}]` : 'CONTROLS  [C]',
+    controlsBtn.x + controlsBtn.width / 2, controlsBtn.y + 19);
 
   characterRoster.slice(pageStart, pageStart + rosterPageSize).forEach((entry, pageIndex) => {
     const index = pageStart + pageIndex;
@@ -7651,24 +10265,32 @@ function drawCharacterSelect() {
     ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
     ctx.globalAlpha = unlocked ? 1 : 0.38;
     drawHumanoid(humanoidSprites[entry.sprite].image, 0, x, y, 0.95, entry.hue);
-    drawHead(entry.hairStyle, 'down', x, y, 0.95);
+    drawHead(entry.hairStyle, 'down', x, y, 0.95, wornHat(entry, null));
     ctx.fillStyle = '#f2e8d8';
     ctx.font = 'bold 13px Arial';
     ctx.fillText(entry.name, x, y + 49);
     ctx.font = '11px Arial';
     ctx.fillText(`${entry.className}  •  ${entry.styleLabel}`, x, y + 67);
-    ctx.fillText(`HP 4  •  DMG ${entry.damage}`, x, y + 84);
+    const profile = characterProfile(entry);
+    const rating = (value) => (value >= 1.3 ? '★★★' : value >= 1.1 ? '★★' : value >= 0.95 ? '★' : '·');
+    ctx.fillText(`HP 4  •  DMG ${entry.damage}  •  ${(classProfiles[entry.className]?.pool ?? 30)} ${entry.startingStyle === 'magic' ? 'MANA' : entry.startingStyle === 'bow' ? 'ARROWS' : 'STAMINA'}`, x, y + 84);
+    ctx.font = '10px Arial';
+    ctx.fillText(`⚔${rating(profile.melee)} 🏹${rating(Math.max(profile.bow, profile.bowRate))} ✦${rating(profile.magic)}`, x, y + 98);
+    ctx.font = '11px Arial';
     ctx.fillStyle = '#d9c796';
-    ctx.fillText(entry.trait, x, y + 103);
+    ctx.fillText(entry.trait, x, y + 113);
     ctx.fillStyle = unlocked ? '#a8d39b' : '#dfa5a2';
     ctx.font = 'bold 10px Arial';
-    ctx.fillText(unlocked ? 'UNLOCKED' : entry.unlock.toUpperCase(), x, y + 126);
+    ctx.fillText(unlocked ? 'UNLOCKED' : entry.unlock.toUpperCase(), x, y + 130);
     ctx.globalAlpha = 1;
   });
   ctx.fillStyle = '#d9c796';
   ctx.font = 'bold 12px Arial';
   const selected = characterRoster[selectedIndex];
-  ctx.fillText(isCharacterUnlocked(selected) ? selected.trait : `LOCKED  /  ${selected.unlock}`, canvas.width / 2, 416);
+  const selectedSignature = classSignature(selected);
+  ctx.fillText(isCharacterUnlocked(selected)
+    ? `${selected.trait}${selectedSignature ? `  ·  ${selectedSignature.label}: ${selectedSignature.desc}` : ''}`
+    : `LOCKED  /  ${selected.unlock}`, canvas.width / 2, 416);
   if (hasSavedRun()) {
     const resume = resumeRunBounds();
     const hoveredResume = pointer.x >= resume.x && pointer.x <= resume.x + resume.width &&
@@ -7716,6 +10338,7 @@ function drawCharacterSelect() {
   ctx.fillStyle = '#f0d8d8';
   ctx.font = 'bold 11px Arial';
   ctx.fillText(resetConfirmTimer > 0 ? 'SELECT AGAIN TO ERASE ALL' : 'RESET ALL PROGRESS  [Del]', reset.x + reset.width / 2, reset.y + 18);
+  drawAudioPanel();
 }
 
 function drawCodex() {
@@ -7795,6 +10418,404 @@ function drawCodex() {
   ctx.fillText('K / ESC / B  ·  Close', canvas.width / 2, 500);
 }
 
+let controlsTab = 'key';
+let controlsRow = 0;
+let controlsCapture = false;
+let controlsReturnMode = 'select';
+const CONTROLS_ROW_H = 21;
+
+function controlsActionList() {
+  return controlsTab === 'key' ? bindingActions : bindingActions.filter((action) => !action.keyOnly);
+}
+
+function controlsTabBounds(tab) {
+  return { x: tab === 'key' ? 70 : 230, y: 112, width: 150, height: 24 };
+}
+
+function controlsRowBounds(index) {
+  return { x: 70, y: 150 + index * CONTROLS_ROW_H, width: 820, height: CONTROLS_ROW_H - 2 };
+}
+
+function controlsBackBounds() {
+  return { x: canvas.width / 2 - 65, y: 468, width: 130, height: 28 };
+}
+
+function controlsButtonBounds() {
+  return { x: canvas.width - 334, y: 114, width: 150, height: 28 };
+}
+
+function pointInBounds(bounds, x = pointer.x, y = pointer.y) {
+  return x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height;
+}
+
+function openControls(from) {
+  if (mode !== 'select' && mode !== 'paused') return;
+  controlsReturnMode = from;
+  controlsTab = lastInputMode === 'controller' ? 'pad' : 'key';
+  controlsRow = 0;
+  controlsCapture = false;
+  mode = 'controls';
+  updateHud();
+}
+
+function closeControls() {
+  if (mode !== 'controls') return;
+  controlsCapture = false;
+  mode = controlsReturnMode;
+  updateHud();
+}
+
+function assignBinding(device, id, value) {
+  const store = bindings[device];
+  const previous = store[id];
+  const cleared = value === null || value === '';
+  const other = cleared ? null : bindingActions.find((action) => action.id !== id && store[action.id] === value &&
+    (device === 'key' || !action.keyOnly));
+  if (other) store[other.id] = previous;
+  store[id] = value;
+  saveBindings();
+  updateControlsHint();
+  return other;
+}
+
+function activateControlsRow() {
+  const actions = controlsActionList();
+  if (controlsRow >= actions.length) {
+    resetBindings(controlsTab);
+    saveBindings();
+    showMessage(`${controlsTab === 'key' ? 'Keyboard' : 'Controller'} controls reset to defaults.`, 2);
+    return;
+  }
+  controlsCapture = true;
+}
+
+function clearControlsRow() {
+  const action = controlsActionList()[controlsRow];
+  if (!action) return;
+  assignBinding(controlsTab, action.id, controlsTab === 'key' ? '' : null);
+}
+
+function moveControlsRow(delta) {
+  const count = controlsActionList().length + 1;
+  controlsRow = (controlsRow + delta + count) % count;
+}
+
+function switchControlsTab() {
+  controlsTab = controlsTab === 'key' ? 'pad' : 'key';
+  controlsRow = Math.min(controlsRow, controlsActionList().length);
+}
+
+function bindCaptured(device, value) {
+  const action = controlsActionList()[controlsRow];
+  controlsCapture = false;
+  if (!action) return;
+  const swapped = assignBinding(device, action.id, value);
+  const label = device === 'key' ? keyLabel(value) : padButtonLabel(value);
+  showMessage(swapped ? `${action.label} = ${label}. ${swapped.label} took its old button.` : `${action.label} = ${label}.`, 2);
+}
+
+function handleControlsKey(event, key) {
+  if (controlsCapture) {
+    if (controlsTab !== 'key' || key === 'escape') {
+      controlsCapture = false;
+    } else if (reservedKeys.has(key)) {
+      showMessage(`${keyLabel(key)} is reserved. Pick another key.`, 2);
+    } else {
+      bindCaptured('key', key);
+    }
+    return;
+  }
+  if (key === 'escape') closeControls();
+  else if (key === 'arrowup') moveControlsRow(-1);
+  else if (key === 'arrowdown') moveControlsRow(1);
+  else if (key === 'arrowleft' || key === 'arrowright') switchControlsTab();
+  else if (key === 'enter' || key === ' ') activateControlsRow();
+  else if (key === 'delete' || key === 'backspace') clearControlsRow();
+}
+
+function updateControlsPad(wasPressed) {
+  if (controlsCapture) {
+    if (controlsTab !== 'pad') {
+      if (wasPressed(1)) controlsCapture = false;
+      return;
+    }
+    for (let button = 0; button < 16; button += 1) {
+      if (!wasPressed(button)) continue;
+      if (button === 9) controlsCapture = false;
+      else if (reservedPadButtons.has(button)) showMessage(`${padButtonLabel(button)} is reserved for firing. Pick another button.`, 2);
+      else bindCaptured('pad', button);
+      break;
+    }
+    return;
+  }
+  if (wasPressed(12)) moveControlsRow(-1);
+  else if (wasPressed(13)) moveControlsRow(1);
+  else if (wasPressed(14) || wasPressed(15) || wasPressed(4) || wasPressed(5)) switchControlsTab();
+  else if (wasPressed(0)) activateControlsRow();
+  else if (wasPressed(2)) clearControlsRow();
+  else if (wasPressed(1) || wasPressed(9)) closeControls();
+}
+
+function handleControlsPointer() {
+  if (controlsCapture) {
+    controlsCapture = false;
+    return;
+  }
+  for (const tab of ['key', 'pad']) {
+    if (pointInBounds(controlsTabBounds(tab)) && controlsTab !== tab) switchControlsTab();
+  }
+  if (pointInBounds(controlsBackBounds())) {
+    closeControls();
+    return;
+  }
+  const count = controlsActionList().length + 1;
+  for (let index = 0; index < count; index += 1) {
+    if (!pointInBounds(controlsRowBounds(index))) continue;
+    controlsRow = index;
+    activateControlsRow();
+  }
+}
+
+function drawControls() {
+  const actions = controlsActionList();
+  controlsRow = Math.min(controlsRow, actions.length);
+  ctx.fillStyle = '#111714';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#1a241e';
+  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeStyle = '#83a588';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#d9bd83';
+  ctx.font = 'bold 13px Arial';
+  ctx.fillText('CUSTOMISE', 70, 58);
+  ctx.fillStyle = '#eef0df';
+  ctx.font = 'bold 28px Georgia';
+  ctx.fillText('Controls', 70, 94);
+
+  ctx.font = 'bold 12px Arial';
+  ctx.textAlign = 'center';
+  for (const tab of ['key', 'pad']) {
+    const b = controlsTabBounds(tab);
+    ctx.fillStyle = controlsTab === tab ? '#49634d' : '#28352d';
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+    ctx.strokeStyle = controlsTab === tab ? '#a5c79b' : '#63796a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(b.x, b.y, b.width, b.height);
+    ctx.fillStyle = '#e4f0d7';
+    ctx.fillText(tab === 'key' ? 'KEYBOARD' : 'CONTROLLER', b.x + b.width / 2, b.y + 16);
+  }
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#9fb59f';
+  ctx.font = '11px Arial';
+  ctx.fillText(controlsTab === 'key'
+    ? 'Fixed: WASD move · mouse aim · left-click attack · wheel next weapon · right-click ability · P pause'
+    : `Fixed: left stick move · right stick aim · ${padButtonLabel(7)} or ${padButtonLabel(2)} fire · ${padButtonLabel(9)} pause`, 400, 128);
+
+  actions.forEach((action, index) => {
+    const b = controlsRowBounds(index);
+    const selected = controlsRow === index;
+    ctx.fillStyle = selected ? '#2f4636' : index % 2 ? '#1d2922' : '#202d25';
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+    if (selected) {
+      ctx.strokeStyle = '#a5c79b';
+      ctx.strokeRect(b.x, b.y, b.width, b.height);
+    }
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 13px Arial';
+    ctx.fillStyle = '#e4ebd8';
+    ctx.fillText(action.label, b.x + 12, b.y + 15);
+    const boxX = b.x + 240;
+    ctx.fillStyle = selected && controlsCapture ? '#5a4d2a' : '#0e1411';
+    ctx.fillRect(boxX, b.y + 2, 170, b.height - 4);
+    ctx.strokeStyle = selected && controlsCapture ? '#e0c77c' : '#4e6455';
+    ctx.strokeRect(boxX, b.y + 2, 170, b.height - 4);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = selected && controlsCapture ? '#fff1c9' : '#ffe38a';
+    const value = controlsTab === 'key' ? keyLabel(bindings.key[action.id])
+      : bindings.pad[action.id] === null ? '—' : padButtonLabel(bindings.pad[action.id]);
+    ctx.fillText(selected && controlsCapture ? (controlsTab === 'key' ? 'PRESS A KEY…' : 'PRESS A BUTTON…') : value,
+      boxX + 85, b.y + 15);
+    ctx.textAlign = 'left';
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#a9b8a5';
+    ctx.fillText(action.desc, boxX + 190, b.y + 15);
+  });
+  const resetBounds = controlsRowBounds(actions.length);
+  ctx.fillStyle = controlsRow === actions.length ? '#4a3a2a' : '#2a2520';
+  ctx.fillRect(resetBounds.x, resetBounds.y, resetBounds.width, resetBounds.height);
+  if (controlsRow === actions.length) {
+    ctx.strokeStyle = '#e0c77c';
+    ctx.strokeRect(resetBounds.x, resetBounds.y, resetBounds.width, resetBounds.height);
+  }
+  ctx.fillStyle = '#f0d9a8';
+  ctx.font = 'bold 13px Arial';
+  ctx.fillText(`Reset ${controlsTab === 'key' ? 'keyboard' : 'controller'} to defaults`, resetBounds.x + 12, resetBounds.y + 15);
+
+  const back = controlsBackBounds();
+  ctx.fillStyle = pointInBounds(back) ? '#52664f' : '#30443b';
+  ctx.fillRect(back.x, back.y, back.width, back.height);
+  ctx.strokeStyle = '#a5c79b';
+  ctx.strokeRect(back.x, back.y, back.width, back.height);
+  ctx.fillStyle = '#e4f0d7';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 12px Arial';
+  ctx.fillText('BACK', back.x + back.width / 2, back.y + 19);
+  ctx.fillStyle = '#9fb59f';
+  ctx.font = '11px Arial';
+  ctx.fillText('Changes save automatically and update the tutorial and on-screen prompts. A key or button already in use swaps places.',
+    canvas.width / 2, 508);
+}
+
+let tutorialPage = 0;
+
+function tutorialButtonBounds() {
+  return { x: canvas.width - 174 - 160, y: 80, width: 150, height: 30 };
+}
+
+function tutorialNavBounds(which) {
+  if (which === 'prev') return { x: 70, y: 468, width: 130, height: 30 };
+  if (which === 'next') return { x: canvas.width - 200, y: 468, width: 130, height: 30 };
+  return { x: canvas.width / 2 - 65, y: 468, width: 130, height: 30 };
+}
+
+function openTutorial() {
+  if (mode !== 'select') return;
+  mode = 'tutorial';
+  tutorialPage = 0;
+  updateHud();
+}
+
+function closeTutorial() {
+  if (mode !== 'tutorial') return;
+  mode = 'select';
+  updateHud();
+}
+
+function stepTutorial(direction) {
+  tutorialPage = clamp(tutorialPage + direction, 0, tutorialPages().length - 1);
+}
+
+function tutorialPages() {
+  const pad = lastInputMode === 'controller';
+  const p = padLabels();
+  const k = (keyboard, controller) => (pad ? controller : keyboard);
+  const b = (id) => bindLabel(id, true);
+  return [
+    { title: 'THE GOAL', sections: [
+      ['Descend the Sanctum', 'Each floor is a chain of up to 10 rooms. Clear a floor, find its boss room, defeat the boss and step onto the descent pad to go deeper. Every floor brings stronger foes.'],
+      ['Clear rooms to move on', 'Doors are shut while enemies live. Kill everything in a room and its doors open. A locked door needs a key instead, and shows a lock on the wall.'],
+      ['Stay alive', 'Your hearts are at the top left. Hearts dropped on the floor can only be picked up while you are hurt, so leave them and come back when you need them.'],
+      ['Grow stronger', 'Kills give XP and you level up, which raises your weapon pools. Items, weapon mods and boons make each run different. If you fall, unlocks and banked zenny carry over.'],
+    ] },
+    { title: 'CONTROLS', sections: [
+      ['Move and aim', pad
+        ? `Left stick moves. Right stick aims and fires, or hold ${p.rt} to fire. The D-pad never moves you in play.`
+        : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
+      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} sets off a shockwave. ${b('ability')} uses your class ability.`],
+      ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
+      ['Weapon mode and menus', `${b('fireMode')} cycles the current weapon's mode. Each weapon remembers its own mode. ${b('map')} map, ${b('journal')} journal, ${pad ? p.menu : 'P'} pause. Change any of this in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}).`],
+    ] },
+    { title: 'READING THE SCREEN', sections: [
+      ['Bottom left: weapons', 'Three slots: melee, bow and magic, with their bars. The lit slot is your active weapon. Each bar is the ammo for that weapon.'],
+      ['Bottom: action bar', `One chip per action with its ${k('key', 'button')} in the corner, a count, and a dark shade for cooldown. Dim means you have none. AUTO means it fires by itself.`],
+      ['Weapon mode icon', `The MODE chip shows your fire mode: bars = Rapid, ring = Charge, fan of arrows = Triple. Press ${b('fireMode')} to change it.`],
+      ['Pause screen', 'Pausing shows an icon for every item you carry, so you can check your build at any time.'],
+    ] },
+    { title: 'WEAPONS AND AMMO', sections: [
+      ['Three weapon types', 'Melee swings a blade, the bow fires arrows and magic casts bolts. Your class is best at one, and that base weapon refills while you stand still.'],
+      ['Other weapons need ammo', 'The other two use bars that fill from kills, and shops sell ammo. If one runs dry the game switches you back to your base weapon.'],
+      ['Fire modes', `Rapid: hold to fire repeatedly. Charge (sword, bow, magic): hold, release for a heavier hit. Triple: bows only, three weaker arrows in a fan. ${b('fireMode')} cycles.`],
+      ['Parry and elements', 'Swing a sword as an enemy bullet reaches the blade to parry it back. You cannot shoot and swing at once. Picking up an element sigil makes your shots use that element, automatically.'],
+    ] },
+    { title: 'CONSUMABLES, BOMBS, SHOCKWAVE', sections: [
+      ['Consumables', `Potions and similar pickups are stored. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
+      ['Bombs', `Press ${b('bomb')} to drop a bomb. It explodes after a short fuse, hurts nearby enemies and can open sealed rooms. Stay out of the blast.`],
+      ['Shockwave', `Press ${b('shock')} to blast a ring that deletes enemy bullets, shoves foes back and protects you briefly. You earn one each floor.`],
+      ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you pick up an element sigil. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
+    ] },
+    { title: 'SHOPS, ZENNY AND KEYS', sections: [
+      ['Zenny', 'Enemies and rooms drop zenny. Spend it in shops, or bank it so it stays with you after a run ends.'],
+      ['Shops', `Walk up to an item and press ${b('interact')} to buy it. Walking over an item never buys it. A shop is also a bank.`],
+      ['Bank', `Step on the vault pad to deposit what you carry. ${pad ? p.b : 'Shift+' + b('interact')} near it withdraws your savings.`],
+      ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
+    ] },
+    { title: 'ROOMS, MAP AND ENEMIES', sections: [
+      ['The minimap', `Top right. Bright rooms are visited. A dark room is one you have seen a door to but not entered. Press ${b('map')} for the full map. A bigger room is drawn bigger.`],
+      ['Doors', 'A shut door is locked until the room is clear, or needs a key. An open door is free to use. Bombed entrances stay hidden until you find them.'],
+      ['Enemies', 'Foes flank, shoot, charge and call for help. Later floors mix in mini boss moves. Watch for the wind-up before an attack and dodge it.'],
+      ['Bosses', 'The boss room is never the large room. When the boss dies everything it summoned is cleared, and you can collect your rewards. Then take the descent pad.'],
+    ] },
+    { title: 'TIPS FOR A GOOD RUN', sections: [
+      ['Keep moving', `Dash with ${b('dash')} to slip out of danger. Strafe around foes instead of standing still.`],
+      ['Know your base weapon', 'Fight mostly with your class weapon since it refills by itself. Spend the others on tough moments.'],
+      ['Spend zenny', 'Buy ammo, potions and items. Keep a few coins in the bank so a bad run does not cost you everything.'],
+      ['Make it yours', 'Open Controls to rebind keys and buttons. This guide updates to match. Enjoy the descent.'],
+    ] },
+  ];
+}
+
+function drawTutorial() {
+  const pages = tutorialPages();
+  tutorialPage = clamp(tutorialPage, 0, pages.length - 1);
+  const page = pages[tutorialPage];
+  const pad = lastInputMode === 'controller';
+  ctx.fillStyle = '#111714';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#1a241e';
+  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeStyle = '#83a588';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#d9bd83';
+  ctx.font = 'bold 13px Arial';
+  ctx.fillText(`HOW TO PLAY  ·  ${tutorialPage + 1} / ${pages.length}`, 70, 58);
+  ctx.fillStyle = '#eef0df';
+  ctx.font = 'bold 28px Georgia';
+  ctx.fillText(page.title, 70, 94);
+  ctx.strokeStyle = '#3d5546';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(70, 108);
+  ctx.lineTo(canvas.width - 70, 108);
+  ctx.stroke();
+
+  const colWidth = 390;
+  const colY = [132, 132];
+  page.sections.forEach(([heading, body], index) => {
+    const col = index % 2;
+    const x = 70 + col * (colWidth + 20);
+    ctx.fillStyle = '#a5c79b';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(heading, x, colY[col]);
+    ctx.fillStyle = '#d6dccd';
+    ctx.font = '15px Arial';
+    const lines = wrapCanvasText(body, x, colY[col] + 23, colWidth, 20);
+    colY[col] += 23 + lines * 20 + 24;
+  });
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 12px Arial';
+  for (const which of ['prev', 'close', 'next']) {
+    const b = tutorialNavBounds(which);
+    const disabled = (which === 'prev' && tutorialPage === 0) || (which === 'next' && tutorialPage === pages.length - 1);
+    const hover = pointer.x >= b.x && pointer.x <= b.x + b.width && pointer.y >= b.y && pointer.y <= b.y + b.height;
+    ctx.globalAlpha = disabled ? 0.35 : 1;
+    ctx.fillStyle = hover && !disabled ? '#52664f' : '#30443b';
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+    ctx.strokeStyle = '#a5c79b';
+    ctx.strokeRect(b.x, b.y, b.width, b.height);
+    ctx.fillStyle = '#e4f0d7';
+    ctx.fillText(which === 'prev' ? '◀  PREVIOUS' : which === 'next' ? 'NEXT  ▶' : 'BACK', b.x + b.width / 2, b.y + 20);
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = '#9fb59f';
+  ctx.font = '11px Arial';
+  ctx.fillText(pad ? `D-Pad ←/→ Page  ·  ${padLabels().b} Back` : '←/→ Page  ·  Esc Back', canvas.width / 2, 508);
+}
+
 function drawGameOver() {
   ctx.fillStyle = 'rgba(10, 9, 14, 0.84)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -7824,20 +10845,33 @@ function draw() {
     drawCodex();
     return;
   }
+  if (mode === 'tutorial') {
+    drawTutorial();
+    return;
+  }
+  if (mode === 'controls') {
+    drawControls();
+    return;
+  }
   const shake = getCameraShakeOffset();
   camera.x = clamp(player.x - canvas.width / 2, 0, Math.max(0, ROOM_W - canvas.width));
   camera.y = clamp(player.y - canvas.height / 2, 0, Math.max(0, ROOM_H - canvas.height));
   ctx.save();
   ctx.translate(shake.x - Math.round(camera.x), shake.y - Math.round(camera.y));
-  drawWorld();
+  withTextOutline(drawWorld);
   ctx.restore();
   if (mode === 'playing') {
-    drawMinimap();
-    drawGameHud();
+    withTextOutline(() => {
+      drawMinimap();
+      drawGameHud();
+      drawStyleSlots();
+      drawActionBar();
+      drawInGameCommentary();
+    });
   }
+  if (showStoryJournal) drawStoryJournal();
   if (mode === 'paused') drawPauseOverlay();
   if (showMap) drawMap();
-  if (showStoryJournal) drawStoryJournal();
   if (mode === 'gameover') drawGameOver();
   if (mode === 'won') {
     ctx.fillStyle = 'rgba(10, 9, 14, 0.84)';
@@ -7858,10 +10892,35 @@ function draw() {
     ctx.font = 'bold 38px Georgia';
     ctx.fillText('DESCENT PAUSED', canvas.width / 2, canvas.height / 2 - 50);
     ctx.font = '17px Arial';
-    ctx.fillText('Start or A · Resume', canvas.width / 2, canvas.height / 2);
-    ctx.fillText('B · Save and exit to title', canvas.width / 2, canvas.height / 2 + 34);
-    ctx.fillText('V / R3 · Toggle music', canvas.width / 2, canvas.height / 2 + 68);
+    ctx.fillText(`${lastInputMode === 'controller' ? 'Start or A' : 'P or R'} · Resume`, canvas.width / 2, canvas.height / 2);
+    ctx.fillText(lastInputMode === 'controller' ? 'B · Save and exit  ·  Back · Controls' : 'X · Save and exit  ·  C · Controls',
+      canvas.width / 2, canvas.height / 2 + 34);
+    ctx.fillText('Music and effects volume: sliders at top left', canvas.width / 2, canvas.height / 2 + 68);
     ctx.fillText('Your rooms and progress are saved automatically.', canvas.width / 2, canvas.height / 2 + 98);
+    drawPauseEquipment();
+    drawAudioPanel();
+  }
+
+  function drawPauseEquipment() {
+    const equipped = shopItemCatalog.filter((item) => ownedItems.has(item.id));
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#d9bd83';
+    ctx.font = 'bold 13px Arial';
+    const cell = 38;
+    const perRow = Math.max(1, Math.min(14, Math.floor((canvas.width - 80) / cell)));
+    const top = canvas.height / 2 + 140;
+    ctx.fillText(equipped.length ? `EQUIPPED (${equipped.length})` : 'NOTHING EQUIPPED YET', canvas.width / 2, top - 14);
+    equipped.forEach((item, index) => {
+      const row = Math.floor(index / perRow);
+      const inRow = Math.min(perRow, equipped.length - row * perRow);
+      const x = canvas.width / 2 + (index % perRow - (inRow - 1) / 2) * cell;
+      const y = top + 16 + row * cell;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x - 17, y - 17, 34, 34);
+      drawShopItemIcon(item, x, y);
+    });
+    ctx.restore();
   }
 }
 
@@ -7901,6 +10960,7 @@ function drawStoryJournal() {
 function loop(timestamp) {
   const dt = Math.min((timestamp - lastTime) / 1000 || 0.016, 0.1);
   lastTime = timestamp;
+  if (document.visibilityState === 'visible') updateQuality(dt);
   resetConfirmTimer = Math.max(0, resetConfirmTimer - dt);
   if (chapterQueue.length > 0 && !activeChapter && (mode === 'select' ||
       (mode === 'playing' && enemies.length === 0 && !showMap && !showStoryJournal))) {
@@ -7938,7 +10998,8 @@ function pollGamepad() {
   }
 
   if (!gamepadInput.connected) {
-    showMessage('Controller: LS moves and faces, X or RS fires, A interacts, B bombs, Y item, Start pauses.', 4);
+    gamepadInput.family = /054c|dualsense|dualshock|playstation|wireless controller/i.test(gamepad.id) ? 'ps' : 'xbox';
+    showMessage('Controller connected. Press any button and the on-screen prompts switch to it.', 4);
   }
   gamepadInput.connected = true;
 
@@ -7946,19 +11007,19 @@ function pollGamepad() {
   const isButtonDown = (buttonIndex) => Boolean(gamepad.buttons[buttonIndex]?.pressed ||
     gamepad.buttons[buttonIndex]?.value > 0.5);
   const wasButtonPressed = (buttonIndex) => isButtonDown(buttonIndex) && !previousButtons[buttonIndex];
-  if (gamepad.axes.some((axis) => Math.abs(axis) > 0.25) ||
-      gamepad.buttons.some((button) => button.pressed || button.value > 0.5)) {
+  // Only button presses switch the displayed input mode, so stick drift never flips the on-screen labels.
+  if (gamepad.buttons.some((button) => button.pressed || button.value > 0.5)) {
     lastInputMode = 'controller';
     updateControlsHint();
   }
   if (gamepad.buttons.some((button, index) => (button.pressed || button.value > 0.5) && !previousButtons[index])) {
     startGameMusic();
   }
-  if (wasButtonPressed(11)) toggleGameMusic();
   const horizontalAxis = applyGamepadDeadzone(gamepad.axes[0] || 0);
   const verticalAxis = applyGamepadDeadzone(gamepad.axes[1] || 0);
-  const dpadX = (isButtonDown(15) ? 1 : 0) - (isButtonDown(14) ? 1 : 0);
-  const dpadY = (isButtonDown(13) ? 1 : 0) - (isButtonDown(12) ? 1 : 0);
+  // In play the D-pad holds quick-slots (element, frost, ability); sticks handle movement.
+  const dpadX = mode === 'playing' ? 0 : (isButtonDown(15) ? 1 : 0) - (isButtonDown(14) ? 1 : 0);
+  const dpadY = mode === 'playing' ? 0 : (isButtonDown(13) ? 1 : 0) - (isButtonDown(12) ? 1 : 0);
   gamepadInput.dpadX = dpadX;
   gamepadInput.dpadY = dpadY;
   gamepadInput.dpadFacing = dpadX !== 0 || dpadY !== 0;
@@ -7995,8 +11056,10 @@ function pollGamepad() {
     advancePrologue(menuDirection);
   } else if (mode === 'select' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
     chooseCharacter(menuDirection > 0 ? 'ArrowRight' : 'ArrowLeft');
+  } else if (mode === 'tutorial' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
+    stepTutorial(menuDirection);
   }
-  previousMenuDirection = mode === 'select' || mode === 'prologue' ? menuDirection : 0;
+  previousMenuDirection = mode === 'select' || mode === 'prologue' || mode === 'tutorial' ? menuDirection : 0;
   const menuVertical = dpadY || (Math.abs(verticalAxis) > 0.6 ? Math.sign(verticalAxis) : 0);
   if (mode === 'select' && menuVertical !== 0 && menuVertical !== previousMenuVertical) moveMenuFocus(menuVertical);
   previousMenuVertical = mode === 'select' ? menuVertical : 0;
@@ -8007,6 +11070,12 @@ function pollGamepad() {
   } else if (mode === 'select') {
     if (wasButtonPressed(0) || wasButtonPressed(2) || wasButtonPressed(9)) activateMenuFocus();
     if (wasButtonPressed(5)) openCodex();
+    if (wasButtonPressed(3)) openTutorial();
+    if (wasButtonPressed(8)) openControls('select');
+  } else if (mode === 'tutorial') {
+    if (wasButtonPressed(1) || wasButtonPressed(9)) closeTutorial();
+    if (wasButtonPressed(0) || wasButtonPressed(5)) stepTutorial(1);
+    if (wasButtonPressed(4)) stepTutorial(-1);
   } else if (mode === 'codex') {
     if (wasButtonPressed(0) || wasButtonPressed(1) || wasButtonPressed(9)) closeCodex();
     if (wasButtonPressed(4) || wasButtonPressed(5)) toggleCodexTab();
@@ -8015,9 +11084,12 @@ function pollGamepad() {
     }
   } else if (mode === 'chapter') {
     if (wasButtonPressed(0) || wasButtonPressed(1) || wasButtonPressed(9)) closeChapter();
+  } else if (mode === 'controls') {
+    updateControlsPad(wasButtonPressed);
   } else if (mode === 'paused') {
     if (wasButtonPressed(0) || wasButtonPressed(9)) resumeGame();
     else if (wasButtonPressed(1)) exitToTitle();
+    else if (wasButtonPressed(8)) openControls('paused');
   } else if (mode === 'gameover' || mode === 'won') {
     if (wasButtonPressed(0) || wasButtonPressed(9)) {
       mode = 'select';
@@ -8026,23 +11098,43 @@ function pollGamepad() {
     }
   } else if (mode === 'playing') {
     if (wasButtonPressed(9)) pauseGame();
-    if (wasButtonPressed(10)) showStoryJournal = !showStoryJournal;
-    if (wasButtonPressed(0)) interact();
-    if (wasButtonPressed(1)) {
-      if (currentRoom.type === 'bank' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240) {
+    for (let button = 0; button < 16; button += 1) {
+      if (!wasButtonPressed(button)) continue;
+      const action = actionForPad(button);
+      if (!action) continue;
+      // Near a bank vault the bomb button withdraws instead.
+      if (action === 'bomb' && hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240) {
         interact(true);
       } else {
-        placeBomb();
+        runAction(action);
       }
     }
-    if (wasButtonPressed(3)) useConsumable();
-    if (wasButtonPressed(6)) useFrostNova();
-    if (wasButtonPressed(4)) cycleMagicElement();
-    if (wasButtonPressed(5)) cycleCombatStyle();
-    if (wasButtonPressed(8)) showMap = !showMap;
   }
 
   previousGamepadButtons.set(gamepad.index, gamepad.buttons.map((button) => button.pressed || button.value > 0.5));
+}
+
+function runAction(id, options = {}) {
+  if (id === 'interact') {
+    interact(Boolean(options.shift));
+    return;
+  }
+  if (mode !== 'playing') return;
+  switch (id) {
+    case 'dash': startDash(); break;
+    case 'bomb': placeBomb(); break;
+    case 'item': useConsumable(); break;
+    case 'shock': useBlank(); break;
+    case 'ability': useClassSignature(); break;
+    case 'fireMode': cycleFireMode(); break;
+    case 'nextWeapon': cycleCombatStyle(); break;
+    case 'weapon1': selectCombatStyle('melee'); break;
+    case 'weapon2': selectCombatStyle('bow'); break;
+    case 'weapon3': selectCombatStyle('magic'); break;
+    case 'map': showMap = !showMap; break;
+    case 'journal': showStoryJournal = !showStoryJournal; break;
+    default: break;
+  }
 }
 
 function chooseCharacter(key) {
@@ -8058,14 +11150,20 @@ window.addEventListener('keydown', (event) => {
   startGameMusic();
   keys[event.key] = true;
   keys[key] = true;
+  if (event.key === ' ' || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
+      (event.key === 'Tab' && (mode === 'playing' || mode === 'controls'))) event.preventDefault();
   if (event.repeat) return;
-  if (event.key === ' ' || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) event.preventDefault();
-  if (key === 'v') {
-    toggleGameMusic();
+  if (ttsPromptActive()) {
+    if (key === 'y' || event.key === 'Enter') setTextToSpeech(true);
+    else if (key === 'n' || event.key === 'Escape') setTextToSpeech(false);
     return;
   }
-  if (key === 'j' && mode === 'playing') {
-    showStoryJournal = !showStoryJournal;
+  if (mode === 'controls') {
+    handleControlsKey(event, key);
+    return;
+  }
+  if (key === 't' && (mode === 'prologue' || mode === 'select' || mode === 'paused' || mode === 'chapter')) {
+    setTextToSpeech(audioSettings.tts !== true);
     return;
   }
   if (mode === 'prologue') {
@@ -8091,9 +11189,17 @@ window.addEventListener('keydown', (event) => {
     return;
   }
 
+  if (mode === 'tutorial') {
+    if (key === 'h' || event.key === 'Escape' || key === 'b') closeTutorial();
+    else if (event.key === 'ArrowLeft' || key === 'a') stepTutorial(-1);
+    else if (event.key === 'ArrowRight' || key === 'd' || event.key === 'Enter') stepTutorial(1);
+    return;
+  }
+
   if (mode === 'paused') {
     if (key === 'p' || event.key === 'Escape' || key === 'r') resumeGame();
     else if (key === 'x') exitToTitle();
+    else if (key === 'c') openControls('paused');
     return;
   }
   if (mode === 'playing' && (key === 'p' || event.key === 'Escape')) {
@@ -8104,6 +11210,8 @@ window.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || key === 'a' || key === 'd') chooseCharacter(event.key.toLowerCase() === 'd' ? 'd' : event.key);
     if (key === 'r' && hasSavedRun()) restoreRun();
     if (key === 'k') openCodex();
+    if (key === 'h') openTutorial();
+    if (key === 'c') openControls('select');
     if (event.key === 'Delete') requestProgressReset();
     if (event.key === 'Enter') beginRun();
     return;
@@ -8120,14 +11228,8 @@ window.addEventListener('keydown', (event) => {
     updateHud();
     return;
   }
-  if (key === 'b') placeBomb();
-  if (mode === 'playing' && key === 'q') useConsumable();
-  if (mode === 'playing' && key === 'f') cycleCombatStyle();
-  if (mode === 'playing' && key === 't') cycleMagicElement();
-  if (mode === 'playing' && key === 'c') useFrostNova();
-  if (key === 'e') interact(event.shiftKey);
-  if (key === 'm' && mode === 'playing') showMap = !showMap;
-  if (event.key === ' ') shoot();
+  const keyAction = actionForKey(key);
+  if (keyAction) runAction(keyAction, { shift: event.shiftKey });
 });
 
 window.addEventListener('keyup', (event) => {
@@ -8139,6 +11241,7 @@ window.addEventListener('keyup', (event) => {
 function clearHeldInputs() {
   for (const key of Object.keys(keys)) keys[key] = false;
   pointer.down = false;
+  player.meleeCharge = 0;
   gamepadInput.moveX = 0;
   gamepadInput.moveY = 0;
   gamepadInput.shoot = false;
@@ -8162,6 +11265,14 @@ function updatePointerPosition(event) {
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * canvas.width;
   pointer.y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+  if (audioSliderDragging) setVolumeFromPointer(pointer.x);
+  if (ttsPromptActive()) {
+    canvas.style.cursor = [true, false].some((yes) => {
+      const b = ttsPromptBounds(yes);
+      return pointer.x >= b.x && pointer.x <= b.x + b.width && pointer.y >= b.y && pointer.y <= b.y + b.height;
+    }) ? 'pointer' : 'default';
+    return;
+  }
   if (mode === 'prologue') {
     const previous = prologueButtonBounds(-1);
     const next = prologueButtonBounds(1);
@@ -8188,7 +11299,22 @@ function updatePointerPosition(event) {
 }
 
 canvas.addEventListener('pointermove', updatePointerPosition);
+canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+let lastWheelSwitch = 0;
+canvas.addEventListener('wheel', (event) => {
+  if (mode !== 'playing') return;
+  event.preventDefault();
+  const now = performance.now();
+  if (now - lastWheelSwitch < 180 || event.deltaY === 0) return;
+  lastWheelSwitch = now;
+  cycleCombatStyle(event.deltaY > 0 ? 1 : -1);
+}, { passive: false });
 canvas.addEventListener('pointerdown', (event) => {
+  if (event.button === 2 && mode === 'playing') {
+    event.preventDefault();
+    useClassSignature();
+    return;
+  }
   if (mode === 'codex') {
     if (pointer.y >= 132 && pointer.y <= 160) {
       codexTab = pointer.x < 196 ? 'items' : 'enemies';
@@ -8198,11 +11324,39 @@ canvas.addEventListener('pointerdown', (event) => {
     }
     return;
   }
+  if (mode === 'controls') {
+    updatePointerPosition(event);
+    handleControlsPointer();
+    return;
+  }
+  if (mode === 'tutorial') {
+    for (const which of ['prev', 'next', 'close']) {
+      const b = tutorialNavBounds(which);
+      if (pointer.x >= b.x && pointer.x <= b.x + b.width && pointer.y >= b.y && pointer.y <= b.y + b.height) {
+        if (which === 'close') closeTutorial();
+        else stepTutorial(which === 'next' ? 1 : -1);
+      }
+    }
+    return;
+  }
   if (event.button !== 0 || !event.isPrimary) return;
   lastInputMode = 'keyboard';
   updateControlsHint();
   startGameMusic();
   updatePointerPosition(event);
+  if (ttsPromptActive()) {
+    for (const yes of [true, false]) {
+      const b = ttsPromptBounds(yes);
+      if (pointer.x >= b.x && pointer.x <= b.x + b.width && pointer.y >= b.y && pointer.y <= b.y + b.height) {
+        setTextToSpeech(yes);
+      }
+    }
+    return;
+  }
+  if ((mode === 'prologue' || mode === 'select' || mode === 'paused') && handleAudioPanelPointerDown(pointer.x, pointer.y)) {
+    canvas.setPointerCapture(event.pointerId);
+    return;
+  }
   if (mode === 'prologue') {
     const previous = prologueButtonBounds(-1);
     const next = prologueButtonBounds(1);
@@ -8221,6 +11375,16 @@ canvas.addEventListener('pointerdown', (event) => {
     if (pointer.x >= codex.x && pointer.x <= codex.x + codex.width &&
         pointer.y >= codex.y && pointer.y <= codex.y + codex.height) {
       openCodex();
+      return;
+    }
+    const tutorialBtn = tutorialButtonBounds();
+    if (pointer.x >= tutorialBtn.x && pointer.x <= tutorialBtn.x + tutorialBtn.width &&
+        pointer.y >= tutorialBtn.y && pointer.y <= tutorialBtn.y + tutorialBtn.height) {
+      openTutorial();
+      return;
+    }
+    if (pointInBounds(controlsButtonBounds())) {
+      openControls('select');
       return;
     }
     const reset = resetButtonBounds();
@@ -8266,6 +11430,7 @@ canvas.addEventListener('pointerdown', (event) => {
 });
 window.addEventListener('pointerup', () => {
   pointer.down = false;
+  audioSliderDragging = null;
 });
 canvas.addEventListener('pointercancel', clearHeldInputs);
 canvas.addEventListener('lostpointercapture', () => {
