@@ -1383,7 +1383,7 @@ function explodeBomb(bomb) {
       : Math.abs(bomb.y - ROOM_H / 2) < 78;
     if (secret.room.hidden && alongWall && distanceBetween(bomb, wallPoint) < bomb.radius + 60) {
       secret.room.hidden = false;
-      recordStory('A hidden passage', 'A bomb opened a concealed room. Its relics are your discovery in this side-story, not a change to a canonical TMW quest.');
+      recordStory('A hidden passage', 'A bomb blasted open a concealed room. Its relics have waited a long time for someone to find them.');
       const extraKeyFound = !secret.keyDropped && Math.random() < (secret.room.extraKeyChance || 0);
       if (extraKeyFound) {
         pickups.push({ x: bomb.x, y: bomb.y, kind: 'key' });
@@ -1556,7 +1556,7 @@ function useClassSignature() {
   }
   const cls = character.className;
   const angle = currentAimAngle();
-  if (cls === 'Sentinel') {
+  if (cls === 'Sapper') {
     if (bombs.some((bomb) => bomb.owner !== 'enemy' && bomb.fuse > 0)) return;
     bombsHeld += 1;
     placeBomb();
@@ -1746,7 +1746,7 @@ function damagePlayer(damageAmount = 1, source) {
   if (player.hp <= 0) {
     mode = 'gameover';
     clearSavedRun();
-    showMessage('The sanctum claims another delver. Select a character to try again.', 5);
+    showMessage('The sanctum claims another delver. Choose who descends next.', 5);
   }
   updateHud();
 }
@@ -1763,7 +1763,7 @@ function shieldWithCompanion(projectile) {
   addParticles(companion.x, companion.y, '#bcf0a3', 9, 100);
   if (companion.hp <= 0) {
     companion.respawnTimer = 10;
-    showMessage(`${companion.kind} familiar was knocked out and will return in 10 seconds.`, 2.5);
+    showMessage(`${monsterDisplayName(companion.kind)} familiar was knocked out and will return in 10 seconds.`, 2.5);
   }
   return true;
 }
@@ -1830,7 +1830,7 @@ function updateCompanions(dt) {
         companion.hp = companion.maxHp;
         companion.hitCooldown = 0;
         companion.enemyCooldowns.clear();
-        showMessage(`${companion.kind} familiar has returned.`, 1.5);
+        showMessage(`${monsterDisplayName(companion.kind)} familiar has returned.`, 1.5);
       }
       companion.hp = Math.min(companion.maxHp, companion.hp);
       return;

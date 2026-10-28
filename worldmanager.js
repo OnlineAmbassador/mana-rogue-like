@@ -948,7 +948,7 @@ function spawnRoom(room) {
         bosspinkie: 'PINKIE MATRIARCH',
         mouboo: 'MOU-BOO ELDER', spider: 'RUIN STALKER', 'spider-queen': 'SPIDER QUEEN',
         bluepar: 'GREAT BLUEPAR',
-        skeleton: 'BONE WARDEN', zombie: 'RESTLESS VETERAN', 'spore-sower': 'SPORE SOWER',
+        skeleton: 'BONE GUARD', zombie: 'RESTLESS VETERAN', 'spore-sower': 'SPORE SOWER',
         junglefowl: 'SAVANNAH RAZORBEAK', snowman: 'FROSTBOUND SENTINEL', yeti: 'YETI BRUTE',
         vampirebat: 'NIGHTWING', frostiana: 'FROST WITCH', troll: 'CAVE TROLL',
       }[kind];
@@ -994,16 +994,16 @@ function spawnRoom(room) {
 
   if (room.type === 'start') {
     const regionStories = {
-      tulimshar: 'Tulimshar is the first stop: its guards, guilds, and desert trade make it a busy crossing. The mana seed’s first pulse was traced to an old road outside the city.',
+      tulimshar: 'Tulimshar, where every descent begins. Beyond its walls lie the old mines that gave up the Mana Seed.',
       candor: 'Candor Island is where many new adventurers learn the roads. This side-story follows a rumor from the coast; it leaves the island’s established stories intact.',
-      hurnscald: 'Hurnscald’s mayor Rakinorf is a known contact for travelers asking about the World Edge. The seed pulse is now stronger beneath the forest road.',
-      graveyard: 'The old graveyard is quiet until the seed pulse passes under the stones. The restless dead are reacting to it, not to a change in their recorded history.',
-      artis: 'Amelia in the Artis Ruins tells of a Mana Tree in a cave on Fortress Island, saddened by war. The seed may be answering that distant wound.',
-      halinarzo: 'Halinarzo’s library and savannah roads offer clues about old passages. A repeated mark in the journal matches the pulse from the seed.',
-      nivalis: 'Nivalis lies under snow. The Blue Sage is said to know more about the northern trails; the seed’s pulse carries through the ice.',
-      frostia: 'Frostia is ruled by King Gelid. The ice caves amplify the seed’s pulse, drawing nearby monsters toward the trail.',
-      fortress: 'Fortress Island is where Amelia places the Mana Tree, deep in the eastern caves. The seed’s source is close, but the delver’s account remains a side-story.',
-      worldedge: 'The trail reaches the World Edge, a destination discussed by Hurnscald travelers. The seed’s signal is strongest here, but what follows is this delver’s side-story.',
+      hurnscald: 'Hurnscald’s woodland roads. Mayor Rakinorf hears from every traveler bound for the World Edge. Mana’s flow runs deep beneath the forest.',
+      graveyard: 'The old graveyard. The stones stay quiet until Mana’s flow passes under them, and then the Kaore-tainted dead begin to stir.',
+      artis: 'The Artis Ruins. Elanore tells of the last living Mana Tree, saddened by war. The seed may be seeking that distant kin.',
+      halinarzo: 'Halinarzo’s library holds clues to old pathways. Markings record the flow of Mana through the town’s roads.',
+      nivalis: 'Snowbound Nivalis. The Blue Sage is said to know the northern trails, and Mana’s flow runs clear through the ice.',
+      frostia: 'Frostia, ruled by King Gelid. Its ice caves magnify Mana’s pulse and draw the tainted down the trail.',
+      fortress: 'Candor Island, where ships put in and new adventurers learn the roads. Mana’s flow runs down into the caves below, and the seed pulls after it.',
+      worldedge: 'The World Edge, where Hurnscald’s maps give out. Mana’s flow runs clearer here than anywhere else.',
     };
     storyText = regionStories[currentRegionId()];
     if (currentRegionId() === 'hurnscald' && unlockCharacter('hurnscald-herbalist')) {
@@ -1013,18 +1013,18 @@ function spawnRoom(room) {
       showMessage('Reached the Artis Ruins: Artis Archivist is now selectable.', 4);
     }
   } else if (room.type === 'boss') {
-    storyText = `${currentFloorTheme().name}: a guardian bars this optional side-story route. These encounters do not alter the established TMW quest history.`;
+    storyText = `${currentFloorTheme().name}: a guardian steeped in Kaore bars the way down.`;
   } else if (room.type === 'miniboss') {
-    storyText = 'A powerful sentinel guards this optional side chamber.';
+    storyText = 'A powerful sentinel holds this side chamber.';
   } else if (room.type === 'secret') {
     storyText = 'A concealed chamber holds an echo of the old mana current. Its other contents are uncertain.';
     unlockCharacter('world-edge-pilgrim');
   } else if (room.type === 'trial') {
     storyText = 'An old leyline lens puzzle blocks the reward. Turn each facet and follow the light to the receiver.';
   } else if (room.type === 'shop') {
-    storyText = 'A traveling keeper offers supplies to those brave enough to descend.';
+    storyText = 'A traveling merchant has laid out wares for anyone bold enough to come this far.';
   } else if (room.type === 'bank') {
-    storyText = 'A quiet vault protects your stored zenny between descents.';
+    storyText = 'A quiet vault keeps your stored zenny safe between descents.';
   } else {
     storyText = '';
   }
@@ -1334,7 +1334,7 @@ function interact(withdrawFromBank = false) {
       unlockCharacter('vault-delver');
       persistSave();
       clearSavedRun();
-      showMessage("The mana current flows toward Candor again. The Mana Tree's light steadies.", 8);
+      showMessage('With the last guardian gone, the Kaore drains from the land. The Mana Seed takes root in clean soil, and its roots reach out to join Mana’s flow.', 10);
       return;
     }
     currentFloor += 1;
@@ -1354,7 +1354,7 @@ function interact(withdrawFromBank = false) {
     spawnRoom(currentRoom);
     saveRunState();
     discoverRegion();
-    showMessage(`Chapter ${currentFloor}: the trail descends deeper into the sanctum.`, 5);
+    showMessage(`Chapter ${currentFloor}: the seed pulls you deeper into the sanctum, following Mana’s flow.`, 5);
     return;
   }
   const shopSlot = withdrawFromBank ? -1 : nearestShopSlot();

@@ -1500,7 +1500,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       linkedTwin.linkShieldSeen = false;
       linkedTwin.speed /= 1.08;
       addParticles(linkedTwin.x, linkedTwin.y, '#d8e6ff', 8, 80);
-      showMessage(`${linkedTwin.title || linkedTwin.kind} loses its linked armor.`, 2.5);
+      showMessage(`${linkedTwin.title || monsterDisplayName(linkedTwin.kind)} loses its linked armor.`, 2.5);
     }
     spawnEnemyOffspring(enemy);
     if (wasBoss || wasMiniBoss) {
@@ -1528,7 +1528,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       })[enemy.kind];
       const newlyUnlocked = unlockedId ? unlockCharacter(unlockedId) : false;
       const unlockedName = characterRoster.find((entry) => entry.id === unlockedId)?.name;
-      recordStory(`${enemy.title} defeated`, `${enemy.title} has fallen. ${newlyUnlocked && unlockedName ? `${unlockedName} is now available. ` : ''}This guardian belongs to the side-story and does not alter TMW quest history.`);
+      recordStory(`${enemy.title} defeated`, `${enemy.title} has fallen, and the Kaore in this land begins to thin.${newlyUnlocked && unlockedName ? ` ${unlockedName} is now available.` : ''}`);
       recordStory(`${currentFloorTheme().name} · echo`, regionalBossClues[currentRegionId()]);
       persistSave();
       const unlockNotice = newlyUnlocked && unlockedName ? ` ${unlockedName} is now selectable.` : '';

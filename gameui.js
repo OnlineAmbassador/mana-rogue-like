@@ -75,7 +75,7 @@ function handleAudioPanelPointerDown(px, py) {
     setVolumeFromPointer(px);
     return true;
   }
-  if (pointInBounds(ttsButtonBounds(), px, py)) {
+  if (NARRATION_ENABLED && pointInBounds(ttsButtonBounds(), px, py)) {
     setTextToSpeech(audioSettings.tts !== true);
     return true;
   }
@@ -138,7 +138,7 @@ function drawTtsPrompt() {
 }
 
 function ttsPromptActive() {
-  return audioSettings.tts === null && mode === 'prologue';
+  return NARRATION_ENABLED && audioSettings.tts === null && mode === 'prologue';
 }
 
 function drawAudioPanel() {
@@ -160,6 +160,10 @@ function drawAudioPanel() {
     ctx.fillRect(bounds.x, bounds.y + 4, bounds.width * value, 6);
     ctx.fillStyle = '#fff0d1';
     ctx.fillRect(bounds.x + bounds.width * value - 4, bounds.y, 8, bounds.height);
+  }
+  if (!NARRATION_ENABLED) {
+    ctx.restore();
+    return;
   }
   const ttsOn = audioSettings.tts === true;
   ctx.fillStyle = ttsOn ? '#30443b' : '#4a2f2f';
@@ -299,6 +303,7 @@ function speakWithNarrator(utterance, onReady) {
 }
 
 function startPrologueSpeechFallback(pageIndex) {
+  if (!narrationActive()) return false;
   if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
   if (prologueSpeechFallbackActive && window.speechSynthesis.speaking) return true;
   window.speechSynthesis.cancel();
@@ -327,7 +332,7 @@ function startPrologueSpeechFallback(pageIndex) {
 }
 
 function startPrologueNarration() {
-  if (mode !== 'prologue' || audioSettings.tts !== true) return false;
+  if (mode !== 'prologue' || !narrationActive()) return false;
   const audio = prologueNarrations[prologuePage];
   if (activePrologueNarration !== prologuePage) stopPrologueNarration();
   activePrologueNarration = prologuePage;
@@ -482,6 +487,7 @@ function stopChapterNarration() {
 }
 
 function speakChapter(text) {
+  if (!narrationActive()) return;
   if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -495,7 +501,7 @@ function speakChapter(text) {
 
 function startChapterNarration(card) {
   stopChapterNarration();
-  if (audioSettings.tts !== true) return;
+  if (!narrationActive()) return;
   const audio = new Audio(`assets/audio/intro-${card.key.replace(':', '-')}.ogg`);
   audio.volume = 0.76;
   chapterAudio = audio;
@@ -610,7 +616,7 @@ function updateControlsHint() {
 
 function updateHud() {
   if (!character) {
-    statsEl.textContent = mode === 'prologue' ? 'Candor Island · Hurnscald · Artis Ruins' : 'Choose a delver';
+    statsEl.textContent = mode === 'prologue' ? 'Tulimshar · Hurnscald · Artis Ruins' : 'Choose a delver';
     updateControlsHint();
     return;
   }
@@ -2656,7 +2662,7 @@ function drawWorld() {
     ctx.fillStyle = '#f2e5c6';
     ctx.font = 'bold 13px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('KEEPER', ROOM_W / 2, ROOM_H / 2 - 28);
+    ctx.fillText('MERCHANT', ROOM_W / 2, ROOM_H / 2 - 28);
     ctx.fillStyle = '#d3c4a6';
     ctx.font = '12px Arial';
     ctx.fillText('Stand by an item and press E to buy', ROOM_W / 2, ROOM_H / 2 + 43);
@@ -4188,12 +4194,12 @@ function codexEntries() {
   };
   return save.discoveredEnemyIds.map((kind) => ({
     id: kind,
-    name: kind.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join(' '),
+    name: monsterDisplayName(kind),
     description: [({
-      bandit: 'A road fighter whose arrows reveal the Trail-Worn Bow.',
-      'banditlord': 'The bandit captain unleashes a spreading fire burst.',
-      wisp: 'A drifting spirit that hurls charged lightning shots.',
-      'spore-sower': 'A fungal caster whose spores bloom into a radial burst.',
+      bandit: 'A road fighter. Study their arrows to unlock the Trail-Worn Bow.',
+      'banditlord': 'Captain of the road bandits, who answers any threat with a spreading burst of fire.',
+      wisp: 'A drifting spirit that hurls crackling bolts of lightning.',
+      'spore-sower': 'A fungal caster whose seed orbs burst into a ring of spores.',
     }[kind] || 'Encountered during a descent.'),
     ...((enemyMoves[kind] || []).filter((abilityId) => save.discoveredEnemyAbilityIds.includes(abilityId))
       .map((abilityId) => `Witnessed: ${moveNames[abilityId]}.`))].join(' '),
@@ -4233,6 +4239,21 @@ function advancePrologue(direction) {
   stopPrologueNarration();
   prologuePage = nextPage;
   startPrologueNarration();
+}
+
+function countWrappedLines(text, maxWidth) {
+  let line = '';
+  let count = 1;
+  for (const word of text.split(/\s+/)) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(candidate).width > maxWidth) {
+      line = word;
+      count += 1;
+    } else {
+      line = candidate;
+    }
+  }
+  return count;
 }
 
 function wrapCanvasText(text, x, y, maxWidth, lineHeight) {
@@ -4321,7 +4342,9 @@ function drawChapter() {
   ctx.fillText('CONTINUE', next.x + next.width / 2, next.y + 24);
   ctx.fillStyle = '#c5b9a6';
   ctx.font = '12px Arial';
-  ctx.fillText('Enter, Space, a click, or A continues. The narrator reads each entry aloud.', canvas.width / 2, 520);
+  ctx.fillText(narrationActive()
+    ? 'Enter, Space, a click, or A continues. The narrator reads each entry aloud.'
+    : 'Enter, Space, a click, or A continues.', canvas.width / 2, 520);
 }
 
 function drawCharacterSelect() {
@@ -4963,17 +4986,30 @@ function drawStoryJournal() {
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 25px Georgia';
   ctx.fillText('Roadside notes', 104, 116);
-  let y = 157;
-  for (const entry of storyLog.slice(-6)) {
+  // Keep the newest entries that fit, then draw them oldest first.
+  const textWidth = canvas.width - 212;
+  const top = 157;
+  const bottom = canvas.height - 85;
+  ctx.font = '14px Arial';
+  const visible = [];
+  let height = 0;
+  for (const entry of storyLog.slice().reverse()) {
+    const lines = countWrappedLines(entry.text, textWidth);
+    const entryHeight = 22 + lines * 20 + 18;
+    if (top + height + entryHeight - 38 > bottom) break;
+    visible.unshift(entry);
+    height += entryHeight;
+  }
+  let y = top;
+  for (const entry of visible) {
     ctx.fillStyle = '#d9bd83';
     ctx.font = 'bold 14px Arial';
     ctx.fillText(entry.title, 106, y);
     y += 22;
     ctx.fillStyle = '#d6d0be';
     ctx.font = '14px Arial';
-    const lines = wrapCanvasText(entry.text, 106, y, canvas.width - 212, 20);
+    const lines = wrapCanvasText(entry.text, 106, y, textWidth, 20);
     y += lines * 20 + 18;
-    if (y > canvas.height - 105) break;
   }
   ctx.fillStyle = '#b9c8b3';
   ctx.font = '12px Arial';
