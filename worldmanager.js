@@ -88,6 +88,8 @@ function createGroundHazard(x, y, kind, owner = 'enemy', overrides = {}) {
 function updateGroundHazards(dt) {
   for (let index = groundHazards.length - 1; index >= 0; index -= 1) {
     const hazard = groundHazards[index];
+    // A boss death mid-loop clears groundHazards, leaving stale indices.
+    if (!hazard) continue;
     hazard.ttl -= dt;
     hazard.damageCooldown -= dt;
     if ((hazard.kind === 'miasma' || hazard.kind === 'fire') && hazard.owner === 'player') {
@@ -107,14 +109,14 @@ function updateGroundHazards(dt) {
         hazard.damageCooldown = 0.8;
       }
     }
-    if (hazard.ttl <= 0) groundHazards.splice(index, 1);
+    if (hazard.ttl <= 0 && groundHazards[index] === hazard) groundHazards.splice(index, 1);
   }
 }
 
 function igniteMiasmaAt(x, y, suppressHitStop = false) {
   for (let index = groundHazards.length - 1; index >= 0; index -= 1) {
     const cloud = groundHazards[index];
-    if (cloud.kind !== 'miasma' || cloud.owner !== 'player' ||
+    if (!cloud || cloud.kind !== 'miasma' || cloud.owner !== 'player' ||
         distanceBetween(cloud, { x, y }) > cloud.radius + 24) continue;
     groundHazards.splice(index, 1);
     triggerCameraShake('bomb');

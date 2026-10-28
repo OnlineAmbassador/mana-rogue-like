@@ -1203,7 +1203,7 @@ function drawEnemyBody(enemy) {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(enemy.groundPoundTarget.x, enemy.groundPoundTarget.y,
-      38 + (1 - enemy.stateTimer / 0.35) * 34, 0, Math.PI * 2);
+      38 + Math.min(1, Math.max(0, 1 - enemy.stateTimer / 0.35)) * 34, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -1215,7 +1215,7 @@ function drawEnemyBody(enemy) {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(enemy.slamTarget.x, enemy.slamTarget.y,
-      (enemy.phase >= 2 ? 112 : 74) * (1 - enemy.stateTimer * 0.12), 0, Math.PI * 2);
+      (enemy.phase >= 2 ? 112 : 74) * Math.max(0, 1 - enemy.stateTimer * 0.12), 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     if (enemy.boss) {

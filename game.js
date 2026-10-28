@@ -1536,6 +1536,7 @@ function update(dt) {
 
   for (let i = enemyProjectiles.length - 1; i >= 0; i -= 1) {
     const projectile = enemyProjectiles[i];
+    if (!projectile) continue;
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.ttl -= dt;
@@ -1656,6 +1657,7 @@ function update(dt) {
 
   for (let i = bombs.length - 1; i >= 0; i -= 1) {
     const bomb = bombs[i];
+    if (!bomb) continue;
     if (bomb.flightTimer > 0) {
       bomb.flightTimer = Math.max(0, bomb.flightTimer - dt);
       const progress = 1 - bomb.flightTimer / bomb.flightDuration;
@@ -1671,7 +1673,9 @@ function update(dt) {
     }
     if ((bomb.flightTimer === undefined || bomb.flightTimer <= 0) && bomb.fuse <= 0) {
       explodeBomb(bomb);
-      bombs.splice(i, 1);
+      // The blast may kill a boss, whose cleanup removes enemy bombs and shifts indices.
+      const bombIndex = bombs.indexOf(bomb);
+      if (bombIndex >= 0) bombs.splice(bombIndex, 1);
     }
   }
 
