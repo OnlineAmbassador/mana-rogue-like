@@ -36,6 +36,10 @@ body {
   align-items: center;
 }
 
+.hud.help-hidden {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .brand {
   font-weight: bold;
   letter-spacing: 0;

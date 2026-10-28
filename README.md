@@ -10,23 +10,72 @@ A browser-based, room-by-room action roguelike set in the world of [The Mana Wor
 
 Works in current Chrome, Edge, Firefox and Safari with a keyboard and mouse, or an Xbox or PlayStation controller.
 
+## Source layout
+
+- `game.js` owns shared state, startup, input, and the update/render main loop.
+- `gameui.js` contains canvas rendering, HUD, menus, controls, and presentation.
+- `mobmanager.js` contains enemy and boss setup, attacks, damage, and AI.
+- `playermanager.js` contains player combat, movement abilities, damage, and hit feedback.
+- `dbmanager.js` contains local storage, profiles, progression, and save/load persistence.
+- `worldmanager.js` contains room/map generation, pickups, shops, and world objects.
+
+These are classic browser scripts, not modules, so their shared top-level declarations keep the existing gameplay code interoperable. `index.html` loads the manager files first and `game.js` last: manager functions can refer to shared state when called, while the core script initializes that state before starting the game.
+
 ## Highlights
 
 - Seventeen delvers with distinct loadouts, plus an unlock path through regions, secrets and guardians.
-- Three weapon styles (sword, bow, magic) that you switch between. Each remembers its own mode: Rapid, Charge (all weapons; the sword charge is a full spin attack), and Triple (bows).
+- Start with Mage, a balanced beginner caster. Clearing floor 1 unlocks Rogue (rapid, weaker, smaller arrows); clearing floor 2 unlocks Warrior (a powerful starting sword with slower recovery). Bow rate bonuses do not carry over to spells or melee. Slower, harder-hitting arrows are larger. Other delvers retain their regional, secret, guardian, and completion conditions; Sporeling now requires collecting Spore Bloom. Previously earned class unlocks remain available.
+- Spore Bloom makes magic shots split into eight slowing, element-matched projectiles on hitting an enemy, destructible object, or wall. Each parent bursts once; shards cannot recursively split and do not immediately re-hit the original target or get swallowed by the object they burst against. Its existing bomb-spore effect remains.
+- Wild magic keeps the selected element and adds gentle, speed-preserving drift. Mage shots have a 40% enemy-impact surprise chance, 20% object-impact chance, and 6% chance to launch as a special shot. Other classes casting magic use 10%, 5%, and 1% with much gentler drift. A special shot carries a guaranteed effect on impact; ordinary shots roll once on their first contact, including piercing shots.
+- Mage starts each new run with a random element: water, fire, lightning, gas, mushroom spore, ice, wind, or earth. Other classes start with water. Every successfully acquired upgrade changes your element to a different random one; element sigils instead grant their named element. Coins, hearts, consumables, and rejected purchases do not reroll it. Pickup banners announce the new element, and saves preserve it.
+- Player magic carries its element's color through special-shot glows, clouds, walls, clusters, lightning, decay, rifts, and delayed explosions. A brief colored cast trail connects wild impacts to the player. White-cored diamond marks identify friendly ground effects and player-applied curses, without adding targeting rings; bomb curses still flash red to communicate their fuse.
+- Wild effects include particle novas, lightning jumping between nearby visible enemies, pulsing decay damage over time, and rifts that visibly sink a mob through the floor before it rises at a safe location in the current room. Bosses cannot be teleported. Secondary shards, lightning, and damage ticks never recursively roll surprises or add magic hitstop.
+- Dramatic wild effects also include rising gas puffs, five-part flame walls, elemental spore clusters, red-flashing enemy bombs with a 1.2-second fuse, and lift-and-slam attacks. Gas, flames, and bursts inherit the casting element's color. Lifted mobs rise above a visible ground shadow, hang briefly, then slam down with splash damage. Bosses cannot be lifted; special lift shots instead mark them as bombs. These magic explosions hurt enemies, not the player. Wild lightning remains visible for 0.4 seconds; player ground effects are capped to prevent runaway clutter. Proc chances are unchanged.
+- New passive magic items: **Storm Spool** extends wild lightning to four targets, **Ember Seed** extends decay to four seconds, and **Nova Pearl** expands wild explosions. They use the normal shop/reward pools and do not increase proc probabilities.
+- Three weapon styles (sword, bow, magic) that you switch between. Weapon-specific upgrades can randomly shift that weapon's firing style as a side effect; there is no mode control or separate mode purchase.
 - Ten rooms at most per floor, at most one larger room, never the boss room. The minimap shows doors you have seen, turns red while the room is hostile, and shows larger rooms larger.
 - Doors draw as locked or open (enemies remaining, key required, sealed boss room).
 - Bank and shop share one room. Shopkeepers need an Interact press, and you are never offered an item you already own.
 - Projectiles keep a constant size, drop with a ground shadow as they reach the end of their range, and swords can parry enemy shots back.
+- Health starts at four hearts, each split into two half-heart hit points. Direct enemy contact costs one full heart; ordinary projectiles, beams, explosions, and area hazards cost half a heart. Clearly telegraphed boss heavy slams and marked ground strikes cost **two hearts**. Clothing and Aegis still absorb hits.
+- Arrows shoot hostile projectiles back using a forgiving box around their tips, including fast crossings. Clashes accelerate both shots and scatter them widely: returns vary up to 32 degrees around a visible foe, or 35-80 degrees off the arrow's heading without one. The arrow kicks off 35-70 degrees in the opposite direction. Returned shots carry arrow damage plus incoming damage and get one **40% chance** to restore half a heart when they first damage an enemy; interception alone does not heal.
+- Melee swings can bat projectiles out of the air anywhere along the visible blade sweep, even when shots are not aimed at you. Parries also have a forgiving follow-through window and catch fast shots or player-body contact. The first clean intercept per swing gets one **40% chance** to restore half a heart, up to maximum health; follow-up deflections do not reroll a failed reward. Body-contact deflections still deal half-heart damage. Charged releases deflect nearby shots outward with some scatter. Returned shots carry the swing's damage plus the enemy projectile's damage.
+- Reflections retain the original projectile's kind, color, size, and renderer: arrows remain arrows, spores remain spores, and colored orbs remain colored orbs instead of becoming stone/coin-like shots. Magic keeps its elemental splash and cluster interactions.
+- Enemy health grows with floor progression; all fresh enemies survive their opening hit and its simultaneous volley, even bombs and piercing attacks. Evasive ranged/stalker/diver enemies learn dodges from floor 2; later ranged foes keep more distance, strafe faster, lead shots, and add bursts while melee packs coordinate attacks. Slow chargers stay committed instead of dodging like archers.
+- Squads choreograph commitments: the longest-ready visible foe attacks first while others circle into position. Early floors allow one committed attacker; floor 4 onward permits two with a minimum gap between starts. Ranged windups lock and display their aim instead of tracking through release. Boss ground patterns resolve in spaced beats without stacking another pattern or major boss move over them. Ground-slam and landing camera shakes are shorter and gentler; sword impact feedback is unchanged.
+- Boss health snapshots the build's strongest estimated sustained weapon DPS at spawn, targeting roughly 80+ seconds of uninterrupted baseline attacks and increasing on later floors. This is tuning, not timed invulnerability: strong builds and combos can win faster. Boss slow resistance preserves pressure. Windups have readable minimum durations; marked ground attacks remain fixed instead of chasing the player, and extra pressure attacks pause during committed boss moves.
+- Grounded bombs slide when struck by player or enemy shots, bounce off walls and unbroken objects, and slow with friction while their fuse continues. Bomb damage against bosses is reduced to 8% of maximum health (never the finishing blow). Normal scenery takes one normal sword hit point or two charged hit points, not the sword's full mob damage.
+- Ordinary breakables have a 12% consumable drop chance, increased by luck up to 20%. Pickups are stored for later use, persist with room state, and cannot be farmed by repeatedly destroying regrowing scenery. Guaranteed treasure and boss-spawned objects do not use this drop roll.
 - Enemy AI draws on Hades, Enter the Gungeon and Vampire Survivors: telegraphed attacks, bullet patterns, swarms, and mini-boss behaviours that join ordinary enemies on later floors.
 - Fully rebindable keyboard and controller layout with a live tutorial.
-- Overhead icons flash briefly when something changes (item, stat up or down, key, bomb, heart, mode); the pause screen lists everything you carry.
+- Overhead icons flash briefly when something changes (item, stat up or down, key, bomb, heart); the pause screen lists everything you carry.
 
 ## Performance
 
 - The game redraws a 960×540 canvas every frame.
 - **Auto quality:** if the frame rate stays low for about two seconds, glow effects are switched off and particles are reduced and capped. Full quality returns after ten seconds of smooth frames.
 - Particles are capped (400 normally, 120 in low quality), and sound effects use small reusable audio pools.
+
+## Combat regression checks
+
+With Node.js installed, run the dependency-free regression suite from the repository root:
+
+```powershell
+node --test tests\parry.test.js tests\health.test.js tests\classes.test.js tests\balance.test.js tests\magic.test.js
+```
+
+The suite currently has 77 tests covering combat, healing/proc probability boundaries, class tradeoffs, floor/boss balance, bomb physics, loot, spore clusters, and wild magic. Element checks cover all eight Mage starting elements, upgrade-driven changes, save restoration without a purchased sigil, and matching colors on immediate and delayed effects.
+
+Check all six runtime scripts before publishing:
+
+```powershell
+node --check game.js
+node --check gameui.js
+node --check playermanager.js
+node --check mobmanager.js
+node --check dbmanager.js
+node --check worldmanager.js
+```
 
 ## Third-party artwork
 
@@ -117,12 +166,12 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Aim and shoot: Hold the primary mouse button; firing stops reliably when released or when the game loses focus.
 - Dash: Space (left hand stays on WASD)
 - Weapon: 1/2/3 select, Tab or mouse wheel cycles
-- Weapon mode: B cycles Rapid / Charge (all weapons) / Triple (bow only); each weapon remembers its mode, and an icon on the action bar shows it
+- Weapon modes change through weapon-specific upgrades; there is no separate mode-cycle control or mode purchase.
 - Class ability: 4 or right-click
 - Use a consumable: Q
 - Shockwave (clears enemy bullets and shoves foes; one earned per floor): R
 - Bomb: F
-- Frost and elements are automatic: Frost chills nearby foes by itself, and shots take the last element sigil you found
+- Frost and elements are automatic: Frost chills nearby foes by itself. Mage starts with a random element; other classes start with water. Each upgrade changes the element, and sigils grant their named element.
 - Interact / buy / talk: E (walking onto items never buys them)
 - The bottom HUD action bar shows each button, its count and cooldown.
 - Every action above can be rebound on the Controls screen (C on the title or pause screen). Bindings save and the tutorial and prompts update to match.
@@ -132,7 +181,8 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Move: Left stick; aim: Right stick; fire: RT/R2 or right stick press-out
 - Interact: A/✕; Bomb: B/○; Shockwave: Y/△
 - Consumable: LT/L2; Dash: RB/R1; Cycle weapon: LB/L1
-- D-pad (never moves you): Left weapon mode, Down journal, Right class ability
+- D-pad quick actions do not move you during gameplay; use the Controls screen for the current bindings.
+- Menu audio: use the D-pad to focus music, effects, and narration controls; Left/Right adjusts volume and A/✕ toggles narration. Volume sliders also support mouse clicks and dragging.
 - Map: Back/Share (Back also opens Controls from the title or pause screen); Pause: Start/Options
 - On-screen prompts switch to controller on any button press (sticks are ignored to avoid drift) and back to keyboard on any key or mouse input
 - Doors, the bank pad, the Soul Menhir and the descent pad are used with E; Shift+E withdraws from the bank
@@ -154,7 +204,9 @@ The repository includes a GitHub Actions workflow that publishes the game whenev
 
 Once deployment finishes, playtest at <https://onlineambassador.github.io/mana-rogue-like/>.
 
-The game is static files only, so it can be hosted anywhere (GitHub Pages, itch.io HTML5, Netlify, any web server). Upload `index.html`, `style.css`, `game.js` and the `assets` folder. Note that `assets/tmw` is a full TMW client-data snapshot of about 250 MB; the game itself reads only around 10 MB of it, so trimming unused files makes hosting much lighter. Keep the licence files (`assets/tmw/clientdata/LICENSE`, `ART_LICENSE`, `GPL`, `CC BY-SA 3.0`) with whatever you publish.
+The game is static files only, so it can be hosted anywhere (GitHub Pages, itch.io HTML5, Netlify, any web server). Upload `index.html`, `style.css`, **all six runtime scripts** (`game.js`, `gameui.js`, `playermanager.js`, `mobmanager.js`, `dbmanager.js`, `worldmanager.js`), and the `assets` folder. Keep the script order in `index.html`; deploying only `game.js` no longer includes the full game. Note that `assets/tmw` is a full TMW client-data snapshot of about 250 MB; the game itself reads only around 10 MB of it, so trimming unused files makes hosting much lighter. Keep the licence files (`assets/tmw/clientdata/LICENSE`, `ART_LICENSE`, `GPL`, `CC BY-SA 3.0`) with whatever you publish.
+
+Before pushing, run the regression and syntax checks above, review `git diff --check` and `git status --short`, and include the manager scripts and regression tests in the commit along with the updated entry point and documentation. A push to `main` triggers the Pages deployment; smoke-test the published game afterward, including a new Mage run, upgrade element changes, menu audio controls, and saved-run resume.
 
 Clone the project and its TMW client-data submodule:
 
