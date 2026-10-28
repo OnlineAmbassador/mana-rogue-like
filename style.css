@@ -235,14 +235,17 @@ body.mobile-layout {
 
   .touch-dash {
     position: absolute;
-    right: 20%;
-    bottom: calc(15% + 100px);
-    width: 52px;
-    height: 52px;
+    right: calc(20% - 40px);
+    bottom: calc(15% + 76px);
+    width: 46px;
+    height: 46px;
     padding: 0;
     border-radius: 50%;
+    -webkit-appearance: none;
+    appearance: none;
     pointer-events: auto;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
+    line-height: 1;
   }
 
   .touch-utilities {
@@ -340,5 +343,5 @@ body.mobile-layout {
   body.mobile-layout .touch-quick-actions { top: auto; bottom: 12px; }
   body.mobile-layout .touch-stick { left: 8%; bottom: 14px; width: 104px; }
   body.mobile-layout .touch-attack { right: 8%; bottom: 18px; width: 96px; }
-  body.mobile-layout .touch-dash { right: 8%; bottom: 122px; }
+  body.mobile-layout .touch-dash { right: calc(8% - 36px); bottom: 98px; }
 }
