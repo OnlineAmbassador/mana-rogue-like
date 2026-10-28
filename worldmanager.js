@@ -1335,6 +1335,7 @@ function interact(withdrawFromBank = false) {
     }
     if (currentFloor === finalFloor) {
       mode = 'won';
+      endScreenDelay = 0.6;
       save.completedRuns += 1;
       unlockCharacter('vault-delver');
       persistSave();

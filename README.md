@@ -147,7 +147,7 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 
 ## Gameplay
 
-- Read the three-page prologue before choosing a delver. Voice narration is disabled for now (`NARRATION_ENABLED` in `game.js`) while the recordings are redone to match the current text. Every descent starts in Tulimshar, then shuffles all eight remaining regions, including the World Edge. The story follows a Mana Seed found in the old mines outside Tulimshar: the seed is drawn along Mana's natural flow, which stirs creatures tainted by Kaore; each guardian's fall thins the taint, and Elanore's account of the last Mana Tree hints at what the seed is seeking. Press J during a run to review journal fragments.
+- Read the three-page prologue before choosing a delver; once it has been read, the game opens on the delver ledger, and the Prologue button, P, or LB on a controller replays it. Voice narration is disabled for now (`NARRATION_ENABLED` in `game.js`) while the recordings are redone to match the current text. Every descent starts in Tulimshar, then shuffles all eight remaining regions, including the World Edge. The story follows a Mana Seed found in the old mines outside Tulimshar: the seed is drawn along Mana's natural flow, which stirs creatures tainted by Kaore; each guardian's fall thins the taint, and Elanore's account of the last Mana Tree hints at what the seed is seeking. Press J during a run to review journal fragments.
 - Choose from seventeen delvers across four roster pages. Unlock them by reaching regions, finding a secret, defeating a sentinel, or defeating the corresponding regional guardian. Each has a distinct loadout; some trade health, movement speed, or attack speed for damage or extra resources.
 - Explore a winding, branching room layout toward each floor guardian. The starting room has at least two ordinary, unlocked exits; shops, locked reward rooms, secrets, and mini-bosses sit farther along optional branches. The route to the main boss never requires clearing an optional branch or spending a key.
 - Every floor has a bombable hidden-room entrance. Rooms preserve their contents, enemy positions, and obstacle states when you leave and return.
@@ -166,7 +166,7 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Learn up to two standard active abilities in a run. The Mana Familiar Sigil is a separate unlock and does not use either slot. Ability offers do not repeat, and the two-slot limit also applies to room rewards and boss drops.
 - Keep a three-kill chain alive within 3.2 seconds to earn one bonus zenny; the chain resets after a lull.
 - Visit the bank room on each floor to deposit all carried zenny by walking onto the vault pad or withdraw your stored balance with Shift+E. Banked zenny is saved separately from the active run and persists across refreshes, closing the game, and new runs.
-- Pause with P or Esc. The game also pauses when its browser tab loses focus. Press X from the pause screen to save and return to the title; choose Resume Saved Descent or press R to continue. The current run autosaves and resumes after a page refresh, including room contents and run progress.
+- Pause with P or Esc. The game also pauses when its browser tab loses focus. Press X from the pause screen to save and return to the title; choose Resume Saved Descent or press R to continue. Starting a new descent while one is saved asks you to select Descend a second time. The current run autosaves and resumes after a page refresh, including room contents and run progress.
 - Ordinary breakables have a small chance to drop a heart or coin, and bomb-destroyed objects retain their 50% bomb-drop chance. Reward rooms may contain marked relics with guaranteed collectible drops, but destructible bonus loot is not guaranteed in every optional room; each obstacle still gets only one drop chance.
 - Brawl with fists, swords, or daggers after learning melee; additional melee weapons stack and swing together. Learned magic and bow attacks also fire alongside them. Bow poses and the enlarged bow appear only during bow attacks. The mouse cursor controls facing and left-click attacks toward it; controller left stick moves while the right stick controls facing and aim.
 - Buy Mana Tonics, Bomb Bundles, and Mana Bursts as consumables; press Q to use the first item that can help.
@@ -209,8 +209,8 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Save and exit to title: X while paused
 - Resume saved descent from title: R
 - Prologue: use Left/Right or A/D to read; Enter/Space advances; click the page buttons to navigate
-- Character selection: click or browse delvers with Left/Right or A/D; Enter/A starts an unlocked delver; locked delvers show their unlock condition
-- Return to character selection after a run: Enter
+- Character selection: click or browse delvers with Left/Right or A/D, or click the arrows beside the cards; Enter/A starts an unlocked delver; locked delvers show their unlock condition; P (LB on a controller) replays the prologue
+- Return to character selection after a run: Enter, A, or click; the run summary lists level, time, foes and guardians defeated, zenny found, the route, collected items, and new delvers
 
 ## Run locally and publish
 

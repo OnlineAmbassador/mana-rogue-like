@@ -532,6 +532,15 @@ function closeChapter() {
   updateHud();
 }
 
+function resetRunStats(saved = {}) {
+  runStats.seconds = Number(saved.seconds) || 0;
+  runStats.kills = Number(saved.kills) || 0;
+  runStats.guardians = Number(saved.guardians) || 0;
+  runStats.zennyFound = Number(saved.zennyFound) || 0;
+  runStats.lastHitBy = typeof saved.lastHitBy === 'string' ? saved.lastHitBy : '';
+  runStats.unlocked = Array.isArray(saved.unlocked) ? saved.unlocked.filter((id) => typeof id === 'string') : [];
+}
+
 function padLabels() {
   return gamepadInput.family === 'ps'
     ? { a: '✕', b: '○', x: '□', y: '△', lb: 'L1', rb: 'R1', lt: 'L2', rt: 'R2', menu: 'Options' }
@@ -607,8 +616,8 @@ function updateControlsHint() {
       : ['←/→ Change Page · H/ESC Back'];
   } else {
     lines = lastInputMode === 'controller'
-      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex · Y How to Play · Back Controls']
-      : ['←/→ Select · Enter Descend · K Codex · H How to Play · C Controls'];
+      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex · Y How to Play · Back Controls · LB Prologue']
+      : ['←/→ Select · Enter Descend · K Codex · H How to Play · C Controls · P Prologue'];
   }
   const hintText = lines.join('\n');
   if (controlsEl.textContent !== hintText) controlsEl.textContent = hintText;
@@ -620,14 +629,24 @@ function updateHud() {
     updateControlsHint();
     return;
   }
-  statsEl.textContent =
+  // updateHud runs every frame; only touch the DOM when the text changes.
+  const stats =
     `${currentFloorTheme().name} · ${character.className} • Lead: ${activeCombatStyle} | Zenny: ${coins} | Bank: ${save.bankedZenny}`;
+  if (statsEl.textContent !== stats) statsEl.textContent = stats;
   updateControlsHint();
 }
+
+const MAX_MESSAGE_TOASTS = 3;
 
 function showMessage(text, seconds = 2.5) {
   messageEl.textContent = text;
   messageTimer = seconds;
+  // During play, notices also stack on the canvas so they are seen and don't overwrite each other.
+  if (mode !== 'playing' || seconds > 60) return;
+  const existing = messageToasts.findIndex((toast) => toast.text === text);
+  if (existing >= 0) messageToasts.splice(existing, 1);
+  messageToasts.unshift({ text, timer: clamp(seconds, 1.5, 4) });
+  messageToasts.length = Math.min(messageToasts.length, MAX_MESSAGE_TOASTS);
 }
 
 function toggleControlsHelp() {
@@ -1161,7 +1180,6 @@ function drawEnemyBody(enemy) {
           (enemy.phase >= 2 ? 0.7 : 0.85) * Math.PI) * (enemy.phase >= 2 ? 86 : 56)
         : enemy.kind === 'wisp' ? Math.sin(elapsed * 5 + enemy.x) * 5 : 0;
     ctx.save();
-    if (enemy.hitFlash > 0) ctx.globalAlpha = 0.55;
     ctx.translate(enemy.x, enemy.y - hop);
     if (enemy.archetype === 'charger' && enemy.behavior === 'roll' ||
       enemy.linkDash && enemy.linkDash.windup <= 0 && enemy.linkDash.kind === 'roll' ||
@@ -1183,6 +1201,8 @@ function drawEnemyBody(enemy) {
       ctx.shadowBlur = enemy.phase >= 2 ? 30 : 16;
       if (enemy.phase >= 2) ctx.filter = 'saturate(1.5) brightness(1.25)';
     }
+    // A brief bright flash confirms the hit without fading the sprite out.
+    if (enemy.hitFlash > 0) ctx.filter = 'brightness(2.6) saturate(0.3)';
     ctx.drawImage(sprite.image, sourceX, sourceY, sprite.frameWidth, sprite.frameHeight,
       -width / 2, -height / 2, width, height);
     if ((enemy.kind === 'bandit' || enemy.kind === 'banditlord') &&
@@ -1436,11 +1456,13 @@ function drawEnemyBody(enemy) {
     ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = '#160f13';
-  ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11, enemy.radius * 2, 5);
-  ctx.fillStyle = enemy.boss ? '#e376bd' : '#9be08d';
-  ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11,
-    (enemy.hp / enemy.maxHp) * enemy.radius * 2, 5);
+  if (enemy.hp < enemy.maxHp) {
+    ctx.fillStyle = '#160f13';
+    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11, enemy.radius * 2, 5);
+    ctx.fillStyle = enemy.boss ? '#e376bd' : '#9be08d';
+    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11,
+      (enemy.hp / enemy.maxHp) * enemy.radius * 2, 5);
+  }
   if (enemy.boss || enemy.miniBoss) {
     ctx.fillStyle = '#f5debd';
     ctx.font = 'bold 14px Arial';
@@ -3323,9 +3345,6 @@ function drawWorld() {
     }
     ctx.restore();
   }
-  for (const projectile of enemyProjectiles) {
-    drawEnemyProjectile(projectile);
-  }
   for (const particle of particles) {
     ctx.globalAlpha = clamp(particle.ttl / particle.maxTtl, 0, 1);
     ctx.fillStyle = particle.color;
@@ -3422,6 +3441,8 @@ function drawWorld() {
   for (const enemy of enemies) drawEnemy(enemy);
   for (const companion of companions) drawCompanion(companion);
   drawPlayer();
+  // Enemy shots draw above the delver so the sprite never hides an incoming hit.
+  for (const projectile of enemyProjectiles) drawEnemyProjectile(projectile);
   drawOverheadPops();
   drawLaserBeams();
   drawSporePods();
@@ -3593,29 +3614,26 @@ function drawMinimap() {
   }
 }
 
+// Bottom-left 1/2/3 weapon slots; the active one is enlarged, glowing and tagged.
+// Bottom action bar: every non-weapon button, with its key, live count and cooldown.
+// Mirrors the page's text lines (message + controls hint) into the canvas so they are visible without scrolling.
 function drawInGameCommentary() {
-  const text = messageEl.textContent || '';
-  const now = performance.now();
-  if (text !== commentaryText) {
-    commentaryText = text;
-    commentaryShownAt = now;
-  }
   const calm = enemies.length === 0;
-  const age = (now - commentaryShownAt) / 1000;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  if (text && age < 4) {
-    const alpha = Math.min(1, (4 - age) / 0.6);
-    ctx.font = 'bold 14px Arial';
-    const width = Math.min(canvas.width - 40, ctx.measureText(text).width + 28);
-    const messageY = currentRoom?.type === 'shop' ? 78 : 408;
-    ctx.globalAlpha = alpha;
+  // Recent messages stack upward from the commentary line, newest at the bottom.
+  ctx.font = 'bold 14px Arial';
+  messageToasts.forEach((toast, index) => {
+    // In the shop the line sits near the top, so the stack grows downward there.
+    const y = currentRoom?.type === 'shop' ? 78 + index * 30 : 408 - index * 30;
+    const width = Math.min(canvas.width - 40, ctx.measureText(toast.text).width + 28);
+    ctx.globalAlpha = Math.min(1, toast.timer / 0.6) * (index === 0 ? 1 : 0.85);
     ctx.fillStyle = 'rgba(8, 10, 12, 0.78)';
-    ctx.fillRect(canvas.width / 2 - width / 2, messageY, width, 26);
+    ctx.fillRect(canvas.width / 2 - width / 2, y, width, 26);
     ctx.fillStyle = '#f4e8c8';
-    ctx.fillText(text.slice(0, 120), canvas.width / 2, messageY + 18, canvas.width - 48);
-  }
+    ctx.fillText(toast.text.slice(0, 120), canvas.width / 2, y + 18, canvas.width - 48);
+  });
   if (calm && controlsHelpVisible) {
     const hint = (controlsEl.textContent || '').replace(/\n/g, ' · ');
     ctx.globalAlpha = 0.85;
@@ -3922,6 +3940,8 @@ function drawHealthHeart(x, y, fill) {
   ctx.stroke();
   if (fill > 0) {
     ctx.save();
+    // The heart icon is drawn smaller than its source, so it keeps smoothing.
+    ctx.imageSmoothingEnabled = true;
     ctx.beginPath();
     ctx.rect(x, y, fill * 17, 17);
     ctx.clip();
@@ -4132,7 +4152,47 @@ function activateMenuFocus() {
   if (menuFocus === 'help') toggleControlsHelp();
   else if (menuFocus === 'resume' && hasSavedRun()) restoreRun();
   else if (menuFocus === 'reset') requestProgressReset();
-  else beginRun();
+  else requestNewRun();
+}
+
+function defaultMenuFocus() {
+  return hasSavedRun() ? 'resume' : 'start';
+}
+
+// Starting over replaces the saved descent, so that takes a second press.
+function requestNewRun() {
+  if (hasSavedRun() && isCharacterUnlocked(characterRoster[selectedIndex]) && newRunConfirmTimer <= 0) {
+    newRunConfirmTimer = 4;
+    showMessage('Start a new descent? Your saved descent will be lost. Select Descend again to confirm.', 4);
+    return;
+  }
+  newRunConfirmTimer = 0;
+  beginRun();
+}
+
+function openPrologue() {
+  if (mode !== 'select') return;
+  stopPrologueNarration();
+  prologuePage = 0;
+  mode = 'prologue';
+  updateHud();
+}
+
+// Below the music and effects controls on the delver ledger.
+function prologueReplayBounds() {
+  return { x: 24, y: 124, width: 170, height: 22 };
+}
+
+// In the margins beside the row of delver cards.
+function rosterPageButtonBounds(direction) {
+  return { x: direction < 0 ? 2 : canvas.width - 26, y: 247, width: 24, height: 44 };
+}
+
+function changeRosterPage(direction) {
+  const pageCount = Math.ceil(characterRoster.length / rosterPageSize);
+  const page = (Math.floor(selectedIndex / rosterPageSize) + direction + pageCount) % pageCount;
+  selectedIndex = page * rosterPageSize;
+  updateHud();
 }
 
 function resetButtonBounds() {
@@ -4219,7 +4279,13 @@ function advancePrologue(direction) {
   if (mode !== 'prologue' || ttsPromptActive()) return;
   if (direction > 0 && prologuePage === prologuePages.length - 1) {
     stopPrologueNarration();
+    // Later visits open on the delver ledger; the prologue stays available from there.
+    if (!save.introducedChapters.includes('prologue')) {
+      save.introducedChapters.push('prologue');
+      persistSave();
+    }
     mode = 'select';
+    menuFocus = defaultMenuFocus();
     updateHud();
     showMessage('Prologue complete. Choose a delver to begin.', 2.5);
     return;
@@ -4364,6 +4430,29 @@ function drawCharacterSelect() {
     ctx.fillText('‹', 35, 270);
     ctx.fillText('›', canvas.width - 35, 270);
   }
+  // Touch shows its own swipe arrows; mouse and controller get the page buttons.
+  if (lastInputMode !== 'touch') for (const direction of [-1, 1]) {
+    const pageButton = rosterPageButtonBounds(direction);
+    ctx.fillStyle = pointInBounds(pageButton) ? '#52664f' : '#30443b';
+    ctx.fillRect(pageButton.x, pageButton.y, pageButton.width, pageButton.height);
+    ctx.strokeStyle = '#a5c79b';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pageButton.x, pageButton.y, pageButton.width, pageButton.height);
+    ctx.fillStyle = '#e4f0d7';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText(direction < 0 ? '‹' : '›', pageButton.x + pageButton.width / 2, pageButton.y + 28);
+  }
+  const prologueButton = prologueReplayBounds();
+  ctx.fillStyle = pointInBounds(prologueButton) ? '#52664f' : '#30443b';
+  ctx.fillRect(prologueButton.x, prologueButton.y, prologueButton.width, prologueButton.height);
+  ctx.strokeStyle = '#a5c79b';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(prologueButton.x, prologueButton.y, prologueButton.width, prologueButton.height);
+  ctx.fillStyle = '#e4f0d7';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText(lastInputMode === 'controller' ? 'PROLOGUE  [LB]' : 'PROLOGUE  [P]',
+    prologueButton.x + prologueButton.width / 2, prologueButton.y + 15);
+  ctx.font = '14px Arial';
   const codexButton = codexButtonBounds();
   ctx.fillStyle = pointer.x >= codexButton.x && pointer.x <= codexButton.x + codexButton.width &&
     pointer.y >= codexButton.y && pointer.y <= codexButton.y + codexButton.height ? '#52664f' : '#30443b';
@@ -4474,7 +4563,7 @@ function drawCharacterSelect() {
   ctx.strokeRect(start.x, start.y, start.width, start.height);
   ctx.fillStyle = '#fff0d1';
   ctx.font = 'bold 15px Arial';
-  ctx.fillText('DESCEND', canvas.width / 2, start.y + 25);
+  ctx.fillText(newRunConfirmTimer > 0 ? 'CONFIRM NEW DESCENT' : 'DESCEND', canvas.width / 2, start.y + 25);
   const focusBounds = {
     start,
     reset: resetButtonBounds(),
@@ -4960,16 +5049,67 @@ function drawTutorial() {
   ctx.fillText(pad ? `D-Pad ←/→ Page  ·  ${padLabels().b} Back` : '←/→ Page  ·  Esc Back', canvas.width / 2, 508);
 }
 
-function drawGameOver() {
-  ctx.fillStyle = 'rgba(10, 9, 14, 0.84)';
+function drawRunSummary(title) {
+  const centerX = canvas.width / 2;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10, 9, 14, 0.88)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#f1dec1';
   ctx.textAlign = 'center';
+  ctx.fillStyle = '#f1dec1';
   ctx.font = 'bold 38px Georgia';
-  ctx.fillText('THE SANCTUM CLAIMS YOU', canvas.width / 2, canvas.height / 2 - 24);
-  ctx.font = '18px Arial';
-  ctx.fillText(`Score ${score}  •  Floor ${currentFloor}`, canvas.width / 2, canvas.height / 2 + 14);
-  ctx.fillText('Press Enter to choose a delver', canvas.width / 2, canvas.height / 2 + 52);
+  ctx.fillText(title, centerX, 112);
+
+  const minutes = Math.floor(runStats.seconds / 60);
+  const seconds = String(Math.floor(runStats.seconds % 60)).padStart(2, '0');
+  const lines = [
+    `${character?.name || 'Delver'}  •  Level ${xpLevel}  •  Floor ${currentFloor} of ${finalFloor}  •  ${minutes}:${seconds}`,
+    `Score ${score}  •  Foes defeated ${runStats.kills}  •  Guardians ${runStats.guardians}  •  Zenny found ${runStats.zennyFound}`,
+  ];
+  if (mode === 'gameover' && runStats.lastHitBy) lines.push(`Last hit: ${runStats.lastHitBy}`);
+  ctx.font = '16px Arial';
+  lines.forEach((line, index) => ctx.fillText(line, centerX, 158 + index * 26));
+
+  const routeY = 158 + lines.length * 26 + 14;
+  ctx.fillStyle = '#c8cbbd';
+  ctx.font = '13px Arial';
+  const route = mapOrder.slice(0, currentFloor).map((id) => floorThemes[id]?.name || id).join('  →  ');
+  const routeLines = wrapCanvasText(route, centerX, routeY, 780, 18);
+
+  const items = shopItemCatalog.filter((item) => ownedItems.has(item.id));
+  const iconsY = routeY + routeLines * 18 + 34;
+  const perRow = 18;
+  items.forEach((item, index) => {
+    const row = Math.floor(index / perRow);
+    const rowCount = Math.min(perRow, items.length - row * perRow);
+    const x = centerX + (index % perRow - (rowCount - 1) / 2) * 36;
+    drawShopItemIcon(item, x, iconsY + row * 38);
+  });
+
+  const unlockedNames = runStats.unlocked
+    .map((id) => characterRoster.find((entry) => entry.id === id)?.name).filter(Boolean);
+  if (unlockedNames.length > 0) {
+    ctx.fillStyle = '#a8d39b';
+    ctx.font = 'bold 13px Arial';
+    ctx.textAlign = 'center';
+    wrapCanvasText(`Unlocked: ${unlockedNames.join(', ')}`, centerX, 440, 780, 18);
+  }
+
+  ctx.fillStyle = '#f1dec1';
+  ctx.font = '17px Arial';
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = endScreenDelay > 0 ? 0.35 : 1;
+  ctx.fillText(lastInputMode === 'controller' ? 'Press A to choose a delver'
+    : 'Press Enter or click to choose a delver', centerX, 500);
+  ctx.restore();
+}
+
+function returnToCharacterSelect() {
+  if (endScreenDelay > 0) return;
+  mode = 'select';
+  // Stay on the delver who just descended instead of jumping back to the first card.
+  selectedIndex = Math.max(0, characterRoster.indexOf(character));
+  menuFocus = defaultMenuFocus();
+  updateHud();
 }
 
 function drawStoryJournal() {

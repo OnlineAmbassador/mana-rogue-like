@@ -1416,6 +1416,28 @@ function spawnEnemyOffspring(enemy) {
   }
 }
 
+// Species with their own TMW death sound; everything else uses the zombie cry.
+const enemyDeathSounds = {
+  ratto: 'monsters/ratto/die1.ogg',
+  bat: 'monsters/bat/bat-dying1.ogg',
+  vampirebat: 'monsters/bat/bat-dying1.ogg',
+  bee: 'monsters/bee/bee-die1.ogg',
+  wisp: 'monsters/ghost/ghost-die1.ogg',
+  skeleton: 'monsters/skeleton/skel-die1.ogg',
+  slime: 'monsters/slime/slime-die1.ogg',
+  snail: 'monsters/snail/snail-die1.ogg',
+  spider: 'monsters/spider/spider-die1.ogg',
+  yeti: 'monsters/yeti/yeti-die1.ogg',
+  'spore-sower': 'monsters/mushroom/die1.ogg',
+  jacko: 'monsters/pumpkin/die1.ogg',
+  'slime-mother': 'monsters/slime-super/slime-super-die1.ogg',
+  reaper: 'monsters/reaper/reaper-die1.ogg',
+  golem: 'monsters/golem/die.ogg',
+  yetiking: 'monsters/yeti/yeti-die1.ogg',
+  forestdragon: 'monsters/dragon/die.ogg',
+  nightdragon: 'monsters/dragon/die.ogg',
+};
+
 function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, ignoreFirstHitCap = false, applyHitStop = true) {
   if (damage > 0) damage = Math.max(1, Math.round(damage * curioMultiplier('damage')));
   if (enemy.linkId && enemy.linkShieldCharges > 0) {
@@ -1479,12 +1501,17 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
     // A satisfying pop on every kill.
     addParticles(enemy.x, enemy.y - 10, enemy.color || '#ffffff', enemy.boss ? 40 : 16, enemy.boss ? 260 : 170);
     addParticles(enemy.x, enemy.y - 10, '#fff6d8', enemy.boss ? 18 : 6, 120);
+    runStats.kills += 1;
+    if (enemy.boss) runStats.guardians += 1;
     onClassKill(enemy);
     killStreak = killStreakTimer > 0 ? killStreak + 1 : 1;
     killStreakTimer = 3.2;
     if (killStreak % 3 === 0) {
       const bonusCoin = reserveCoin();
-      if (bonusCoin) coins += 1;
+      if (bonusCoin) {
+        coins += 1;
+        runStats.zennyFound += 1;
+      }
       streakCallout.timer = streakCallout.duration;
       streakCallout.x = player.x;
       streakCallout.y = player.y - 42;
@@ -1492,8 +1519,9 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       addParticles(enemy.x, enemy.y, '#ffe08b', 8, 95);
       playSound('special/fanfare.ogg', 0.12);
     }
-    playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/die1.ogg' : 'monsters/zombie/zombiedie.ogg',
-      enemy.boss ? 0.65 : 0.38);
+    playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/die1.ogg'
+      : enemyDeathSounds[enemy.kind] || 'monsters/zombie/zombiedie.ogg', enemy.boss ? 0.65 : 0.38);
+    if (enemy.boss || enemy.miniBoss) triggerCameraShake('bomb');
     dropLoot(enemy.x, enemy.y, enemy.boss, enemy.bossSummoned);
     const linkedTwin = enemy.linkId
       ? enemies.find((candidate) => candidate !== enemy && candidate.linkId === enemy.linkId)
@@ -1781,6 +1809,7 @@ function updateEnemy(enemy, dt) {
 }
 
 function updateEnemyBehavior(enemy, dt) {
+  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
   enemy.swordHitEffectTimer = Math.max(0, (enemy.swordHitEffectTimer || 0) - dt);
   enemy.gustVisualTimer = Math.max(0, (enemy.gustVisualTimer || 0) - dt);
   enemy.freezeTimer = Math.max(0, enemy.freezeTimer || 0);
@@ -1810,7 +1839,6 @@ function updateEnemyBehavior(enemy, dt) {
   enemy.attackCooldown -= dt * (enemy.boss || enemy.miniBoss
     ? 1 + Math.max(0, currentFloor - 1) * 0.06 : 1 + Math.max(0, currentFloor - 1) * 0.08) * (enemy.boss ? 1.3 : 1);
   enemy.stateTimer -= dt;
-  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
   enemy.spitFlash = Math.max(0, enemy.spitFlash - dt);
 
   if (enemy.boss || enemy.miniBoss || enemy.bossAI) {

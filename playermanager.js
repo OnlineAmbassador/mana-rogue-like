@@ -1550,7 +1550,7 @@ function updateClassSignature(dt) {
 }
 
 function useClassSignature() {
-  if (mode !== 'playing') return;
+  if (mode !== 'playing' || deathTimer > 0) return;
   const sig = classSignature();
   if (!sig?.active) return;
   if (player.signatureCooldown > 0) {
@@ -1684,6 +1684,16 @@ function vibrateController(damageAmount) {
   }
 }
 
+const DEATH_SLOWDOWN_SECONDS = 1.1;
+
+function damageSourceName(origin) {
+  if (!origin) return 'a hazard';
+  if (origin.fuse !== undefined) return 'a bomb';
+  if (origin.title) return origin.title;
+  const kind = origin.ownerKind || origin.kind;
+  return monsterSprites[kind] ? monsterDisplayName(kind) : 'an enemy attack';
+}
+
 function knockPlayerBack(source, incomingDamage) {
   let awayX = 0;
   let awayY = 0;
@@ -1708,7 +1718,7 @@ function knockPlayerBack(source, incomingDamage) {
 }
 
 function damagePlayer(damageAmount = 1, source) {
-  if (player.invuln > 0 || mode !== 'playing') return;
+  if (player.invuln > 0 || mode !== 'playing' || deathTimer > 0) return;
   if (source === undefined) {
     // No explicit source: assume the closest enemy or enemy shot did it.
     source = [...enemies, ...enemyProjectiles]
@@ -1745,11 +1755,18 @@ function damagePlayer(damageAmount = 1, source) {
   if (remainingDamage > 0) player.hp -= remainingDamage;
   if (incomingDamage > 1) triggerCameraShake('playerHeavyHit');
   else triggerCameraShake('playerHurt');
+  playSound('punch.ogg', 0.32);
+  runStats.lastHitBy = damageSourceName(source);
   player.invuln = 0.9;
   if (player.hp <= 0) {
-    mode = 'gameover';
+    // The run is lost now; a short slow-motion beat plays before the game-over screen.
+    deathTimer = DEATH_SLOWDOWN_SECONDS;
+    player.invuln = DEATH_SLOWDOWN_SECONDS + 1;
+    player.knockback = null;
+    player.hook = null;
+    dashTimer = 0;
     clearSavedRun();
-    showMessage('The sanctum claims another delver. Choose who descends next.', 5);
+    playSound('system/event-fail.ogg', 0.5);
   }
   updateHud();
 }
