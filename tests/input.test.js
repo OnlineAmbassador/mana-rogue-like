@@ -5,10 +5,23 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {}) {
+  const classes = new Set();
+  const buttons = new Map(['bomb', 'item'].map((action) => [action, {
+    disabled: false, badge: { textContent: '' },
+    querySelector() { return this.badge; },
+  }]));
   const context = vm.createContext({
     navigator: { maxTouchPoints: touch ? 5 : 0, userAgent },
     window: { matchMedia: () => ({ matches: coarse }) },
-    touchControlsEl: { hidden: true },
+    document: { body: { classList: {
+      toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); },
+      contains(name) { return classes.has(name); },
+    } } },
+    touchControlsEl: {
+      hidden: true,
+      querySelector(selector) { return buttons.get(selector.includes('"bomb"') ? 'bomb' : 'item'); },
+    },
+    bombsHeld: 2, consumables: [],
     touchInput: { moveX: 1, moveY: 1, attack: true, stickPointer: 1, attackPointer: 2 },
     stickKnobEl: { style: {} },
     touchAttackEl: { classList: { add() {}, remove() {} } },
@@ -42,12 +55,36 @@ test('a connected controller suppresses phone controls until disconnect', () => 
   assert.equal(context.touchControlsEl.hidden, false);
 });
 
-test('small keyboard-only screens and fine-pointer laptops do not show controls', () => {
-  for (const settings of [{ touch: false }, { coarse: false, userAgent: 'Desktop' }]) {
-    const context = inputContext(settings);
-    context.updateTouchControls();
-    assert.equal(context.touchControlsEl.hidden, true);
-  }
+test('touch input activates controls even without coarse-pointer or phone user-agent detection', () => {
+  const context = inputContext({ touch: false, coarse: false, userAgent: 'Desktop' });
+  context.setInputMode('keyboard');
+  assert.equal(context.touchControlsEl.hidden, true);
+  context.setInputMode('touch');
+  assert.equal(context.touchControlsEl.hidden, false);
+  assert.equal(context.document.body.classList.contains('mobile-layout'), true);
+});
+
+test('touch-capable fine-pointer devices get the mobile layout and touch controls', () => {
+  const context = inputContext({ coarse: false, userAgent: 'Desktop' });
+  context.updateTouchControls();
+  assert.equal(context.touchControlsEl.hidden, false);
+  assert.equal(context.document.body.classList.contains('mobile-layout'), true);
+});
+
+test('large quick actions display inventory counts and disable empty supplies', () => {
+  const context = inputContext();
+  context.updateTouchControls();
+  const bomb = context.touchControlsEl.querySelector('[data-touch-action="bomb"]');
+  const item = context.touchControlsEl.querySelector('[data-touch-action="item"]');
+  assert.equal(bomb.badge.textContent, '2');
+  assert.equal(bomb.disabled, false);
+  assert.equal(item.disabled, true);
+  context.bombsHeld = 0;
+  context.consumables.push({ id: 'mana-tonic', count: 3 });
+  context.updateTouchControls();
+  assert.equal(bomb.disabled, true);
+  assert.equal(item.disabled, false);
+  assert.equal(item.badge.textContent, '3');
 });
 
 test('touch overlays stay out of menus and release held inputs', () => {
@@ -80,7 +117,7 @@ function touchHarness() {
   const dash = makeElement('dash');
   dash.dataset.touchAction = 'dash';
   context.touchControlsEl.querySelectorAll = () => [dash];
-  context.document = { getElementById: (id) => elements.get(id) };
+  context.document.getElementById = (id) => elements.get(id);
   context.startGameMusic = context.releaseAttackInputSuppressionIfIdle = () => {};
   context.actions = [];
   context.runAction = (action) => context.actions.push(action);

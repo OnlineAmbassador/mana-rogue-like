@@ -131,12 +131,12 @@ body {
   }
 }
 
-@media (any-pointer: coarse) {
+@media screen {
   .touch-controls:not([hidden]) {
     display: block;
     position: relative;
     width: 100%;
-    height: 240px;
+    height: 320px;
     z-index: 2;
     pointer-events: none;
     user-select: none;
@@ -145,7 +145,7 @@ body {
 
   .touch-zone {
     position: absolute;
-    top: 72px;
+    top: 178px;
     bottom: 0;
     width: 50%;
     pointer-events: auto;
@@ -157,7 +157,8 @@ body {
 
   .touch-stick,
   .touch-attack,
-  .touch-utilities button {
+  .touch-utilities button,
+  .touch-quick-actions button {
     color: #fff0d1;
     border: 2px solid rgba(233, 197, 126, 0.82);
     background: rgba(15, 23, 19, 0.6);
@@ -212,7 +213,8 @@ body {
   }
 
   .touch-attack span,
-  .touch-utilities span {
+  .touch-utilities span,
+  .touch-quick-actions span {
     display: block;
     font: bold 0.55rem Arial, sans-serif;
     text-transform: uppercase;
@@ -242,6 +244,41 @@ body {
     pointer-events: auto;
   }
 
+  .touch-quick-actions {
+    position: absolute;
+    top: 108px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  .touch-quick-actions button {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    pointer-events: auto;
+  }
+
+  .touch-count {
+    position: absolute;
+    right: -3px;
+    top: -3px;
+    min-width: 22px;
+    padding: 3px;
+    border-radius: 12px;
+    background: #18271e;
+    font: bold 13px Arial, sans-serif;
+  }
+
+  .touch-quick-actions button:disabled {
+    opacity: 0.4;
+  }
+
   .touch-controls button:active,
   .touch-controls button.is-pressed {
     background: rgba(102, 185, 167, 0.78);
@@ -249,26 +286,33 @@ body {
   }
 }
 
-@media (any-pointer: coarse) and (orientation: portrait) {
-  .touch-zone { top: 108px; }
-  .game-stage { width: 100%; }
-  body { padding-bottom: env(safe-area-inset-bottom); }
+@media (orientation: portrait) {
+  body.mobile-layout .game-stage { width: 100%; }
+  body.mobile-layout { padding-bottom: env(safe-area-inset-bottom); }
 }
 
-@media (max-height: 600px) and (orientation: landscape) {
-  body {
-    min-height: 100dvh;
+@media (orientation: landscape) {
+  body.mobile-layout {
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     place-content: center;
   }
 
-  .hud, .message { display: none; }
-  .game-stage { width: min(100%, calc(100dvh * 16 / 9)); }
-  #game { border: 0; border-radius: 0; }
-  .touch-controls:not([hidden]) { position: absolute; inset: 0; height: auto; }
-  .touch-zone { top: 48%; }
-  .touch-utilities { top: auto; bottom: 5px; left: 21%; right: 21%; }
-  .touch-utilities button { width: 44px; }
-  .touch-stick { left: 5%; bottom: 14px; width: 96px; }
-  .touch-attack { right: 5%; bottom: 18px; width: 84px; }
+  body.mobile-layout .hud,
+  body.mobile-layout .message { display: none; }
+  body.mobile-layout .game-stage {
+    width: min(calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right)),
+      calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 16 / 9));
+  }
+  body.mobile-layout #game { border: 0; border-radius: 0; }
+  body.mobile-layout .touch-controls:not([hidden]) { position: absolute; inset: 0; height: auto; }
+  body.mobile-layout .touch-zone { top: 38%; }
+  body.mobile-layout .touch-utilities { top: 6px; left: 12%; right: 12%; }
+  body.mobile-layout .touch-quick-actions { top: auto; bottom: 12px; }
+  body.mobile-layout .touch-stick { left: 8%; bottom: 14px; width: 104px; }
+  body.mobile-layout .touch-attack { right: 8%; bottom: 18px; width: 96px; }
 }

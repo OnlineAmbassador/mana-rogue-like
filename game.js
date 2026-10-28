@@ -490,8 +490,7 @@ let previousMenuDirection = 0;
 let lastInputMode = 'keyboard';
 
 function isTouchDevice() {
-  return navigator.maxTouchPoints > 0 && (window.matchMedia('(pointer: coarse)').matches ||
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  return navigator.maxTouchPoints > 0;
 }
 
 function resetTouchInput() {
@@ -507,9 +506,19 @@ function resetTouchInput() {
 
 function updateTouchControls() {
   if (!touchControlsEl) return;
-  const visible = isTouchDevice() && lastInputMode === 'touch' && !gamepadInput.connected && mode === 'playing';
+  document.body.classList.toggle('mobile-layout', isTouchDevice() || lastInputMode === 'touch');
+  const visible = lastInputMode === 'touch' && !gamepadInput.connected && mode === 'playing';
   touchControlsEl.hidden = !visible;
   if (!visible) resetTouchInput();
+  if (visible) {
+    const itemCount = consumables.reduce((total, item) => total + Math.max(0, item.count), 0);
+    for (const [action, count] of [['bomb', bombsHeld], ['item', itemCount]]) {
+      const button = touchControlsEl.querySelector(`[data-touch-action="${action}"]`);
+      button.disabled = count === 0;
+      const badge = button.querySelector('.touch-count');
+      if (badge.textContent !== String(count)) badge.textContent = String(count);
+    }
+  }
 }
 
 function setInputMode(inputMode) {
@@ -2624,7 +2633,8 @@ window.addEventListener('pointerdown', (event) => {
   updateControlsHint();
 });
 window.addEventListener('pointermove', (event) => {
-  if (event.pointerType === 'mouse' && (event.movementX || event.movementY)) {
+  if (event.pointerType === 'mouse' && !event.sourceCapabilities?.firesTouchEvents &&
+      (event.movementX || event.movementY)) {
     setInputMode('keyboard');
     updateControlsHint();
   }
