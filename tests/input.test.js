@@ -167,3 +167,15 @@ test('utility buttons trigger gameplay actions without stopping movement', () =>
   assert.deepEqual(context.actions, ['dash']);
   assert.equal(context.touchInput.moveX, 1);
 });
+
+test('Dash triggers without firing or releasing a held attack', () => {
+  const { context, elements } = touchHarness();
+  const dash = elements.get('dash');
+  dash.fire('pointerdown', 1);
+  assert.equal(context.touchInput.attack, false);
+  elements.get('touch-aim-zone').fire('pointerdown', 2, 200, 50);
+  dash.fire('pointerdown', 3);
+  assert.deepEqual(context.actions, ['dash', 'dash']);
+  assert.equal(context.touchInput.attack, true);
+  assert.equal(context.touchInput.attackPointer, 2);
+});

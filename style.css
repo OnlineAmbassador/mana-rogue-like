@@ -1,4 +1,6 @@
 :root {
+  color-scheme: dark;
+  background-color: #000;
   --bg: #101411;
   --panel: rgba(17, 23, 20, 0.92);
   --line: #66b9a7;
@@ -13,6 +15,11 @@
 
 * { box-sizing: border-box; }
 
+html {
+  min-height: 100%;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -21,6 +28,10 @@ body {
   background: linear-gradient(135deg, #1c211a 0%, #0d1210 55%, #17201a 100%);
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+body.mobile-layout {
+  background: #000;
 }
 
 .hud {
@@ -136,7 +147,7 @@ body {
     display: block;
     position: relative;
     width: 100%;
-    height: 320px;
+    height: 360px;
     z-index: 2;
     pointer-events: none;
     user-select: none;
@@ -157,6 +168,7 @@ body {
 
   .touch-stick,
   .touch-attack,
+  .touch-dash,
   .touch-utilities button,
   .touch-quick-actions button {
     color: #fff0d1;
@@ -213,11 +225,24 @@ body {
   }
 
   .touch-attack span,
+  .touch-dash span,
   .touch-utilities span,
   .touch-quick-actions span {
     display: block;
     font: bold 0.55rem Arial, sans-serif;
     text-transform: uppercase;
+  }
+
+  .touch-dash {
+    position: absolute;
+    right: 20%;
+    bottom: calc(15% + 100px);
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: 50%;
+    pointer-events: auto;
+    font-size: 1.25rem;
   }
 
   .touch-utilities {
@@ -315,4 +340,5 @@ body {
   body.mobile-layout .touch-quick-actions { top: auto; bottom: 12px; }
   body.mobile-layout .touch-stick { left: 8%; bottom: 14px; width: 104px; }
   body.mobile-layout .touch-attack { right: 8%; bottom: 18px; width: 96px; }
+  body.mobile-layout .touch-dash { right: 8%; bottom: 122px; }
 }
