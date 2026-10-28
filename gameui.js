@@ -201,8 +201,9 @@ function playSound(path, volume = 0.4) {
   volume *= audioSettings.sfxVolume;
   let pool = soundPools.get(path);
   if (!pool) {
+    const url = path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`;
     pool = Array.from({ length: 4 }, () => {
-      const audio = new Audio(`${soundRoot}/${path}`);
+      const audio = new Audio(url);
       audio.preload = 'auto';
       return audio;
     });
@@ -212,6 +213,75 @@ function playSound(path, volume = 0.4) {
   audio.currentTime = 0;
   audio.volume = volume;
   audio.play().catch(() => {});
+}
+
+// Source of Mana mobs that match a Hollow Sanctum enemy, with the cues SoM ships for each.
+const somMobEvents = {
+  ratto: ['attack', 'hit', 'death'],
+  bat: ['attack', 'death'],
+  slime: ['attack', 'hit', 'death'],
+  snake: ['attack'],
+  scorpion: ['attack', 'hit'],
+  croc: ['attack', 'dodge', 'hit'],
+  fluffy: ['attack', 'dodge', 'hit'],
+  skeleton: ['death'],
+  shroom: ['attack', 'hit', 'death'],
+  pinkie: ['attack', 'dodge'],
+  piou: ['attack', 'dodge', 'hit', 'death'],
+  turtle: ['attack', 'dodge', 'hit', 'death'],
+};
+
+const somMobByEnemy = {
+  ratto: 'ratto', bat: 'bat', vampirebat: 'bat', slime: 'slime',
+  snake: 'snake', scorpion: 'scorpion', croc: 'croc', fluffy: 'fluffy', skeleton: 'skeleton',
+  'spore-sower': 'shroom', bosspinkie: 'pinkie', junglefowl: 'piou', snail: 'turtle',
+};
+
+// As in SoM, any mob without its own hit or dodge cue uses the shared one.
+const somSharedEnemySounds = { hit: 'som:alteration/hit.ogg', dodge: 'som:alteration/dodge.ogg' };
+
+// TMW cues for species with no Source of Mana equivalent: attack is the swing, hit is the hurt cue.
+const tmwSpecies = (attack, hit, death) => ({ attack, hit, death });
+
+const tmwEnemySounds = {
+  zombie: tmwSpecies('monsters/zombie/zombie-miss1.ogg', null, 'monsters/zombie/zombie-dying1.ogg'),
+  spider: tmwSpecies('monsters/spider/spider-hit1.ogg', null, 'monsters/spider/spider-die1.ogg'),
+  'spider-queen': tmwSpecies('monsters/spider/spider-hit1.ogg'),
+  bee: tmwSpecies('monsters/bee/bee-miss1.ogg', 'monsters/bee/hurt.ogg', 'monsters/bee/bee-die1.ogg'),
+  yeti: tmwSpecies('monsters/yeti/yeti-miss1.ogg', 'monsters/yeti/yeti-hurt1.ogg', 'monsters/yeti/yeti-die1.ogg'),
+  yetiking: tmwSpecies('monsters/yeti/yeti-miss1.ogg', 'monsters/yeti/yeti-hurt1.ogg', 'monsters/yeti/yeti-die1.ogg'),
+  snowman: tmwSpecies('monsters/snowman_boss/miss1.ogg'),
+  'snowman-boss': tmwSpecies('monsters/snowman_boss/miss1.ogg'),
+  golem: tmwSpecies('monsters/golem/miss1.ogg', null, 'monsters/golem/die.ogg'),
+  reaper: tmwSpecies('monsters/reaper/reaper-hit1.ogg', 'monsters/reaper/reaper-hurt1.ogg', 'monsters/reaper/reaper-die1.ogg'),
+  jacko: tmwSpecies(null, null, 'monsters/pumpkin/die1.ogg'),
+  forestdragon: tmwSpecies('monsters/dragon/hit.ogg', null, 'monsters/dragon/die.ogg'),
+  nightdragon: tmwSpecies('monsters/dragon/hit.ogg', null, 'monsters/dragon/die.ogg'),
+  frostiana: tmwSpecies('monsters/frostiana/hit1.ogg'),
+  'slime-mother': tmwSpecies(null, 'monsters/slime-super/slime-super-hurt1.ogg', 'monsters/slime-super/slime-super-die1.ogg'),
+  wisp: tmwSpecies(null, null, 'monsters/ghost/ghost-die1.ogg'),
+};
+
+// Source of Mana's cue for the species, else its TMW cue, else the shared hit/dodge cue.
+// Attack and death return null when nothing matches so the caller's generic cue plays.
+function enemySound(enemy, event) {
+  const mob = somMobByEnemy[enemy.kind];
+  if (mob && somMobEvents[mob].includes(event)) return `som:entities/${mob}/${event}.ogg`;
+  return tmwEnemySounds[enemy.kind]?.[event] || somSharedEnemySounds[event] || null;
+}
+
+// Pickups and obstacle hits can arrive in clusters, so each cue has a minimum gap between plays.
+const throttledSoundTimes = new Map();
+
+function playThrottledSound(path, volume, minGapMs = 70) {
+  const now = performance.now();
+  if (now - (throttledSoundTimes.get(path) || 0) < minGapMs) return;
+  throttledSoundTimes.set(path, now);
+  playSound(path, volume);
+}
+
+function playPickupSound(name, volume, minGapMs = 70) {
+  playThrottledSound(`som:alteration/${name}.ogg`, volume, minGapMs);
 }
 
 function scheduleMusicNote(midiNote, startTime, duration, volume, waveform) {

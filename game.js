@@ -191,6 +191,9 @@ const BANK_STORAGE_KEY = 'mana-hollow-sanctum-bank';
 const RUN_STORAGE_KEY = 'mana-hollow-sanctum-run';
 const assetRoot = 'assets/tmw/clientdata/graphics';
 const soundRoot = 'assets/tmw/clientdata/sfx';
+// Paths prefixed with 'som:' load from the Source of Mana sound set instead.
+const somSoundRoot = 'assets/som/sounds';
+
 const soundPools = new Map();
 const gameMusic = {
   enabled: true,
@@ -481,11 +484,16 @@ const monsterSprites = {
 };
 const banditBowImage = loadAsset('sprites/monsters/accessories/banditbow.png');
 const obstacleSprites = [
-  { image: loadAsset('sprites/monsters/loghead.png'), frameWidth: 45, frameHeight: 43, frames: [0], scale: 1.55, hp: 1, radius: 23, type: 'solid' },
-  { image: loadAsset('sprites/monsters/redmushroom.png'), frameWidth: 42, frameHeight: 33, frames: [0, 10, 20, 30], scale: 1.55, hp: 2, radius: 18, type: 'bomb-only' },
-  { image: loadAsset('sprites/monsters/forestmushroom.png'), frameWidth: 42, frameHeight: 40, frames: [0], scale: 1.35, hp: 3, radius: 15, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3 },
-  { image: desertObstacleTiles, frameWidth: 32, frameHeight: 32, frames: [27], scale: 1.6, hp: 2, radius: 18, type: 'bomb-only' },
-  { image: loadAsset('sprites/monsters/plant.png'), frameWidth: 46, frameHeight: 42, frames: [0], scale: 1.3, hp: 3, radius: 18, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3 },
+  { image: loadAsset('sprites/monsters/loghead.png'), frameWidth: 45, frameHeight: 43, frames: [0], scale: 1.55, hp: 1, radius: 23, type: 'solid',
+    sound: { hit: 'monsters/loghead/loghead-hurt1.ogg', break: 'monsters/loghead/loghead-die1.ogg' } },
+  { image: loadAsset('sprites/monsters/redmushroom.png'), frameWidth: 42, frameHeight: 33, frames: [0, 10, 20, 30], scale: 1.55, hp: 2, radius: 18, type: 'bomb-only',
+    sound: { hit: 'monsters/shroom/shroom-hurt1.ogg', break: 'monsters/shroom/shroom-die1.ogg' } },
+  { image: loadAsset('sprites/monsters/forestmushroom.png'), frameWidth: 42, frameHeight: 40, frames: [0], scale: 1.35, hp: 3, radius: 15, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3,
+    sound: { hit: 'monsters/shroom/shroom-hurt1.ogg', break: 'monsters/shroom/shroom-die1.ogg' } },
+  { image: desertObstacleTiles, frameWidth: 32, frameHeight: 32, frames: [27], scale: 1.6, hp: 2, radius: 18, type: 'bomb-only',
+    sound: { hit: 'monsters/crocotree/hurt1.ogg', break: 'monsters/crocotree/die1.ogg' } },
+  { image: loadAsset('sprites/monsters/plant.png'), frameWidth: 46, frameHeight: 42, frames: [0], scale: 1.3, hp: 3, radius: 18, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3,
+    sound: { hit: 'monsters/flower/flower-hit1.ogg', break: 'monsters/crocotree/die1.ogg' } },
 ];
 // Obstacle sets follow the region's ground: desert cactus only in dry regions, plants in wooded ones.
 const obstacleSpritesByRegion = {
@@ -2055,7 +2063,10 @@ function update(dt) {
       continue;
     }
     if (pickup.kind === 'heart' && player.hp >= player.maxHp) continue;
-    if (pickup.kind === 'xp') gainXp(1);
+    if (pickup.kind === 'xp') {
+      playPickupSound('exp', 0.12, 90);
+      gainXp(1);
+    }
     if (pickup.kind === 'upgrade') {
       // A refused upgrade stays on the floor; it is offered again once the player steps off it.
       if (pickup.refused) continue;
@@ -2068,9 +2079,11 @@ function update(dt) {
     if (pickup.kind === 'coin') {
       coins += 1;
       runStats.zennyFound += 1;
+      playPickupSound('gp', 0.25);
     }
     if (pickup.kind === 'heart') {
       player.hp = Math.min(player.maxHp, player.hp + 1);
+      playPickupSound('heal', 0.35);
       popOverPlayer({ icon: 'heart', color: '#ff7b8e' });
     }
     if (pickup.kind === 'key') {
@@ -2133,6 +2146,7 @@ function update(dt) {
       showMessage('The guardian is defeated. The seal opens; the descent continues.', 5);
     } else {
       popOverPlayer({ icon: 'unlock', color: '#8fe39a' });
+      playSound('som:alteration/quest-update.ogg', 0.3);
     }
   }
   updateHud();

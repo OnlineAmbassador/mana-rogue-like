@@ -243,7 +243,10 @@ function addRoomRewardPickup(room) {
 }
 
 function playEnemyAttackSound(enemy, volume = enemy.boss ? 0.3 : 0.14) {
-  if (enemy.boss) {
+  const attackSound = enemySound(enemy, 'attack');
+  if (attackSound) {
+    playSound(attackSound, volume);
+  } else if (enemy.boss) {
     playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/hit1.ogg' : 'ML/Roar.ogg', volume);
   } else {
     playSound('monsters/zombie/zombiemiss.ogg', volume);
@@ -1416,28 +1419,6 @@ function spawnEnemyOffspring(enemy) {
   }
 }
 
-// Species with their own TMW death sound; everything else uses the zombie cry.
-const enemyDeathSounds = {
-  ratto: 'monsters/ratto/die1.ogg',
-  bat: 'monsters/bat/bat-dying1.ogg',
-  vampirebat: 'monsters/bat/bat-dying1.ogg',
-  bee: 'monsters/bee/bee-die1.ogg',
-  wisp: 'monsters/ghost/ghost-die1.ogg',
-  skeleton: 'monsters/skeleton/skel-die1.ogg',
-  slime: 'monsters/slime/slime-die1.ogg',
-  snail: 'monsters/snail/snail-die1.ogg',
-  spider: 'monsters/spider/spider-die1.ogg',
-  yeti: 'monsters/yeti/yeti-die1.ogg',
-  'spore-sower': 'monsters/mushroom/die1.ogg',
-  jacko: 'monsters/pumpkin/die1.ogg',
-  'slime-mother': 'monsters/slime-super/slime-super-die1.ogg',
-  reaper: 'monsters/reaper/reaper-die1.ogg',
-  golem: 'monsters/golem/die.ogg',
-  yetiking: 'monsters/yeti/yeti-die1.ogg',
-  forestdragon: 'monsters/dragon/die.ogg',
-  nightdragon: 'monsters/dragon/die.ogg',
-};
-
 function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, ignoreFirstHitCap = false, applyHitStop = true) {
   if (damage > 0) damage = Math.max(1, Math.round(damage * curioMultiplier('damage')));
   if (enemy.linkId && enemy.linkShieldCharges > 0) {
@@ -1464,6 +1445,12 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
   }
   enemy.hp -= damage;
   enemy.hitFlash = 0.16;
+  const hitSound = enemy.hp > 0 && damage > 0 && !(enemy.hitSoundUntil > performance.now())
+    ? enemySound(enemy, 'hit') : null;
+  if (hitSound) {
+    enemy.hitSoundUntil = performance.now() + 140;
+    playSound(hitSound, enemy.boss ? 0.2 : 0.16);
+  }
   const impactXDirection = enemy.x - impactX;
   const impactYDirection = enemy.y - impactY;
   const fallbackAngle = Math.atan2(player.lookY, player.lookX);
@@ -1520,7 +1507,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       playSound('special/fanfare.ogg', 0.12);
     }
     playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/die1.ogg'
-      : enemyDeathSounds[enemy.kind] || 'monsters/zombie/zombiedie.ogg', enemy.boss ? 0.65 : 0.38);
+      : enemySound(enemy, 'death') || 'monsters/zombie/zombiedie.ogg', enemy.boss ? 0.65 : 0.38);
     if (enemy.boss || enemy.miniBoss) triggerCameraShake('bomb');
     dropLoot(enemy.x, enemy.y, enemy.boss, enemy.bossSummoned);
     const linkedTwin = enemy.linkId
@@ -1558,7 +1545,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       bossStrikes.length = 0;
       groundHazards.length = 0;
       for (let i = bombs.length - 1; i >= 0; i--) if (bombs[i].owner === 'enemy') bombs.splice(i, 1);
-      playSound('special/fanfare.ogg', 0.45);
+      playSound('som:alteration/quest-done.ogg', 0.5);
       recordFloorClear(currentFloor);
       const unlockedId = ({
         'slime-mother': 'tulimshar-guard', bosspinkie: 'candor-runner',
@@ -1661,6 +1648,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
       enemy.dodgeX = (-shot.vy / shotSpeed) * sign;
       enemy.dodgeY = (shot.vx / shotSpeed) * sign;
       enemy.dodgeTimer = 0.16;
+      playSound(enemySound(enemy, 'dodge'), 0.14);
       addParticles(enemy.x, enemy.y, '#ffffff', 3, 40);
       return true;
     }

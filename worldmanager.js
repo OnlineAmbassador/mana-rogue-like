@@ -625,7 +625,12 @@ function damageObstacle(obstacle, damage = 1, source = 'projectile') {
   if (obstacle.type === 'solid' || (obstacle.type === 'bomb-only' && source !== 'bomb')) return;
   obstacle.hp -= damage;
   obstacle.regenTimer = obstacle.regenerating ? 0.65 : obstacle.regenTimer;
-  if (obstacle.hp > 0) return;
+  const obstacleSound = obstacle.sprite?.sound;
+  if (obstacle.hp > 0) {
+    if (obstacleSound) playThrottledSound(obstacleSound.hit, 0.2, 80);
+    return;
+  }
+  if (obstacleSound) playSound(obstacleSound.break, 0.3);
 
   if (!obstacle.dropConsumed) {
     obstacle.dropConsumed = true;
@@ -798,6 +803,7 @@ function grantUpgrade(item, source = 'descent') {
   const sideEffectMode = applyRandomFireMode(item);
   recordItemDiscovery(item);
   reservedUpgradeIds.delete(item.id);
+  playSound('som:alteration/skillup.ogg', 0.35);
   updateHud();
   showMessage(
     item.kind === 'clothing'
@@ -1052,6 +1058,7 @@ function tryUnlock(room, direction) {
     return false;
   }
   keysHeld -= 1;
+  playSound('som:entities/chest/open.ogg', 0.35);
   delete room.lockedDoors[direction];
   const target = rooms.find((candidate) =>
     candidate.x === room.x + directions.find((item) => item.name === direction).dx &&
@@ -1344,6 +1351,7 @@ function interact(withdrawFromBank = false) {
       return;
     }
     currentFloor += 1;
+    playSound('system/warp.ogg', 0.3);
     blanksHeld += 1;
     if (currentRegionId() === 'hurnscald' && unlockCharacter('hurnscald-herbalist')) {
       showMessage('Unlocked: Hurnscald Herbalist.', 3);
@@ -1451,7 +1459,10 @@ function buyShopItem(index) {
   }
   coins -= item.cost;
   item.purchased = true;
-  if (['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind)) {
+  const grantsUpgrade = ['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind);
+  // Upgrades already play their own cue in grantUpgrade.
+  if (!grantsUpgrade) playSound('system/item.ogg', 0.3);
+  if (grantsUpgrade) {
     if (!grantUpgrade(item, 'shop')) {
       coins += item.cost;
       item.purchased = false;

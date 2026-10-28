@@ -1352,7 +1352,7 @@ function updateBombMotion(bomb, dt) {
 
 function explodeBomb(bomb) {
   triggerCameraShake('bomb');
-  playSound('special/nature-thunder.ogg', bomb.owner === 'enemy' ? 0.32 : 0.55);
+  playSound('system/boom.ogg', bomb.owner === 'enemy' ? 0.32 : 0.55);
   const hurtByBlast = (target) => distanceBetween(bomb, target) <= bomb.radius && hasLineOfSight(bomb, target);
   if (hurtByBlast(player)) damagePlayer(0.5, bomb);
   if (bomb.owner !== 'enemy') {
@@ -1503,7 +1503,7 @@ function gainXp(amount) {
     streakCallout.y = player.y - 70;
     streakCallout.text = `LEVEL ${xpLevel}! ${label}`;
     addParticles(player.x, player.y, '#7ee8ff', 16, 140);
-    playSound('special/fanfare.ogg', 0.1);
+    playSound('som:alteration/levelup.ogg', 0.3);
   }
   updateHud();
 }
