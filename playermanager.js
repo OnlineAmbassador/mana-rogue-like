@@ -413,6 +413,11 @@ function reservedAbilityCount() {
     reservedUpgradeIds.has(item.id) && !ownedItems.has(item.id)).length;
 }
 
+// Roster health (3–12) maps onto 3–6 starting hearts.
+function startingHearts(entry) {
+  return clamp(Math.round(2 + (entry.hp || 6) / 3), 3, 6);
+}
+
 function extraHearts() {
   return Math.max(0, player.maxHp - (character ? startingHearts(character) : BASE_HEARTS));
 }
@@ -1683,6 +1688,12 @@ function vibrateController(damageAmount) {
     return;
   }
 }
+
+// Counts down the slow-motion beat between the killing blow and the game-over screen.
+let deathTimer = 0;
+
+// Tallies for the end-of-run summary; saved with the run.
+const runStats = { seconds: 0, kills: 0, guardians: 0, zennyFound: 0, lastHitBy: '', unlocked: [] };
 
 const DEATH_SLOWDOWN_SECONDS = 1.1;
 

@@ -590,18 +590,6 @@ const bossCompanionKinds = new Set([
   'snowman-boss', 'yetiking', 'forestdragon', 'nightdragon',
 ]);
 const MIN_ABILITY_COST = 3;
-// Proper names for monsters whose sprite keys don't read as one.
-const monsterDisplayNames = {
-  'slime-mother': 'Great Red Slime', bosspinkie: 'Pinkie Matriarch', golem: 'Ancient Golem',
-  banditlord: 'Bandit Lord', yetiking: 'Yeti King', forestdragon: 'Forest Dragon',
-  nightdragon: 'Night Dragon', vampirebat: 'Vampire Bat', junglefowl: 'Jungle Fowl',
-};
-
-function monsterDisplayName(kind) {
-  return monsterDisplayNames[kind] ||
-    kind.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
-}
-
 const shopItemCatalog = [
   { id: 'pearl', name: 'Mana Pearl', description: 'Larger, stronger tears', cost: 5, kind: 'passive' },
   { id: 'prism', name: 'Prism Shard', description: 'Fire a three-way burst', cost: 8, kind: 'passive' },
@@ -935,14 +923,8 @@ let score = 0;
 let killStreak = 0;
 let killStreakTimer = 0;
 const streakCallout = { timer: 0, duration: 1.2, x: 0, y: 0, text: '' };
-// Counts down the slow-motion beat between the killing blow and the game-over screen.
-let deathTimer = 0;
-
 // Recent messages drawn on the canvas, newest first.
 const messageToasts = [];
-
-// Tallies for the end-of-run summary; saved with the run.
-const runStats = { seconds: 0, kills: 0, guardians: 0, zennyFound: 0, lastHitBy: '', unlocked: [] };
 
 // Ignores input briefly when a run ends so a held or mashed key can't skip the summary.
 let endScreenDelay = 0;
@@ -1312,11 +1294,6 @@ const SOFT_EXTRA_HEARTS = 5;
 
 
 // Past the soft limit, vessels become rare finds.
-
-// Roster health (3–12) maps onto 3–6 starting hearts.
-function startingHearts(entry) {
-  return clamp(Math.round(2 + (entry.hp || 6) / 3), 3, 6);
-}
 
 const rangeLensItemIds = ['range-lens', 'range-lens-ii', 'range-lens-iii'];
 
