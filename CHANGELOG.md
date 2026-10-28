@@ -8,6 +8,18 @@ These entries were later ported onto upstream's module split (`gameui.js`, `mobm
 
 Built on the 2026-10-26 overhaul (`8ae8751`, "added some polish"). Covers commits `0654956`…`3e1759f`.
 
+### Window scaling and fullscreen (branch `fit-window-hidpi`)
+- The game fills the window. The canvas is the largest 16:9 box that fits between the top bar and the message bar, so nothing falls below the fold on short screens.
+- The canvas draws at the screen's pixel density, capped at 3×, so it's sharp on high-DPI and scaled displays.
+  - Drawing still uses a fixed 960×540 logical view (`VIEW_W`, `VIEW_H`). New code must use these instead of `canvas.width` and `canvas.height`, which are now the backing size.
+  - `resizeCanvas()` sets the CSS size and `renderScale`. It runs from a `ResizeObserver` on `#stage` and from a pixel-ratio media query.
+  - `applyRenderScale()` resizes the backing store and sets the transform at the start of each `draw()`.
+  - `shadowBlur` is scaled by `renderScale` so glows keep their size.
+  - In low quality, the canvas draws at its CSS size instead.
+- The top bar and the message bar have fixed heights: the message bar is one line, and the controls hint and stats are at most three lines. Text that appears or clears no longer resizes the canvas mid-run.
+- Fullscreen: Alt+Enter, or the Fullscreen button in the top bar. In fullscreen the top bar is hidden and the message bar is only visually hidden, so `aria-live` still works.
+- Pointer coordinates are measured from the canvas content box, which removes a small offset caused by the border.
+
 ### Story and narration (`0654956`)
 - New narration text for the prologue, region cards, floor-start lines, guardian clues, ancestry notes and the ending.
 - Voice narration is switched off with `NARRATION_ENABLED = false` in `game.js` until the recordings match the new text.

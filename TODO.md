@@ -26,7 +26,7 @@
 - [x] Fix missing asset paths and draw familiars.
 - [ ] Trim `assets/tmw` to the ~10 MB the game uses (about 250 MB now) before hosting.
 - [ ] Preload sound effects into Web Audio buffers instead of per-sound Audio pools.
-- [ ] Render the canvas at devicePixelRatio for sharper high-DPI displays.
+- [x] Render the canvas at devicePixelRatio for sharper high-DPI displays.
 - [ ] Playtest balance: charge damage, projectile drop, AI difficulty, HUD layout.
 
 ## Final polish

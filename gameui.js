@@ -28,7 +28,7 @@ function ttsButtonBounds() {
 }
 
 function ttsPromptBounds(yes) {
-  return { x: canvas.width / 2 + (yes ? -190 : 30), y: 330, width: 160, height: 44 };
+  return { x: VIEW_W / 2 + (yes ? -190 : 30), y: 330, width: 160, height: 44 };
 }
 
 function setVolumeFromPointer(px, which = audioSliderDragging) {
@@ -115,15 +115,15 @@ function handleAudioPanelPad(horizontal, confirmPressed) {
 function drawTtsPrompt() {
   ctx.save();
   ctx.fillStyle = 'rgba(8, 10, 9, 0.92)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 28px Georgia';
-  ctx.fillText('Read the story aloud?', canvas.width / 2, 230);
+  ctx.fillText('Read the story aloud?', VIEW_W / 2, 230);
   ctx.fillStyle = '#d6d0be';
   ctx.font = '16px Arial';
-  ctx.fillText('Turn on text-to-speech narration for the prologue and chapter intros.', canvas.width / 2, 268);
-  ctx.fillText('You can change this later with the narration button.', canvas.width / 2, 292);
+  ctx.fillText('Turn on text-to-speech narration for the prologue and chapter intros.', VIEW_W / 2, 268);
+  ctx.fillText('You can change this later with the narration button.', VIEW_W / 2, 292);
   for (const [yes, label] of [[true, 'YES (Y)'], [false, 'NO (N)']]) {
     const bounds = ttsPromptBounds(yes);
     ctx.fillStyle = yes ? '#30443b' : '#4a3a2a';
@@ -2975,7 +2975,7 @@ function drawWorld() {
       const auraColor = pickup.item.kind === 'element'
         ? magicElementPalette[pickup.item.element] || '#8fe0bd'
         : pickup.item.kind === 'ability' ? '#86dce8' : '#a8e39c';
-      if (bubbleScreenX + radius > canvas.width - 154 && bubbleY - camera.y - radius < 154) {
+      if (bubbleScreenX + radius > VIEW_W - 154 && bubbleY - camera.y - radius < 154) {
         bubbleY = camera.y + 154 + radius + 6;
       }
       ctx.save();
@@ -3552,15 +3552,15 @@ function drawRoomLeftovers(room, x, y, cell, radius) {
 
 function drawMap() {
   ctx.fillStyle = 'rgba(12, 13, 20, 0.92)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#f3e9d8';
   ctx.font = 'bold 24px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('SANCTUM MAP', canvas.width / 2, 86);
+  ctx.fillText('SANCTUM MAP', VIEW_W / 2, 86);
 
   const cell = 55;
-  const originX = canvas.width / 2 - cell * 3.5;
-  const originY = canvas.height / 2 - cell * 3.5;
+  const originX = VIEW_W / 2 - cell * 3.5;
+  const originY = VIEW_H / 2 - cell * 3.5;
   for (const room of rooms) {
     if (!room.visited) continue;
     const x = originX + room.x * cell;
@@ -3589,7 +3589,7 @@ function drawMap() {
   }
   ctx.fillStyle = '#ded4c4';
   ctx.font = '16px Arial';
-  ctx.fillText('Press M to return', canvas.width / 2, canvas.height - 48);
+  ctx.fillText('Press M to return', VIEW_W / 2, VIEW_H - 48);
 }
 
 function roomMapRect(room, x, y, cell) {
@@ -3601,7 +3601,7 @@ function roomMapRect(room, x, y, cell) {
 }
 
 function drawMinimap() {
-  const panel = { x: canvas.width - 154, y: 12, width: 142, height: 142 };
+  const panel = { x: VIEW_W - 154, y: 12, width: 142, height: 142 };
   const cell = 16;
   const originX = panel.x + 14;
   const originY = panel.y + 25;
@@ -3697,21 +3697,21 @@ function drawInGameCommentary() {
   messageToasts.forEach((toast, index) => {
     // In the shop the line sits near the top, so the stack grows downward there.
     const y = currentRoom?.type === 'shop' ? 78 + index * 30 : 408 - index * 30;
-    const width = Math.min(canvas.width - 40, ctx.measureText(toast.text).width + 28);
+    const width = Math.min(VIEW_W - 40, ctx.measureText(toast.text).width + 28);
     ctx.globalAlpha = Math.min(1, toast.timer / 0.6) * (index === 0 ? 1 : 0.85);
     ctx.fillStyle = 'rgba(8, 10, 12, 0.78)';
-    ctx.fillRect(canvas.width / 2 - width / 2, y, width, 26);
+    ctx.fillRect(VIEW_W / 2 - width / 2, y, width, 26);
     ctx.fillStyle = '#f4e8c8';
-    ctx.fillText(toast.text.slice(0, 120), canvas.width / 2, y + 18, canvas.width - 48);
+    ctx.fillText(toast.text.slice(0, 120), VIEW_W / 2, y + 18, VIEW_W - 48);
   });
   if (calm && controlsHelpVisible) {
     const hint = (controlsEl.textContent || '').replace(/\n/g, ' · ');
     ctx.globalAlpha = 0.85;
     ctx.font = '11px Arial';
     ctx.fillStyle = 'rgba(8, 10, 12, 0.7)';
-    ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+    ctx.fillRect(0, VIEW_H - 20, VIEW_W, 20);
     ctx.fillStyle = '#d8d2b8';
-    ctx.fillText(hint, canvas.width / 2, canvas.height - 6, canvas.width - 16);
+    ctx.fillText(hint, VIEW_W / 2, VIEW_H - 6, VIEW_W - 16);
   }
   ctx.restore();
 }
@@ -4178,7 +4178,7 @@ function drawGameHud() {
   const boss = enemies.find((enemy) => enemy.boss || enemy.miniBoss);
   if (boss) {
     const width = boss.boss ? 380 : 300;
-    const x = (canvas.width - width) / 2;
+    const x = (VIEW_W - width) / 2;
     const y = 46;
     ctx.fillStyle = 'rgba(14, 12, 18, 0.72)';
     ctx.fillRect(x, y, width, 29);
@@ -4191,7 +4191,7 @@ function drawGameHud() {
     ctx.textAlign = 'center';
     ctx.fillText(boss.boss
       ? `${boss.title}${boss.phase >= 3 ? ' - PHASE III' : boss.phase >= 2 ? ' - PHASE II' : ''}`
-      : boss.title || 'MINI-BOSS', canvas.width / 2, y + 12);
+      : boss.title || 'MINI-BOSS', VIEW_W / 2, y + 12);
   }
 }
 
@@ -4200,7 +4200,7 @@ function characterCardBounds(pageIndex) {
 }
 
 function characterStartBounds() {
-  return { x: canvas.width / 2 - 100, y: 490, width: 200, height: 36 };
+  return { x: VIEW_W / 2 - 100, y: 490, width: 200, height: 36 };
 }
 
 function menuFocusEntries() {
@@ -4255,7 +4255,7 @@ function prologueReplayBounds() {
 
 // In the margins beside the row of delver cards.
 function rosterPageButtonBounds(direction) {
-  return { x: direction < 0 ? 2 : canvas.width - 26, y: 247, width: 24, height: 44 };
+  return { x: direction < 0 ? 2 : VIEW_W - 26, y: 247, width: 24, height: 44 };
 }
 
 function changeRosterPage(direction) {
@@ -4280,7 +4280,7 @@ function requestProgressReset() {
 }
 
 function codexButtonBounds() {
-  return { x: canvas.width - 174, y: 80, width: 150, height: 30 };
+  return { x: VIEW_W - 174, y: 80, width: 150, height: 30 };
 }
 
 function openCodex() {
@@ -4338,11 +4338,11 @@ function codexEntries() {
 }
 
 function resumeRunBounds() {
-  return { x: canvas.width / 2 - 120, y: 451, width: 240, height: 30 };
+  return { x: VIEW_W / 2 - 120, y: 451, width: 240, height: 30 };
 }
 
 function prologueButtonBounds(direction) {
-  return { x: direction < 0 ? 94 : canvas.width - 214, y: 458, width: 120, height: 38 };
+  return { x: direction < 0 ? 94 : VIEW_W - 214, y: 458, width: 120, height: 38 };
 }
 
 function advancePrologue(direction) {
@@ -4413,16 +4413,16 @@ function wrapCanvasText(text, x, y, maxWidth, lineHeight) {
 function drawPrologue() {
   const page = prologuePages[prologuePage];
   ctx.fillStyle = '#161b1a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#283a31';
-  ctx.fillRect(0, 0, canvas.width, 98);
+  ctx.fillRect(0, 0, VIEW_W, 98);
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`THE MANA WORLD  /  ${page.heading}`, canvas.width / 2, 54);
+  ctx.fillText(`THE MANA WORLD  /  ${page.heading}`, VIEW_W / 2, 54);
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 30px Georgia';
-  ctx.fillText(page.title, canvas.width / 2, 150);
+  ctx.fillText(page.title, VIEW_W / 2, 150);
   ctx.fillStyle = '#d6d0be';
   ctx.font = '18px Arial';
   ctx.textAlign = 'left';
@@ -4430,7 +4430,7 @@ function drawPrologue() {
   ctx.fillStyle = '#b9c8b3';
   ctx.font = '13px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`${prologuePage + 1} / ${prologuePages.length}`, canvas.width / 2, 425);
+  ctx.fillText(`${prologuePage + 1} / ${prologuePages.length}`, VIEW_W / 2, 425);
   const previous = prologueButtonBounds(-1);
   const next = prologueButtonBounds(1);
   for (const [bounds, label] of [[previous, 'BACK'], [next, prologuePage === prologuePages.length - 1 ? 'DELVER ROSTER' : 'CONTINUE']]) {
@@ -4444,7 +4444,7 @@ function drawPrologue() {
   }
   ctx.fillStyle = '#c5b9a6';
   ctx.font = '12px Arial';
-  ctx.fillText('Use ← / →, A / D, or the controller D-pad to read the prologue.', canvas.width / 2, 520);
+  ctx.fillText('Use ← / →, A / D, or the controller D-pad to read the prologue.', VIEW_W / 2, 520);
   drawAudioPanel();
   if (ttsPromptActive()) drawTtsPrompt();
 }
@@ -4453,16 +4453,16 @@ function drawChapter() {
   const card = activeChapter;
   if (!card) return;
   ctx.fillStyle = '#161b1a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#283a31';
-  ctx.fillRect(0, 0, canvas.width, 98);
+  ctx.fillRect(0, 0, VIEW_W, 98);
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`${card.kind === 'region' ? 'NEW MAP DISCOVERED' : 'NEW DELVER UNLOCKED'}  /  ${card.heading}`, canvas.width / 2, 54);
+  ctx.fillText(`${card.kind === 'region' ? 'NEW MAP DISCOVERED' : 'NEW DELVER UNLOCKED'}  /  ${card.heading}`, VIEW_W / 2, 54);
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 30px Georgia';
-  ctx.fillText(card.title, canvas.width / 2, 150);
+  ctx.fillText(card.title, VIEW_W / 2, 150);
   ctx.fillStyle = '#d6d0be';
   ctx.font = '18px Arial';
   ctx.textAlign = 'left';
@@ -4480,25 +4480,25 @@ function drawChapter() {
   ctx.font = '12px Arial';
   ctx.fillText(narrationActive()
     ? 'Enter, Space, a click, or A continues. The narrator reads each entry aloud.'
-    : 'Enter, Space, a click, or A continues.', canvas.width / 2, 520);
+    : 'Enter, Space, a click, or A continues.', VIEW_W / 2, 520);
 }
 
 function drawCharacterSelect() {
   ctx.fillStyle = '#161b17';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#efd4a0';
   ctx.font = 'bold 29px Georgia';
   ctx.textAlign = 'center';
-  ctx.fillText('THE MANA WORLD  /  DELVER LEDGER', canvas.width / 2, 72);
+  ctx.fillText('THE MANA WORLD  /  DELVER LEDGER', VIEW_W / 2, 72);
   ctx.fillStyle = '#c8cbbd';
   ctx.font = '14px Arial';
   const pageStart = Math.floor(selectedIndex / rosterPageSize) * rosterPageSize;
   const pageNumber = Math.floor(pageStart / rosterPageSize);
-  ctx.fillText(`Page ${pageNumber + 1} / ${Math.ceil(characterRoster.length / rosterPageSize)}  •  ← / → selects delvers`, canvas.width / 2, 105);
+  ctx.fillText(`Page ${pageNumber + 1} / ${Math.ceil(characterRoster.length / rosterPageSize)}  •  ← / → selects delvers`, VIEW_W / 2, 105);
   if (lastInputMode === 'touch') {
     ctx.font = 'bold 32px Arial';
     ctx.fillText('‹', 35, 270);
-    ctx.fillText('›', canvas.width - 35, 270);
+    ctx.fillText('›', VIEW_W - 35, 270);
   }
   // Touch shows its own swipe arrows; mouse and controller get the page buttons.
   if (lastInputMode !== 'touch') for (const direction of [-1, 1]) {
@@ -4601,7 +4601,7 @@ function drawCharacterSelect() {
   const selectedSignature = classSignature(selected);
   ctx.fillText(isCharacterUnlocked(selected)
     ? `${selected.trait}${selectedSignature ? `  ·  ${selectedSignature.label}: ${selectedSignature.desc}` : ''}`
-    : `LOCKED  /  ${selected.unlock}`, canvas.width / 2, 416);
+    : `LOCKED  /  ${selected.unlock}`, VIEW_W / 2, 416);
   if (hasSavedRun()) {
     const resume = resumeRunBounds();
     const hoveredResume = pointer.x >= resume.x && pointer.x <= resume.x + resume.width &&
@@ -4612,7 +4612,7 @@ function drawCharacterSelect() {
     ctx.strokeRect(resume.x, resume.y, resume.width, resume.height);
     ctx.fillStyle = '#fff0d1';
     ctx.font = 'bold 13px Arial';
-    ctx.fillText('RESUME SAVED DESCENT', canvas.width / 2, resume.y + 21);
+    ctx.fillText('RESUME SAVED DESCENT', VIEW_W / 2, resume.y + 21);
     if (lastInputMode === 'controller' && menuFocus === 'resume') {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 3;
@@ -4621,7 +4621,7 @@ function drawCharacterSelect() {
   } else {
     ctx.fillStyle = '#c5b9a6';
     ctx.font = '12px Arial';
-    ctx.fillText('Learn styles and weapons; all your attacks stack. Break cracked walls with bombs.', canvas.width / 2, 462);
+    ctx.fillText('Learn styles and weapons; all your attacks stack. Break cracked walls with bombs.', VIEW_W / 2, 462);
   }
   const start = characterStartBounds();
   const hoveredStart = pointer.x >= start.x && pointer.x <= start.x + start.width &&
@@ -4633,7 +4633,7 @@ function drawCharacterSelect() {
   ctx.strokeRect(start.x, start.y, start.width, start.height);
   ctx.fillStyle = '#fff0d1';
   ctx.font = 'bold 15px Arial';
-  ctx.fillText(newRunConfirmTimer > 0 ? 'CONFIRM NEW DESCENT' : 'DESCEND', canvas.width / 2, start.y + 25);
+  ctx.fillText(newRunConfirmTimer > 0 ? 'CONFIRM NEW DESCENT' : 'DESCEND', VIEW_W / 2, start.y + 25);
   const focusBounds = {
     start,
     reset: resetButtonBounds(),
@@ -4659,12 +4659,12 @@ function drawCharacterSelect() {
 
 function drawCodex() {
   ctx.fillStyle = '#111714';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.strokeStyle = '#83a588';
   ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4707,7 +4707,7 @@ function drawCodex() {
   visibleEntries.forEach((entry, index) => {
     const y = 172 + index * 43;
     ctx.fillStyle = 'rgba(8, 12, 10, 0.6)';
-    ctx.fillRect(68, y, canvas.width - 136, 38);
+    ctx.fillRect(68, y, VIEW_W - 136, 38);
     if (entry.kind !== 'enemy') drawShopItemIcon(entry, 91, y + 19);
     else {
       ctx.fillStyle = '#98c98e';
@@ -4730,7 +4730,7 @@ function drawCodex() {
       ctx.textAlign = 'right';
       ctx.fillStyle = found ? '#a9d79e' : '#e0c77c';
       ctx.font = 'bold 10px Arial';
-      ctx.fillText(status, canvas.width - 78, y + 23);
+      ctx.fillText(status, VIEW_W - 78, y + 23);
     }
   });
 
@@ -4739,9 +4739,9 @@ function drawCodex() {
   ctx.font = '12px Arial';
   const collectionProgress = codexTab === 'lore'
     ? ` · ${(save.loreRelics || []).length}/${manaLoreRelics.length} collected` : '';
-  ctx.fillText(`${entries.length === 0 ? 0 : codexScroll + 1}-${Math.min(entries.length, codexScroll + 7)} / ${entries.length}${collectionProgress}  ·  ↑/↓ Browse  ·  ←/→ Change tab`, canvas.width / 2, 480);
+  ctx.fillText(`${entries.length === 0 ? 0 : codexScroll + 1}-${Math.min(entries.length, codexScroll + 7)} / ${entries.length}${collectionProgress}  ·  ↑/↓ Browse  ·  ←/→ Change tab`, VIEW_W / 2, 480);
   ctx.fillStyle = '#a5c79b';
-  ctx.fillText('K / ESC / B  ·  Close', canvas.width / 2, 500);
+  ctx.fillText('K / ESC / B  ·  Close', VIEW_W / 2, 500);
 }
 
 function controlsActionList() {
@@ -4757,15 +4757,15 @@ function controlsRowBounds(index) {
 }
 
 function controlsBackBounds() {
-  return { x: canvas.width / 2 - 65, y: 468, width: 130, height: 28 };
+  return { x: VIEW_W / 2 - 65, y: 468, width: 130, height: 28 };
 }
 
 function controlsButtonBounds() {
-  return { x: canvas.width - 334, y: 114, width: 150, height: 28 };
+  return { x: VIEW_W - 334, y: 114, width: 150, height: 28 };
 }
 
 function helpButtonBounds() {
-  return { x: canvas.width - 494, y: 114, width: 150, height: 28 };
+  return { x: VIEW_W - 494, y: 114, width: 150, height: 28 };
 }
 
 function pointInBounds(bounds, x = pointer.x, y = pointer.y) {
@@ -4882,12 +4882,12 @@ function drawControls() {
   const actions = controlsActionList();
   controlsRow = Math.min(controlsRow, actions.length);
   ctx.fillStyle = '#111714';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.strokeStyle = '#83a588';
   ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4967,17 +4967,17 @@ function drawControls() {
   ctx.fillStyle = '#9fb59f';
   ctx.font = '11px Arial';
   ctx.fillText('Changes save automatically and update the tutorial and on-screen prompts. A key or button already in use swaps places.',
-    canvas.width / 2, 508);
+    VIEW_W / 2, 508);
 }
 
 function tutorialButtonBounds() {
-  return { x: canvas.width - 174 - 160, y: 80, width: 150, height: 30 };
+  return { x: VIEW_W - 174 - 160, y: 80, width: 150, height: 30 };
 }
 
 function tutorialNavBounds(which) {
   if (which === 'prev') return { x: 70, y: 468, width: 130, height: 30 };
-  if (which === 'next') return { x: canvas.width - 200, y: 468, width: 130, height: 30 };
-  return { x: canvas.width / 2 - 65, y: 468, width: 130, height: 30 };
+  if (which === 'next') return { x: VIEW_W - 200, y: 468, width: 130, height: 30 };
+  return { x: VIEW_W / 2 - 65, y: 468, width: 130, height: 30 };
 }
 
 function openTutorial() {
@@ -5065,12 +5065,12 @@ function drawTutorial() {
   const page = pages[tutorialPage];
   const pad = lastInputMode === 'controller';
   ctx.fillStyle = '#111714';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.strokeStyle = '#83a588';
   ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -5082,7 +5082,7 @@ function drawTutorial() {
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(70, 108);
-  ctx.lineTo(canvas.width - 70, 108);
+  ctx.lineTo(VIEW_W - 70, 108);
   ctx.stroke();
 
   const colWidth = 390;
@@ -5116,14 +5116,14 @@ function drawTutorial() {
   }
   ctx.fillStyle = '#9fb59f';
   ctx.font = '11px Arial';
-  ctx.fillText(pad ? `D-Pad ←/→ Page  ·  ${padLabels().b} Back` : '←/→ Page  ·  Esc Back', canvas.width / 2, 508);
+  ctx.fillText(pad ? `D-Pad ←/→ Page  ·  ${padLabels().b} Back` : '←/→ Page  ·  Esc Back', VIEW_W / 2, 508);
 }
 
 function drawRunSummary(title) {
-  const centerX = canvas.width / 2;
+  const centerX = VIEW_W / 2;
   ctx.save();
   ctx.fillStyle = 'rgba(10, 9, 14, 0.88)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#f1dec1';
   ctx.font = 'bold 38px Georgia';
@@ -5185,10 +5185,10 @@ function returnToCharacterSelect() {
 function drawStoryJournal() {
   ctx.save();
   ctx.fillStyle = 'rgba(12, 14, 18, 0.94)';
-  ctx.fillRect(72, 35, canvas.width - 144, canvas.height - 70);
+  ctx.fillRect(72, 35, VIEW_W - 144, VIEW_H - 70);
   ctx.strokeStyle = '#aab98a';
   ctx.lineWidth = 2;
-  ctx.strokeRect(72, 35, canvas.width - 144, canvas.height - 70);
+  ctx.strokeRect(72, 35, VIEW_W - 144, VIEW_H - 70);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -5197,9 +5197,9 @@ function drawStoryJournal() {
   ctx.font = 'bold 25px Georgia';
   ctx.fillText('Roadside notes', 104, 116);
   // Keep the newest entries that fit, then draw them oldest first.
-  const textWidth = canvas.width - 212;
+  const textWidth = VIEW_W - 212;
   const top = 157;
-  const bottom = canvas.height - 85;
+  const bottom = VIEW_H - 85;
   ctx.font = '14px Arial';
   const visible = [];
   let height = 0;
@@ -5224,6 +5224,6 @@ function drawStoryJournal() {
   ctx.fillStyle = '#b9c8b3';
   ctx.font = '12px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('J / left-stick click · Close journal', canvas.width / 2, canvas.height - 68);
+  ctx.fillText('J / left-stick click · Close journal', VIEW_W / 2, VIEW_H - 68);
   ctx.restore();
 }

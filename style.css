@@ -57,6 +57,25 @@ body.mobile-layout {
   color: var(--cyan);
 }
 
+.fullscreen-button {
+  display: block;
+  margin-top: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--cyan);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.fullscreen-button:hover,
+.fullscreen-button:focus-visible {
+  background: rgba(102, 185, 167, 0.18);
+}
+
 #stats {
   color: var(--text);
   letter-spacing: 0;
@@ -101,6 +120,99 @@ body.mobile-layout {
   border-radius: 8px;
   text-align: center;
   color: var(--text);
+}
+
+/* Outside the mobile layout the page fills the window: the bars keep their height and the
+   stage takes the rest. game.js sizes the canvas to the largest 16:9 box in the stage and
+   sets --stage-w to match. The mobile layout keeps the rules above. */
+body.mobile-layout #stage {
+  display: contents;
+}
+
+body:not(.mobile-layout) {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+body:not(.mobile-layout) .hud,
+body:not(.mobile-layout) .message {
+  flex: none;
+  width: min(100%, max(var(--stage-w, 960px), 640px));
+  margin: 0;
+}
+
+/* The bars keep a fixed height whatever text they show, so the stage (and the canvas) never
+   resizes mid-run; the canvas HUD and commentary carry the same information in full. */
+body:not(.mobile-layout) #stats {
+  line-height: 1.15;
+  max-height: calc(3 * 1.15em);
+  overflow: hidden;
+}
+
+body:not(.mobile-layout) #controls {
+  height: calc(3 * 1.35em);
+  overflow: hidden;
+}
+
+body:not(.mobile-layout) .message {
+  height: calc(1.3em + 1.5rem + 4px);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body:not(.mobile-layout) #stage {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
+/* Shrink-wraps the canvas so the touch controls overlay exactly the drawn area. */
+body:not(.mobile-layout) .game-stage {
+  width: auto;
+  display: grid;
+}
+
+/* Width and height are set by game.js; content-box keeps the border outside the drawn area. */
+body:not(.mobile-layout) #game {
+  box-sizing: content-box;
+}
+
+/* Fullscreen shows only the game; the message bar stays readable by screen readers. */
+:root:fullscreen body {
+  padding: 0;
+  gap: 0;
+  background: #000;
+}
+
+:root:fullscreen .hud {
+  display: none;
+}
+
+:root:fullscreen .message {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:root:fullscreen #game {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 @media (max-width: 680px) {

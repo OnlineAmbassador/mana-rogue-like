@@ -1905,11 +1905,11 @@ function drawHurtVignette(shake) {
   // Snap in quickly, then ease out slowly.
   const intensity = hurtVignetteStrength * (progress > 0.85 ? (1 - progress) / 0.15 : Math.pow(progress / 0.85, 1.6));
   if (intensity <= 0.01) return;
-  const centerX = clamp(player.x - camera.x + shake.x, 0, canvas.width);
-  const centerY = clamp(player.y - 28 - camera.y + shake.y, 0, canvas.height);
+  const centerX = clamp(player.x - camera.x + shake.x, 0, VIEW_W);
+  const centerY = clamp(player.y - 28 - camera.y + shake.y, 0, VIEW_H);
   const farthest = Math.max(
-    Math.hypot(centerX, centerY), Math.hypot(canvas.width - centerX, centerY),
-    Math.hypot(centerX, canvas.height - centerY), Math.hypot(canvas.width - centerX, canvas.height - centerY),
+    Math.hypot(centerX, centerY), Math.hypot(VIEW_W - centerX, centerY),
+    Math.hypot(centerX, VIEW_H - centerY), Math.hypot(VIEW_W - centerX, VIEW_H - centerY),
   );
   const innerRadius = Math.max(60, farthest * (0.72 - 0.3 * intensity));
   const gradient = ctx.createRadialGradient(centerX, centerY, innerRadius, centerX, centerY, farthest);
@@ -1918,6 +1918,6 @@ function drawHurtVignette(shake) {
   gradient.addColorStop(1, `rgba(0, 0, 0, ${(0.78 * intensity).toFixed(3)})`);
   ctx.save();
   ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.restore();
 }

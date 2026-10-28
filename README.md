@@ -66,8 +66,8 @@ These are classic browser scripts, not modules, so their shared top-level declar
 
 ## Performance
 
-- The game redraws a 960×540 canvas every frame.
-- **Auto quality:** if the frame rate stays low for about two seconds, glow effects are switched off and particles are reduced and capped. Full quality returns after ten seconds of smooth frames.
+- The game lays out a fixed 960×540 view and redraws it every frame. The view scales to the largest 16:9 area that fits the window and draws at the screen's pixel density (up to 3× the logical size), so sprites and text stay sharp on high-DPI and scaled displays.
+- **Auto quality:** if the frame rate stays low for about two seconds, glow effects are switched off, particles are reduced and capped, and the view draws at its on-screen size instead of the screen's pixel density. Full quality returns after ten seconds of smooth frames.
 - Particles are capped (400 normally, 120 in low quality), and sound effects use small reusable audio pools.
 
 ## Combat regression checks
@@ -205,6 +205,7 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Map: M
 - Character select: Left/Right choose, Enter descends, K opens the Field Codex, H (or Y/△ on a controller, or the HOW TO PLAY button) opens the in-game tutorial, C opens Controls
 - Pause/resume: P or Esc
+- Fullscreen: Alt+Enter or the Fullscreen button under the title bar; Esc or Alt+Enter leaves it
 - Field journal: J
 - Save and exit to title: X while paused
 - Resume saved descent from title: R

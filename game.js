@@ -1,15 +1,27 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-// Pixel-art sprites are drawn enlarged; nearest-neighbour keeps them sharp.
-ctx.imageSmoothingEnabled = false;
+const stageEl = document.getElementById('stage');
+
+// All drawing uses this fixed logical view; it is scaled to the window when drawn.
+const VIEW_W = 960;
+
+const VIEW_H = 540;
+
+// Backing pixels per logical pixel are capped so very large screens don't redraw a huge bitmap.
+const MAX_RENDER_SCALE = 3;
+
+let renderScale = 1;
+
+let pixelRatioQuery = null;
 
 // Auto quality: when frames run slow, glow (shadowBlur) is switched off and particles are capped.
 const quality = { low: false, avgMs: 16.7, slowFor: 0, fastFor: 0 };
 const nativeShadowBlur = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+// shadowBlur is measured in backing pixels and ignores the transform, so it is scaled here.
 Object.defineProperty(ctx, 'shadowBlur', {
-  get() { return nativeShadowBlur.get.call(this); },
-  set(value) { nativeShadowBlur.set.call(this, quality.low ? 0 : value); },
+  get() { return nativeShadowBlur.get.call(this) / renderScale; },
+  set(value) { nativeShadowBlur.set.call(this, quality.low ? 0 : value * renderScale); },
 });
 const MAX_PARTICLES = 400;
 const MAX_PARTICLES_LOW = 120;
@@ -23,12 +35,69 @@ function updateQuality(dtSeconds) {
     quality.fastFor += dtSeconds;
     quality.slowFor = 0;
   }
-  if (!quality.low && quality.slowFor > 2) quality.low = true;
-  else if (quality.low && quality.fastFor > 10) {
+  if (!quality.low && quality.slowFor > 2) {
+    quality.low = true;
+    resizeCanvas();
+  } else if (quality.low && quality.fastFor > 10) {
     quality.low = false;
     quality.slowFor = 0;
+    resizeCanvas();
   }
 }
+// Shows the view as the largest 16:9 box that fits the stage, drawn at device resolution
+// (or at its CSS size in low quality). The backing store itself is resized in applyRenderScale.
+function resizeCanvas() {
+  const ratio = window.devicePixelRatio || 1;
+  const frame = canvas.offsetWidth - canvas.clientWidth;
+  if (document.body.classList.contains('mobile-layout')) {
+    // The mobile layout sizes the canvas in CSS; only the drawing resolution follows it here.
+    canvas.style.width = '';
+    canvas.style.height = '';
+    document.documentElement.style.removeProperty('--stage-w');
+    const cssWidth = canvas.clientWidth;
+    if (cssWidth > 0) {
+      renderScale = quality.low ? cssWidth / VIEW_W : Math.min(cssWidth * ratio / VIEW_W, MAX_RENDER_SCALE);
+    }
+  } else {
+    const availableWidth = stageEl.clientWidth - frame;
+    const availableHeight = stageEl.clientHeight - frame;
+    if (availableWidth > 0 && availableHeight > 0) {
+      const cssWidth = Math.floor(Math.min(availableWidth, availableHeight * VIEW_W / VIEW_H));
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${Math.round(cssWidth * VIEW_H / VIEW_W)}px`;
+      document.documentElement.style.setProperty('--stage-w', `${cssWidth + frame}px`);
+      renderScale = quality.low ? cssWidth / VIEW_W : Math.min(cssWidth * ratio / VIEW_W, MAX_RENDER_SCALE);
+    }
+  }
+  // Moving the window to a screen with a different pixel ratio doesn't resize the stage.
+  if (!pixelRatioQuery || !pixelRatioQuery.matches) {
+    pixelRatioQuery?.removeEventListener('change', resizeCanvas);
+    pixelRatioQuery = window.matchMedia(`(resolution: ${ratio}dppx)`);
+    pixelRatioQuery.addEventListener('change', resizeCanvas);
+  }
+}
+
+// Runs at the start of every frame, so a resize never shows a cleared canvas.
+function applyRenderScale() {
+  const width = Math.round(VIEW_W * renderScale);
+  const height = Math.round(VIEW_H * renderScale);
+  if (canvas.width !== width || canvas.height !== height) {
+    // Resizing the backing store clears it and resets the context state.
+    canvas.width = width;
+    canvas.height = height;
+  }
+  // Pixel-art sprites are drawn enlarged; nearest-neighbour keeps them sharp.
+  ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(canvas.width / VIEW_W, 0, 0, canvas.height / VIEW_H, 0, 0);
+}
+
+// The canvas is observed too: in the mobile layout its CSS size changes without the stage resizing.
+const canvasResizeObserver = new ResizeObserver(resizeCanvas);
+canvasResizeObserver.observe(stageEl);
+canvasResizeObserver.observe(canvas);
+
+resizeCanvas();
+
 const statsEl = document.getElementById('stats');
 const messageEl = document.getElementById('message');
 const controlsEl = document.getElementById('controls');
@@ -694,7 +763,7 @@ const touchControlsEl = document.getElementById('touch-controls');
 const touchStickEl = document.getElementById('touch-stick');
 const stickKnobEl = document.getElementById('stick-knob');
 const touchAttackEl = document.getElementById('touch-attack');
-const pointer = { x: canvas.width / 2, y: canvas.height / 2, down: false };
+const pointer = { x: VIEW_W / 2, y: VIEW_H / 2, down: false };
 let mouseAimActive = false;
 let lastInputMode = 'keyboard';
 let lastNonControllerInputMode = 'keyboard';
@@ -716,7 +785,11 @@ function resetTouchInput() {
 
 function updateTouchControls() {
   if (!touchControlsEl) return;
-  document.body.classList.toggle('mobile-layout', isTouchDevice() || lastInputMode === 'touch');
+  const mobileLayout = isTouchDevice() || lastInputMode === 'touch';
+  if (document.body.classList.contains('mobile-layout') !== mobileLayout) {
+    document.body.classList.toggle('mobile-layout', mobileLayout);
+    resizeCanvas();
+  }
   const visible = lastInputMode === 'touch' && mode === 'playing';
   touchControlsEl.hidden = !visible;
   if (!visible) resetTouchInput();
@@ -2290,6 +2363,7 @@ let tutorialPage = 0;
 // Tunnel vision: darkness closes in from the screen edges around the player, then fades out.
 
 function draw() {
+  applyRenderScale();
   if (mode === 'prologue') {
     drawPrologue();
     return;
@@ -2315,8 +2389,8 @@ function draw() {
     return;
   }
   const shake = getCameraShakeOffset();
-  camera.x = clamp(player.x - canvas.width / 2, 0, Math.max(0, ROOM_W - canvas.width));
-  camera.y = clamp(player.y - canvas.height / 2, 0, Math.max(0, ROOM_H - canvas.height));
+  camera.x = clamp(player.x - VIEW_W / 2, 0, Math.max(0, ROOM_W - VIEW_W));
+  camera.y = clamp(player.y - VIEW_H / 2, 0, Math.max(0, ROOM_H - VIEW_H));
   ctx.save();
   ctx.translate(shake.x - Math.round(camera.x), shake.y - Math.round(camera.y));
   withTextOutline(drawWorld);
@@ -2339,19 +2413,19 @@ function draw() {
 
   function drawPauseOverlay() {
     ctx.fillStyle = 'rgba(10, 9, 14, 0.82)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     ctx.fillStyle = '#f1dec1';
     ctx.textAlign = 'center';
     ctx.font = 'bold 38px Georgia';
-    ctx.fillText('DESCENT PAUSED', canvas.width / 2, canvas.height / 2 - 50);
+    ctx.fillText('DESCENT PAUSED', VIEW_W / 2, VIEW_H / 2 - 50);
     ctx.font = '17px Arial';
-    ctx.fillText(`${lastInputMode === 'controller' ? 'Start or A' : 'P or R'} · Resume`, canvas.width / 2, canvas.height / 2);
+    ctx.fillText(`${lastInputMode === 'controller' ? 'Start or A' : 'P or R'} · Resume`, VIEW_W / 2, VIEW_H / 2);
     ctx.fillText(lastInputMode === 'controller' ? 'B · Save and exit  ·  Back · Controls' : 'X · Save and exit  ·  C · Controls',
-      canvas.width / 2, canvas.height / 2 + 34);
+      VIEW_W / 2, VIEW_H / 2 + 34);
     ctx.fillText(lastInputMode === 'controller'
       ? 'Audio & narration: D-pad ▲ to the top-left panel, ◄ ► to adjust'
-      : 'Music and effects volume: click or drag the sliders at top left', canvas.width / 2, canvas.height / 2 + 68);
-    ctx.fillText('Your rooms and progress are saved automatically.', canvas.width / 2, canvas.height / 2 + 98);
+      : 'Music and effects volume: click or drag the sliders at top left', VIEW_W / 2, VIEW_H / 2 + 68);
+    ctx.fillText('Your rooms and progress are saved automatically.', VIEW_W / 2, VIEW_H / 2 + 98);
     drawPauseEquipment();
     drawAudioPanel();
   }
@@ -2363,13 +2437,13 @@ function draw() {
     ctx.fillStyle = '#d9bd83';
     ctx.font = 'bold 13px Arial';
     const cell = 38;
-    const perRow = Math.max(1, Math.min(14, Math.floor((canvas.width - 80) / cell)));
-    const top = canvas.height / 2 + 140;
-    ctx.fillText(equipped.length ? `EQUIPPED (${equipped.length})` : 'NOTHING EQUIPPED YET', canvas.width / 2, top - 14);
+    const perRow = Math.max(1, Math.min(14, Math.floor((VIEW_W - 80) / cell)));
+    const top = VIEW_H / 2 + 140;
+    ctx.fillText(equipped.length ? `EQUIPPED (${equipped.length})` : 'NOTHING EQUIPPED YET', VIEW_W / 2, top - 14);
     equipped.forEach((item, index) => {
       const row = Math.floor(index / perRow);
       const inRow = Math.min(perRow, equipped.length - row * perRow);
-      const x = canvas.width / 2 + (index % perRow - (inRow - 1) / 2) * cell;
+      const x = VIEW_W / 2 + (index % perRow - (inRow - 1) / 2) * cell;
       const y = top + 16 + row * cell;
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
       ctx.fillRect(x - 17, y - 17, 34, 34);
@@ -2438,6 +2512,11 @@ window.addEventListener('keydown', (event) => {
   if (event.key === ' ' || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) ||
       (event.key === 'Tab' && (mode === 'playing' || mode === 'controls'))) event.preventDefault();
   if (event.repeat) return;
+  if (event.key === 'Enter' && event.altKey) {
+    event.preventDefault();
+    toggleFullscreen();
+    return;
+  }
   if (ttsPromptActive()) {
     if (key === 'y' || event.key === 'Enter') setTextToSpeech(true);
     else if (key === 'n' || event.key === 'Escape') setTextToSpeech(false);
@@ -2516,6 +2595,20 @@ window.addEventListener('keyup', (event) => {
   keys[key] = false;
 });
 
+// Fullscreen covers the whole page; the DOM bars hide and the stage grows to fill the screen.
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+const fullscreenButton = document.getElementById('fullscreen');
+
+fullscreenButton?.addEventListener('click', () => {
+  toggleFullscreen();
+  // Drop focus so Space and Enter keep their game meaning instead of pressing the button again.
+  fullscreenButton.blur();
+});
+
 function clearHeldInputs() {
   for (const key of Object.keys(keys)) keys[key] = false;
   resetTouchInput();
@@ -2554,9 +2647,10 @@ document.addEventListener('visibilitychange', () => {
 function updatePointerPosition(event) {
   gamepadInput.aimActive = false;
   updateControlsHint();
+  // Measure from the content box so the canvas border doesn't offset the pointer.
   const rect = canvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-  pointer.y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+  pointer.x = ((event.clientX - rect.left - canvas.clientLeft) / canvas.clientWidth) * VIEW_W;
+  pointer.y = ((event.clientY - rect.top - canvas.clientTop) / canvas.clientHeight) * VIEW_H;
   if (event.pointerType === 'mouse' && mode === 'playing') {
     mouseAimActive = true;
     const dx = pointer.x + camera.x - player.x;
@@ -2625,7 +2719,7 @@ canvas.addEventListener('pointerdown', (event) => {
   }
   if (event.button !== 0) return;
   if (mode === 'paused' && !pointerOverAudioPanel()) {
-    if (pointer.y < canvas.height / 2 + 14) resumeGame();
+    if (pointer.y < VIEW_H / 2 + 14) resumeGame();
     else exitToTitle();
     return;
   }
@@ -2633,10 +2727,10 @@ canvas.addEventListener('pointerdown', (event) => {
     if (pointer.y >= 132 && pointer.y <= 160) {
       codexTab = pointer.x < 196 ? 'items' : pointer.x < 328 ? 'enemies' : 'lore';
       codexScroll = 0;
-    } else if (pointer.y > canvas.height - 68) {
+    } else if (pointer.y > VIEW_H - 68) {
       closeCodex();
     } else {
-      codexScroll = clamp(codexScroll + (pointer.y > canvas.height / 2 ? 1 : -1), 0, Math.max(0, codexEntries().length - 7));
+      codexScroll = clamp(codexScroll + (pointer.y > VIEW_H / 2 ? 1 : -1), 0, Math.max(0, codexEntries().length - 7));
     }
     return;
   }
@@ -2742,7 +2836,7 @@ canvas.addEventListener('pointerdown', (event) => {
       return;
     }
     if (event.pointerType === 'touch' && pointer.y >= 100 && pointer.y <= 416 &&
-        (pointer.x < 70 || pointer.x > canvas.width - 70)) {
+        (pointer.x < 70 || pointer.x > VIEW_W - 70)) {
       chooseCharacter(pointer.x < 70 ? 'ArrowLeft' : 'ArrowRight');
       return;
     }
