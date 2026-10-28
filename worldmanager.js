@@ -744,7 +744,8 @@ function grantUpgrade(item, source = 'descent') {
     return false;
   }
   if (['ability', 'element', 'skill'].includes(item.kind)) {
-    weapon.fireDelay = Math.max(0.55, weapon.fireDelay * 0.88);
+    // Never slows an attack that is already faster than the 0.55 s floor.
+    weapon.fireDelay = Math.max(Math.min(weapon.fireDelay, 0.55), weapon.fireDelay * 0.88);
   }
   if (item.id === 'sanctum-blessing' || item.id.startsWith('sanctum-blessing-')) {
     if (extraHearts() < SOFT_EXTRA_HEARTS) gainMaxHeart();
@@ -864,14 +865,18 @@ function spawnRoom(room) {
     companion.y = player.y;
     companion.enemyCooldowns = new Map();
   }
-    if (room.rewardUpgrade && !room.rewardClaimed &&
-      (room.type !== 'miniboss' || room.cleared) &&
-      (room.type !== 'shrine' || room.cleared)) {
-    pickups.push({ x: ROOM_W / 2, y: ROOM_H / 2, kind: 'upgrade', item: room.rewardUpgrade, room });
-  }
   room.visited = true;
   if (room.type === 'shop') refreshShopStock(room);
   const restoredRuntime = restoreRoomRuntime(room);
+  // Older saves could hold several copies of the same reward; keep one.
+  const seenUpgradeIds = new Set();
+  for (let index = pickups.length - 1; index >= 0; index -= 1) {
+    const upgradeId = pickups[index].kind === 'upgrade' ? pickups[index].item?.id : null;
+    if (!upgradeId) continue;
+    if (seenUpgradeIds.has(upgradeId)) pickups.splice(index, 1);
+    else seenUpgradeIds.add(upgradeId);
+  }
+  addRoomRewardPickup(room);
   if (room.type === 'secret') {
     const relic = typeof manaLoreRelics === 'undefined'
       ? null : manaLoreRelics.find((entry) => entry.region === currentRegionId());
@@ -1346,6 +1351,8 @@ function interact(withdrawFromBank = false) {
       showMessage('Unlocked: Artis Archivist.', 3);
     }
     resetFloorCoins();
+    // Unclaimed rewards on the floor being left must not keep blocking offers on the next one.
+    reservedUpgradeIds.clear();
     const generated = generateDungeon();
     rooms = generated.rooms;
     currentRoom = generated.startRoom;

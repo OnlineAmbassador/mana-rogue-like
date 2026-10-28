@@ -235,6 +235,13 @@ function bossForCurrentArea() {
   })[currentRegionId()] || 'slime-mother';
 }
 
+function addRoomRewardPickup(room) {
+  if (!room.rewardUpgrade || room.rewardClaimed) return;
+  if (['miniboss', 'shrine'].includes(room.type) && !room.cleared) return;
+  if (pickups.some((pickup) => pickup.kind === 'upgrade' && pickup.item?.id === room.rewardUpgrade.id)) return;
+  pickups.push({ x: ROOM_W / 2, y: ROOM_H / 2, kind: 'upgrade', item: room.rewardUpgrade, room });
+}
+
 function playEnemyAttackSound(enemy, volume = enemy.boss ? 0.3 : 0.14) {
   if (enemy.boss) {
     playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/hit1.ogg' : 'ML/Roar.ogg', volume);
@@ -1364,11 +1371,17 @@ function dropLoot(x, y, boss = false, bossSummoned = false) {
     const abilities = shopItemCatalog.filter((item) => item.kind === 'ability' &&
       !ownedItems.has(item.id) && !reservedUpgradeIds.has(item.id) &&
       !abilityAlreadyOffered(item.id) &&
-      (item.id === 'orbiting-projectiles' || abilityCount < 2));
+      (item.id === 'orbiting-projectiles' || abilityCount < 2) &&
+      save.purchasedAbilityIds.includes(item.id) && isUpgradeAvailable(item));
     if (abilities.length > 0) {
       const ability = abilities[Math.floor(Math.random() * abilities.length)];
       markAbilityOffered(ability);
       pickups.push({ x, y, kind: 'upgrade', item: ability, room: currentRoom });
+    } else {
+      // No eligible ability: the guardian still leaves a heart and some zenny.
+      pickups.push({ x, y, kind: 'heart' });
+      spawnCoin(x + 18, y);
+      spawnCoin(x - 18, y);
     }
     const guardianHeart = shopItemCatalog.find((item) => item.id === 'guardian-heart');
     if (guardianHeart && !ownedItems.has(guardianHeart.id)) {
@@ -1779,14 +1792,6 @@ function updateEnemyBehavior(enemy, dt) {
   if (enemy.slowTimer > 0) {
     enemy.slowTimer = Math.max(0, enemy.slowTimer - dt);
     dt *= enemy.boss ? 0.8 : enemy.miniBoss ? 0.65 : 0.4;
-  }
-  enemy.wetTimer = Math.max(0, (enemy.wetTimer || 0) - dt);
-  enemy.burnTimer = Math.max(0, (enemy.burnTimer || 0) - dt);
-  enemy.burnCooldown = Math.max(0, (enemy.burnCooldown || 0) - dt);
-  if (enemy.burnTimer > 0 && enemy.burnCooldown <= 0) {
-    enemy.burnCooldown = 0.8;
-    damageEnemy(enemy, 1, enemy.x, enemy.y);
-    if (!enemies.includes(enemy)) return;
   }
   enemy.wetTimer = Math.max(0, (enemy.wetTimer || 0) - dt);
   enemy.burnTimer = Math.max(0, (enemy.burnTimer || 0) - dt);

@@ -453,7 +453,8 @@ function strongestPlayerSingleHit() {
   if (consumables.some((item) => item.id === 'mana-burst' && item.count > 0)) {
     strongestHit = Math.max(strongestHit, 8);
   }
-  if (ownedItems.has('prism') && weapon.shotCount > 1 && getActiveAttackElement()) {
+  if (ownedItems.has('prism') && weapon.shotCount > 1 && getActiveAttackElement() &&
+      getActiveAttackElement() !== 'bubble') {
     strongestHit = Math.max(strongestHit, Math.ceil(baseDamage * 1.6));
   }
   return Math.ceil(strongestHit);
@@ -1145,7 +1146,9 @@ function shoot(options = null) {
       ? style === 'magic' ? -0.08 : 0.08
       : 0;
     const element = style === 'bow' ? null : getActiveAttackElement();
-    const fusedElementalShot = !morph.surround && ownedItems.has('prism') && Boolean(element) && weapon.shotCount > 1;
+    // Prism fans out by default; only a non-water element fuses the fan into one heavy shot.
+    const fusedElementalShot = !morph.surround && ownedItems.has('prism') && Boolean(element) &&
+      element !== 'bubble' && weapon.shotCount > 1;
     const baseShots = tripleBow ? Math.max(3, weapon.shotCount) : weapon.shotCount;
     const shotCount = Math.min(morph.surround ? 4 : fusedElementalShot ? 1 : baseShots, volleyBudget);
     volleyBudget -= shotCount;

@@ -1226,7 +1226,12 @@ function pauseGame() {
   pointer.down = false;
   saveRunState();
   mode = 'paused';
-  showMessage('Paused. Press Start/A to resume or B to save and exit.', 9999);
+  const labels = pauseControlLabels();
+  showMessage(`Paused. Press ${labels.resume} to resume or ${labels.exit} to save and exit.`, 9999);
+}
+
+function pauseControlLabels() {
+  return lastInputMode === 'controller' ? { resume: 'Start/A', exit: 'B' } : { resume: 'P or R', exit: 'X' };
 }
 
 function resumeGame() {
@@ -1965,6 +1970,7 @@ function update(dt) {
       enemyProjectiles.splice(i, 1);
     } else if (hitsPlayer) {
       damagePlayer(0.5, projectile);
+      enemyProjectiles.splice(i, 1);
     } else if (projectileExpired) {
       enemyProjectiles.splice(i, 1);
     }
@@ -1983,9 +1989,21 @@ function update(dt) {
         continue;
       }
     }
-    if (distanceBetween(player, pickup) > player.radius + 14) continue;
+    if (distanceBetween(player, pickup) > player.radius + 14) {
+      pickup.refused = false;
+      continue;
+    }
     if (pickup.kind === 'heart' && player.hp >= player.maxHp) continue;
     if (pickup.kind === 'xp') gainXp(1);
+    if (pickup.kind === 'upgrade') {
+      // A refused upgrade stays on the floor; it is offered again once the player steps off it.
+      if (pickup.refused) continue;
+      if (!grantUpgrade(pickup.item)) {
+        pickup.refused = true;
+        continue;
+      }
+      if (pickup.room) pickup.room.rewardClaimed = true;
+    }
     if (pickup.kind === 'coin') coins += 1;
     if (pickup.kind === 'heart') {
       player.hp = Math.min(player.maxHp, player.hp + 1);
@@ -2008,13 +2026,13 @@ function update(dt) {
         pickups.splice(i, 1);
         continue;
       }
-      if (!grantUpgrade(pickup.item, 'drop')) continue;
+      if (pickup.refused) continue;
+      if (!grantUpgrade(pickup.item, 'drop')) {
+        pickup.refused = true;
+        continue;
+      }
     }
     if (pickup.guaranteedTreasure && pickup.room) pickup.room.treasureClaimed = true;
-    if (pickup.kind === 'upgrade') {
-      pickup.room.rewardClaimed = true;
-      grantUpgrade(pickup.item);
-    }
     pickups.splice(i, 1);
     updateHud();
   }
@@ -2046,15 +2064,7 @@ function update(dt) {
   if (enemies.length === 0 && !currentRoom.cleared && currentRoom.type !== 'start' && currentRoom.type !== 'shop') {
     currentRoom.cleared = true;
     grantOrbitGuardChargeUp(currentRoom);
-    if (['miniboss', 'shrine'].includes(currentRoom.type) && currentRoom.rewardUpgrade && !currentRoom.rewardClaimed) {
-      pickups.push({
-        x: ROOM_W / 2,
-        y: ROOM_H / 2,
-        kind: 'upgrade',
-        item: currentRoom.rewardUpgrade,
-        room: currentRoom,
-      });
-    }
+    if (['miniboss', 'shrine'].includes(currentRoom.type)) addRoomRewardPickup(currentRoom);
     if (currentRoom.type === 'boss') {
       showMessage('The guardian is defeated. The seal opens; the descent continues.', 5);
     } else {
