@@ -8,7 +8,11 @@ A browser-based, room-by-room action roguelike set in the world of [The Mana Wor
 2. Set the music and effects volume sliders on the title screen, pick a delver, and press Enter.
 3. Click **HOW TO PLAY** (or press H) on the select screen for the interactive tutorial. It shows your current keyboard or controller bindings.
 
-Works in current Chrome, Edge, Firefox and Safari with a keyboard and mouse, or an Xbox or PlayStation controller.
+Works in current Chrome, Edge, Firefox and Safari with a keyboard and mouse, an Xbox or PlayStation controller, or phone touch controls.
+
+On phones, drag the left movement area with one thumb and hold the right attack area with the other. Holding attacks automatically targets a nearby enemy; dragging aims manually. Visible buttons provide dash, bombs, interaction, skills, items, shockwave, weapon switching, bank withdrawal, map, journal, and pause. Touch controls hide when a controller connects or you use a mouse or keyboard; they return when the controller disconnects or you return to touch. Landscape uses the available screen height; portrait keeps the controls below the game. Both preserve the 960-by-540 game coordinates. Tap the roster's side arrows to select other delvers, and tap the upper or lower pause area to resume or save and exit.
+
+Compatible presentation fixes adapted from [WildX-480's fork](https://github.com/WildX-480/mana-rogue-like): preserved control-hint line breaks and live game-message announcements. Its unrelated balance and audio changes are not merged.
 
 ## Source layout
 
@@ -61,10 +65,10 @@ These are classic browser scripts, not modules, so their shared top-level declar
 With Node.js installed, run the dependency-free regression suite from the repository root:
 
 ```powershell
-node --test tests\parry.test.js tests\health.test.js tests\classes.test.js tests\balance.test.js tests\magic.test.js
+node --test tests/*.test.js
 ```
 
-The suite currently has 77 tests covering combat, healing/proc probability boundaries, class tradeoffs, floor/boss balance, bomb physics, loot, spore clusters, and wild magic. Element checks cover all eight Mage starting elements, upgrade-driven changes, save restoration without a purchased sigil, and matching colors on immediate and delayed effects.
+The suite covers combat, healing/proc probability boundaries, class tradeoffs, floor/boss balance, bomb physics, loot, spore clusters, and wild magic. Element checks cover all eight Mage starting elements, upgrade-driven changes, save restoration without a purchased sigil, and matching colors on immediate and delayed effects. Boss telegraph checks cover real golem and Jacko windups, slam completion timing, and bounded arc radii for oversized or expired timers.
 
 Check all six runtime scripts before publishing:
 

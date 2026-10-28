@@ -479,7 +479,7 @@ const characterChapters = {
 const keys = {};
 const gamepadInput = { connected: false, family: 'xbox', moveX: 0, moveY: 0, dpadX: 0, dpadY: 0, dpadFacing: false, aimX: 1, aimY: 0, aimActive: false, shoot: false };
 let attackInputSuppressed = false;
-const touchInput = { moveX: 0, moveY: 0, attack: false, stickPointer: null, attackPointer: null };
+const touchInput = { moveX: 0, moveY: 0, attack: false, aimActive: false, aimX: 1, aimY: 0, stickPointer: null, attackPointer: null };
 const touchControlsEl = document.getElementById('touch-controls');
 const touchStickEl = document.getElementById('touch-stick');
 const stickKnobEl = document.getElementById('stick-knob');
@@ -488,6 +488,116 @@ const previousGamepadButtons = new Map();
 const pointer = { x: canvas.width / 2, y: canvas.height / 2, down: false };
 let previousMenuDirection = 0;
 let lastInputMode = 'keyboard';
+
+function isTouchDevice() {
+  return navigator.maxTouchPoints > 0 && (window.matchMedia('(pointer: coarse)').matches ||
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+}
+
+function resetTouchInput() {
+  touchInput.moveX = 0;
+  touchInput.moveY = 0;
+  touchInput.attack = false;
+  touchInput.aimActive = false;
+  touchInput.stickPointer = null;
+  touchInput.attackPointer = null;
+  if (stickKnobEl) stickKnobEl.style.transform = 'translate(-50%, -50%)';
+  if (touchAttackEl) touchAttackEl.classList.remove('is-pressed');
+}
+
+function updateTouchControls() {
+  if (!touchControlsEl) return;
+  const visible = isTouchDevice() && lastInputMode === 'touch' && !gamepadInput.connected && mode === 'playing';
+  touchControlsEl.hidden = !visible;
+  if (!visible) resetTouchInput();
+}
+
+function setInputMode(inputMode) {
+  lastInputMode = inputMode;
+  updateTouchControls();
+}
+
+function touchStickVector(deltaX, deltaY, radius) {
+  const length = Math.hypot(deltaX, deltaY);
+  const scale = length > radius ? radius / length : 1;
+  return { x: deltaX * scale / radius, y: deltaY * scale / radius };
+}
+
+function setupTouchControls() {
+  if (!touchControlsEl) return;
+  const moveZone = document.getElementById('touch-move-zone');
+  const aimZone = document.getElementById('touch-aim-zone');
+  const origins = new Map();
+  const updateStick = (event, moving) => {
+    const origin = origins.get(event.pointerId);
+    if (!origin) return;
+    const vector = touchStickVector(event.clientX - origin.x, event.clientY - origin.y, 40);
+    if (moving) {
+      touchInput.moveX = vector.x;
+      touchInput.moveY = vector.y;
+      stickKnobEl.style.transform = `translate(calc(-50% + ${vector.x * 32}px), calc(-50% + ${vector.y * 32}px))`;
+    } else {
+      touchInput.aimActive = Math.hypot(vector.x, vector.y) > 0.18;
+      touchInput.aimX = vector.x;
+      touchInput.aimY = vector.y;
+    }
+  };
+  const bindZone = (zone, moving) => {
+    if (!zone) return;
+    const pointerKey = moving ? 'stickPointer' : 'attackPointer';
+    zone.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'touch' || touchInput[pointerKey] !== null) return;
+      event.preventDefault();
+      setInputMode('touch');
+      if (touchControlsEl.hidden) return;
+      startGameMusic();
+      touchInput[pointerKey] = event.pointerId;
+      origins.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      zone.setPointerCapture(event.pointerId);
+      if (!moving) {
+        touchInput.attack = true;
+        touchAttackEl.classList.add('is-pressed');
+      }
+      updateStick(event, moving);
+    });
+    zone.addEventListener('pointermove', (event) => {
+      if (touchInput[pointerKey] !== event.pointerId) return;
+      event.preventDefault();
+      updateStick(event, moving);
+    });
+    const release = (event) => {
+      origins.delete(event.pointerId);
+      if (touchInput[pointerKey] !== event.pointerId) return;
+      touchInput[pointerKey] = null;
+      if (moving) {
+        touchInput.moveX = 0;
+        touchInput.moveY = 0;
+        stickKnobEl.style.transform = 'translate(-50%, -50%)';
+      } else {
+        touchInput.attack = false;
+        touchInput.aimActive = false;
+        touchAttackEl.classList.remove('is-pressed');
+        releaseAttackInputSuppressionIfIdle();
+      }
+    };
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) zone.addEventListener(type, release);
+  };
+  bindZone(moveZone, true);
+  bindZone(aimZone, false);
+  for (const button of touchControlsEl.querySelectorAll('[data-touch-action]')) {
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setInputMode('touch');
+      if (touchControlsEl.hidden) return;
+      startGameMusic();
+      const action = button.dataset.touchAction;
+      if (action === 'pause') pauseGame();
+      else runAction(action, { shift: action === 'withdraw' });
+      updateTouchControls();
+    });
+  }
+}
 
 let mode = 'prologue';
 let prologuePage = 0;
@@ -1959,6 +2069,7 @@ function loop(timestamp) {
     openChapter();
   }
   pollGamepad();
+  updateTouchControls();
   update(dt);
   draw();
   requestAnimationFrame(loop);
@@ -1975,7 +2086,10 @@ function pollGamepad() {
   const gamepad = Array.from(gamepads).find((candidate) => candidate?.connected &&
     (candidate.mapping === 'standard' || (candidate.axes.length >= 4 && candidate.buttons.length >= 10)));
   if (!gamepad) {
-    if (gamepadInput.connected) showMessage('Controller disconnected.', 2);
+    if (gamepadInput.connected) {
+      showMessage('Controller disconnected.', 2);
+      if (lastInputMode === 'controller') lastInputMode = isTouchDevice() ? 'touch' : 'keyboard';
+    }
     gamepadInput.connected = false;
     gamepadInput.moveX = 0;
     gamepadInput.moveY = 0;
@@ -2160,6 +2274,7 @@ function runAction(id, options = {}) {
     case 'weapon3': selectCombatStyle('magic'); break;
     case 'map': showMap = !showMap; break;
     case 'journal': showStoryJournal = !showStoryJournal; break;
+    case 'withdraw': interact(true); break;
     default: break;
   }
 }
@@ -2172,7 +2287,7 @@ function chooseCharacter(key) {
 
 window.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
-  lastInputMode = 'keyboard';
+  setInputMode('keyboard');
   updateControlsHint();
   startGameMusic();
   keys[event.key] = true;
@@ -2267,6 +2382,7 @@ window.addEventListener('keyup', (event) => {
 
 function clearHeldInputs() {
   for (const key of Object.keys(keys)) keys[key] = false;
+  resetTouchInput();
   pointer.down = false;
   player.meleeCharge = 0;
   gamepadInput.moveX = 0;
@@ -2301,7 +2417,7 @@ document.addEventListener('visibilitychange', () => {
 
 function updatePointerPosition(event) {
   gamepadInput.aimActive = false;
-  lastInputMode = 'keyboard';
+  setInputMode(event.pointerType === 'touch' ? 'touch' : 'keyboard');
   updateControlsHint();
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * canvas.width;
@@ -2355,9 +2471,23 @@ canvas.addEventListener('wheel', (event) => {
   cycleCombatStyle(event.deltaY > 0 ? 1 : -1);
 }, { passive: false });
 canvas.addEventListener('pointerdown', (event) => {
+  if (!event.isPrimary) return;
+  updatePointerPosition(event);
   if (event.button === 2 && mode === 'playing') {
     event.preventDefault();
     useClassSignature();
+    return;
+  }
+  if (event.button !== 0) return;
+  if (mode === 'paused' && !pointerOverAudioPanel()) {
+    if (pointer.y < canvas.height / 2 + 14) resumeGame();
+    else exitToTitle();
+    return;
+  }
+  if (mode === 'gameover' || mode === 'won') {
+    mode = 'select';
+    selectedIndex = 0;
+    updateHud();
     return;
   }
   if (mode === 'codex') {
@@ -2366,6 +2496,8 @@ canvas.addEventListener('pointerdown', (event) => {
       codexScroll = 0;
     } else if (pointer.y > canvas.height - 68) {
       closeCodex();
+    } else {
+      codexScroll = clamp(codexScroll + (pointer.y > canvas.height / 2 ? 1 : -1), 0, Math.max(0, codexEntries().length - 7));
     }
     return;
   }
@@ -2385,7 +2517,7 @@ canvas.addEventListener('pointerdown', (event) => {
     return;
   }
   if (event.button !== 0 || !event.isPrimary) return;
-  lastInputMode = 'keyboard';
+  setInputMode(event.pointerType === 'touch' ? 'touch' : 'keyboard');
   updateControlsHint();
   startGameMusic();
   updatePointerPosition(event);
@@ -2454,9 +2586,9 @@ canvas.addEventListener('pointerdown', (event) => {
       beginRun();
       return;
     }
-    if (mode === 'paused') {
-      if (pointer.y < canvas.height / 2 + 14) resumeGame();
-      else exitToTitle();
+    if (event.pointerType === 'touch' && pointer.y >= 100 && pointer.y <= 416 &&
+        (pointer.x < 70 || pointer.x > canvas.width - 70)) {
+      chooseCharacter(pointer.x < 70 ? 'ArrowLeft' : 'ArrowRight');
       return;
     }
     const pageStart = Math.floor(selectedIndex / rosterPageSize) * rosterPageSize;
@@ -2487,6 +2619,19 @@ canvas.addEventListener('lostpointercapture', () => {
   pointer.down = false;
 });
 
+window.addEventListener('pointerdown', (event) => {
+  setInputMode(event.pointerType === 'touch' ? 'touch' : 'keyboard');
+  updateControlsHint();
+});
+window.addEventListener('pointermove', (event) => {
+  if (event.pointerType === 'mouse' && (event.movementX || event.movementY)) {
+    setInputMode('keyboard');
+    updateControlsHint();
+  }
+});
+
+setupTouchControls();
+if (isTouchDevice()) setInputMode('touch');
 updateHud();
 messageEl.textContent = hasSavedRun()
   ? 'Read the prologue before choosing a delver or resuming your saved descent.'

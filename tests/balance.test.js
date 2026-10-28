@@ -34,7 +34,7 @@ function combat() {
     clamp: (v, min, max) => Math.min(max, Math.max(min, v)),
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
     hasLineOfSight: () => true,
-    damageCalls: [], moves: [],
+    damageCalls: [], moves: [], bossExtraMoves: {},
   });
   const game = source('game.js');
   vm.runInContext(game.slice(game.indexOf('const magicElementPalette ='), game.indexOf('let hitStopTimer =')), c);
@@ -199,6 +199,96 @@ test('boss windups have a minimum readable duration and do not spawn competing p
   assert.equal(boss.stateTimer, 0.95);
   c.applyBossPressure(boss, 0.016, 1, 0, 50);
   assert.equal(c.bossStrikes.length, 0);
+});
+
+function telegraphRenderer(c) {
+  const arcs = [];
+  c.ctx = {
+    save() {}, restore() {}, beginPath() {}, fill() {}, stroke() {},
+    fillRect() {}, fillText() {},
+    arc(x, y, radius) {
+      assert.ok(Number.isFinite(radius) && radius >= 0, `invalid arc radius: ${radius}`);
+      arcs.push({ x, y, radius });
+    },
+  };
+  c.monsterSprites = {
+    golem: { image: { complete: false } },
+    jacko: { image: { complete: false } },
+  };
+  vm.runInContext(source('gameui.js'), c);
+  return (enemy, target) => {
+    arcs.length = 0;
+    c.drawEnemyBody(enemy);
+    return arcs.find((arc) => arc.x === target.x && arc.y === target.y).radius;
+  };
+}
+
+test('golem slam telegraphs render throughout both phases and complete on schedule', () => {
+  for (const phase of [1, 2]) {
+    for (const miniBoss of [false, true]) {
+      const c = combat();
+      const render = telegraphRenderer(c);
+      vm.runInContext('fireEnemyProjectile = fireJackoBurst = () => {};', c);
+      const enemy = c.createEnemy('golem', 400, 300, true);
+      Object.assign(enemy, { phase, boss: !miniBoss, miniBoss, attackCooldown: 0 });
+      c.enemies.push(enemy);
+      c.updateEnemy(enemy, 0.016);
+      assert.equal(enemy.behavior, 'golem-slam-windup');
+      const duration = Math.max(phase === 2 ? 0.64 : 0.92, miniBoss ? 0.7 : 0.95);
+      assert.equal(enemy.stateTimer, duration);
+      const maximumRadius = phase === 2 ? 112 : 74;
+      assert.equal(render(enemy, enemy.slamTarget), maximumRadius * (1 - duration * 0.12));
+      for (let frame = 0; frame < Math.ceil(duration / 0.05); frame += 1) {
+        c.updateEnemy(enemy, 0.05);
+        if (enemy.behavior === 'golem-slam-windup') {
+          const radius = render(enemy, enemy.slamTarget);
+          assert.ok(radius >= 0 && radius <= maximumRadius);
+        }
+      }
+      assert.equal(enemy.behavior, 'golem-recover');
+    }
+  }
+});
+
+test('Jacko ground-pound telegraphs accept the actual boss and miniboss windup timers', () => {
+  for (const miniBoss of [false, true]) {
+    const c = combat();
+    const render = telegraphRenderer(c);
+    const enemy = c.createEnemy('jacko', 400, 300, true);
+    Object.assign(enemy, { phase: 2, boss: !miniBoss, miniBoss, attackCooldown: 0, attackIndex: 3 });
+    c.enemies.push(enemy);
+    c.updateEnemy(enemy, 0.016);
+    assert.equal(enemy.behavior, 'jacko-ground-pound-windup');
+    assert.equal(enemy.stateTimer, miniBoss ? 0.7 : 0.95);
+    assert.equal(render(enemy, enemy.groundPoundTarget), 38);
+    for (const timer of [0.35, 0.175, 0]) {
+      enemy.stateTimer = timer;
+      assert.equal(render(enemy, enemy.groundPoundTarget), 38 + (1 - timer / 0.35) * 34);
+    }
+  }
+});
+
+test('slam telegraph radii stay bounded for oversized and expired state timers', () => {
+  const c = combat();
+  const render = telegraphRenderer(c);
+  for (const kind of ['golem', 'jacko']) {
+    const enemy = c.createEnemy(kind, 400, 300, true);
+    const target = { x: 300, y: 300 };
+    Object.assign(enemy, {
+      behavior: kind === 'golem' ? 'golem-slam-windup' : 'jacko-ground-pound-windup',
+      slamTarget: target, groundPoundTarget: target,
+    });
+    for (const phase of [1, 2]) {
+      enemy.phase = phase;
+      const minimum = kind === 'golem' ? 0 : 38;
+      const maximum = kind === 'golem' ? phase === 2 ? 112 : 74 : 72;
+      for (const timer of [100, 10, 1 / 0.12, 0.95, 0, -0.1, -100]) {
+        enemy.stateTimer = timer;
+        const radius = render(enemy, target);
+        assert.ok(radius >= minimum && radius <= maximum);
+      }
+    }
+  }
 });
 
 test('later-floor evasive mobs dodge but early mobs and slow chargers stay committed', () => {

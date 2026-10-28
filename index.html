@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>MANA: Hollow Sanctum</title>
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -10,14 +10,19 @@
     <div class="hud">
       <div class="brand">MANA: Hollow Sanctum</div>
       <div id="stats">Choose a delver</div>
-      <div id="controls" aria-live="polite"></div>
+      <div id="controls"></div>
     </div>
 
     <div class="game-stage" id="game-stage">
       <canvas id="game" width="960" height="540"></canvas>
       <div class="touch-controls" id="touch-controls" aria-label="Touch controls" hidden>
-        <div class="touch-stick" id="touch-stick" aria-label="Move">
-          <div class="stick-base"><div class="stick-knob" id="stick-knob"></div></div>
+        <div class="touch-zone touch-move-zone" id="touch-move-zone" aria-label="Movement area">
+          <div class="touch-stick" id="touch-stick" aria-label="Move">
+            <div class="stick-base"><div class="stick-knob" id="stick-knob"></div></div>
+          </div>
+        </div>
+        <div class="touch-zone touch-aim-zone" id="touch-aim-zone" aria-label="Aim and shoot area">
+          <button class="touch-attack" id="touch-attack" type="button" aria-label="Hold to shoot, drag to aim">⚔<span>Attack</span></button>
         </div>
         <div class="touch-utilities" aria-label="Actions">
           <button type="button" data-touch-action="dash" aria-label="Dash">↗<span>Dash</span></button>
@@ -25,13 +30,17 @@
           <button type="button" data-touch-action="interact" aria-label="Interact">E<span>Use</span></button>
           <button type="button" data-touch-action="ability" aria-label="Ability">★<span>Skill</span></button>
           <button type="button" data-touch-action="item" aria-label="Use item">Q<span>Item</span></button>
+          <button type="button" data-touch-action="shock" aria-label="Shockwave">◎<span>Wave</span></button>
+          <button type="button" data-touch-action="nextWeapon" aria-label="Switch weapon">⇄<span>Weapon</span></button>
+          <button type="button" data-touch-action="withdraw" aria-label="Withdraw from vault">↓<span>Bank</span></button>
+          <button type="button" data-touch-action="map" aria-label="Map">▦<span>Map</span></button>
+          <button type="button" data-touch-action="journal" aria-label="Journal">▤<span>Story</span></button>
           <button type="button" data-touch-action="pause" aria-label="Pause">Ⅱ<span>Pause</span></button>
         </div>
-        <button class="touch-attack" id="touch-attack" type="button" aria-label="Attack, auto-aim">⚔<span>Attack</span></button>
       </div>
     </div>
 
-    <div class="message" id="message">Choose a delver to begin the descent.</div>
+    <div class="message" id="message" aria-live="polite">Choose a delver to begin the descent.</div>
 
     <!-- Manager scripts define shared classic-script functions before game state starts. -->
     <script src="gameui.js"></script>

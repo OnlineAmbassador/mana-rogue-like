@@ -58,7 +58,7 @@ body {
   font-size: 0.68rem;
   line-height: 1.35;
   text-align: right;
-  white-space: normal;
+  white-space: pre-line;
 }
 
 #game {
@@ -131,16 +131,29 @@ body {
   }
 }
 
-@media (pointer: coarse), (max-width: 680px) {
+@media (any-pointer: coarse) {
   .touch-controls:not([hidden]) {
     display: block;
-    position: absolute;
-    inset: 0;
+    position: relative;
+    width: 100%;
+    height: 240px;
     z-index: 2;
     pointer-events: none;
     user-select: none;
     -webkit-user-select: none;
   }
+
+  .touch-zone {
+    position: absolute;
+    top: 72px;
+    bottom: 0;
+    width: 50%;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .touch-move-zone { left: 0; }
+  .touch-aim-zone { right: 0; }
 
   .touch-stick,
   .touch-attack,
@@ -155,14 +168,14 @@ body {
 
   .touch-stick {
     position: absolute;
-    left: 3%;
-    bottom: 7%;
-    width: clamp(76px, 24vw, 112px);
+    left: 20%;
+    bottom: 12%;
+    width: 112px;
     aspect-ratio: 1;
     border: 0;
     border-radius: 50%;
     background: transparent;
-    pointer-events: auto;
+    pointer-events: none;
   }
 
   .stick-base {
@@ -189,9 +202,9 @@ body {
 
   .touch-attack {
     position: absolute;
-    right: 4%;
-    bottom: 8%;
-    width: clamp(66px, 20vw, 92px);
+    right: 20%;
+    bottom: 15%;
+    width: 92px;
     aspect-ratio: 1;
     border-radius: 50%;
     pointer-events: auto;
@@ -207,22 +220,26 @@ body {
 
   .touch-utilities {
     position: absolute;
-    top: 3%;
-    right: 2%;
+    top: 8px;
+    left: 8px;
+    right: 8px;
     display: flex;
-    gap: clamp(2px, 1vw, 8px);
-    pointer-events: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+    pointer-events: none;
   }
 
   .touch-utilities button {
     display: grid;
     place-content: center;
-    width: clamp(34px, 10vw, 44px);
+    width: 44px;
     aspect-ratio: 1;
     padding: 0;
     border-radius: 50%;
     font-weight: bold;
     font-size: 0.82rem;
+    pointer-events: auto;
   }
 
   .touch-controls button:active,
@@ -230,4 +247,28 @@ body {
     background: rgba(102, 185, 167, 0.78);
     transform: scale(0.94);
   }
+}
+
+@media (any-pointer: coarse) and (orientation: portrait) {
+  .touch-zone { top: 108px; }
+  .game-stage { width: 100%; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@media (max-height: 600px) and (orientation: landscape) {
+  body {
+    min-height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    place-content: center;
+  }
+
+  .hud, .message { display: none; }
+  .game-stage { width: min(100%, calc(100dvh * 16 / 9)); }
+  #game { border: 0; border-radius: 0; }
+  .touch-controls:not([hidden]) { position: absolute; inset: 0; height: auto; }
+  .touch-zone { top: 48%; }
+  .touch-utilities { top: auto; bottom: 5px; left: 21%; right: 21%; }
+  .touch-utilities button { width: 44px; }
+  .touch-stick { left: 5%; bottom: 14px; width: 96px; }
+  .touch-attack { right: 5%; bottom: 18px; width: 84px; }
 }

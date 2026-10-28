@@ -833,6 +833,7 @@ function attackOriginY() {
 function currentAimAngle() {
   if (pointer.down) return Math.atan2(pointer.y + camera.y - attackOriginY(), pointer.x + camera.x - player.x);
   if (touchInput.attack) {
+    if (touchInput.aimActive) return Math.atan2(touchInput.aimY, touchInput.aimX);
     let target = null;
     let nearestDistance = 620;
     for (const enemy of enemies) {

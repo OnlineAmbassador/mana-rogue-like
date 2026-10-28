@@ -563,7 +563,9 @@ function updateControlsHint() {
   controlsEl.hidden = !controlsHelpVisible;
   hudEl?.classList.toggle('help-hidden', !controlsHelpVisible);
   let lines;
-  if (mode === 'playing' || mode === 'paused') {
+  if (lastInputMode === 'touch') {
+    lines = [];
+  } else if (mode === 'playing' || mode === 'paused') {
     const hasItem = consumables.some((item) => item.count > 0);
     const sig = classSignature()?.active ? classSignature().label : null;
     const pad = lastInputMode === 'controller';
@@ -1203,7 +1205,7 @@ function drawEnemyBody(enemy) {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(enemy.groundPoundTarget.x, enemy.groundPoundTarget.y,
-      38 + Math.min(1, Math.max(0, 1 - enemy.stateTimer / 0.35)) * 34, 0, Math.PI * 2);
+      38 + clamp(1 - enemy.stateTimer / 0.35, 0, 1) * 34, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -1215,7 +1217,7 @@ function drawEnemyBody(enemy) {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(enemy.slamTarget.x, enemy.slamTarget.y,
-      (enemy.phase >= 2 ? 112 : 74) * Math.max(0, 1 - enemy.stateTimer * 0.12), 0, Math.PI * 2);
+      (enemy.phase >= 2 ? 112 : 74) * clamp(1 - enemy.stateTimer * 0.12, 0, 1), 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     if (enemy.boss) {
@@ -3888,6 +3890,11 @@ function drawCharacterSelect() {
   const pageStart = Math.floor(selectedIndex / rosterPageSize) * rosterPageSize;
   const pageNumber = Math.floor(pageStart / rosterPageSize);
   ctx.fillText(`Page ${pageNumber + 1} / ${Math.ceil(characterRoster.length / rosterPageSize)}  •  ← / → selects delvers`, canvas.width / 2, 105);
+  if (lastInputMode === 'touch') {
+    ctx.font = 'bold 32px Arial';
+    ctx.fillText('‹', 35, 270);
+    ctx.fillText('›', canvas.width - 35, 270);
+  }
   const codexButton = codexButtonBounds();
   ctx.fillStyle = pointer.x >= codexButton.x && pointer.x <= codexButton.x + codexButton.width &&
     pointer.y >= codexButton.y && pointer.y <= codexButton.y + codexButton.height ? '#52664f' : '#30443b';
