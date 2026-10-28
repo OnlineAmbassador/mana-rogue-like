@@ -472,7 +472,7 @@ function restoreRun() {
   player.characterUnlocksThisRun = clamp(
     Number.isInteger(player.characterUnlocksThisRun) ? player.characterUnlocksThisRun : 0, 0, 1,
   );
-  player.maxHp = clamp(player.maxHp, 1, BASE_HEARTS + MAX_EXTRA_HEARTS);
+  player.maxHp = clamp(player.maxHp, 1, startingHearts(character) + MAX_EXTRA_HEARTS);
   player.hp = Math.min(player.hp, player.maxHp);
   score = saved.score || 0;
   coins = saved.coins || 0;

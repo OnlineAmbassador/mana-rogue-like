@@ -566,7 +566,7 @@ function placeRoomObstacles(room) {
   } else if (roll < 0.5) {
     spots.push([0.3, 0.3, solid], [0.7, 0.7, solid]);
   }
-  const cachePool = (obstacleSpritesByFloor[currentFloor] || obstacleSpritesByFloor[3])
+  const cachePool = regionObstacleSprites()
     .filter((sprite) => sprite.type === 'bomb-only');
   if (cachePool.length && Math.random() < 0.35) {
     const cornerX = Math.random() < 0.5 ? 0.1 : 0.9;
@@ -587,7 +587,7 @@ function placeRoomObstacles(room) {
 
 function spawnRewardRelics(room, count = 3) {
   if (room.treasureClaimed || !room.rewardRoom) return;
-  const availableObstacles = obstacleSpritesByFloor[currentFloor] || obstacleSpritesByFloor[3];
+  const availableObstacles = regionObstacleSprites();
   const rewardObstacles = availableObstacles.filter((sprite) =>
     sprite.type !== 'solid' && sprite.type !== 'bomb-only');
   const guaranteedSprite = rewardObstacles[0];
@@ -718,7 +718,7 @@ function grantUpgrade(item, source = 'descent') {
     return false;
   }
   if (item.id === 'guardian-heart') {
-    const healthCap = BASE_HEARTS + MAX_EXTRA_HEARTS;
+    const healthCap = (character ? startingHearts(character) : BASE_HEARTS) + MAX_EXTRA_HEARTS;
     const previousMaxHp = player.maxHp;
     player.maxHp = Math.min(healthCap, player.maxHp + 2);
     player.hp = Math.min(player.maxHp, player.hp + phaseRewardHealAmount());

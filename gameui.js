@@ -4425,7 +4425,7 @@ function drawCharacterSelect() {
     ctx.fillText(`${entry.className}  •  ${entry.styleLabel}`, x, y + 67);
     const profile = characterProfile(entry);
     const rating = (value) => (value >= 1.3 ? '★★★' : value >= 1.1 ? '★★' : value >= 0.95 ? '★' : '·');
-    ctx.fillText(`HP 4  •  DMG ${entry.damage}  •  SPEED ${Math.round(entry.speed)}`, x, y + 84);
+    ctx.fillText(`HP ${startingHearts(entry)}  •  DMG ${entry.damage}  •  SPEED ${Math.round(entry.speed)}`, x, y + 84);
     ctx.font = '10px Arial';
     ctx.fillText(`⚔${rating(profile.melee)} 🏹${rating(Math.max(profile.bow, profile.bowRate))} ✦${rating(profile.magic)}`, x, y + 98);
     ctx.font = '11px Arial';

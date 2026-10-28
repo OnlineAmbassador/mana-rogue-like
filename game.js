@@ -484,11 +484,24 @@ const obstacleSprites = [
   { image: desertObstacleTiles, frameWidth: 32, frameHeight: 32, frames: [27], scale: 1.6, hp: 2, radius: 18, type: 'bomb-only' },
   { image: loadAsset('sprites/monsters/plant.png'), frameWidth: 46, frameHeight: 42, frames: [0], scale: 1.3, hp: 3, radius: 18, type: 'regenerating', regenDelay: 4, regenCycles: 2, regenSteps: 3 },
 ];
-const obstacleSpritesByFloor = {
-  1: [obstacleSprites[1], obstacleSprites[2], obstacleSprites[3]],
-  2: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[4]],
-  3: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[4]],
+// Obstacle sets follow the region's ground: desert cactus only in dry regions, plants in wooded ones.
+const obstacleSpritesByRegion = {
+  tulimshar: [obstacleSprites[1], obstacleSprites[2], obstacleSprites[3]],
+  halinarzo: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[3]],
+  artis: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[3]],
+  hurnscald: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[4]],
+  fortress: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[4]],
+  candor: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[4]],
+  graveyard: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[4]],
+  nivalis: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[4]],
+  frostia: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[4]],
+  worldedge: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[4]],
 };
+
+function regionObstacleSprites() {
+  return obstacleSpritesByRegion[currentRegionId()] || obstacleSpritesByRegion.tulimshar;
+}
+
 const correctedHumanoidFrames = new WeakMap();
 const correctedHeadFrames = new WeakMap();
 let pixelCorrectionWarningShown = false;
@@ -1201,6 +1214,11 @@ const SOFT_EXTRA_HEARTS = 5;
 
 // Past the soft limit, vessels become rare finds.
 
+// Roster health (3–12) maps onto 3–6 starting hearts.
+function startingHearts(entry) {
+  return clamp(Math.round(2 + (entry.hp || 6) / 3), 3, 6);
+}
+
 const rangeLensItemIds = ['range-lens', 'range-lens-ii', 'range-lens-iii'];
 
 
@@ -1346,8 +1364,8 @@ function beginRun() {
   runProgressionSnapshot = createRunProgressionSnapshot();
   storyLog.length = 0;
   canvas.style.cursor = 'crosshair';
-  player.maxHp = 4;
-  player.hp = 4;
+  player.maxHp = startingHearts(entry);
+  player.hp = player.maxHp;
   player.speed = entry.speed;
   player.damage = entry.damage;
   player.armor = 0;
