@@ -792,6 +792,14 @@ function updateTouchControls() {
       const badge = button.querySelector('.touch-count');
       if (badge.textContent !== String(count)) badge.textContent = String(count);
     }
+    const switchButton = touchControlsEl.querySelector('[data-touch-action="nextWeapon"]');
+    const switchWait = typeof weaponSwapCooldown === 'number' ? Math.ceil(weaponSwapCooldown) : 0;
+    const switchText = switchButton?.querySelector?.('span');
+    if (switchButton && switchText) {
+      switchButton.disabled = switchWait > 0;
+      const switchLabel = switchWait > 0 ? `${switchWait}s` : 'Switch';
+      if (switchText.textContent !== switchLabel) switchText.textContent = switchLabel;
+    }
     const defenseButton = touchControlsEl.querySelector('[data-touch-action="shock"]');
     const hasFamiliarSigil = typeof ownedItems !== 'undefined' && ownedItems.has('orbiting-projectiles');
     const defenseLabel = hasFamiliarSigil ? 'Guard' : 'Wave';
@@ -1833,6 +1841,7 @@ function update(dt) {
     (player.groundSlowTimer > 0 ? 0.55 : 1);
   player.moving = moveX !== 0 || moveY !== 0;
   dashCooldown = Math.max(0, dashCooldown - dt);
+  weaponSwapCooldown = Math.max(0, weaponSwapCooldown - dt);
   if (dashTimer > 0) {
     dashTimer = Math.max(0, dashTimer - dt);
     player.x += dashVector.x * 620 * dt;

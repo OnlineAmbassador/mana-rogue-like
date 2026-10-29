@@ -787,3 +787,20 @@ test('bosses and promoted boss-AI foes ignore the style response', () => {
   assert.equal(c.styleCooldownRate({ archetype: 'charger' }), 1);
   assert.ok(c.styleCooldownRate({ archetype: 'ranged' }) > 1);
 });
+
+test('weapon swaps have a short cooldown that ignores repeats and same-style picks', () => {
+  const c = combat();
+  c.activeCombatStyle = 'magic';
+  c.resetStyleHeat();
+  c.selectCombatStyle('magic');
+  assert.equal(peek(c, 'weaponSwapCooldown'), 0);
+  c.selectCombatStyle('bow');
+  assert.equal(c.activeCombatStyle, 'bow');
+  assert.equal(peek(c, 'weaponSwapCooldown'), peek(c, 'WEAPON_SWAP_COOLDOWN'));
+  c.selectCombatStyle('melee');
+  c.cycleCombatStyle(1);
+  assert.equal(c.activeCombatStyle, 'bow');
+  vm.runInContext('weaponSwapCooldown = 0;', c);
+  c.cycleCombatStyle(1);
+  assert.equal(c.activeCombatStyle, 'magic');
+});

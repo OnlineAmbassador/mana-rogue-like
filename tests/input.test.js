@@ -493,3 +493,19 @@ test('Dash triggers without firing or releasing a held attack', () => {
   assert.equal(context.touchInput.attack, true);
   assert.equal(context.touchInput.attackPointer, 2);
 });
+test('the touch Switch button counts down the weapon swap cooldown and disables itself', () => {
+  const context = inputContext();
+  const label = { textContent: 'Switch' };
+  const button = { disabled: false, querySelector: () => label };
+  const original = context.touchControlsEl.querySelector;
+  context.touchControlsEl.querySelector = (selector) =>
+    (selector.includes('nextWeapon') ? button : original.call(context.touchControlsEl, selector));
+  context.weaponSwapCooldown = 3.2;
+  context.updateTouchControls();
+  assert.equal(label.textContent, '4s');
+  assert.equal(button.disabled, true);
+  context.weaponSwapCooldown = 0;
+  context.updateTouchControls();
+  assert.equal(label.textContent, 'Switch');
+  assert.equal(button.disabled, false);
+});

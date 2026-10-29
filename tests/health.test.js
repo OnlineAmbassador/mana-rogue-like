@@ -446,3 +446,22 @@ test('heart renderer clips a half-heart to exactly half the icon with or without
     assert.deepEqual(clips, [{ width: 17, height: 17 }]);
   }
 });
+
+test('weapon slots show the swap cooldown on the unselected styles only', () => {
+  const c = combat();
+  const texts = [];
+  c.ctx = new Proxy({}, {
+    get: (_, key) => (...args) => { if (key === 'fillText') texts.push(args[0]); },
+    set: () => true,
+  });
+  c.activeCombatStyle = 'magic';
+  c.currentAttackStyle = () => 'magic';
+  c.classSignature = () => null;
+  vm.runInContext('weaponSwapCooldown = 4.2;', c);
+  c.drawStyleSlots();
+  assert.equal(texts.filter((text) => text === '5').length, 2);
+  texts.length = 0;
+  vm.runInContext('weaponSwapCooldown = 0;', c);
+  c.drawStyleSlots();
+  assert.equal(texts.includes('5'), false);
+});

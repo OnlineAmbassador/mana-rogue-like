@@ -10,6 +10,8 @@ These entries were later ported onto upstream's module split (`gameui.js`, `mobm
 - Regular mobs adapt to the weapon style the player has been using. The player's recent attack time per style is tracked in `styleHeat` (`playermanager.js`, half-life 4 s); the leading style must hold a 25% lead to take over, so swapping weapons shifts the AI after a few seconds rather than instantly.
 - `styleAIProfiles` (`mobmanager.js`) holds the responses and is read in `applyMobTactics`: melee widens the ring casters keep and has waiting foes strike during the player's swing recovery; bow narrows the ring, raises dodge odds and the melee attacker cap by one; magic widens ally spacing and speeds ranged mobs' attack cooldown. The effect scales lightly with the character's profile for that style.
 - Bosses, minibosses and promoted boss-AI enemies ignore it. The first stance shift per run shows a short neutral message.
+- Weapon swaps now have a 6 s cooldown (`WEAPON_SWAP_COOLDOWN` in `playermanager.js`); picking the already-active style does nothing and does not start it.
+- While it runs, the two unselected weapon slots are greyed with a shrinking wedge and a seconds countdown (`drawStyleSlots` in `gameui.js`), and the touch Switch button shows the seconds left and is disabled.
 
 ## 2026-10-27
 

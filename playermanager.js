@@ -64,8 +64,12 @@ const STYLE_HEAT_LEAD = 1.25;
 const styleHeat = { melee: 0, bow: 0, magic: 0 };
 let dominantAIStyle = null;
 let styleShiftAnnounced = false;
+// Swapping weapons is free but not instant, so rapid swapping cannot sidestep the mob response above.
+const WEAPON_SWAP_COOLDOWN = 6;
+let weaponSwapCooldown = 0;
 
 function resetStyleHeat() {
+  weaponSwapCooldown = 0;
   for (const style of Object.keys(styleHeat)) styleHeat[style] = 0;
   dominantAIStyle = null;
   styleShiftAnnounced = false;
@@ -1302,6 +1306,8 @@ function cycleCombatStyle(step = 1) {
 }
 
 function selectCombatStyle(style) {
+  if (style === activeCombatStyle || weaponSwapCooldown > 0) return;
+  weaponSwapCooldown = WEAPON_SWAP_COOLDOWN;
   activeCombatStyle = style;
   player.meleeCharge = 0;
   player.bowHold = 0;

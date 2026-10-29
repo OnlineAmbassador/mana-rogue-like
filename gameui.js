@@ -3887,6 +3887,28 @@ function drawStyleSlots() {
     }
     ctx.restore();
     ctx.save();
+    // After a swap the other slots stay greyed out; the wedge shrinks as the cooldown runs out.
+    if (!selected && weaponSwapCooldown > 0) {
+      ctx.save();
+      const centerX = x + size / 2;
+      const centerY = y + size / 2;
+      ctx.beginPath();
+      ctx.rect(x, y, size, size);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.66)';
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.arc(centerX, centerY, size, -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * Math.min(1, weaponSwapCooldown / WEAPON_SWAP_COOLDOWN));
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(String(Math.ceil(weaponSwapCooldown)), centerX, centerY + 1);
+      ctx.restore();
+    }
     ctx.font = 'bold 11px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
