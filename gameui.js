@@ -1525,7 +1525,7 @@ function drawCompanion(companion) {
 
 function drawPlayer() {
   const sprite = humanoidSprites[character.sprite];
-  const direction = Math.abs(player.lookX) > Math.abs(player.lookY)
+  const direction = Math.abs(player.lookX) >= Math.abs(player.lookY)
     ? player.lookX < 0 ? 'left' : 'right'
     : player.lookY < 0 ? 'up' : 'down';
   const directionRow = { down: 0, left: 1, up: 2, right: 3 }[direction];

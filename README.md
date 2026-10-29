@@ -168,7 +168,7 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Visit the bank room on each floor to deposit all carried zenny by walking onto the vault pad or withdraw your stored balance with Shift+E. Banked zenny is saved separately from the active run and persists across refreshes, closing the game, and new runs.
 - Pause with P or Esc. The game also pauses when its browser tab loses focus. Press X from the pause screen to save and return to the title; choose Resume Saved Descent or press R to continue. Starting a new descent while one is saved asks you to select Descend a second time. The current run autosaves and resumes after a page refresh, including room contents and run progress.
 - Ordinary breakables have a small chance to drop a heart or coin, and bomb-destroyed objects retain their 50% bomb-drop chance. Reward rooms may contain marked relics with guaranteed collectible drops, but destructible bonus loot is not guaranteed in every optional room; each obstacle still gets only one drop chance.
-- Brawl with fists, swords, or daggers after learning melee; additional melee weapons stack and swing together. Learned magic and bow attacks also fire alongside them. Bow poses and the enlarged bow appear only during bow attacks. The mouse cursor controls facing and left-click attacks toward it; controller left stick moves while the right stick controls facing and aim.
+- Brawl with fists, swords, or daggers after learning melee; additional melee weapons stack and swing together. Learned magic and bow attacks also fire alongside them. Bow poses and the enlarged bow appear only during bow attacks. The mouse cursor controls facing and left-click attacks toward it; controller left stick moves (and faces that way while not aiming) while the right stick controls facing and aim.
 - Buy Mana Tonics, Bomb Bundles, and Mana Bursts as consumables; press Q to use the first item that can help.
 - Face the regional guardians: Great Red Slime in Tulimshar, Jacko in Hurnscald, Reaper in the Graveyard, Ancient Golem in the Artis Ruins, Bandit Lord in Halinarzo, Snowman Boss in Nivalis, Yeti King in Frostia, Forest Dragon on Candor Island, and Night Dragon at the World Edge. All regions after Tulimshar are shuffled between runs. Guardians use regional TMW sprites, unlock the delver tied to their region, and reveal a new journal clue. Attacks are telegraphed with recovery windows; clear surviving summons before a boss-room seal opens.
 - Defeat all nine guardians to finish the run; the World Edge can appear anywhere after Tulimshar.
@@ -178,7 +178,7 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 ## Controls
 
 - Move: WASD or Arrow keys
-- Aim with the mouse; the delver faces the pointer continuously. Hold the primary mouse button to attack toward it; firing stops reliably when released or when the game loses focus. WASD movement does not override mouse facing.
+- Aim with the mouse; the delver faces the pointer continuously. Hold the primary mouse button to attack toward it; firing stops reliably when released or when the game loses focus. WASD movement does not override mouse facing while the mouse is moving, a button is held, or an attack is in progress; after about a second without mouse activity the delver faces the way he walks again, and moving the mouse snaps facing back to the pointer.
 - Dash: Space (left hand stays on WASD)
 - Weapon: 1/2/3 select, Tab or mouse wheel cycles
 - Weapon modes change through weapon-specific upgrades; there is no separate mode-cycle control or mode purchase. Charge mode is a rare, once-per-run discovery (5% per eligible upgrade), and when found it applies to all selectable weapon styles. Charged bows fire a sustained, obstacle-blocked beam that damages enemies along its path and detonates on impact; a fully charged magic shot is larger, explosive, and substantially stronger. Saved playtime and character unlocks can promote a few early-floor enemies into advanced AI without increasing room population. Major bosses use their own phase attacks rather than a shared multi-circle ground-strike pattern.
@@ -194,7 +194,7 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 
 ### Controller (Xbox / PlayStation, auto-detected)
 
-- Move: Left stick only. Aim with the right stick; the delver faces that direction, and RT/R2 also fires toward it.
+- Move: Left stick only; the delver faces the walking direction while not aiming or firing. Aim with the right stick; the delver faces that direction, and RT/R2 also fires toward it.
 - Interact: A/✕; Bomb: B/○; Shockwave / Mana familiars: Y/△
 - Consumable: LT/L2; Dash: RB/R1; Cycle weapon: LB/L1
 - D-pad quick actions do not move you during gameplay; use the Controls screen for the current bindings.

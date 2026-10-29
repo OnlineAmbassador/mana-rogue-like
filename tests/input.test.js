@@ -260,6 +260,65 @@ test('keyboard movement does not override the mouse-selected facing direction', 
   assert.equal(context.shouldKeyboardMovementSetFacing(1), false);
 });
 
+function facingHoldContext() {
+  const context = vm.createContext({
+    MOUSE_AIM_HOLD: 1,
+    mouseAimActive: true,
+    mouseAimIdleTimer: 0,
+    lastInputMode: 'keyboard',
+    pointer: { down: false },
+    player: { attackAnimationTimer: 0 },
+    gamepadInput: { aimActive: false, shoot: false },
+    touchInput: { attack: false, aimActive: false },
+  });
+  const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
+  const start = source.indexOf('function shouldKeyboardMovementSetFacing');
+  const end = source.indexOf('function update(dt)', start);
+  vm.runInContext(source.slice(start, end), context);
+  return context;
+}
+
+test('mouse facing hands back to walking after the mouse has been idle', () => {
+  const context = facingHoldContext();
+  context.updateMouseAimHold(0.5);
+  assert.equal(context.mouseAimActive, true);
+  assert.equal(context.shouldMovementSetFacing(1), false);
+  context.updateMouseAimHold(0.5);
+  assert.equal(context.mouseAimActive, false);
+  assert.equal(context.shouldMovementSetFacing(1), true);
+});
+
+test('mouse facing is held while a button is down or an attack is animating', () => {
+  const context = facingHoldContext();
+  context.pointer.down = true;
+  context.updateMouseAimHold(5);
+  assert.equal(context.mouseAimActive, true);
+  context.pointer.down = false;
+  context.player.attackAnimationTimer = 0.2;
+  context.updateMouseAimHold(5);
+  assert.equal(context.mouseAimActive, true);
+  assert.equal(context.mouseAimIdleTimer, 0);
+});
+
+test('walking sets facing on controller and touch only when not aiming or attacking', () => {
+  const context = facingHoldContext();
+  assert.equal(context.shouldMovementSetFacing(0), false);
+  context.lastInputMode = 'controller';
+  assert.equal(context.shouldMovementSetFacing(1), true);
+  context.gamepadInput.aimActive = true;
+  assert.equal(context.shouldMovementSetFacing(1), false);
+  context.gamepadInput.aimActive = false;
+  context.gamepadInput.shoot = true;
+  assert.equal(context.shouldMovementSetFacing(1), false);
+  context.lastInputMode = 'touch';
+  assert.equal(context.shouldMovementSetFacing(1), true);
+  context.touchInput.attack = true;
+  assert.equal(context.shouldMovementSetFacing(1), false);
+  context.touchInput.attack = false;
+  context.touchInput.aimActive = true;
+  assert.equal(context.shouldMovementSetFacing(1), false);
+});
+
 test('mouse movement updates player facing toward the pointer before firing', () => {
   const { context } = touchHarness();
   context.mode = 'playing';
