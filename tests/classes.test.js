@@ -19,10 +19,10 @@ function combat(className = 'Mage', style = 'magic') {
     meleeWeapons: new Set(['hands']), combatPalette: { melee: '#fff' },
     elapsed: 0, MAX_PLAYER_PROJECTILES: 100, MAX_PLAYER_VOLLEY: 16,
     FIRE_RATE_SCALE: 0.82, BOW_TAP_WINDOW: 0.15, MAX_CHARGE_SHOTS: 8,
-    MELEE_BASE_SCALE: 2.6, ROOM_W: 1000, ROOM_H: 800, companions: [],
+    MELEE_BASE_SCALE: 2.6, ROOM_W: 1000, ROOM_H: 800, ROOM_WALL_THICKNESS: 64, companions: [],
     clamp: (v, min, max) => Math.min(max, Math.max(min, v)),
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
-    save: { highestFloorCleared: 0, unlockedCharacters: [], discoveredItemIds: [] },
+    save: { highestFloorCleared: 0, unlockedCharacters: [], discoveredItemIds: [], loreRelics: [] },
     characterChapters: {},
   });
   const game = source('game.js');
@@ -34,7 +34,7 @@ function combat(className = 'Mage', style = 'magic') {
     character = characterRoster.find(entry => entry.className === '${className}');
     currentAttackStyle = () => activeCombatStyle;
     currentAimAngle = () => 0;
-    addParticles = playSound = updateHud = queueChapter = persistSave = () => {};
+    addParticles = playSound = updateHud = queueChapter = persistSave = saveRunState = showMessage = () => {};
     meleeChargeTime = () => 0.9;
     performMeleeSwing = (angle, scale) => {
       meleeResult = { damage: Math.round(player.damage * scale * characterProfile().melee) };
@@ -43,7 +43,7 @@ function combat(className = 'Mage', style = 'magic') {
   return c;
 }
 
-test('Mage is available first; floor 1 unlocks Rogue and floor 2 unlocks Warrior', () => {
+test('only one character unlock is granted per descent; later floor milestones wait for the next run', () => {
   const c = combat();
   assert.equal(vm.runInContext('characterRoster.slice(0, 3).map(e => e.className).join(",")', c), 'Mage,Rogue,Warrior');
   const unlocked = (id) => vm.runInContext(`isCharacterUnlocked(characterRoster.find(e => e.id === '${id}'))`, c);
@@ -53,6 +53,10 @@ test('Mage is available first; floor 1 unlocks Rogue and floor 2 unlocks Warrior
   c.recordFloorClear(1);
   assert.equal(unlocked('warden'), true);
   assert.equal(unlocked('arcanist'), false);
+  c.recordFloorClear(2);
+  assert.equal(unlocked('arcanist'), false);
+  assert.equal(c.player.characterUnlocksThisRun, 1);
+  c.player.characterUnlocksThisRun = 0;
   c.recordFloorClear(2);
   assert.equal(unlocked('arcanist'), true);
   c.recordFloorClear(1);
@@ -67,6 +71,18 @@ test('Sporeling requires acquiring spores and legacy class unlocks remain usable
   assert.equal(unlocked(), true);
   c.save.arcanist = true;
   assert.equal(vm.runInContext('isCharacterUnlocked(characterRoster.find(e => e.className === "Warrior"))', c), true);
+});
+
+test('all nine persistent Mana echoes unlock the special delver outside the per-run unlock queue', () => {
+  const c = combat();
+  const entry = vm.runInContext('characterRoster.find((candidate) => candidate.id === "echo-bound-delver")', c);
+  assert.equal(c.isCharacterUnlocked(entry), false);
+  const relicIds = vm.runInContext('manaLoreRelics.map((relic) => relic.id)', c);
+  for (const id of relicIds.slice(0, -1)) assert.equal(c.recordLoreRelic(id), true);
+  assert.equal(c.isCharacterUnlocked(entry), false);
+  assert.equal(c.recordLoreRelic(relicIds[relicIds.length - 1]), true);
+  assert.equal(c.isCharacterUnlocked(entry), true);
+  assert.equal(c.player.characterUnlocksThisRun || 0, 0);
 });
 
 test('Rogue bow fires faster with weaker, smaller arrows than Mage bow', () => {
@@ -135,6 +151,14 @@ test('ordinary magic remains unchanged without spores', () => {
   c.shoot();
   c.triggerMagicCluster(c.projectiles[0]);
   assert.equal(c.projectiles.length, 1);
+});
+
+test('a charged magic release deals substantially more damage than a normal shot', () => {
+  const normal = combat('Mage', 'magic');
+  const charged = combat('Mage', 'magic');
+  normal.shoot();
+  charged.shoot({ magicCharge: 1 });
+  assert.ok(charged.projectiles[0].damage >= normal.projectiles[0].damage * 2.5);
 });
 
 test('real projectile loops split magic on enemy and object impacts, but not ordinary expiry', () => {

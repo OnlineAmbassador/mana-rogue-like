@@ -1,5 +1,7 @@
 /* Local storage, profiles, progression, and save/load persistence. */
 
+const MANA_LORE_RELIC_COUNT = 9;
+
 function getSave() {
   let storedSave;
   try {
@@ -9,7 +11,7 @@ function getSave() {
     return {
       arcanist: false, warden: false, highestFloorCleared: 0, unlockedCharacters: [], completedRuns: 0, bankedZenny: 0,
       playtimeSeconds: 0, unlockedItemIds: [], discoveredItemIds: [], discoveredEnemyIds: [], discoveredEnemyAbilityIds: [],
-      purchasedAbilityIds: [], introducedChapters: [],
+      purchasedAbilityIds: [], introducedChapters: [], loreRelics: [],
     };
   }
   if (!storedSave || typeof storedSave !== 'object' || Array.isArray(storedSave)) storedSave = {};
@@ -53,6 +55,8 @@ function getSave() {
       ? storedSave.purchasedAbilityIds.filter((id) => typeof id === 'string') : [],
     introducedChapters: Array.isArray(storedSave.introducedChapters)
       ? storedSave.introducedChapters.filter((id) => typeof id === 'string') : [],
+    loreRelics: Array.isArray(storedSave.loreRelics)
+      ? storedSave.loreRelics.filter((id) => typeof id === 'string') : [],
   };
 }
 
@@ -85,6 +89,25 @@ function recordItemDiscovery(item) {
   if (save.discoveredItemIds.includes(item.id)) return false;
   save.discoveredItemIds.push(item.id);
   persistSave();
+  return true;
+}
+
+function recordLoreRelic(id) {
+  const relics = typeof manaLoreRelics === 'undefined' ? [] : manaLoreRelics;
+  if (!relics.some((relic) => relic.id === id) || save.loreRelics.includes(id)) return false;
+  save.loreRelics.push(id);
+  persistSave();
+  const found = save.loreRelics.length;
+  if (found === MANA_LORE_RELIC_COUNT) {
+    showMessage('All nine echoes are joined. The Echo-Bound Delver is now available.', 5);
+    queueChapter('character:echo-bound-delver', {
+      heading: 'ECHO-BOUND DELVER',
+      title: 'A shared memory',
+      text: 'The records do not reveal what first stirred the Mana Tree’s current. They do reveal that distant worlds have always answered one another. You carry their shared memory into the next descent.',
+    });
+  } else {
+    showMessage(`Mana echo recovered (${found}/${MANA_LORE_RELIC_COUNT}). Its story is recorded in the Codex.`, 3);
+  }
   return true;
 }
 
@@ -130,9 +153,20 @@ function discoverRegion() {
 
 function unlockCharacter(id) {
   if (save.unlockedCharacters.includes(id)) return false;
+  const activeRun = character && ['playing', 'paused', 'won'].includes(mode);
+  const unlocksThisRun = Number.isInteger(player.characterUnlocksThisRun)
+    ? player.characterUnlocksThisRun : 0;
+  if (activeRun && unlocksThisRun >= 1) {
+    showMessage('One delver can be unlocked per descent. Other discoveries will be waiting next run.', 3);
+    return false;
+  }
   save.unlockedCharacters.push(id);
+  if (id === 'warden') save.warden = true;
+  if (id === 'arcanist') save.arcanist = true;
+  if (activeRun) player.characterUnlocksThisRun = unlocksThisRun + 1;
   persistSave();
   queueChapter(`character:${id}`, characterChapters[id]);
+  if (activeRun) saveRunState();
   return true;
 }
 
@@ -254,6 +288,25 @@ function serializeRun() {
     entered: room.entered,
     hidden: room.hidden,
     mainPath: room.mainPath,
+    optionalBranch: room.optionalBranch,
+    bombCache: room.bombCache,
+    keyCache: room.keyCache,
+    shrineElement: room.shrineElement,
+    shrineUsed: room.shrineUsed,
+    extraKeyChance: room.extraKeyChance,
+    guardChargeGranted: room.guardChargeGranted,
+    trialCompleted: room.trialCompleted,
+    trialGroupId: room.trialGroupId,
+    trialStep: room.trialStep,
+    trialSteps: room.trialSteps,
+    trialBranch: room.trialBranch,
+    trialMirrors: room.trialMirrors,
+    trialMode: room.trialMode,
+    trialNodes: room.trialNodes,
+    trialSequence: room.trialSequence,
+    trialProgress: room.trialProgress,
+    trialTime: room.trialTime,
+    trialRewardSpawned: room.trialRewardSpawned,
     lockedDoors: room.lockedDoors,
     rewardRoom: room.rewardRoom,
     treasureClaimed: room.treasureClaimed,
@@ -267,6 +320,7 @@ function serializeRun() {
       x: room.secretExit.room.x,
       y: room.secretExit.room.y,
       keyDropped: room.secretExit.keyDropped === true,
+      extraKeyChance: room.secretExit.room.extraKeyChance || 0,
     } : null,
     returnTo: room.returnTo ? { x: room.returnTo.x, y: room.returnTo.y } : null,
     returnDirection: room.returnDirection,
@@ -282,6 +336,7 @@ function serializeRun() {
     player: {
       x: player.x, y: player.y, hp: player.hp, maxHp: player.maxHp,
       speed: player.speed, damage: player.damage, armor: player.armor,
+      characterUnlocksThisRun: player.characterUnlocksThisRun,
       aegisCharges: player.aegisCharges,
       luck: player.luck,
       lookX: player.lookX, lookY: player.lookY,
@@ -294,6 +349,9 @@ function serializeRun() {
     floorOverflowRolled,
     keysHeld,
     bombsHeld,
+    blanksHeld,
+    orbitGuardChargeUps,
+    orbitGuards: orbitGuards.map(({ x, y, ...guard }) => guard),
     weapon,
     ownedItems: [...ownedItems],
     magicElements: [...magicElements],
@@ -306,6 +364,7 @@ function serializeRun() {
     meleeWeapons: [...meleeWeapons],
     activeCombatStyle,
     fireModes: { ...fireModes },
+    runOfferedAbilityIds: [...runOfferedAbilityIds],
     frostNovaCooldown,
     frostActive,
     equippedClothing: {
@@ -315,6 +374,7 @@ function serializeRun() {
     consumables,
     companions: companions.map(({ enemyCooldowns, ...companion }) => companion),
     storyLog,
+    mouseAimActive: typeof mouseAimActive !== 'undefined' && mouseAimActive,
   };
 }
 
@@ -387,8 +447,16 @@ function restoreRun() {
       room: roomByPosition.get(`${record.secretExit.x},${record.secretExit.y}`),
       keyDropped: record.secretExit.keyDropped === true,
     } : null;
+    if (room.secretExit?.room) {
+      room.secretExit.room.extraKeyChance = Number.isFinite(record.secretExit?.extraKeyChance)
+        ? record.secretExit.extraKeyChance : 0.35;
+    }
     room.returnTo = record.returnTo
       ? roomByPosition.get(`${record.returnTo.x},${record.returnTo.y}`) : null;
+  }
+  runOfferedAbilityIds.clear();
+  for (const id of saved.runOfferedAbilityIds || []) {
+    if (typeof id === 'string') runOfferedAbilityIds.add(id);
   }
   reservedUpgradeIds.clear();
   for (const room of rooms) {
@@ -400,6 +468,10 @@ function restoreRun() {
   storyLog.push(...(Array.isArray(saved.storyLog) ? saved.storyLog.filter((entry) =>
     typeof entry?.title === 'string' && typeof entry?.text === 'string') : []));
   Object.assign(player, saved.player);
+  if (typeof mouseAimActive !== 'undefined') mouseAimActive = saved.mouseAimActive === true;
+  player.characterUnlocksThisRun = clamp(
+    Number.isInteger(player.characterUnlocksThisRun) ? player.characterUnlocksThisRun : 0, 0, 1,
+  );
   player.maxHp = clamp(player.maxHp, 1, BASE_HEARTS + MAX_EXTRA_HEARTS);
   player.hp = Math.min(player.hp, player.maxHp);
   score = saved.score || 0;
@@ -409,6 +481,13 @@ function restoreRun() {
   floorOverflowRolled = saved.floorOverflowRolled === true;
   keysHeld = saved.keysHeld || 0;
   bombsHeld = saved.bombsHeld || 0;
+  blanksHeld = Number.isInteger(saved.blanksHeld) ? saved.blanksHeld : 1;
+  orbitGuardChargeUps = clamp(
+    Number.isInteger(saved.orbitGuardChargeUps) ? saved.orbitGuardChargeUps
+      : Number.isInteger(saved.orbitGuardCharges) ? Math.min(saved.orbitGuardCharges, ORBIT_GUARD_CHARGE_CAP) : 0,
+    0,
+    ORBIT_GUARD_CHARGE_CAP,
+  );
   Object.assign(weapon, saved.weapon);
   ownedItems.clear();
   for (const id of saved.ownedItems || []) {
@@ -449,6 +528,19 @@ function restoreRun() {
   showMap = false;
   showStoryJournal = false;
   spawnRoom(currentRoom);
+  orbitGuards.length = 0;
+  orbitGuards.push(...(Array.isArray(saved.orbitGuards) ? saved.orbitGuards
+    .filter((guard) => ['arrow', 'sword', 'mana'].includes(guard.kind) && Number.isFinite(guard.angle))
+    .slice(0, ORBIT_GUARD_MAX)
+    .map((guard) => ({
+      ...guard,
+      x: player.x + Math.cos(guard.angle) * 32,
+      y: player.y - 20 + Math.sin(guard.angle) * 32,
+      radius: 11,
+      color: guard.kind === 'arrow' ? '#d8b577'
+        : guard.kind === 'sword' ? '#c4e8ff' : magicElementPalette[activeMagicElement] || '#62d9ee',
+    })) : []));
+  nextOrbitGuardId = orbitGuards.reduce((nextId, guard) => Math.max(nextId, (guard.id || 0) + 1), 1);
   companions.push(...(saved.companions || []).map((companion) => ({
     ...companion,
     enemyCooldowns: new Map(),
@@ -469,9 +561,10 @@ function clearSavedRun() {
 
 function isCharacterUnlocked(entry) {
   return entry.id === 'wanderer' || entry.random || save.unlockedCharacters.includes(entry.id) ||
-    (entry.id === 'arcanist' && (save.arcanist || save.highestFloorCleared >= 2)) ||
-    (entry.id === 'warden' && (save.warden || save.highestFloorCleared >= 1)) ||
-    (entry.id === 'mycelia-sporeling' && save.discoveredItemIds.includes('spore-bloom'));
+    (entry.id === 'arcanist' && save.arcanist) ||
+    (entry.id === 'warden' && save.warden) ||
+    (entry.id === 'mycelia-sporeling' && save.discoveredItemIds.includes('spore-bloom')) ||
+    (entry.id === 'echo-bound-delver' && (save.loreRelics || []).length === MANA_LORE_RELIC_COUNT);
 }
 
 function resetAllProgress() {

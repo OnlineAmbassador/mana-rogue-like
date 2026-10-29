@@ -47,14 +47,30 @@ function applyRandomFireMode(item) {
   const style = item.style;
   if (!['melee', 'bow', 'magic'].includes(style) ||
       !['skill', 'weapon', 'mod', 'element'].includes(item.kind)) return null;
-  const choices = style === 'bow' ? ['rapid', 'charge', 'triple'] : ['rapid', 'charge'];
-  const selected = choices[Math.floor(Math.random() * choices.length)];
-  fireModes[style] = selected;
+  const chargeAlreadyFound = Object.values(fireModes).includes('charge');
+  const chargedModeFound = !chargeAlreadyFound && Math.random() < 0.05;
+  const choices = style === 'bow' ? ['rapid', 'triple'] : ['rapid'];
+  const selected = chargedModeFound ? 'charge' : choices[Math.floor(Math.random() * choices.length)];
+  if (chargedModeFound) {
+    for (const weaponStyle of ['melee', 'bow', 'magic']) fireModes[weaponStyle] = 'charge';
+  } else {
+    fireModes[style] = selected;
+  }
   player.meleeCharge = 0;
   player.bowHold = 0;
   player.magicHold = 0;
   player.chargeFraction = 0;
   return selected;
+}
+
+function markAbilityOffered(item) {
+  if (item?.kind === 'ability' && typeof runOfferedAbilityIds !== 'undefined') {
+    runOfferedAbilityIds.add(item.id);
+  }
+}
+
+function abilityAlreadyOffered(id) {
+  return typeof runOfferedAbilityIds !== 'undefined' && runOfferedAbilityIds.has(id);
 }
 
 function currentRegionId() {
@@ -142,42 +158,38 @@ function createShopStock() {
   const abilityCount = ownedAbilityCount();
   const available = shopItemCatalog.filter((item) => {
     if (item.kind === 'companion') return false;
-    if (item.kind === 'consumable') return true;
     if (!isUpgradeAvailable(item)) return false;
     if (item.id.startsWith('heart-vessel-') && !heartVesselAllowed()) return false;
     if (reservedUpgradeIds.has(item.id) || ownedItems.has(item.id)) return false;
-    if (item.kind === 'ability' && abilityCount + reservedAbilityCount() >= 2) return false;
+    if (item.kind === 'ability' && abilityAlreadyOffered(item.id)) return false;
+    if (item.kind === 'ability' && item.id !== 'orbiting-projectiles' &&
+        abilityCount + reservedAbilityCount() >= 2) return false;
     return item.kind !== 'skill' || !combatStyles.has(item.style);
   });
-  const selected = [];
-  while (available.length > 0 && selected.length < 3) {
-    const totalWeight = available.reduce((total, item) => total + (
-      ['ability', 'element'].includes(item.kind) && !save.purchasedAbilityIds.includes(item.id) ? 1.06 : 1
-    ), 0);
-    let choice = Math.random() * totalWeight;
-    let selectedIndex = 0;
-    for (; selectedIndex < available.length - 1; selectedIndex += 1) {
-      choice -= ['ability', 'element'].includes(available[selectedIndex].kind) &&
-        !save.purchasedAbilityIds.includes(available[selectedIndex].id) ? 1.06 : 1;
-      if (choice < 0) break;
+  const costFor = (item) => Math.max(MIN_ABILITY_COST,
+    Math.min(15, item.cost + Math.max(0, currentFloor - 1) * 2));
+  const bomb = { id: 'shop-bomb', name: 'Bomb', description: 'Gain one bomb immediately',
+    cost: Math.min(15, 4 + Math.max(0, currentFloor - 1) * 2), kind: 'shop-bomb', purchased: false };
+  const heart = { id: 'shop-heart', name: 'Heart', description: 'Restore one health point',
+    cost: Math.min(15, 3 + Math.max(0, currentFloor - 1) * 2), kind: 'shop-heart', purchased: false };
+  const abilities = available.filter((item) => item.kind === 'ability');
+  const upgrades = available.filter((item) => item.kind !== 'ability' && item.kind !== 'consumable');
+  const stock = [bomb, heart];
+  if (abilities.length > 0) {
+    const first = abilities.splice(Math.floor(Math.random() * abilities.length), 1)[0];
+    markAbilityOffered(first);
+    stock.push({ ...first, cost: costFor(first), purchased: false });
+    if (abilities.length > 0 && Math.random() < 0.2) {
+      const second = abilities.splice(Math.floor(Math.random() * abilities.length), 1)[0];
+      markAbilityOffered(second);
+      stock.push({ ...second, cost: costFor(second), purchased: false });
     }
-    selected.push(available.splice(selectedIndex, 1)[0]);
-  }
-  const stock = selected.map((item) => ({
-    ...item,
-    cost: Math.max(MIN_ABILITY_COST, Math.min(15, item.cost + Math.max(0, currentFloor - 1) * 2)),
-    purchased: false,
-  }));
-  const familiarOffers = shopItemCatalog.filter((item) => item.kind === 'companion' &&
-    !ownedItems.has(item.id) && !reservedUpgradeIds.has(item.id));
-  if (companions.length < 2 && familiarOffers.length > 0 && stock.length > 0 && Math.random() < 0.3) {
-    const familiar = familiarOffers[Math.floor(Math.random() * familiarOffers.length)];
-    const offerIndex = Math.floor(Math.random() * stock.length);
-    stock[offerIndex] = {
-      ...familiar,
-      cost: Math.min(15, familiar.cost + Math.max(0, currentFloor - 1) * 2),
-      purchased: false,
-    };
+  } else if (upgrades.length > 0) {
+    const item = upgrades[Math.floor(Math.random() * upgrades.length)];
+    stock.push({ ...item, cost: costFor(item), purchased: false });
+  } else {
+    stock[1] = { id: 'shop-heart-2', name: 'Heart', description: 'Restore one health point',
+      cost: heart.cost, kind: 'shop-heart', purchased: false };
   }
   return stock;
 }
@@ -186,7 +198,7 @@ function shopItemStillValid(item) {
   if (item.purchased || item.kind === 'consumable') return true;
   if (item.kind === 'companion') return companions.length < 2 && !ownedItems.has(item.id);
   if (ownedItems.has(item.id)) return false;
-  if (item.kind === 'ability' && ownedAbilityCount() >= 2) return false;
+  if (item.kind === 'ability' && item.id !== 'orbiting-projectiles' && ownedAbilityCount() >= 2) return false;
   if (item.kind === 'skill' && combatStyles.has(item.style)) return false;
   return true;
 }
@@ -213,6 +225,22 @@ function createRoom(x, y, type = 'normal') {
     entered: false,
     hidden: false,
     mainPath: false,
+    optionalBranch: false,
+    bombCache: false,
+    keyCache: false,
+    guardChargeGranted: false,
+    trialCompleted: false,
+    trialGroupId: null,
+    trialStep: 0,
+    trialSteps: 1,
+    trialBranch: 0,
+    trialMirrors: null,
+    trialMode: null,
+    trialNodes: null,
+    trialSequence: null,
+    trialProgress: 0,
+    trialTime: 0,
+    trialRewardSpawned: false,
     secretExit: null,
     lockedDoors: {},
     rewardRoom: false,
@@ -247,18 +275,23 @@ function createUpgradeReward(idSuffix, dungeonRooms) {
     (item.kind === 'skill' ? !combatStyles.has(item.style) : !ownedItems.has(item.id)) &&
     isUpgradeAvailable(item) &&
     (!item.id.startsWith('heart-vessel-') || heartVesselAllowed()) &&
-    (item.kind !== 'ability' || abilityCount < 2) &&
+    (item.kind !== 'ability' || item.id === 'orbiting-projectiles' || abilityCount < 2) &&
+    (item.kind !== 'ability' || !abilityAlreadyOffered(item.id)) &&
     !reservedUpgradeIds.has(item.id) &&
     !dungeonRooms.some((room) => room.shopStock?.some((stockItem) => stockItem.id === item.id)),
   );
-  const reward = upgrades.length > 0
-    ? { ...upgrades[Math.floor(Math.random() * upgrades.length)] }
+  const familiarUnlock = upgrades.find((item) => item.id === 'orbiting-projectiles');
+  const reward = familiarUnlock
+    ? { ...familiarUnlock }
+    : upgrades.length > 0
+      ? { ...upgrades[Math.floor(Math.random() * upgrades.length)] }
     : {
       id: `sanctum-blessing-${idSuffix}`,
       name: 'Sanctum Blessing',
       description: 'Gain a heart and stronger attacks',
       kind: 'passive',
     };
+  markAbilityOffered(reward);
   reservedUpgradeIds.add(reward.id);
   return reward;
 }
@@ -321,7 +354,6 @@ function generateDungeonAttempt() {
     return null;
   };
 
-  const MAX_ROOMS = 10;
   const mainPath = [startRoom];
   let cursor = startRoom;
   for (let step = 1; step <= 4; step += 1) {
@@ -363,6 +395,7 @@ function generateDungeonAttempt() {
   secret.links[secret.returnDirection] = true;
   secret.cleared = true;
   secret.rewardRoom = true;
+  secret.extraKeyChance = 0.35;
   secretHost.secretExit = { direction: secretDirection.name, room: secret };
   occupied.set(keyFor(secret.x, secret.y), secret);
 
@@ -375,6 +408,46 @@ function generateDungeonAttempt() {
   }
   shopRoom.shopStock = createShopStock();
 
+  const extraRooms = [];
+  const optionalRoomSources = () => [...occupied.values()].filter((room) =>
+    room.type !== 'boss' && room.type !== 'secret' && !room.optionalBranch);
+  for (let index = 0; index < 3; index += 1) {
+    const room = attachRoom(optionalRoomSources(), 'normal');
+    if (!room) throw new Error('Could not place all optional dead-end rooms.');
+    room.optionalBranch = true;
+    extraRooms.push(room);
+  }
+  const bombCacheRoomIndex = Math.floor(Math.random() * extraRooms.length);
+  const bombCacheRoom = extraRooms[bombCacheRoomIndex];
+  bombCacheRoom.bombCache = true;
+  bombCacheRoom.rewardRoom = true;
+  const shrineCandidates = extraRooms.filter((room) => room !== bombCacheRoom);
+  const hasElementalShrine = Math.random() < 0.75;
+  const gatedRoom = shrineCandidates.splice(
+    Math.floor(Math.random() * shrineCandidates.length), 1,
+  )[0];
+  if (hasElementalShrine) {
+    gatedRoom.type = 'elemental-shrine';
+    gatedRoom.shrineElement = randomize(
+      Object.keys(magicElementPalette).filter((element) => element !== activeMagicElement),
+    )[0];
+  } else {
+    gatedRoom.type = 'shrine';
+    gatedRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-optional`, [...occupied.values()]);
+  }
+  const returnDirection = Object.keys(gatedRoom.links)[0];
+  const returnVector = directions.find((direction) => direction.name === returnDirection);
+  const gatedSource = returnVector ? [...occupied.values()].find((room) =>
+    room !== gatedRoom && room.x === gatedRoom.x + returnVector.dx &&
+    room.y === gatedRoom.y + returnVector.dy) : null;
+  if (!returnDirection || !returnVector || !gatedSource) {
+    throw new Error('Could not lock the optional shrine or ability room.');
+  }
+  gatedRoom.lockedDoors[returnDirection] = true;
+  gatedSource.lockedDoors[oppositeDirection[returnDirection]] = true;
+  const keyCacheRoom = shrineCandidates[0];
+  if (keyCacheRoom) keyCacheRoom.keyCache = true;
+
   const lockedDirection = directions.find((direction) => lockTarget.links[direction.name]);
   const lockSource = lockedDirection
     ? [...occupied.values()].find((room) =>
@@ -383,19 +456,28 @@ function generateDungeonAttempt() {
       room.y === lockTarget.y + lockedDirection.dy)
     : null;
   if (!lockSource) throw new Error('Could not connect the locked reward room.');
+  lockTarget.type = 'trial';
+  lockTarget.rewardRoom = Math.random() < 0.45;
   lockSource.lockedDoors[oppositeDirection[lockedDirection.name]] = true;
   lockTarget.lockedDoors[lockedDirection.name] = true;
-  lockTarget.rewardRoom = true;
-  lockTarget.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-locked`, [...occupied.values()]);
+  if (Math.random() < 0.35) {
+    const secondTrialRoom = attachRoom([lockTarget], 'trial');
+    if (secondTrialRoom) {
+      const groupId = `floor-${currentFloor}-trial-${lockTarget.x}-${lockTarget.y}`;
+      lockTarget.trialGroupId = groupId;
+      lockTarget.trialStep = 1;
+      lockTarget.trialSteps = 2;
+      secondTrialRoom.trialGroupId = groupId;
+      secondTrialRoom.trialStep = 2;
+      secondTrialRoom.trialSteps = 2;
+      secondTrialRoom.rewardRoom = true;
+      lockTarget.rewardRoom = false;
+      initializeRewardTrial(secondTrialRoom);
+    }
+  }
   keysHeld = Math.max(keysHeld, 1);
-  miniBossRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-miniboss`, [...occupied.values()]);
-  if (Math.random() < 0.45) {
-    secret.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-secret`, [...occupied.values()]);
-  }
-  const shrineRoom = occupied.size < MAX_ROOMS && Math.random() < 0.35 ? attachRoom(specialPath, 'shrine') : null;
-  if (shrineRoom) {
-    shrineRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-shrine`, [...occupied.values()]);
-  }
+  miniBossRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-map`, [...occupied.values()]);
+  initializeRewardTrial(lockTarget);
 
   // Exactly one oversized room per map; never the boss, shop, secret, shrine, or start room.
   const largeCandidates = [...occupied.values()].filter((room) => ['normal', 'miniboss'].includes(room.type));
@@ -506,9 +588,10 @@ function placeRoomObstacles(room) {
 function spawnRewardRelics(room, count = 3) {
   if (room.treasureClaimed || !room.rewardRoom) return;
   const availableObstacles = obstacleSpritesByFloor[currentFloor] || obstacleSpritesByFloor[3];
-  const guaranteedSprite = availableObstacles.find((sprite) =>
-    sprite.type !== 'solid' && sprite.type !== 'bomb-only',
-  ) || availableObstacles.find((sprite) => sprite.type !== 'solid');
+  const rewardObstacles = availableObstacles.filter((sprite) =>
+    sprite.type !== 'solid' && sprite.type !== 'bomb-only');
+  const guaranteedSprite = rewardObstacles[0];
+  if (!guaranteedSprite) return;
   const preferredPositions = [
     { x: ROOM_W / 2 - 180, y: ROOM_H / 2 - 130 },
     { x: ROOM_W / 2 + 180, y: ROOM_H / 2 - 130 },
@@ -517,7 +600,7 @@ function spawnRewardRelics(room, count = 3) {
   let guaranteedSpawned = false;
   for (let index = 0; index < count; index += 1) {
     const sprite = guaranteedSpawned
-      ? availableObstacles[index % availableObstacles.length] : guaranteedSprite;
+      ? rewardObstacles[index % rewardObstacles.length] : guaranteedSprite;
     if (!sprite) continue;
     const preferred = preferredPositions[index % preferredPositions.length];
     const position = findEnemySpawnPosition(preferred.x, preferred.y, sprite.radius, 50);
@@ -634,11 +717,29 @@ function grantUpgrade(item, source = 'descent') {
     showMessage(`You already own ${item.name}.`, 2);
     return false;
   }
+  if (item.id === 'guardian-heart') {
+    const healthCap = BASE_HEARTS + MAX_EXTRA_HEARTS;
+    const previousMaxHp = player.maxHp;
+    player.maxHp = Math.min(healthCap, player.maxHp + 2);
+    player.hp = Math.min(player.maxHp, player.hp + phaseRewardHealAmount());
+    const gainedContainer = player.maxHp > previousMaxHp;
+    ownedItems.add(item.id);
+    markAbilityOffered(item);
+    recordItemDiscovery(item);
+    updateHud();
+    showMessage(gainedContainer
+      ? 'Guardian Heart: one heart container gained and up to two hearts restored.'
+      : 'Guardian Heart: your capacity is full, so it restores up to two hearts.', 4);
+    showPickupBanner(item.name, [gainedContainer ? '+1 HEART CONTAINER' : 'CAPACITY FULL', 'RESTORED UP TO 2 HEARTS']);
+    popOverPlayer({ icon: 'heart', color: '#ff7b8e', image: shopItemIconImages[item.id] });
+    return true;
+  }
   if (!isUpgradeAvailable(item)) {
     showMessage('That upgrade is not available yet.', 2);
     return false;
   }
-  if (item.kind === 'ability' && (ownedItems.has(item.id) || ownedAbilityCount() >= 2)) {
+  if (item.kind === 'ability' && (ownedItems.has(item.id) ||
+      (item.id !== 'orbiting-projectiles' && ownedAbilityCount() >= 2))) {
     showMessage('Your two ability slots are already filled.', 2);
     return false;
   }
@@ -685,8 +786,6 @@ function grantUpgrade(item, source = 'descent') {
   } else if (item.kind === 'element') {
     combatStyles.add('magic');
     magicElements.add(item.element);
-    activeMagicElement = item.element;
-    frostActive = false;
   } else if (item.id === 'frost-rune') {
     frostNovaCooldown = 0;
     frostActive = true;
@@ -694,7 +793,6 @@ function grantUpgrade(item, source = 'descent') {
     player.aegisCharges = 3;
   }
   ownedItems.add(item.id);
-  const newElement = changeUpgradeElement(item);
   if (item.id === 'spore-bloom') unlockCharacter('mycelia-sporeling');
   const sideEffectMode = applyRandomFireMode(item);
   recordItemDiscovery(item);
@@ -712,7 +810,6 @@ function grantUpgrade(item, source = 'descent') {
     3,
   );
   const effectTags = [...itemEffectTagsFor(item)];
-  if (newElement) effectTags.push(`${newElement.toUpperCase()} MAGIC`);
   if (sideEffectMode) effectTags.push(`${sideEffectMode.toUpperCase()} MODE`);
   showPickupBanner(item.name, effectTags);
   popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[item.id] });
@@ -738,11 +835,13 @@ function spawnRoom(room) {
   player.swordParryDamage = 0;
   player.swordParryRewarded = false;
   applyRoomSize(room);
+  if (room.type === 'trial') initializeRewardTrial(room);
   if (room.type === 'start' && !room.entered) {
     player.x = ROOM_W / 2;
     player.y = ROOM_H / 2;
   }
   const wasCleared = room.cleared;
+  const wasVisited = room.visited;
   enemies.length = 0;
   projectiles.length = 0;
   enemyProjectiles.length = 0;
@@ -772,13 +871,45 @@ function spawnRoom(room) {
   }
   room.visited = true;
   if (room.type === 'shop') refreshShopStock(room);
-  if (restoreRoomRuntime(room)) {
+  const restoredRuntime = restoreRoomRuntime(room);
+  if (room.type === 'secret') {
+    const relic = typeof manaLoreRelics === 'undefined'
+      ? null : manaLoreRelics.find((entry) => entry.region === currentRegionId());
+    const foundRelics = Array.isArray(save.loreRelics) ? save.loreRelics : [];
+    const relicInRuntime = room.runtime?.pickups?.some((pickup) =>
+      pickup.kind === 'lore-relic' && pickup.item?.id === relic?.id);
+    if (relic && !foundRelics.includes(relic.id) &&
+        !relicInRuntime && !hasLooseLoreRelic(relic.id)) {
+      pickups.push({
+        x: ROOM_W / 2 - 140,
+        y: ROOM_H / 2 + 80,
+        kind: 'lore-relic',
+        item: relic,
+      });
+    }
+  }
+  if (room.bombCache && !wasVisited) {
+    pickups.push({ x: ROOM_W / 2, y: ROOM_H / 2 + 120, kind: 'bomb', room });
+  }
+  if (room.keyCache && !wasVisited) {
+    pickups.push({ x: ROOM_W / 2 + 70, y: ROOM_H / 2 + 120, kind: 'key', room });
+  }
+  if (restoredRuntime) {
+    if (room.type === 'trial' && room.trialCompleted && !room.trialRewardSpawned &&
+        (!room.trialGroupId || room.trialStep >= room.trialSteps)) {
+      grantRewardTrialLoot(room);
+      saveRunState();
+    }
     room.visited = true;
     room.entered = true;
     updateHud();
     return;
   }
-  if (room.type === 'shop' || room.type === 'bank' || room.type === 'start') {
+  if (room.type === 'trial') {
+    room.cleared = room.trialCompleted === true;
+    initializeRewardTrial(room);
+  } else if (room.type === 'shop' || room.type === 'bank' || room.type === 'start' ||
+      room.type === 'elemental-shrine') {
     room.cleared = true;
     if (room.type !== 'start') {
       for (let index = breakables.length - 1; index >= 0; index -= 1) {
@@ -851,9 +982,14 @@ function spawnRoom(room) {
       }
     }
     placeRoomObstacles(room);
-    if (enemies.length === 0) room.cleared = true;
+    if (enemies.length === 0) {
+      room.cleared = true;
+      grantOrbitGuardChargeUp(room);
+    }
   }
-  if (room.rewardRoom && !room.treasureClaimed) spawnRewardRelics(room, room.type === 'secret' ? 3 : 2);
+  if (room.type !== 'trial' && room.rewardRoom && !room.treasureClaimed) {
+    spawnRewardRelics(room, room.type === 'secret' ? 3 : 2);
+  }
   room.entered = true;
 
   if (room.type === 'start') {
@@ -881,8 +1017,10 @@ function spawnRoom(room) {
   } else if (room.type === 'miniboss') {
     storyText = 'A powerful sentinel guards this optional side chamber.';
   } else if (room.type === 'secret') {
-    storyText = 'A sacred chamber rests undisturbed, its hidden relics holding a gift. Disturb them at your own risk.';
+    storyText = 'A concealed chamber holds an echo of the old mana current. Its other contents are uncertain.';
     unlockCharacter('world-edge-pilgrim');
+  } else if (room.type === 'trial') {
+    storyText = 'An old leyline lens puzzle blocks the reward. Turn each facet and follow the light to the receiver.';
   } else if (room.type === 'shop') {
     storyText = 'A traveling keeper offers supplies to those brave enough to descend.';
   } else if (room.type === 'bank') {
@@ -1013,7 +1151,8 @@ function isPlayerNearDoor(direction) {
 }
 
 function shopPedestalPosition(index) {
-  return { x: 260 + index * 220, y: 372 };
+  const count = currentRoom?.shopStock?.length || 3;
+  return { x: ROOM_W / 2 + (index - (count - 1) / 2) * 220, y: 372 };
 }
 
 function bankPadPosition(withdraw) {
@@ -1036,6 +1175,42 @@ function nearestShopSlot() {
     }
   });
   return best;
+}
+
+function canInteract() {
+  if (mode !== 'playing' || !currentRoom) return false;
+  if (currentRoom.type === 'trial' && !currentRoom.trialCompleted &&
+      (nearestRewardTrialMirror() || nearestRewardTrialNode())) return true;
+  if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
+      distanceBetween(player, elementalShrinePosition()) < 92) return true;
+  if (nearestManaRelic()) return true;
+  if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
+      distanceBetween(player, elementalShrinePosition()) < 92) return true;
+  if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 86) return true;
+  if (nearestShopSlot() >= 0) return true;
+  if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
+      (distanceBetween(player, bankPadPosition(false)) < 160 ||
+        distanceBetween(player, bankPadPosition(true)) < 160)) return true;
+  if (currentRoom.type === 'boss' && currentRoom.cleared &&
+      distanceBetween(player, { x: ROOM_W * 0.72, y: ROOM_H / 2 }) < 76) return true;
+  if (currentRoom.type === 'shop' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 150) return true;
+  return currentRoom.cleared && directions.some((direction) =>
+    isPlayerNearDoor(direction.name) && (currentRoom.links[direction.name] ||
+      (currentRoom.secretExit?.direction === direction.name && !currentRoom.secretExit.room.hidden)));
+}
+
+function nearestManaRelic() {
+  let nearest = null;
+  let nearestDistance = player.radius + 48;
+  for (const pickup of pickups) {
+    if (pickup.kind !== 'lore-relic') continue;
+    const distance = distanceBetween(player, pickup);
+    if (distance < nearestDistance) {
+      nearest = pickup;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
 }
 
 function updateWalkInInteractions(dt) {
@@ -1074,6 +1249,72 @@ function updateWalkInInteractions(dt) {
 
 function interact(withdrawFromBank = false) {
   if (mode !== 'playing') return;
+  if (currentRoom.type === 'trial' && !currentRoom.trialCompleted) {
+    if (currentRoom.trialMode === 'mirror') {
+      const mirror = nearestRewardTrialMirror();
+      if (!mirror) {
+        showMessage('Approach a lens and interact to rotate it.', 1.5);
+        return;
+      }
+      currentRoom.trialMirrors[mirror.index] = mirror.orientation === '/' ? '\\' : '/';
+      if (rewardTrialMirrors().every((facet) => facet.orientation === facet.solution)) {
+        completeRewardTrial(rewardTrialReceiver());
+      } else showMessage('Facet turned. Follow the reflected light to the receiver.', 1.4);
+      updateHud();
+      saveRunState();
+      return;
+    }
+    if (currentRoom.trialMode === 'memory') {
+      const node = nearestRewardTrialNode();
+      if (!node) {
+        showMessage('Approach the next rune and interact.', 1.5);
+        return;
+      }
+      if (node.index !== currentRoom.trialSequence[currentRoom.trialProgress]) {
+        currentRoom.trialProgress = 0;
+        showMessage('The sequence breaks. Watch the runes and try again.', 2);
+      } else {
+        currentRoom.trialProgress += 1;
+        addParticles(node.x, node.y, '#9de5d8', 8, 60);
+        if (currentRoom.trialProgress >= currentRoom.trialSequence.length) {
+          completeRewardTrial(node);
+        } else showMessage(`Rune sequence ${currentRoom.trialProgress}/${currentRoom.trialSequence.length}.`, 1.2);
+      }
+      updateHud();
+      saveRunState();
+      return;
+    }
+    showMessage('Follow the moving sparks in order by walking through them.', 2);
+    return;
+  }
+  if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
+      distanceBetween(player, elementalShrinePosition()) < 92) {
+    const palette = Object.keys(magicElementPalette);
+    if (currentRoom.shrineElement === activeMagicElement) {
+      const currentIndex = palette.indexOf(activeMagicElement);
+      currentRoom.shrineElement = palette[(currentIndex + 1) % palette.length];
+    }
+    activeMagicElement = currentRoom.shrineElement;
+    magicElements.add(activeMagicElement);
+    currentRoom.shrineUsed = true;
+    frostActive = false;
+    const color = magicElementPalette[activeMagicElement];
+    addParticles(ROOM_W / 2, ROOM_H / 2 - 52, color, 28, 100);
+    showPickupBanner(`${activeMagicElement.toUpperCase()} ATTUNEMENT`, ['ELEMENT CHANGED']);
+    showMessage(`The elemental menhir attunes you to ${activeMagicElement}.`, 3);
+    updateHud();
+    saveRunState();
+    return;
+  }
+  const relicPickup = nearestManaRelic();
+  if (relicPickup) {
+    const relicIndex = pickups.indexOf(relicPickup);
+    if (relicIndex >= 0) pickups.splice(relicIndex, 1);
+    recordLoreRelic(relicPickup.item.id);
+    addParticles(relicPickup.x, relicPickup.y, '#b8f1d8', 22, 105);
+    saveRunState();
+    return;
+  }
   if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 86) {
     const pun = menhirPuns[menhirPunIndex % menhirPuns.length];
     menhirPunIndex = (menhirPunIndex + 1 + Math.floor(Math.random() * 3)) % menhirPuns.length;
@@ -1179,8 +1420,13 @@ function buyShopItem(index) {
     showMessage('Only two familiars can travel with you on a descent.', 2.5);
     return;
   }
-  if (item.kind === 'ability' && (ownedItems.has(item.id) || ownedAbilityCount() >= 2)) {
+  if (item.kind === 'ability' && (ownedItems.has(item.id) ||
+      (item.id !== 'orbiting-projectiles' && ownedAbilityCount() >= 2))) {
     showMessage('Your two ability slots are already filled.', 2);
+    return;
+  }
+  if (item.kind === 'shop-heart' && player.hp >= player.maxHp) {
+    showMessage('Your health is already full.', 2);
     return;
   }
   if (item.kind === 'skill' && combatStyles.has(item.style)) {
@@ -1211,10 +1457,14 @@ function buyShopItem(index) {
   } else if (item.kind === 'companion') {
     ownedItems.add(item.id);
     companions.push(createCompanion(item));
-    const newElement = changeUpgradeElement(item);
-    showPickupBanner(item.name, [`${newElement.toUpperCase()} MAGIC`]);
   } else if (item.kind === 'consumable') {
     collectConsumable(item);
+  } else if (item.kind === 'shop-bomb') {
+    bombsHeld += 1;
+    popOverPlayer({ icon: 'bomb', color: '#f2c774' });
+  } else if (item.kind === 'shop-heart') {
+    player.hp = Math.min(player.maxHp, player.hp + 1);
+    popOverPlayer({ icon: 'heart', color: '#ff7b8e' });
   }
   if (powerHatByItem[item.id]) player.powerHat = { item: item.id, hat: powerHatByItem[item.id] };
   updateHud();
@@ -1253,6 +1503,283 @@ function resolveDoorCrossing() {
 
 function soulMenhirPosition() {
   return { x: ROOM_W / 2, y: ROOM_H / 2 - 104 };
+}
+
+function elementalShrinePosition() {
+  return { x: ROOM_W / 2, y: ROOM_H / 2 };
+}
+
+function initializeRewardTrial(room) {
+  if (room.trialBranch !== -1 && room.trialBranch !== 1) {
+    room.trialBranch = Math.random() < 0.5 ? -1 : 1;
+  }
+  if (!['mirror', 'memory', 'relay'].includes(room.trialMode)) {
+    room.trialMode = Array.isArray(room.trialMirrors) && room.trialMirrors.length === 3
+      ? 'mirror' : ['mirror', 'memory', 'relay'][Math.floor(Math.random() * 3)];
+  }
+  if (!Array.isArray(room.trialMirrors) || room.trialMirrors.length !== 3 ||
+      room.trialMirrors.some((orientation) => orientation !== '/' && orientation !== '\\')) {
+    const branch = room.trialBranch;
+    const solution = [
+      branch > 0 ? '\\' : '/',
+      branch > 0 ? '\\' : '/',
+      branch > 0 ? '/' : '\\',
+    ];
+    room.trialMirrors = solution.map(() => Math.random() < 0.5 ? '/' : '\\');
+    if (room.trialMirrors.every((orientation, index) => orientation === solution[index])) {
+      room.trialMirrors[0] = room.trialMirrors[0] === '/' ? '\\' : '/';
+    }
+  }
+  const nodeCount = room.trialMode === 'memory' ? 5 : room.trialMode === 'relay' ? 3 : 0;
+  if (nodeCount && (!Array.isArray(room.trialNodes) || room.trialNodes.length !== nodeCount)) {
+    if (room.trialMode === 'memory') {
+      const rotation = Math.random() * Math.PI * 2;
+      room.trialNodes = Array.from({ length: 5 }, (_, index) => {
+        const angle = rotation + index * Math.PI * 2 / 5;
+        return { x: 0.5 + Math.cos(angle) * 0.21, y: 0.5 + Math.sin(angle) * 0.21 };
+      });
+    } else {
+      room.trialNodes = Array.from({ length: 3 }, () => ({
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.75 + Math.random() * 0.5,
+      }));
+    }
+  }
+  if (room.trialMode === 'memory' &&
+      (!Array.isArray(room.trialSequence) || room.trialSequence.length !== 4 ||
+        room.trialSequence.some((index) => !Number.isInteger(index) || index < 0 || index >= 5))) {
+    room.trialSequence = [Math.floor(Math.random() * 5)];
+    while (room.trialSequence.length < 4) {
+      const previous = room.trialSequence[room.trialSequence.length - 1];
+      room.trialSequence.push((previous + 1 + Math.floor(Math.random() * 4)) % 5);
+    }
+  }
+  if (!Number.isInteger(room.trialProgress) || room.trialProgress < 0) room.trialProgress = 0;
+  if (!Number.isFinite(room.trialTime) || room.trialTime < 0) room.trialTime = 0;
+}
+
+function rewardTrialMirrors(room = currentRoom) {
+  if (!room) return [];
+  initializeRewardTrial(room);
+  const branch = room.trialBranch === 1 ? 1 : -1;
+  const y = ROOM_H / 2 + branch * ROOM_H * 0.23;
+  const solution = [
+    branch > 0 ? '\\' : '/',
+    branch > 0 ? '\\' : '/',
+    branch > 0 ? '/' : '\\',
+  ];
+  return [
+    { x: ROOM_W * 0.28, y: ROOM_H / 2 },
+    { x: ROOM_W * 0.28, y },
+    { x: ROOM_W * 0.68, y },
+  ].map((position, index) => ({
+    ...position,
+    index,
+    orientation: room.trialMirrors[index],
+    solution: solution[index],
+  }));
+}
+
+function rewardTrialSource() {
+  return { x: ROOM_W * 0.12, y: ROOM_H / 2 };
+}
+
+function rewardTrialReceiver() {
+  return { x: ROOM_W * 0.68, y: ROOM_H / 2 };
+}
+
+function nearestRewardTrialMirror() {
+  if (currentRoom?.type !== 'trial' || currentRoom.trialCompleted) return null;
+  let nearest = null;
+  let nearestDistance = 70;
+  for (const mirror of rewardTrialMirrors()) {
+    const distance = distanceBetween(player, mirror);
+    if (distance < nearestDistance) {
+      nearest = mirror;
+      nearestDistance = distance;
+    }
+  }
+  if (!nearest) return null;
+  return { ...nearest, room: currentRoom };
+}
+
+function rewardTrialNodes(room = currentRoom) {
+  if (!room) return [];
+  initializeRewardTrial(room);
+  if (room.trialMode === 'memory') {
+    return room.trialNodes.map((position, index) => ({
+      x: position.x * ROOM_W,
+      y: position.y * ROOM_H,
+      index,
+    }));
+  }
+  if (room.trialMode === 'relay') {
+    return room.trialNodes.map((node, index) => ({
+      x: ROOM_W * (0.5 + Math.cos(room.trialTime * node.speed + node.phase) * 0.18),
+      y: ROOM_H * (0.5 + Math.sin(room.trialTime * node.speed + node.phase) * 0.14),
+      index,
+    }));
+  }
+  return [];
+}
+
+function nearestRewardTrialNode() {
+  if (currentRoom?.type !== 'trial' || currentRoom.trialMode !== 'memory' ||
+      currentRoom.trialCompleted) return null;
+  const expectedIndex = currentRoom.trialSequence[currentRoom.trialProgress];
+  const node = rewardTrialNodes().find((candidate) => candidate.index === expectedIndex);
+  if (!node || distanceBetween(player, node) >= 70) return null;
+  return node;
+}
+
+function updateRewardTrial(dt) {
+  if (currentRoom?.type !== 'trial' || currentRoom.trialMode !== 'relay' ||
+      currentRoom.trialCompleted) return;
+  currentRoom.trialTime += dt;
+  const target = rewardTrialNodes()[currentRoom.trialProgress];
+  if (!target || distanceBetween(player, target) >= player.radius + 22) return;
+  currentRoom.trialProgress += 1;
+  addParticles(target.x, target.y, '#f0d98a', 10, 70);
+  if (currentRoom.trialProgress >= 3) completeRewardTrial(target);
+  else {
+    showMessage(`Spark caught ${currentRoom.trialProgress}/3. Chase the next one!`, 1.2);
+    saveRunState();
+  }
+}
+
+function completeRewardTrial(position) {
+  const room = currentRoom;
+  if (room.trialGroupId && room.trialStep > 1) {
+    const previousStep = rooms.find((candidate) =>
+      candidate.trialGroupId === room.trialGroupId && candidate.trialStep === room.trialStep - 1);
+    if (!previousStep?.trialCompleted) {
+      room.trialProgress = 0;
+      showMessage('Complete the earlier chamber before claiming this trial.', 2.5);
+      saveRunState();
+      return;
+    }
+  }
+  room.trialCompleted = true;
+  room.cleared = true;
+  grantOrbitGuardChargeUp(room);
+  if (room.trialGroupId && room.trialStep < room.trialSteps) {
+    const nextTrial = rooms.find((candidate) =>
+      candidate.trialGroupId === room.trialGroupId && candidate.trialStep === room.trialStep + 1);
+    if (!nextTrial) throw new Error(`Missing next chamber for trial ${room.trialGroupId}.`);
+    showMessage('First chamber cleared. Continue deeper for the trial reward!', 3);
+  } else {
+    grantRewardTrialLoot(room);
+  }
+  addParticles(position.x, position.y, '#f4d58c', 24, 110);
+  if (!room.trialGroupId || room.trialStep >= room.trialSteps) {
+    showMessage('Trial complete! Your reward is waiting in the chamber.', 3);
+  }
+  updateHud();
+  saveRunState();
+}
+
+function removeLooseLoreRelic(id) {
+  for (const room of rooms) {
+    const roomPickups = room === currentRoom ? pickups : room.runtime?.pickups;
+    if (!Array.isArray(roomPickups)) continue;
+    for (let index = roomPickups.length - 1; index >= 0; index -= 1) {
+      if (roomPickups[index].kind === 'lore-relic' && roomPickups[index].item?.id === id) {
+        roomPickups.splice(index, 1);
+      }
+    }
+  }
+}
+
+function hasLooseLoreRelic(id) {
+  if (pickups.some((pickup) => pickup.kind === 'lore-relic' && pickup.item?.id === id)) return true;
+  return rooms.some((room) => room !== currentRoom &&
+    room.runtime?.pickups?.some((pickup) => pickup.kind === 'lore-relic' && pickup.item?.id === id));
+}
+
+function grantRewardTrialLoot(room) {
+  if (room.trialRewardSpawned) return;
+  room.trialRewardSpawned = true;
+  const relic = typeof manaLoreRelics === 'undefined'
+    ? null : manaLoreRelics.find((entry) => entry.region === currentRegionId());
+  const foundRelics = Array.isArray(save.loreRelics) ? save.loreRelics : [];
+  if (relic && !foundRelics.includes(relic.id) && Math.random() < 0.9) {
+    removeLooseLoreRelic(relic.id);
+    pickups.push({ x: ROOM_W / 2 + 54, y: ROOM_H / 2 + 52, kind: 'lore-relic', item: relic, room });
+  }
+
+  const abilityCount = ownedAbilityCount() + reservedAbilityCount();
+  const abilities = shopItemCatalog.filter((item) => item.kind === 'ability' &&
+    !ownedItems.has(item.id) && !reservedUpgradeIds.has(item.id) &&
+    !abilityAlreadyOffered(item.id) &&
+    (item.id === 'orbiting-projectiles' || abilityCount < 2) &&
+    isUpgradeAvailable(item));
+  const rewards = ['bomb', 'zenny'];
+  if (player.hp < player.maxHp) rewards.push('heart');
+  if (abilities.length > 0) rewards.push('ability');
+  const reward = rewards[Math.floor(Math.random() * rewards.length)];
+  const x = ROOM_W / 2 - 54;
+  const y = ROOM_H / 2 + 52;
+  if (reward === 'ability') {
+    const item = abilities[Math.floor(Math.random() * abilities.length)];
+    markAbilityOffered(item);
+    reservedUpgradeIds.add(item.id);
+    pickups.push({ x, y, kind: 'upgrade', item, room, trialReward: true });
+  } else if (reward === 'heart' || reward === 'bomb') {
+    pickups.push({ x, y, kind: reward, room, trialReward: true });
+  } else {
+    for (let index = 0; index < 3; index += 1) {
+      pickups.push({ x: x + (index - 1) * 22, y, kind: 'coin', room, trialReward: true });
+    }
+  }
+}
+
+function grantOrbitGuardChargeUp(room) {
+  if (!room || room.guardChargeGranted) return false;
+  room.guardChargeGranted = true;
+  const previousCharge = orbitGuardChargeUps;
+  orbitGuardChargeUps = Math.min(ORBIT_GUARD_CHARGE_CAP, orbitGuardChargeUps + 1);
+  if (previousCharge < ORBIT_GUARD_CHARGE_REQUIREMENT &&
+      orbitGuardChargeUps >= ORBIT_GUARD_CHARGE_REQUIREMENT) {
+    showMessage('Mana Familiar fully charged. Press the defense action to summon three spirits.', 2.5);
+  }
+  updateHud();
+  saveRunState();
+  return true;
+}
+
+function useOrbitGuard() {
+  if (mode !== 'playing' || !currentRoom) return;
+  if (!ownedItems.has('orbiting-projectiles')) {
+    useShockwave();
+    return;
+  }
+  if (orbitGuardChargeUps < ORBIT_GUARD_CHARGE_REQUIREMENT) {
+    showMessage(`Mana Guard needs ${ORBIT_GUARD_CHARGE_REQUIREMENT - orbitGuardChargeUps} more room clear charge-up${ORBIT_GUARD_CHARGE_REQUIREMENT - orbitGuardChargeUps === 1 ? '' : 's'}.`, 2);
+    return;
+  }
+  if (orbitGuards.length >= ORBIT_GUARD_MAX) {
+    showMessage('Your orbit is full. Use a familiar before summoning more.', 2);
+    return;
+  }
+  const { kind, color } = orbitGuardStyle();
+  const summonCount = Math.min(ORBIT_GUARD_SUMMON_COUNT, ORBIT_GUARD_MAX - orbitGuards.length);
+  orbitGuardChargeUps -= ORBIT_GUARD_CHARGE_REQUIREMENT;
+  for (let index = 0; index < summonCount; index += 1) {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / summonCount;
+    orbitGuards.push({
+      id: nextOrbitGuardId++,
+      kind,
+      angle,
+      x: player.x + Math.cos(angle) * 32,
+      y: player.y - 20 + Math.sin(angle) * 32,
+      radius: 11,
+      color,
+    });
+  }
+  addParticles(player.x, player.y - 20, color, 16, 85);
+  showMessage(`${summonCount} ${kind === 'mana' ? 'mana' : kind} guard${summonCount === 1 ? '' : 's'} orbit you. Each blocks one shot or strikes one enemy.`, 2.5);
+  updateHud();
+  saveRunState();
 }
 
 function roomLeftoverKinds(room) {

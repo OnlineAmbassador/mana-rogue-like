@@ -8,10 +8,11 @@ function combat() {
   const c = vm.createContext({
     Math: Object.assign(Object.create(Math), { random: () => 0.5 }),
     enemies: [], ownedItems: new Set(), lightningArcs: [], bursts: [], hits: [],
+    runOfferedAbilityIds: new Set(),
     groundHazards: [], clusters: [],
     character: { className: 'Mage' }, player: { x: 100, y: 200 },
     magicElements: new Set(['bubble']), activeMagicElement: 'bubble',
-    ROOM_W: 960, ROOM_H: 540,
+    ROOM_W: 960, ROOM_H: 540, ROOM_WALL_THICKNESS: 64,
     clamp: (v, min, max) => Math.min(max, Math.max(min, v)),
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
     hasLineOfSight: () => true,
@@ -38,6 +39,22 @@ function shot(overrides = {}) {
     magicSurprise: true, wildEnemyChance: 0.4, wildObjectChance: 0.2, color: '#62d9ee', ...overrides };
 }
 
+test('charge-mode magic drops short taps and emits only a deliberate charged release', () => {
+  const c = combat();
+  const shots = [];
+  c.fireMode = () => 'charge';
+  c.meleeInputHeld = () => c.attackHeld;
+  c.shoot = (options) => shots.push(options);
+  c.player.magicHold = 0.1;
+  c.attackHeld = false;
+  c.updateMagicInput(0);
+  assert.equal(shots.length, 0);
+  c.player.magicHold = 0.3;
+  c.updateMagicInput(0);
+  assert.equal(shots.length, 1);
+  assert.equal(shots[0].magicCharge, 1 / 3);
+});
+
 test('new Mage runs can start with each element; other classes keep water until an upgrade', () => {
   const c = combat();
   const elements = ['bubble', 'fire', 'lightning', 'gas', 'spore', 'ice', 'wind', 'earth'];
@@ -57,7 +74,7 @@ test('new Mage runs can start with each element; other classes keep water until 
   }
 });
 
-test('every successful upgrade changes element and announces it, but duplicates and consumables do not', () => {
+test('ordinary upgrades and consumables preserve the active element; sigils unlock their named element', () => {
   const c = combat();
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'worldmanager.js'), 'utf8'), c);
   vm.runInContext(`
@@ -71,19 +88,51 @@ test('every successful upgrade changes element and announces it, but duplicates 
   `, c);
   c.character.className = 'Rogue';
   assert.equal(c.grantUpgrade({ id: 'feather', name: 'Feather', kind: 'passive' }), true);
-  const first = c.activeMagicElement;
-  assert.notEqual(first, 'bubble');
-  assert.ok(c.bannerTags.includes(`${first.toUpperCase()} MAGIC`));
+  assert.equal(c.activeMagicElement, 'bubble');
+  assert.equal(c.bannerTags.includes('FIRE MAGIC'), false);
   assert.equal(c.grantUpgrade({ id: 'feather', name: 'Feather', kind: 'passive' }), false);
-  assert.equal(c.activeMagicElement, first);
+  assert.equal(c.activeMagicElement, 'bubble');
   assert.equal(c.grantUpgrade({ id: 'tonic', name: 'Tonic', kind: 'consumable' }), true);
-  assert.equal(c.activeMagicElement, first);
+  assert.equal(c.activeMagicElement, 'bubble');
   assert.equal(c.grantUpgrade({ id: 'another-upgrade', name: 'Upgrade', kind: 'passive' }), true);
-  assert.notEqual(c.activeMagicElement, first);
+  assert.equal(c.activeMagicElement, 'bubble');
   c.combatStyles = new Set();
   assert.equal(c.grantUpgrade({ id: 'element-fire', name: 'Ember Sigil', kind: 'element', element: 'fire' }), true);
+  assert.equal(c.activeMagicElement, 'bubble');
+  assert.equal(c.magicElements.has('fire'), true);
+});
+
+test('an elemental menhir changes the active element once when interacted with', () => {
+  const c = combat();
+  c.pickups = [];
+  c.player.radius = 12;
+  c.directions = [
+    { name: 'up', dx: 0, dy: -1 },
+    { name: 'right', dx: 1, dy: 0 },
+    { name: 'down', dx: 0, dy: 1 },
+    { name: 'left', dx: -1, dy: 0 },
+  ];
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'worldmanager.js'), 'utf8'), c);
+  vm.runInContext(`
+    mode = 'playing';
+    currentRoom = { type: 'elemental-shrine', shrineElement: 'fire', shrineUsed: false };
+    player.x = ROOM_W / 2;
+    player.y = ROOM_H / 2;
+    frostActive = true;
+    isPlayerNearDoor = () => false;
+    addParticles = updateHud = saveRunState = showMessage = () => {};
+    showPickupBanner = (name, tags) => { shrineBanner = name; };
+  `, c);
+  assert.equal(c.canInteract(), true);
+  c.interact();
   assert.equal(c.activeMagicElement, 'fire');
-  assert.notEqual(c.changeUpgradeElement({ kind: 'companion' }), 'fire');
+  assert.equal(c.magicElements.has('fire'), true);
+  assert.equal(c.currentRoom.shrineUsed, true);
+  assert.equal(c.frostActive, false);
+  assert.equal(c.shrineBanner, 'FIRE ATTUNEMENT');
+  c.activeMagicElement = 'ice';
+  c.interact();
+  assert.equal(c.activeMagicElement, 'ice');
 });
 
 test('saved random elements restore without requiring an owned element sigil', () => {

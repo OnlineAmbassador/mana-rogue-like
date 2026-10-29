@@ -9,14 +9,6 @@ function startingMagicElement(entry) {
   return entry.className === 'Mage' ? elements[Math.floor(Math.random() * elements.length)] : 'bubble';
 }
 
-function changeUpgradeElement(item) {
-  if (['consumable', 'ammo'].includes(item.kind)) return null;
-  const elements = Object.keys(magicElementPalette).filter((element) => element !== activeMagicElement);
-  activeMagicElement = item.kind === 'element' ? item.element : elements[Math.floor(Math.random() * elements.length)];
-  magicElements.add(activeMagicElement);
-  return activeMagicElement === 'bubble' ? 'water' : activeMagicElement;
-}
-
 function magicColor(projectile) {
   return magicElementPalette[projectile.element] || projectile.color || magicElementPalette.bubble || '#62d9ee';
 }
@@ -411,16 +403,22 @@ function getCameraShakeOffset() {
 }
 
 function ownedAbilityCount() {
-  return shopItemCatalog.filter((item) => item.kind === 'ability' && ownedItems.has(item.id)).length;
+  return shopItemCatalog.filter((item) => item.kind === 'ability' &&
+    item.id !== 'orbiting-projectiles' && ownedItems.has(item.id)).length;
 }
 
 function reservedAbilityCount() {
   return shopItemCatalog.filter((item) => item.kind === 'ability' &&
+    item.id !== 'orbiting-projectiles' &&
     reservedUpgradeIds.has(item.id) && !ownedItems.has(item.id)).length;
 }
 
 function extraHearts() {
   return Math.max(0, player.maxHp - BASE_HEARTS);
+}
+
+function phaseRewardHealAmount() {
+  return Math.min(2, Math.ceil(player.maxHp / 2));
 }
 
 function gainMaxHeart() {
@@ -436,6 +434,7 @@ function heartVesselAllowed() {
 }
 
 function isUpgradeAvailable(item) {
+  if (item.kind === 'boss-relic') return false;
   const rangeTier = rangeLensItemIds.indexOf(item.id);
   const luckTier = ['luck-up-i', 'luck-up-ii'].indexOf(item.id);
   return isCatalogItemUnlocked(item) && (rangeTier < 0 || rangeTier === weapon.rangeLevel) &&
@@ -830,22 +829,40 @@ function attackOriginY() {
   return player.y - 34;
 }
 
-function currentAimAngle() {
-  if (pointer.down) return Math.atan2(pointer.y + camera.y - attackOriginY(), pointer.x + camera.x - player.x);
-  if (touchInput.attack) {
-    if (touchInput.aimActive) return Math.atan2(touchInput.aimY, touchInput.aimX);
-    let target = null;
-    let nearestDistance = 620;
-    for (const enemy of enemies) {
-      const distance = distanceBetween(player, enemy);
-      if (distance < nearestDistance) {
-        target = enemy;
-        nearestDistance = distance;
-      }
+function nearestTouchTargetAngle() {
+  let target = null;
+  let targetDistance = Infinity;
+  for (const enemy of enemies) {
+    if (!(enemy.hp > 0)) continue;
+    const distance = distanceBetween(player, enemy);
+    if (distance < targetDistance) {
+      target = enemy;
+      targetDistance = distance;
     }
-    if (target) return Math.atan2(target.y - attackOriginY(), target.x - player.x);
   }
-  return Math.atan2(player.lookY, player.lookX);
+  return target ? Math.atan2(target.y - attackOriginY(), target.x - player.x) : 0;
+}
+
+function currentAimAngle() {
+  if (lastInputMode === 'controller') {
+    const aimX = gamepadInput.aimX;
+    const aimY = gamepadInput.aimY;
+    return Math.atan2(aimY, aimX);
+  }
+  if (lastInputMode === 'touch') {
+    return nearestTouchTargetAngle();
+  }
+  if (lastInputMode === 'keyboard') {
+    return Math.atan2(pointer.y + camera.y - attackOriginY(), pointer.x + camera.x - player.x);
+  }
+  return 0;
+}
+
+function updateTouchAimFacing() {
+  if (typeof touchInput === 'undefined' || !touchInput.attack) return;
+  const angle = currentAimAngle();
+  player.lookX = Math.cos(angle);
+  player.lookY = Math.sin(angle);
 }
 
 function meleeInputHeld() {
@@ -878,11 +895,7 @@ function updateMeleeInput(dt) {
     }
   }
   if (meleeInputHeld()) {
-    if (pointer.down || touchInput.attack) {
-      const angle = currentAimAngle();
-      player.lookX = Math.cos(angle);
-      player.lookY = Math.sin(angle);
-    }
+    updateTouchAimFacing();
     if (!canCharge) {
       player.meleeCharge = 0;
       if (player.fireCooldown <= 0) performMeleeAttack(false);
@@ -905,9 +918,10 @@ function updateMeleeInput(dt) {
 
 function performMeleeAttack(charged) {
   if (mode !== 'playing' || player.fireCooldown > 0) return;
-  const baseAngle = currentAimAngle();
-  player.lookX = Math.cos(baseAngle);
-  player.lookY = Math.sin(baseAngle);
+  const aimAngle = currentAimAngle();
+  const baseAngle = aimAngle;
+  player.lookX = Math.cos(aimAngle);
+  player.lookY = Math.sin(aimAngle);
   player.attackPulse = 0.14;
   player.attackAnimationStyle = 'hand';
   player.attackAnimationTimer = 0.32;
@@ -944,11 +958,7 @@ function updateBowInput(dt) {
     }
   }
   if (meleeInputHeld()) {
-    if (pointer.down || touchInput.attack) {
-      const angle = currentAimAngle();
-      player.lookX = Math.cos(angle);
-      player.lookY = Math.sin(angle);
-    }
+    updateTouchAimFacing();
     if (!canDraw) {
       player.bowHold = 0;
       player.chargeFraction = 0;
@@ -971,6 +981,7 @@ function updateBowInput(dt) {
 }
 
 function updateMagicInput(dt) {
+  updateTouchAimFacing();
   if (fireMode('magic') !== 'charge') {
     player.magicHold = 0;
     player.chargeFraction = 0;
@@ -986,8 +997,89 @@ function updateMagicInput(dt) {
     player.magicHold = 0;
     player.chargeFraction = 0;
     if (charge >= 0.25) shoot({ magicCharge: charge });
-    else if (charge > 0) shoot({ magicCharge: 0.01 });
   }
+}
+
+function updateChargeBeamProjectile(projectile, dt) {
+  projectile.ttl -= dt;
+  projectile.beamExplosionTimer = Math.max(0, (projectile.beamExplosionTimer || 0) - dt);
+  projectile.beamHitTimers ||= new Map();
+  for (const [enemy, timer] of projectile.beamHitTimers) {
+    const nextTimer = timer - dt;
+    if (nextTimer <= 0 || !enemies.includes(enemy)) projectile.beamHitTimers.delete(enemy);
+    else projectile.beamHitTimers.set(enemy, nextTimer);
+  }
+
+  const start = { x: projectile.originX, y: projectile.originY };
+  const dx = projectile.vx;
+  const dy = projectile.vy;
+  let length = projectile.beamRange;
+  if (dx > 0) length = Math.min(length, (ROOM_W - ROOM_WALL_THICKNESS - start.x) / dx);
+  else if (dx < 0) length = Math.min(length, (ROOM_WALL_THICKNESS - start.x) / dx);
+  if (dy > 0) length = Math.min(length, (ROOM_H - ROOM_WALL_THICKNESS - start.y) / dy);
+  else if (dy < 0) length = Math.min(length, (ROOM_WALL_THICKNESS - start.y) / dy);
+  length = Math.max(0, length);
+
+  let obstacle = null;
+  let obstacleDistance = length;
+  for (const candidate of breakables) {
+    if (candidate.broken) continue;
+    const along = (candidate.x - start.x) * dx + (candidate.y - start.y) * dy;
+    if (along <= 0 || along >= obstacleDistance) continue;
+    const nearest = { x: start.x + dx * along, y: start.y + dy * along };
+    if (distanceBetween(candidate, nearest) <= candidate.radius + projectile.beamWidth * 0.5) {
+      obstacle = candidate;
+      obstacleDistance = Math.max(0, along - candidate.radius);
+    }
+  }
+
+  const end = { x: start.x + dx * obstacleDistance, y: start.y + dy * obstacleDistance };
+  projectile.beamEndX = end.x;
+  projectile.beamEndY = end.y;
+  projectile.beamImpact = null;
+  for (const enemy of enemies) {
+    if (enemy.hp <= 0 || enemy.manaRift) continue;
+    const along = (enemy.x - start.x) * dx + (enemy.y - start.y) * dy;
+    if (along <= 0 || along > obstacleDistance) continue;
+    const nearest = { x: start.x + dx * along, y: start.y + dy * along };
+    if (distanceBetween(enemy, nearest) > enemy.radius + projectile.beamWidth * 0.5) continue;
+    if (!projectile.beamImpact || along < projectile.beamImpact.distance) {
+      projectile.beamImpact = { enemy, distance: along };
+    }
+  }
+
+  if (projectile.beamImpact) {
+    const { enemy, distance } = projectile.beamImpact;
+    const impactDistance = Math.max(0, distance - enemy.radius * 0.4);
+    projectile.beamEndX = start.x + dx * impactDistance;
+    projectile.beamEndY = start.y + dy * impactDistance;
+    if (!projectile.explosionTriggered) {
+      projectile.explosionTriggered = true;
+      projectile.x = enemy.x;
+      projectile.y = enemy.y;
+      projectile.beamExplosionX = enemy.x;
+      projectile.beamExplosionY = enemy.y;
+      projectile.beamExplosionTimer = 0.18;
+      applyMorphLanding(projectile, enemy);
+      addParticles(enemy.x, enemy.y, projectile.color, 22, 160);
+    }
+  }
+
+  const beamEnd = { x: projectile.beamEndX, y: projectile.beamEndY };
+  for (const enemy of [...enemies]) {
+    if (enemy.hp <= 0 || enemy.manaRift ||
+        distanceToSegment(enemy, start, beamEnd) > enemy.radius + projectile.beamWidth * 0.5) continue;
+    if (projectile.beamHitTimers.has(enemy)) continue;
+    const damage = Math.max(1, Math.round(projectile.damage * 0.28));
+    damageEnemy(enemy, damage, start.x, start.y, false, true);
+    projectile.beamHitTimers.set(enemy, 0.22);
+    addParticles(enemy.x, enemy.y, projectile.color, 4, 55);
+  }
+  if (obstacle && projectile.beamObstacleHit !== obstacle) {
+    projectile.beamObstacleHit = obstacle;
+    if (obstacle.type !== 'solid') damageObstacle(obstacle, 1, 'projectile');
+  }
+  return projectile.ttl <= 0;
 }
 
 function shoot(options = null) {
@@ -1002,8 +1094,9 @@ function shoot(options = null) {
   const attackDelay = weapon.fireDelay * (style === nativeStyle() ? (character.fireDelay || 0.23) / 0.23 : 1);
   const bowCharge = style === 'bow' ? options?.charge || 0 : 0;
   const magicCharge = style === 'magic' ? options?.magicCharge || 0 : 0;
+  const chargedBowBeam = style === 'bow' && bowCharge >= 0.3;
   const tripleBow = style === 'bow' && !bowCharge && fireMode('bow') === 'triple';
-  if (player.fireCooldown > 0 && !bowCharge && !magicCharge) return;
+  if (player.fireCooldown > 0 && (!bowCharge || magicCharge)) return;
   const mod = activeWeaponMod(style);
   const modId = mod?.id;
   const bowPierce = modId === 'mod-pierce';
@@ -1017,10 +1110,12 @@ function shoot(options = null) {
   const styleDamage = (style === 'magic' ? profile.magic : style === 'bow' ? profile.bow : 1) *
     (synergy ? 1.15 : 1);
   const normalInterval = attackDelay * FIRE_RATE_SCALE / (style === 'bow' ? profile.bowRate * (synergy ? 1.15 : 1) : 1);
+  const chargeStrength = bowCharge || magicCharge;
   const holdSeconds = bowCharge ? BOW_TAP_WINDOW + bowCharge * bowChargeTime() : magicCharge * 0.9;
-  // Charged shots deal the damage of every normal shot they replace (hold time plus recovery), so DPS stays equal.
   const chargeMul = bowCharge || magicCharge ? clamp((holdSeconds + normalInterval) / normalInterval, 1, MAX_CHARGE_SHOTS) : 1;
-  const bowDamageMul = (style === 'magic' ? (magicCharge ? chargeMul : 1) : style !== 'bow' ? 1 : bowCharge ? chargeMul : rapidQuiver ? 0.6 : 1) * styleDamage *
+  const chargedImpactBonus = chargeStrength > 0 ? 1 + chargeStrength * 0.75 : 1;
+  const bowDamageMul = (style === 'magic' ? (magicCharge ? chargeMul * (1 + magicCharge * 3.5) : 1) : style !== 'bow' ? 1 : bowCharge ? chargeMul : rapidQuiver ? 0.6 : 1) *
+    chargedImpactBonus * styleDamage *
     (tripleBow ? 0.6 : 1);
   const bowDelayMul = (style !== 'bow' ? 1 : bowCharge ? 1 : rapidQuiver ? 0.55 : 1) * (tripleBow ? 1.35 : 1) /
     (style === 'bow' ? profile.bowRate * (synergy ? 1.15 : 1) : 1);
@@ -1035,12 +1130,11 @@ function shoot(options = null) {
   player.attackPulse = 0.14;
   player.attackAnimationStyle = style === 'bow' ? 'bow' : 'hand';
   player.attackAnimationTimer = player.attackAnimationStyle === 'bow' ? 0.4 : 0.32;
-  const baseAngle = currentAimAngle();
+  const aimAngle = currentAimAngle();
+  const baseAngle = aimAngle;
   const attackOriginY = player.y - 34;
-  if (pointer.down || touchInput.attack) {
-    player.lookX = Math.cos(baseAngle);
-    player.lookY = Math.sin(baseAngle);
-  }
+  player.lookX = Math.cos(aimAngle);
+  player.lookY = Math.sin(aimAngle);
   const morph = activeAttackMorph();
   const orderedStyles = [...rangedStyles].sort((first, second) =>
     Number(second === activeCombatStyle) - Number(first === activeCombatStyle));
@@ -1071,8 +1165,11 @@ function shoot(options = null) {
         y: attackOriginY + vy * 18,
         vx: vx * weapon.projectileSpeed * (fusedElementalShot ? 1.18 : 1) * morph.speedMul * (bowCharge ? 1.35 : 1),
         vy: vy * weapon.projectileSpeed * (fusedElementalShot ? 1.18 : 1) * morph.speedMul * (bowCharge ? 1.35 : 1),
-        radius: 6 * weapon.tearSize * arrowSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul * (bowCharge ? 1.1 + bowCharge * 0.2 : 1) * (magicCharge ? 1.1 + magicCharge * 0.2 : 1),
-        size: weapon.tearSize * arrowSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul * (bowCharge ? 1.1 + bowCharge * 0.2 : 1) * (magicCharge ? 1.1 + magicCharge * 0.2 : 1),
+        radius: style === 'magic' && magicCharge >= 0.25
+          ? Math.max(6 * weapon.tearSize * morph.sizeMul, player.radius * 0.65 * magicCharge)
+          : 6 * weapon.tearSize * arrowSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul * (bowCharge ? 1.1 + bowCharge * 0.2 : 1) * (magicCharge ? 1.1 + magicCharge * 0.2 : 1),
+        size: weapon.tearSize * arrowSize * (fusedElementalShot ? 1.55 : 1) * morph.sizeMul *
+          (bowCharge ? 1.1 + bowCharge * 0.2 : 1) * (magicCharge ? 1.1 + magicCharge * 0.65 : 1),
         color: element ? magicElementPalette[element] : style !== 'bow' && morph.color ? morph.color
           : style === 'bow' ? '#d8b577' : (weapon.shotCount > 1 ? combatPalette.volley : combatPalette.arcane),
         type: style === 'bow' ? 'arrow' : 'elemental',
@@ -1080,19 +1177,31 @@ function shoot(options = null) {
         magicCluster: style === 'magic' && ownedItems.has('spore-bloom'),
         glow: null,
         damage: Math.max(1, Math.round((player.damage + weapon.damageBonus) * damageMultiplier * morph.damageMul * bowDamageMul)),
-        ttl: 0.5 * weapon.rangeMultiplier * (bowCharge ? 1.4 : 1),
+        ttl: chargedBowBeam ? 0.65 + bowCharge * 0.85 : 0.5 * weapon.rangeMultiplier * (bowCharge ? 1.4 : 1),
         dropCurve: bowCharge ? 3.2 : magicCharge ? 3 : undefined,
         piercesWalls: weapon.rangeLevel >= 3,
         fused: fusedElementalShot,
         shape: style === 'bow' ? null : morph.shape,
         pulse: morph.pulse,
         drop: modDrop || morph.drop,
-        explode: Math.max(morph.explode, modExplode),
+        explode: Math.max(morph.explode, magicCharge >= 0.25 ? 54 : 0, modExplode),
         slowOnHit: morph.slowOnHit,
         pierce: style === 'bow' ? (bowPierce ? 9 : bowCharge ? 3 : 0) : magicCharge >= 0.5 ? 3 : 0,
         chain: chainCount,
         trailTimer: 0,
       };
+      if (chargedBowBeam) {
+        shotProjectile.type = 'charge-beam';
+        shotProjectile.originX = shotProjectile.x;
+        shotProjectile.originY = shotProjectile.y;
+        shotProjectile.vx = vx;
+        shotProjectile.vy = vy;
+        shotProjectile.beamRange = 760 + bowCharge * 400;
+        shotProjectile.beamWidth = 9 + bowCharge * 5;
+        shotProjectile.beamHitTimers = new Map();
+        shotProjectile.explode = Math.max(54, morph.explode, modExplode);
+        shotProjectile.piercesWalls = false;
+      }
       spawnPlayerProjectile(style === 'magic' ? prepareWildMagicShot(shotProjectile) : shotProjectile);
     }
   }
@@ -1275,11 +1384,17 @@ function explodeBomb(bomb) {
     if (secret.room.hidden && alongWall && distanceBetween(bomb, wallPoint) < bomb.radius + 60) {
       secret.room.hidden = false;
       recordStory('A hidden passage', 'A bomb opened a concealed room. Its relics are your discovery in this side-story, not a change to a canonical TMW quest.');
-      if (!secret.keyDropped) {
+      const extraKeyFound = !secret.keyDropped && Math.random() < (secret.room.extraKeyChance || 0);
+      if (extraKeyFound) {
         pickups.push({ x: bomb.x, y: bomb.y, kind: 'key' });
         secret.keyDropped = true;
       }
-      showMessage('The cracked wall gives way. A key lies beside the hidden passage.', 4);
+      showMessage(
+        extraKeyFound
+          ? 'The cracked wall gives way. You found a key beside the hidden passage.'
+          : 'The cracked wall gives way, revealing a hidden passage.',
+        4,
+      );
     }
   }
 }
@@ -1344,7 +1459,7 @@ function startDash() {
   playSound('weapons/bow/shoot.ogg', 0.12);
 }
 
-function useBlank() {
+function useShockwave() {
   if (mode !== 'playing') return;
   if (blanksHeld <= 0) {
     showMessage('No shockwaves left. You earn one each floor.', 1.5);
@@ -1606,6 +1721,12 @@ function damagePlayer(damageAmount = 1, source) {
     updateHud();
     return;
   }
+  if (consumeOrbitGuard(source)) {
+    player.invuln = 0.45;
+    saveRunState();
+    updateHud();
+    return;
+  }
   const incomingDamage = Math.max(0.5, Math.round(damageAmount * 2) / 2);
   player.damageFlashTimer = 0.28;
   hurtVignetteTimer = HURT_VIGNETTE_DURATION;
@@ -1631,6 +1752,7 @@ function damagePlayer(damageAmount = 1, source) {
 }
 
 function shieldWithCompanion(projectile) {
+  if (consumeOrbitGuard(projectile)) return true;
   const companion = companions
     .filter((candidate) => candidate.hp > 0 && candidate.hitCooldown <= 0)
     .sort((first, second) => distanceBetween(first, projectile) - distanceBetween(second, projectile))
@@ -1644,6 +1766,60 @@ function shieldWithCompanion(projectile) {
     showMessage(`${companion.kind} familiar was knocked out and will return in 10 seconds.`, 2.5);
   }
   return true;
+}
+
+function consumeOrbitGuard(target) {
+  if (typeof orbitGuards === 'undefined' || !Number.isFinite(target?.x) || !Number.isFinite(target?.y)) return false;
+  for (let index = orbitGuards.length - 1; index >= 0; index -= 1) {
+    const guard = orbitGuards[index];
+    if (distanceBetween(guard, target) >= (guard.radius || 11) + (target.radius || 0)) continue;
+    orbitGuards.splice(index, 1);
+    addParticles(guard.x, guard.y, guard.color, 9, 100);
+    return true;
+  }
+  return false;
+}
+
+function orbitGuardStyle() {
+  const style = currentAttackStyle();
+  const kind = style === 'bow' ? 'arrow' : style === 'melee' ? 'sword' : 'mana';
+  return {
+    kind,
+    color: kind === 'arrow' ? '#d8b577'
+      : kind === 'sword' ? '#c4e8ff' : magicElementPalette[activeMagicElement] || '#62d9ee',
+  };
+}
+
+function updateOrbitGuards(dt) {
+  const style = orbitGuardStyle();
+  for (let index = orbitGuards.length - 1; index >= 0; index -= 1) {
+    const guard = orbitGuards[index];
+    guard.kind = style.kind;
+    guard.color = style.color;
+    const previousPosition = { x: guard.x, y: guard.y };
+    guard.angle = (guard.angle + dt * 2.8) % (Math.PI * 2);
+    guard.x = player.x + Math.cos(guard.angle) * 32;
+    guard.y = player.y - 20 + Math.sin(guard.angle) * 32;
+    const enemy = enemies.find((candidate) => candidate.hp > 0 &&
+      distanceToSegment(candidate, previousPosition, guard) < (candidate.radius || 12) + (guard.radius || 11));
+    if (!enemy) continue;
+    damageEnemy(enemy, 2, guard.x, guard.y);
+    addParticles(guard.x, guard.y, guard.color, 8, 95);
+    orbitGuards.splice(index, 1);
+  }
+}
+
+function distanceToSegment(point, start, end) {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+  if (lengthSquared === 0) return distanceBetween(point, start);
+  const projection = clamp(
+    ((point.x - start.x) * deltaX + (point.y - start.y) * deltaY) / lengthSquared,
+    0,
+    1,
+  );
+  return Math.hypot(point.x - start.x - projection * deltaX, point.y - start.y - projection * deltaY);
 }
 
 function updateCompanions(dt) {

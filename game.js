@@ -38,6 +38,143 @@ const ROOM_SIZES = {
   wide: { w: 2000, h: 720 },
   tall: { w: 1000, h: 1440 },
 };
+const bossPhaseAttackSets = {
+  jacko: [
+    ['roll', 'jump', 'shot'],
+    ['roll', 'jump', 'shot', 'ground-pound'],
+    ['ground-pound', 'roll', 'shot', 'jump', 'ground-pound'],
+  ],
+  'spider-queen': [
+    ['pounce', 'web'],
+    ['web', 'pounce', 'pounce'],
+    ['web', 'pounce', 'web', 'pounce'],
+  ],
+  golem: [
+    ['slam', 'bomb', 'ring', 'charge'],
+    ['charge', 'slam', 'bomb', 'ring'],
+    ['ring', 'charge', 'slam', 'bomb', 'charge'],
+  ],
+  bosspinkie: [
+    ['pinkie-leap', 'arrow-barrage'],
+    ['pinkie-leap', 'fire-bottle', 'arrow-wheel'],
+    ['blink-strike', 'pinkie-leap', 'arrow-wheel', 'fire-bottle'],
+  ],
+  scorpion: [
+    ['venom-fan', 'venom-charge'],
+    ['venom-bomb', 'venom-fan', 'gas-cloud'],
+    ['gas-cloud', 'venom-charge', 'venom-bomb', 'venom-fan'],
+  ],
+  bandit: [
+    ['arrow-barrage', 'hook-pull'],
+    ['fire-bottle', 'arrow-wheel', 'arrow-barrage'],
+    ['bandit-charge', 'hook-pull', 'arrow-wheel', 'fire-bottle'],
+  ],
+  mouboo: [
+    ['reaper-charge', 'reaper-fan'],
+    ['blink-strike', 'reaper-bomb', 'reaper-charge'],
+    ['reaper-fan', 'reaper-charge', 'blink-strike', 'gas-cloud'],
+  ],
+  spider: [
+    ['web-burst', 'spider-pounce'],
+    ['web-snare', 'spider-pounce', 'web-burst'],
+    ['spider-pounce', 'blink-strike', 'web-snare', 'web-burst'],
+  ],
+  bluepar: [
+    ['arrow-barrage', 'arrow-wheel'],
+    ['hook-pull', 'arrow-barrage', 'fire-bottle'],
+    ['arrow-wheel', 'bandit-charge', 'arrow-barrage', 'hook-pull'],
+  ],
+  skeleton: [
+    ['bone-bomb', 'grave-summon'],
+    ['blink-strike', 'bone-bomb', 'grave-summon'],
+    ['grave-summon', 'bone-bomb', 'reaper-fan', 'blink-strike'],
+  ],
+  zombie: [
+    ['grave-summon', 'reaper-charge'],
+    ['bone-bomb', 'gas-cloud', 'grave-summon'],
+    ['reaper-charge', 'blink-strike', 'bone-bomb', 'grave-summon'],
+  ],
+  'spore-sower': [
+    ['spore-burst', 'gas-cloud'],
+    ['spore-bomb', 'spore-burst', 'fire-bottle'],
+    ['gas-cloud', 'spore-bomb', 'spore-burst', 'blink-strike'],
+  ],
+  junglefowl: [
+    ['pinkie-leap', 'fire-bottle'],
+    ['bandit-charge', 'pinkie-leap', 'arrow-barrage'],
+    ['fire-bottle', 'blink-strike', 'pinkie-leap', 'bandit-charge'],
+  ],
+  snowman: [
+    ['ice-burst', 'ice-shot'],
+    ['wind-gust', 'snow-charge', 'water-splash'],
+    ['water-splash', 'ice-burst', 'snow-charge', 'wind-gust'],
+  ],
+  yeti: [
+    ['yeti-slam', 'yeti-charge'],
+    ['wind-gust', 'ice-burst', 'yeti-slam'],
+    ['yeti-charge', 'water-splash', 'yeti-slam', 'ice-burst'],
+  ],
+  vampirebat: [
+    ['void-cross', 'blink-strike'],
+    ['void-laser', 'void-cross', 'lightning-strike'],
+    ['blink-strike', 'void-charge', 'void-laser', 'void-cross'],
+  ],
+  frostiana: [
+    ['ice-shot', 'ice-burst'],
+    ['water-splash', 'snow-charge', 'wind-gust'],
+    ['ice-burst', 'wind-gust', 'ice-shot', 'water-splash'],
+  ],
+  troll: [
+    ['yeti-slam', 'rock-fall'],
+    ['yeti-charge', 'wind-gust', 'yeti-slam'],
+    ['rock-fall', 'yeti-charge', 'yeti-slam', 'wind-gust'],
+  ],
+  croc: [
+    ['reaper-charge', 'venom-fan'],
+    ['venom-charge', 'reaper-bomb', 'gas-cloud'],
+    ['blink-strike', 'venom-fan', 'venom-charge', 'reaper-charge'],
+  ],
+  'slime-mother': [
+    ['slime-trail', 'slime-shot', 'slime-crash'],
+    ['slime-crash', 'slime-charge', 'slime-trail', 'spore-bomb'],
+    ['slime-charge', 'slime-crash', 'slime-shot', 'spore-bomb', 'slime-trail'],
+  ],
+  reaper: [
+    ['reaper-charge', 'reaper-fan', 'blink-strike'],
+    ['gas-cloud', 'reaper-bomb', 'reaper-fan', 'reaper-charge'],
+    ['blink-strike', 'reaper-charge', 'reaper-bomb', 'reaper-fan', 'gas-cloud'],
+  ],
+  serqet: [
+    ['venom-fan', 'venom-charge', 'gas-cloud'],
+    ['venom-bomb', 'venom-fan', 'venom-charge', 'gas-cloud'],
+    ['venom-charge', 'venom-bomb', 'venom-fan', 'gas-cloud', 'venom-charge'],
+  ],
+  banditlord: [
+    ['arrow-barrage', 'hook-pull', 'bandit-charge'],
+    ['fire-bottle', 'arrow-wheel', 'hook-pull', 'arrow-barrage'],
+    ['bandit-charge', 'hook-pull', 'arrow-wheel', 'fire-bottle', 'arrow-barrage'],
+  ],
+  'snowman-boss': [
+    ['ice-burst', 'ice-shot', 'wind-gust'],
+    ['snow-charge', 'water-splash', 'ice-burst', 'wind-gust'],
+    ['water-splash', 'snow-charge', 'ice-shot', 'ice-burst', 'wind-gust'],
+  ],
+  yetiking: [
+    ['yeti-slam', 'yeti-charge', 'wind-gust'],
+    ['ice-burst', 'water-splash', 'yeti-charge', 'yeti-slam'],
+    ['wind-gust', 'yeti-charge', 'ice-burst', 'yeti-slam', 'water-splash'],
+  ],
+  forestdragon: [
+    ['forest-breath', 'forest-charge', 'forest-summon'],
+    ['fire-breath', 'spore-bomb', 'wind-gust', 'forest-summon'],
+    ['forest-charge', 'fire-breath', 'forest-breath', 'spore-bomb', 'forest-summon'],
+  ],
+  nightdragon: [
+    ['void-cross', 'void-charge', 'lightning-strike'],
+    ['void-laser', 'blink-strike', 'wind-gust', 'void-cross'],
+    ['lightning-strike', 'void-charge', 'void-laser', 'blink-strike', 'void-cross'],
+  ],
+};
 let ROOM_W = ROOM_SIZES.large.w;
 let ROOM_H = ROOM_SIZES.large.h;
 const camera = { x: 0, y: 0 };
@@ -149,6 +286,11 @@ const stoneImage = loadAsset('items/equipment/ammo/roundstone.png');
 const eliteHatImage = loadAsset('items/equipment/head/wizardhat.png');
 const linkedShieldImage = loadAsset('items/equipment/shields/steelshield.png');
 const luckCharmImage = loadAsset('items/equipment/charms/fourleafclover.png');
+const orbitGuardIcons = {
+  arrow: loadAsset('items/equipment/ammo/arrow.png'),
+  sword: loadAsset('items/equipment/weapons/sword.png'),
+  mana: loadAsset('items/equipment/charms/spectralorb.png'),
+};
 const shopItemIconImages = {
   'frost-rune': loadAsset('items/generic/snowflake.png'),
   'spore-bloom': loadAsset('items/generic/mushroomspores.png'),
@@ -158,6 +300,9 @@ const shopItemIconImages = {
   'heart-vessel-i': heartImage,
   'heart-vessel-ii': heartImage,
   'heart-vessel-iii': heartImage,
+  'guardian-heart': heartImage,
+  'shop-heart': heartImage,
+  'orbiting-projectiles': loadAsset('items/equipment/charms/spectralorb.png'),
   'element-fire': loadAsset('items/equipment/charms/firescroll.png'),
   'element-lightning': loadAsset('items/equipment/weapons/scepter.png'),
   'element-gas': loadAsset('items/generic/darkdesertmushroom.png'),
@@ -283,6 +428,9 @@ const clothingSprites = {
   daggers: { image: loadAsset('sprites/equipment/weapons/knife.png'), frameWidth: 64, frameHeight: 64 },
 };
 const monsterSprites = {
+  piou: { image: loadAsset('sprites/monsters/piou.png'), frameWidth: 10, frameHeight: 9, scale: 3.2, frames: [0, 1, 2, 3] },
+  maggot: { image: loadAsset('sprites/monsters/maggot.png'), frameWidth: 20, frameHeight: 15, scale: 1.5, frames: [0, 10, 20, 30] },
+  tortuga: { image: loadAsset('sprites/monsters/tortuga.png'), frameWidth: 32, frameHeight: 32, scale: 1.15, frames: [32, 33, 34, 35] },
   ratto: { image: loadAsset('sprites/monsters/ratto.png'), frameWidth: 32, frameHeight: 32, scale: 1.35, frames: [22, 23, 24, 21] },
   croc: { image: loadAsset('sprites/monsters/croc.png'), frameWidth: 30, frameHeight: 22, scale: 1.65, frames: [1, 0, 2, 0] },
   wisp: { image: loadAsset('sprites/monsters/wisp.png'), frameWidth: 64, frameHeight: 64, scale: 1.1, frames: [0, 1, 2, 3, 4] },
@@ -348,12 +496,14 @@ const shopItemCatalog = [
   { id: 'heart-vessel-i', name: 'Heart Vessel I', description: 'Gain one heart for this descent', cost: 8, kind: 'passive' },
   { id: 'heart-vessel-ii', name: 'Heart Vessel II', description: 'Gain one heart for this descent', cost: 11, kind: 'passive' },
   { id: 'heart-vessel-iii', name: 'Heart Vessel III', description: 'Gain one heart for this descent', cost: 14, kind: 'passive' },
+  { id: 'guardian-heart', name: 'Guardian Heart', description: 'A boss-room relic: gain one heart container and restore up to two hearts', cost: 0, kind: 'boss-relic' },
   { id: 'luck-up-i', name: 'Luck Up I', description: 'Zenny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
   { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zenny windfall', cost: 9, kind: 'passive' },
   { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther', cost: 7, kind: 'passive' },
   { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Extend projectile range another 35%', cost: 10, kind: 'passive' },
   { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range; shots pierce solid barriers', cost: 13, kind: 'passive' },
   { id: 'frost-rune', name: 'Frost Rune', description: 'Auto-elemental: freezes nearby foes, slows bosses', cost: 9, kind: 'ability' },
+  { id: 'orbiting-projectiles', name: 'Mana Familiar Sigil', description: 'Unlock orbiting weapon familiars; room clears charge the meter', cost: 10, kind: 'ability' },
   { id: 'spore-bloom', name: 'Spore Bloom', description: 'Magic shots split into slowing spores on impact; unlocks Sporeling', cost: 10, kind: 'ability', unlockAfterEnemyAbility: 'spore-burst' },
   { id: 'storm-spool', name: 'Storm Spool', description: 'Wild magic lightning can jump to four nearby foes', cost: 8, kind: 'passive', style: 'magic' },
   { id: 'ember-seed', name: 'Ember Seed', description: 'Wild magic decay bursts last four seconds', cost: 7, kind: 'passive', style: 'magic' },
@@ -427,6 +577,18 @@ const characterRoster = [
   { id: 'fortress-keeper', name: 'Fortress Keeper', className: 'Warden', startingStyle: 'magic', styleLabel: 'Rooted magic', hairStyle: 'herbalist', raceHead: 'elfMale', sprite: 'elf', color: '#99c98a', hue: 80, speed: 205, hp: 6, damage: 2, fireDelay: 0.27, trait: 'Steady, modest speed', unlock: 'Defeat Forest Dragon' },
   { id: 'world-edge-veteran', name: 'World Edge Veteran', className: 'Veteran', startingStyle: 'bow', styleLabel: 'Last light', hairStyle: 'archivist', raceHead: 'orcMale', sprite: 'orc', color: '#c0a1d4', hue: 260, speed: 155, hp: 12, damage: 3, fireDelay: 0.42, trait: 'Very tough, very slow', unlock: 'Defeat Night Dragon' },
   { id: 'random', name: 'Random Delver', className: '???', startingStyle: 'melee', styleLabel: 'Roll the dice', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'neutral', color: '#ffffff', hue: 300, speed: 200, hp: 6, damage: 1, fireDelay: 0.25, trait: 'Surprise me!', unlock: 'Available', random: true },
+  { id: 'echo-bound-delver', name: 'Echo-Bound Delver', className: 'Echo Warden', startingStyle: 'magic', styleLabel: 'Echoing magic', hairStyle: 'archivist', raceHead: 'elfMale', sprite: 'elf', color: '#a8e7d0', hue: 165, speed: 218, hp: 8, damage: 2, fireDelay: 0.29, trait: 'Carries the memories of every region', unlock: 'Find all nine Mana echoes' },
+];
+const manaLoreRelics = [
+  { id: 'mana-echo-tulimshar', region: 'tulimshar', name: 'Desert Echo', description: 'A buried note speaks of a seed that answers the Mana Tree.' },
+  { id: 'mana-echo-worldedge', region: 'worldedge', name: 'World Edge Echo', description: 'A final record names the Mana Tree, but leaves the seed’s origin unanswered.' },
+  { id: 'mana-echo-hurnscald', region: 'hurnscald', name: 'Forest Echo', description: 'Roots remember a light older than the road through Hurnscald.' },
+  { id: 'mana-echo-graveyard', region: 'graveyard', name: 'Grave Echo', description: 'The still dead were listening for a rhythm beneath the stones.' },
+  { id: 'mana-echo-artis', region: 'artis', name: 'Artis Echo', description: 'A ruin inscription links the seed to the world’s living current.' },
+  { id: 'mana-echo-halinarzo', region: 'halinarzo', name: 'Savannah Echo', description: 'A route chart traces the same pulse through distant habitats.' },
+  { id: 'mana-echo-nivalis', region: 'nivalis', name: 'Nivalis Echo', description: 'Ice preserved a fragment of a song carried from far away.' },
+  { id: 'mana-echo-frostia', region: 'frostia', name: 'Frostia Echo', description: 'A fading roar leaves a warning: the seed draws creatures near.' },
+  { id: 'mana-echo-fortress', region: 'fortress', name: 'Fortress Echo', description: 'The final record names the Mana Tree, but not the seed’s origin.' },
 ];
 const rosterPageSize = 5;
 const prologuePages = [
@@ -444,6 +606,11 @@ const prologuePages = [
     heading: 'ARTIS',
     title: 'A story beside the main road',
     text: 'Trade brings people and rumors to Artis. Beneath one forgotten route, sealed rooms hold signs of the same disturbance. This is a small side-story in The Mana World: its delvers, discoveries, and battles leave the established towns and histories intact.',
+  },
+  {
+    heading: 'NINE ECHOES',
+    title: 'The reason to descend',
+    text: 'Each region preserves one fragment of a larger account. Search for a cracked wall and use a bomb to find the hidden echo. These original records draw on broad Mana themes shared across The Mana World, TMW2, and Secrets of Mana—living mana, spirits, and the balance of nature—without retelling their established quests.',
   },
 ];
 const regionChapters = {
@@ -477,17 +644,16 @@ const characterChapters = {
   'world-edge-veteran': { heading: 'WORLD EDGE VETERAN', title: 'The Last Light', text: 'The Night Dragon has fallen. At the very end of the map, a veteran lifts a bow to the last light. Very tough, very slow, and still standing when everyone else is gone.' },
 };
 const keys = {};
-const gamepadInput = { connected: false, family: 'xbox', moveX: 0, moveY: 0, dpadX: 0, dpadY: 0, dpadFacing: false, aimX: 1, aimY: 0, aimActive: false, shoot: false };
 let attackInputSuppressed = false;
 const touchInput = { moveX: 0, moveY: 0, attack: false, aimActive: false, aimX: 1, aimY: 0, stickPointer: null, attackPointer: null };
 const touchControlsEl = document.getElementById('touch-controls');
 const touchStickEl = document.getElementById('touch-stick');
 const stickKnobEl = document.getElementById('stick-knob');
 const touchAttackEl = document.getElementById('touch-attack');
-const previousGamepadButtons = new Map();
 const pointer = { x: canvas.width / 2, y: canvas.height / 2, down: false };
-let previousMenuDirection = 0;
+let mouseAimActive = false;
 let lastInputMode = 'keyboard';
+let lastNonControllerInputMode = 'keyboard';
 
 function isTouchDevice() {
   return navigator.maxTouchPoints > 0;
@@ -507,7 +673,7 @@ function resetTouchInput() {
 function updateTouchControls() {
   if (!touchControlsEl) return;
   document.body.classList.toggle('mobile-layout', isTouchDevice() || lastInputMode === 'touch');
-  const visible = lastInputMode === 'touch' && !gamepadInput.connected && mode === 'playing';
+  const visible = lastInputMode === 'touch' && mode === 'playing';
   touchControlsEl.hidden = !visible;
   if (!visible) resetTouchInput();
   if (visible) {
@@ -518,11 +684,20 @@ function updateTouchControls() {
       const badge = button.querySelector('.touch-count');
       if (badge.textContent !== String(count)) badge.textContent = String(count);
     }
+    const defenseButton = touchControlsEl.querySelector('[data-touch-action="shock"]');
+    const hasFamiliarSigil = typeof ownedItems !== 'undefined' && ownedItems.has('orbiting-projectiles');
+    const defenseLabel = hasFamiliarSigil ? 'Guard' : 'Wave';
+    const defenseName = hasFamiliarSigil ? 'Mana guard' : 'Shockwave';
+    if (defenseButton?.setAttribute) defenseButton.setAttribute('aria-label', defenseName);
+    const defenseText = defenseButton?.querySelector?.('span');
+    if (defenseText && defenseText.textContent !== defenseLabel) defenseText.textContent = defenseLabel;
   }
 }
 
 function setInputMode(inputMode) {
   lastInputMode = inputMode;
+  if (inputMode !== 'controller') lastNonControllerInputMode = inputMode;
+  if (inputMode !== 'keyboard') mouseAimActive = false;
   updateTouchControls();
 }
 
@@ -560,6 +735,12 @@ function setupTouchControls() {
       setInputMode('touch');
       if (touchControlsEl.hidden) return;
       startGameMusic();
+      const attackButton = !moving &&
+        (event.target === touchAttackEl || touchAttackEl?.contains(event.target));
+      if (attackButton && canInteract()) {
+        runAction('interact');
+        return;
+      }
       touchInput[pointerKey] = event.pointerId;
       origins.set(event.pointerId, { x: event.clientX, y: event.clientY });
       zone.setPointerCapture(event.pointerId);
@@ -621,6 +802,14 @@ let dashTimer = 0;
 let dashCooldown = 0;
 let dashVector = { x: 0, y: 0 };
 let blanksHeld = 1;
+let orbitGuardChargeUps = 0;
+const ORBIT_GUARD_CHARGE_REQUIREMENT = 5;
+const ORBIT_GUARD_CHARGE_CAP = 8;
+const ORBIT_GUARD_SUMMON_COUNT = 3;
+const ORBIT_GUARD_MAX = 13;
+const orbitGuards = [];
+const runOfferedAbilityIds = new Set();
+let nextOrbitGuardId = 1;
 let xpPoints = 0;
 let xpLevel = 1;
 const XP_PER_LEVEL = (level) => 6 + level * 4;
@@ -735,6 +924,7 @@ const player = {
   meleeCharge: 0,
   meleeBuffer: null,
   pendingSwing: null,
+  characterUnlocksThisRun: 0,
 };
 
 const MELEE_CHARGE_TIME = 0.65;
@@ -743,7 +933,7 @@ const BOW_TAP_WINDOW = 0.22;
 const BOW_CHARGE_TIME = 0.75;
 const MAX_CHARGE_SHOTS = 4;
 
-// Per-weapon fire mode: rapid (hold to keep firing), charge (hold, release to unleash), triple (bow only).
+// Rapid/triple modes stay per-weapon; an upgrade that grants charge enables it for every style.
 const fireModes = { melee: 'rapid', bow: 'rapid', magic: 'rapid' };
 
 
@@ -929,7 +1119,7 @@ const bindingActions = [
   { id: 'dash', label: 'Dash', desc: 'Quick burst of speed with brief invulnerability', key: ' ', pad: 5 },
   { id: 'bomb', label: 'Bomb', desc: 'Drop a bomb (near a bank vault: withdraw on pad)', key: 'f', pad: 1 },
   { id: 'item', label: 'Use consumable', desc: 'Drink or use the next stored item', key: 'q', pad: 6 },
-  { id: 'shock', label: 'Shockwave', desc: 'Clear enemy bullets and shove foes away', key: 'r', pad: 3 },
+  { id: 'shock', label: 'Shockwave / Mana familiars', desc: 'Use Shockwave; discover the Mana Familiar Sigil to summon orbiting guards', key: 'r', pad: 3 },
   { id: 'ability', label: 'Class ability', desc: 'Your class signature (also right-click)', key: '4', pad: 15 },
   { id: 'nextWeapon', label: 'Next weapon', desc: 'Cycle melee, bow, magic (also mouse wheel)', key: 'tab', pad: 4 },
   { id: 'weapon1', label: 'Select melee', desc: 'Jump straight to melee', key: '1', keyOnly: true },
@@ -1077,6 +1267,9 @@ const regionalBossClues = {
 
 
 const enemyUnlockAtSeconds = {
+  piou: 2100,
+  maggot: 2280,
+  tortuga: 2460,
   croc: 120,
   wisp: 240,
   spider: 360,
@@ -1108,6 +1301,7 @@ let enemyLinkSequence = 0;
 
 function beginRun() {
   stopPrologueNarration();
+  mouseAimActive = false;
   let entry = characterRoster[selectedIndex];
   if (!isCharacterUnlocked(entry)) {
     showMessage(`${entry.name} is locked: ${entry.unlock}.`, 3);
@@ -1120,6 +1314,7 @@ function beginRun() {
   }
   chaosStatus = null;
   chaosTimer = 0;
+  player.characterUnlocksThisRun = 0;
   character = entry;
   if (rolledRandom) showMessage(`FATE-FUL CHOICE! You are ${entry.name} today.`, 3);
   unlockPlaytimeItems(false);
@@ -1132,6 +1327,9 @@ function beginRun() {
   player.damage = entry.damage;
   player.armor = 0;
   player.aegisCharges = 0;
+  orbitGuardChargeUps = 0;
+  orbitGuards.length = 0;
+  nextOrbitGuardId = 1;
   player.luck = 0;
   player.damageFlashTimer = 0;
   player.attackPulse = 0;
@@ -1164,6 +1362,7 @@ function beginRun() {
   fireModes.bow = 'rapid';
   fireModes.magic = 'rapid';
   ownedItems.clear();
+  runOfferedAbilityIds.clear();
   magicElements.clear();
   magicElements.add('bubble');
   activeMagicElement = startingMagicElement(entry);
@@ -1387,6 +1586,29 @@ const calmMobBehaviors = new Set(['hover', 'crawl', 'patrol']);
 
 const calmBossStates = new Set(['jacko-idle', 'hover', 'crawl', 'patrol']);
 
+function shouldKeyboardMovementSetFacing(length) {
+  return length > 0 && !gamepadInput.aimActive && !pointer.down &&
+    !gamepadInput.shoot && !touchInput.attack && !mouseAimActive &&
+    lastInputMode !== 'controller' && lastInputMode !== 'touch';
+}
+
+function updateParticles(dt) {
+  let writeIndex = 0;
+  for (let readIndex = 0; readIndex < particles.length; readIndex += 1) {
+    const particle = particles[readIndex];
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.vy += (particle.gravity || 0) * dt;
+    const drag = particle.streak ? 0.99 : 0.96;
+    particle.vx *= drag;
+    particle.vy *= drag;
+    particle.ttl -= dt;
+    if (particle.ttl <= 0) continue;
+    particles[writeIndex] = particle;
+    writeIndex += 1;
+  }
+  particles.length = writeIndex;
+}
 
 
 
@@ -1439,12 +1661,7 @@ function update(dt) {
   const moveX = clamp(keyboardMoveX + gamepadInput.moveX + touchInput.moveX, -1, 1);
   const moveY = clamp(keyboardMoveY + gamepadInput.moveY + touchInput.moveY, -1, 1);
   const keyboardLength = Math.hypot(keyboardMoveX, keyboardMoveY);
-  const touchLength = Math.hypot(touchInput.moveX, touchInput.moveY);
-  if (touchLength > 0 && !touchInput.attack) {
-    player.lookX = touchInput.moveX / touchLength;
-    player.lookY = touchInput.moveY / touchLength;
-  } else if (keyboardLength > 0 && !gamepadInput.dpadFacing && !gamepadInput.aimActive &&
-      !pointer.down && !gamepadInput.shoot && !touchInput.attack) {
+  if (shouldKeyboardMovementSetFacing(keyboardLength)) {
     player.lookX = keyboardMoveX / keyboardLength;
     player.lookY = keyboardMoveY / keyboardLength;
   }
@@ -1513,6 +1730,7 @@ function update(dt) {
   updateBossStrikes(dt);
   resolveDoorCrossing();
   updateWalkInInteractions(dt);
+  updateRewardTrial(dt);
 
   const attackStyle = currentAttackStyle();
   if (attackStyle === 'melee') updateMeleeInput(dt);
@@ -1561,6 +1779,7 @@ function update(dt) {
     return swing.timer > 0;
   });
   updateCompanions(dt);
+  updateOrbitGuards(dt);
 
   for (const obstacle of breakables) {
     if (obstacle.broken) continue;
@@ -1576,6 +1795,10 @@ function update(dt) {
 
   for (let i = projectiles.length - 1; i >= 0; i -= 1) {
     const projectile = projectiles[i];
+    if (projectile.type === 'charge-beam') {
+      if (updateChargeBeamProjectile(projectile, dt)) projectiles.splice(i, 1);
+      continue;
+    }
     projectile.previousX = projectile.x;
     projectile.previousY = projectile.y;
     updateWildMagicFlight(projectile, dt);
@@ -1583,6 +1806,17 @@ function update(dt) {
     projectile.y += projectile.vy * dt;
     projectile.ttl -= dt;
     projectile.trailTimer -= dt;
+    const wallPadding = ROOM_WALL_THICKNESS + (projectile.radius || 0);
+    if (projectile.x < wallPadding || projectile.x > ROOM_W - wallPadding ||
+        projectile.y < wallPadding || projectile.y > ROOM_H - wallPadding) {
+      projectile.x = clamp(projectile.x, wallPadding, ROOM_W - wallPadding);
+      projectile.y = clamp(projectile.y, wallPadding, ROOM_H - wallPadding);
+      triggerMagicCluster(projectile);
+      triggerWildMagicImpact(projectile);
+      applyMorphLanding(projectile, null);
+      projectiles.splice(i, 1);
+      continue;
+    }
     if (strikeBombWithProjectile(projectile, dt)) {
       triggerMagicCluster(projectile);
       projectiles.splice(i, 1);
@@ -1716,20 +1950,11 @@ function update(dt) {
     }
   }
 
-  for (let i = particles.length - 1; i >= 0; i -= 1) {
-    const particle = particles[i];
-    particle.x += particle.vx * dt;
-    particle.y += particle.vy * dt;
-    particle.vy += (particle.gravity || 0) * dt;
-    const drag = particle.streak ? 0.99 : 0.96;
-    particle.vx *= drag;
-    particle.vy *= drag;
-    particle.ttl -= dt;
-    if (particle.ttl <= 0) particles.splice(i, 1);
-  }
+  updateParticles(dt);
 
   for (let i = pickups.length - 1; i >= 0; i -= 1) {
     const pickup = pickups[i];
+    if (pickup.kind === 'lore-relic') continue;
     if (pickup.kind === 'xp') {
       const pull = distanceBetween(player, pickup);
       if (pull < 130 && pull > player.radius + 14) {
@@ -1800,6 +2025,7 @@ function update(dt) {
 
   if (enemies.length === 0 && !currentRoom.cleared && currentRoom.type !== 'start' && currentRoom.type !== 'shop') {
     currentRoom.cleared = true;
+    grantOrbitGuardChargeUp(currentRoom);
     if (['miniboss', 'shrine'].includes(currentRoom.type) && currentRoom.rewardUpgrade && !currentRoom.rewardClaimed) {
       pickups.push({
         x: ROOM_W / 2,
@@ -2084,187 +2310,6 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
-function applyGamepadDeadzone(value) {
-  const deadzone = 0.22;
-  const magnitude = Math.abs(value);
-  return magnitude <= deadzone ? 0 : Math.sign(value) * (magnitude - deadzone) / (1 - deadzone);
-}
-
-function pollGamepad() {
-  const gamepads = typeof navigator.getGamepads === 'function' ? navigator.getGamepads() : [];
-  const gamepad = Array.from(gamepads).find((candidate) => candidate?.connected &&
-    (candidate.mapping === 'standard' || (candidate.axes.length >= 4 && candidate.buttons.length >= 10)));
-  if (!gamepad) {
-    if (gamepadInput.connected) {
-      showMessage('Controller disconnected.', 2);
-      if (lastInputMode === 'controller') lastInputMode = isTouchDevice() ? 'touch' : 'keyboard';
-    }
-    gamepadInput.connected = false;
-    gamepadInput.moveX = 0;
-    gamepadInput.moveY = 0;
-    gamepadInput.dpadX = 0;
-    gamepadInput.dpadY = 0;
-    gamepadInput.dpadFacing = false;
-    gamepadInput.shoot = false;
-    gamepadInput.aimActive = false;
-    previousGamepadButtons.clear();
-    previousMenuDirection = 0;
-    return;
-  }
-
-  if (!gamepadInput.connected) {
-    gamepadInput.family = /054c|dualsense|dualshock|playstation|wireless controller/i.test(gamepad.id) ? 'ps' : 'xbox';
-    showMessage('Controller connected. Press any button and the on-screen prompts switch to it.', 4);
-  }
-  gamepadInput.connected = true;
-
-  const previousButtons = previousGamepadButtons.get(gamepad.index) || [];
-  const isButtonDown = (buttonIndex) => Boolean(gamepad.buttons[buttonIndex]?.pressed ||
-    gamepad.buttons[buttonIndex]?.value > 0.5);
-  const wasButtonPressed = (buttonIndex) => isButtonDown(buttonIndex) && !previousButtons[buttonIndex];
-  // Only button presses switch the displayed input mode, so stick drift never flips the on-screen labels.
-  if (gamepad.buttons.some((button) => button.pressed || button.value > 0.5)) {
-    lastInputMode = 'controller';
-    updateControlsHint();
-  }
-  if (gamepad.buttons.some((button, index) => (button.pressed || button.value > 0.5) && !previousButtons[index])) {
-    startGameMusic();
-  }
-  const horizontalAxis = applyGamepadDeadzone(gamepad.axes[0] || 0);
-  const verticalAxis = applyGamepadDeadzone(gamepad.axes[1] || 0);
-  // In play the D-pad holds quick-slots (element, frost, ability); sticks handle movement.
-  const dpadX = mode === 'playing' ? 0 : (isButtonDown(15) ? 1 : 0) - (isButtonDown(14) ? 1 : 0);
-  const dpadY = mode === 'playing' ? 0 : (isButtonDown(13) ? 1 : 0) - (isButtonDown(12) ? 1 : 0);
-  gamepadInput.dpadX = dpadX;
-  gamepadInput.dpadY = dpadY;
-  gamepadInput.dpadFacing = dpadX !== 0 || dpadY !== 0;
-  gamepadInput.moveX = horizontalAxis || dpadX;
-  gamepadInput.moveY = verticalAxis || dpadY;
-
-  const aimX = applyGamepadDeadzone(gamepad.axes[2] || 0);
-  const aimY = applyGamepadDeadzone(gamepad.axes[3] || 0);
-  const aimingWithRightStick = Math.hypot(aimX, aimY) > 0;
-  gamepadInput.aimActive = aimingWithRightStick;
-  const rawShoot = mode === 'playing' && (isButtonDown(2) || isButtonDown(7) || aimingWithRightStick);
-  if (attackInputSuppressed && !rawShoot && !pointer.down && !touchInput.attack) attackInputSuppressed = false;
-  gamepadInput.shoot = rawShoot && !attackInputSuppressed;
-  if (aimingWithRightStick) {
-    const aimLength = Math.hypot(aimX, aimY);
-    gamepadInput.aimX = aimX / aimLength;
-    gamepadInput.aimY = aimY / aimLength;
-  }
-  if (mode === 'playing') {
-    const leftStickActive = Math.hypot(horizontalAxis, verticalAxis) > 0;
-    const facingX = aimingWithRightStick ? aimX : dpadX !== 0 || dpadY !== 0 ? dpadX : leftStickActive ? horizontalAxis : 0;
-    const facingY = aimingWithRightStick ? aimY : dpadX !== 0 || dpadY !== 0 ? dpadY : leftStickActive ? verticalAxis : 0;
-    const facingLength = Math.hypot(facingX, facingY);
-    if (facingLength > 0) {
-      player.lookX = facingX / facingLength;
-      player.lookY = facingY / facingLength;
-    }
-  }
-  if (gamepadInput.aimActive && mode === 'playing') {
-    pointer.x = player.x - camera.x + gamepadInput.aimX * canvas.width;
-    pointer.y = player.y - camera.y + gamepadInput.aimY * canvas.height;
-  }
-
-  const menuDirection = dpadX || (Math.abs(horizontalAxis) > 0.6 ? Math.sign(horizontalAxis) : 0);
-  const menuVertical = dpadY || (Math.abs(verticalAxis) > 0.6 ? Math.sign(verticalAxis) : 0);
-  if (mode !== pollGamepad.lastMode) {
-    audioFocus = mode === 'select' && AUDIO_FOCUS_ORDER.includes(menuFocus) ? menuFocus : null;
-    pollGamepad.lastMode = mode;
-  }
-  if (ttsPromptActive()) {
-    if (wasButtonPressed(0) || wasButtonPressed(9)) setTextToSpeech(true);
-    else if (wasButtonPressed(1)) setTextToSpeech(false);
-    previousMenuDirection = menuDirection;
-    previousMenuVertical = menuVertical;
-    previousGamepadButtons.set(gamepad.index, gamepad.buttons.map((button) => button.pressed || button.value > 0.5));
-    return;
-  }
-  // Audio panel (music / SFX sliders, TTS toggle) is reachable with the D-pad on the title, prologue and pause screens.
-  let audioConsumed = false;
-  if (mode === 'select' || mode === 'prologue' || mode === 'paused') {
-    if (mode !== 'select' && menuVertical !== 0 && menuVertical !== previousMenuVertical) {
-      stepAudioFocus(menuVertical);
-      audioConsumed = true;
-    }
-    if (handleAudioPanelPad(menuDirection, wasButtonPressed(0))) audioConsumed = true;
-  } else {
-    handleAudioPanelPad.previousHorizontal = 0;
-  }
-  const audioFocused = audioFocus !== null && (mode === 'select' || mode === 'prologue' || mode === 'paused');
-  if (audioFocused || audioConsumed) {
-    // Left/right belongs to the focused slider, not page/character navigation.
-  } else if (mode === 'prologue' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
-    advancePrologue(menuDirection);
-  } else if (mode === 'select' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
-    chooseCharacter(menuDirection > 0 ? 'ArrowRight' : 'ArrowLeft');
-  } else if (mode === 'tutorial' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
-    stepTutorial(menuDirection);
-  }
-  previousMenuDirection = mode === 'select' || mode === 'prologue' || mode === 'tutorial' ? menuDirection : 0;
-  if (mode === 'select' && menuVertical !== 0 && menuVertical !== previousMenuVertical) moveMenuFocus(menuVertical);
-  previousMenuVertical = mode === 'select' || mode === 'prologue' || mode === 'paused' ? menuVertical : 0;
-
-  if (mode === 'prologue') {
-    if (!audioFocused && (wasButtonPressed(0) || wasButtonPressed(9))) advancePrologue(1);
-    else if (audioFocused && wasButtonPressed(9)) advancePrologue(1);
-    if (wasButtonPressed(1)) {
-      if (audioFocused) audioFocus = null;
-      else advancePrologue(-1);
-    }
-  } else if (mode === 'select') {
-    if (audioFocused && wasButtonPressed(9)) beginRun();
-    else if (!audioFocused && (wasButtonPressed(0) || wasButtonPressed(2) || wasButtonPressed(9))) activateMenuFocus();
-    if (wasButtonPressed(5)) openCodex();
-    if (wasButtonPressed(3)) openTutorial();
-    if (wasButtonPressed(8)) openControls('select');
-  } else if (mode === 'tutorial') {
-    if (wasButtonPressed(1) || wasButtonPressed(9)) closeTutorial();
-    if (wasButtonPressed(0) || wasButtonPressed(5)) stepTutorial(1);
-    if (wasButtonPressed(4)) stepTutorial(-1);
-  } else if (mode === 'codex') {
-    if (wasButtonPressed(0) || wasButtonPressed(1) || wasButtonPressed(9)) closeCodex();
-    if (wasButtonPressed(4) || wasButtonPressed(5)) toggleCodexTab();
-    if (dpadY !== 0) {
-      codexScroll = clamp(codexScroll + (dpadY > 0 ? 1 : -1), 0, Math.max(0, codexEntries().length - 7));
-    }
-  } else if (mode === 'chapter') {
-    if (wasButtonPressed(0) || wasButtonPressed(1) || wasButtonPressed(9)) closeChapter();
-  } else if (mode === 'controls') {
-    updateControlsPad(wasButtonPressed);
-  } else if (mode === 'paused') {
-    if (wasButtonPressed(9) || (!audioFocused && wasButtonPressed(0))) resumeGame();
-    else if (wasButtonPressed(1)) {
-      if (audioFocused) audioFocus = null;
-      else exitToTitle();
-    }
-    else if (wasButtonPressed(8)) openControls('paused');
-  } else if (mode === 'gameover' || mode === 'won') {
-    if (wasButtonPressed(0) || wasButtonPressed(9)) {
-      mode = 'select';
-      selectedIndex = 0;
-      updateHud();
-    }
-  } else if (mode === 'playing') {
-    if (wasButtonPressed(9)) pauseGame();
-    for (let button = 0; button < 16; button += 1) {
-      if (!wasButtonPressed(button)) continue;
-      const action = actionForPad(button);
-      if (!action) continue;
-      // Near a bank vault the bomb button withdraws instead.
-      if (action === 'bomb' && hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240) {
-        interact(true);
-      } else {
-        runAction(action);
-      }
-    }
-  }
-
-  previousGamepadButtons.set(gamepad.index, gamepad.buttons.map((button) => button.pressed || button.value > 0.5));
-}
-
 function runAction(id, options = {}) {
   if (id === 'interact') {
     interact(Boolean(options.shift));
@@ -2275,7 +2320,7 @@ function runAction(id, options = {}) {
     case 'dash': startDash(); break;
     case 'bomb': placeBomb(); break;
     case 'item': useConsumable(); break;
-    case 'shock': useBlank(); break;
+    case 'shock': useOrbitGuard(); break;
     case 'ability': useClassSignature(); break;
     case 'nextWeapon': cycleCombatStyle(); break;
     case 'weapon1': selectCombatStyle('melee'); break;
@@ -2332,7 +2377,7 @@ window.addEventListener('keydown', (event) => {
 
   if (mode === 'codex') {
     if (key === 'k' || event.key === 'Escape' || key === 'b') closeCodex();
-    else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') toggleCodexTab();
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') toggleCodexTab(event.key === 'ArrowRight' ? 1 : -1);
     else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       const direction = event.key === 'ArrowDown' ? 1 : -1;
       codexScroll = clamp(codexScroll + direction, 0, Math.max(0, codexEntries().length - 7));
@@ -2426,11 +2471,18 @@ document.addEventListener('visibilitychange', () => {
 
 function updatePointerPosition(event) {
   gamepadInput.aimActive = false;
-  setInputMode(event.pointerType === 'touch' ? 'touch' : 'keyboard');
   updateControlsHint();
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * canvas.width;
   pointer.y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+  if (event.pointerType === 'mouse' && mode === 'playing') {
+    mouseAimActive = true;
+    const dx = pointer.x + camera.x - player.x;
+    const dy = pointer.y + camera.y - (player.y - 34);
+    const length = Math.hypot(dx, dy) || 1;
+    player.lookX = dx / length;
+    player.lookY = dy / length;
+  }
   if (audioSliderDragging) setVolumeFromPointer(pointer.x);
   if (ttsPromptActive()) {
     canvas.style.cursor = [true, false].some((yes) => {
@@ -2501,7 +2553,7 @@ canvas.addEventListener('pointerdown', (event) => {
   }
   if (mode === 'codex') {
     if (pointer.y >= 132 && pointer.y <= 160) {
-      codexTab = pointer.x < 196 ? 'items' : 'enemies';
+      codexTab = pointer.x < 196 ? 'items' : pointer.x < 328 ? 'enemies' : 'lore';
       codexScroll = 0;
     } else if (pointer.y > canvas.height - 68) {
       closeCodex();
@@ -2527,6 +2579,8 @@ canvas.addEventListener('pointerdown', (event) => {
   }
   if (event.button !== 0 || !event.isPrimary) return;
   setInputMode(event.pointerType === 'touch' ? 'touch' : 'keyboard');
+  if (event.pointerType === 'touch') mouseAimActive = false;
+  else if (mode === 'playing') mouseAimActive = true;
   updateControlsHint();
   startGameMusic();
   updatePointerPosition(event);
@@ -2635,13 +2689,11 @@ window.addEventListener('pointerdown', (event) => {
 window.addEventListener('pointermove', (event) => {
   if (event.pointerType === 'mouse' && !event.sourceCapabilities?.firesTouchEvents &&
       (event.movementX || event.movementY)) {
-    setInputMode('keyboard');
     updateControlsHint();
   }
 });
 
 setupTouchControls();
-if (isTouchDevice()) setInputMode('touch');
 updateHud();
 messageEl.textContent = hasSavedRun()
   ? 'Read the prologue before choosing a delver or resuming your saved descent.'

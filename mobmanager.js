@@ -19,6 +19,9 @@ function createEnemy(kind, x, y, boss = false) {
   recordEnemyDiscovery(kind);
   const specs = {
     ratto: { radius: 12, speed: 65, hp: 3, color: '#dbb77b', archetype: 'leaper', leapMultiplier: 3.8, leapDuration: 0.28, leapCooldown: 1.9, leapWindup: 0.18, leapHeight: 13 },
+    piou: { radius: 12, speed: 72, hp: 3, color: '#e9c77c', archetype: 'leaper', leapMultiplier: 4.4, leapDuration: 0.3, leapCooldown: 1.7, leapWindup: 0.16, leapHeight: 15 },
+    maggot: { radius: 13, speed: 44, hp: 5, color: '#c4c77c', archetype: 'charger' },
+    tortuga: { radius: 20, speed: 28, hp: 10, color: '#8bbf83', archetype: 'stalker' },
     croc: { radius: 16, speed: 42, hp: 6, color: '#90bd7c', archetype: 'charger' },
     wisp: { radius: 11, speed: 54, hp: 3, color: '#b8a5ff', archetype: 'ranged' },
     jacko: { radius: 38, speed: 58, hp: 1700, color: '#ef9d38', archetype: 'boss', tripleShot: true },
@@ -57,9 +60,9 @@ function createEnemy(kind, x, y, boss = false) {
   };
   const spec = specs[kind];
   const floorProgress = Math.max(0, currentFloor - 1);
-  // Snapshot at spawn: ordinary sustained damage targets a minute-plus fight, not a timed immunity.
-  const bossHp = Math.ceil(Math.max(650 + floorProgress * 180,
-    estimatedPlayerDps() * (80 + floorProgress * 4)));
+  // Phase changes add two recovery windows, so keep each guardian's baseline fight closer to a minute.
+  const bossHp = Math.ceil(Math.max(500 + floorProgress * 130,
+    estimatedPlayerDps() * (56 + floorProgress * 3)));
   const baseEnemyHp = Math.ceil(spec.hp * (1 + floorProgress * 0.32 + floorProgress * floorProgress * 0.025));
   const enemyHp = Math.max(baseEnemyHp, 5 + floorProgress * 2);
   const maxHp = boss ? bossHp : enemyHp;
@@ -121,6 +124,12 @@ function createEnemy(kind, x, y, boss = false) {
   };
 }
 
+function createBossSummon(kind, x, y) {
+  const minion = createEnemy(kind, x, y);
+  minion.bossSummoned = true;
+  return minion;
+}
+
 function isEnemyAvailableForCurrentRun(kind) {
   const unlockAtSeconds = enemyUnlockAtSeconds[kind];
   if (!unlockAtSeconds) return true;
@@ -131,12 +140,12 @@ function isEnemyAvailableForCurrentRun(kind) {
 function enemyKindsForCurrentMap() {
   const fallbackKinds = ['slime', 'ratto', 'bat', 'snake', 'scorpion', 'bandit'];
   const pools = {
-    tulimshar: ['slime', 'ratto', 'bat', 'snake', 'scorpion', 'bandit'],
-    candor: ['ratto', 'croc', 'wisp', 'bat', 'snake', 'slime', 'scorpion'],
+    tulimshar: ['slime', 'ratto', 'piou', 'bat', 'snake', 'scorpion', 'bandit'],
+    candor: ['ratto', 'croc', 'wisp', 'bat', 'snake', 'slime', 'scorpion', 'tortuga'],
     hurnscald: ['ratto', 'croc', 'wisp', 'frog', 'spider', 'mouboo', 'bluepar', 'bee', 'spore-sower', 'fluffy', 'snail'],
-    graveyard: ['skeleton', 'zombie', 'spider', 'vampirebat'],
-    artis: ['ratto', 'wisp', 'skeleton', 'spider', 'slime', 'bluepar', 'zombie', 'fluffy', 'snail'],
-    halinarzo: ['bandit', 'scorpion', 'mouboo', 'spore-sower', 'croc', 'junglefowl'],
+    graveyard: ['skeleton', 'zombie', 'spider', 'vampirebat', 'maggot'],
+    artis: ['ratto', 'wisp', 'skeleton', 'spider', 'slime', 'bluepar', 'zombie', 'fluffy', 'snail', 'maggot'],
+    halinarzo: ['bandit', 'scorpion', 'mouboo', 'spore-sower', 'croc', 'junglefowl', 'tortuga'],
     nivalis: ['snowman', 'yeti', 'vampirebat', 'wisp', 'bee'],
     frostia: ['frostiana', 'snowman', 'yeti', 'vampirebat', 'spore-sower'],
     fortress: ['troll', 'zombie', 'junglefowl', 'spore-sower', 'bandit', 'mouboo', 'snake'],
@@ -163,11 +172,21 @@ function applyEliteMutation(enemy) {
 
 function applyBossAIPromotion(enemy) {
   enemies.push(enemy);
-  if (enemy.boss || enemy.miniBoss || enemy.linkId || currentFloor < 3) return enemy;
+  if (enemy.boss || enemy.miniBoss || enemy.linkId) return enemy;
+  const playtimeSeconds = typeof save !== 'undefined' && Number.isFinite(save.playtimeSeconds)
+    ? save.playtimeSeconds : 0;
+  const experienceTier = Math.min(8, Math.floor(playtimeSeconds / 1800));
+  const unlockedCharacterCount = typeof save !== 'undefined' && Array.isArray(save.unlockedCharacters)
+    ? save.unlockedCharacters.length : 0;
+  if (currentFloor < 3 &&
+      !(currentFloor === 1 && (experienceTier > 0 || unlockedCharacterCount >= 3))) return enemy;
   const bossCapable = ['scorpion', 'bandit', 'mouboo', 'spider', 'bluepar', 'skeleton', 'zombie', 'spore-sower',
     'junglefowl', 'snowman', 'yeti', 'vampirebat', 'frostiana', 'troll'];
   if (!bossCapable.includes(enemy.kind)) return enemy;
-  const chance = Math.min(0.4, (currentFloor - 2) * 0.1);
+  const unlockBonus = Math.min(0.12, unlockedCharacterCount * 0.01);
+  const chance = currentFloor === 1
+    ? Math.min(0.3, experienceTier * 0.035 + unlockBonus * 0.5)
+    : Math.min(0.52, (currentFloor - 2) * 0.1 + unlockBonus);
   if (Math.random() >= chance) return enemy;
   enemy.bossAI = true;
   enemy.phase = 1;
@@ -385,6 +404,7 @@ function fireJackoBurst(enemy, count = enemy.phase >= 2 ? 10 : 8) {
 
 function updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible) {
   const phaseTwo = enemy.phase >= 2;
+  const phaseThree = enemy.phase >= 3;
   enemy.summonCooldown -= dt;
   if (enemy.behavior === 'spider-web-windup') {
     if (enemy.stateTimer <= 0) {
@@ -412,17 +432,17 @@ function updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible)
       enemy.behavior = 'spider-pounce';
       enemy.leapX = enemy.spiderPounceX;
       enemy.leapY = enemy.spiderPounceY;
-      enemy.stateTimer = phaseTwo ? 0.34 : 0.48;
+      enemy.stateTimer = phaseThree ? 0.28 : phaseTwo ? 0.34 : 0.48;
     }
     return;
   }
   if (enemy.behavior === 'spider-pounce') {
-    const pounceSpeed = enemy.speed * (phaseTwo ? 5.4 : 4.2);
+    const pounceSpeed = enemy.speed * (phaseThree ? 6.1 : phaseTwo ? 5.4 : 4.2);
     moveEnemy(enemy, enemy.leapX * pounceSpeed, enemy.leapY * pounceSpeed, dt);
     if (enemy.stateTimer <= 0) {
       triggerCameraShake('spiderPounce');
       enemy.behavior = 'spider-recover';
-      enemy.stateTimer = phaseTwo ? 0.28 : 0.48;
+      enemy.stateTimer = phaseThree ? 0.2 : phaseTwo ? 0.28 : 0.48;
       fireEnemyProjectile(enemy);
     }
     return;
@@ -433,14 +453,14 @@ function updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible)
   }
   if (enemy.behavior === 'spider-summon') {
     if (enemy.stateTimer <= 0) {
-      for (let index = 0; index < (phaseTwo ? 3 : 2) && enemies.length < 7; index += 1) {
+      for (let index = 0; index < (phaseThree ? 4 : phaseTwo ? 3 : 2) && enemies.length < 7; index += 1) {
         const angle = Math.random() * Math.PI * 2;
         const spawn = findEnemySpawnPosition(
           enemy.x + Math.cos(angle) * 76,
           enemy.y + Math.sin(angle) * 76,
           17,
         );
-        if (spawn) enemies.push(createEnemy('spider', spawn.x, spawn.y));
+        if (spawn) enemies.push(createBossSummon('spider', spawn.x, spawn.y));
       }
       enemy.behavior = 'jacko-idle';
     }
@@ -449,7 +469,7 @@ function updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible)
 
   const tangentX = -directionY;
   const tangentY = directionX;
-  const movementMultiplier = phaseTwo ? 1.3 : 1;
+  const movementMultiplier = phaseThree ? 1.55 : phaseTwo ? 1.3 : 1;
   let moveX = tangentX * enemy.speed * 0.55 * movementMultiplier;
   let moveY = tangentY * enemy.speed * 0.55 * movementMultiplier;
   if (distance > 90) {
@@ -461,17 +481,16 @@ function updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible)
   if (!visible) return;
   if (enemy.summonCooldown <= 0 && enemies.length < 7) {
     enemy.behavior = 'spider-summon';
-    enemy.stateTimer = phaseTwo ? 0.5 : 0.8;
-    enemy.summonCooldown = phaseTwo ? 10 : 15;
+    enemy.stateTimer = phaseThree ? 0.35 : phaseTwo ? 0.5 : 0.8;
+    enemy.summonCooldown = phaseThree ? 8 : phaseTwo ? 10 : 15;
     enemy.attackCooldown = Math.max(enemy.attackCooldown, 1.2);
   } else if (visible && enemy.attackCooldown <= 0) {
     enemy.spiderAttackIndex = (enemy.spiderAttackIndex || 0) + 1;
-    const pounce = phaseTwo
-      ? enemy.spiderAttackIndex % 3 !== 0
-      : enemy.spiderAttackIndex % 2 === 1;
+    const attackSet = bossPhaseAttackSets['spider-queen'][enemy.phase - 1];
+    const pounce = attackSet[(enemy.spiderAttackIndex - 1) % attackSet.length] === 'pounce';
     if (pounce) {
       playEnemyAttackSound(enemy, 0.18);
-      const lead = phaseTwo ? 0.28 : 0.42;
+      const lead = phaseThree ? 0.18 : phaseTwo ? 0.28 : 0.42;
       const targetX = clamp(player.x + directionX * player.speed * lead, 82, ROOM_W - 82);
       const targetY = clamp(player.y + directionY * player.speed * lead, 82, ROOM_H - 82);
       const aimAngle = Math.atan2(targetY - enemy.y, targetX - enemy.x);
@@ -479,27 +498,28 @@ function updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible)
       enemy.spiderPounceY = Math.sin(aimAngle);
       enemy.spiderPounceTarget = { x: targetX, y: targetY };
       enemy.behavior = 'spider-pounce-windup';
-      enemy.stateTimer = phaseTwo ? 0.48 : 0.68;
-      enemy.attackCooldown = phaseTwo ? 3.2 : 4;
+      enemy.stateTimer = phaseThree ? 0.32 : phaseTwo ? 0.48 : 0.68;
+      enemy.attackCooldown = phaseThree ? 2.2 : phaseTwo ? 3.2 : 4;
     } else {
       playEnemyAttackSound(enemy, 0.18);
       enemy.behavior = 'spider-web-windup';
-      enemy.stateTimer = phaseTwo ? 0.5 : 0.8;
-      enemy.attackCooldown = phaseTwo ? 3.6 : 4.8;
+      enemy.stateTimer = phaseThree ? 0.32 : phaseTwo ? 0.5 : 0.8;
+      enemy.attackCooldown = phaseThree ? 2.5 : phaseTwo ? 3.6 : 4.8;
     }
   }
 }
 
 function updateGolemBoss(enemy, dt, directionX, directionY, distance, visible) {
   const phaseTwo = enemy.phase >= 2;
+  const phaseThree = enemy.phase >= 3;
   if (enemy.behavior === 'golem-slam-windup') {
     if (enemy.stateTimer <= 0) {
       const slamTarget = enemy.slamTarget || player;
-      const slamRadius = phaseTwo ? 96 : 64;
+      const slamRadius = phaseThree ? 120 : phaseTwo ? 96 : 64;
       triggerCameraShake('golemSlam');
       if (distanceBetween(slamTarget, player) <= slamRadius) damagePlayer(enemy.boss ? 2 : 1, enemy);
       fireEnemyProjectile(enemy);
-      if (phaseTwo) fireJackoBurst(enemy, 8);
+      if (phaseTwo) fireJackoBurst(enemy, phaseThree ? 14 : 8);
       enemy.behavior = 'golem-recover';
       enemy.stateTimer = phaseTwo ? 0.42 : 0.55;
       enemy.attackCooldown = phaseTwo ? 3.4 : 4.4;
@@ -514,8 +534,8 @@ function updateGolemBoss(enemy, dt, directionX, directionY, distance, visible) {
       enemy.leapY = Math.sin(angle);
       enemy.chargeHit = false;
       enemy.behavior = 'golem-charge';
-      enemy.stateTimer = phaseTwo ? 0.6 : 0.78;
-      enemy.golemChargeSpeed = phaseTwo ? 590 : 470;
+      enemy.stateTimer = phaseThree ? 0.45 : phaseTwo ? 0.6 : 0.78;
+      enemy.golemChargeSpeed = phaseThree ? 720 : phaseTwo ? 590 : 470;
     }
     return;
   }
@@ -533,7 +553,7 @@ function updateGolemBoss(enemy, dt, directionX, directionY, distance, visible) {
     }
     if (enemy.stateTimer <= 0) {
       triggerCameraShake('groundPound');
-      fireBossRadial(enemy, phaseTwo ? 12 : 8, 175, 'stone', '#c6b29a', elapsed * 0.2);
+      fireBossRadial(enemy, phaseThree ? 18 : phaseTwo ? 12 : 8, 175, 'stone', '#c6b29a', elapsed * 0.2);
       enemy.behavior = 'golem-recover';
       enemy.stateTimer = 0.6;
       enemy.attackCooldown = phaseTwo ? 3.2 : 4.2;
@@ -557,7 +577,7 @@ function updateGolemBoss(enemy, dt, directionX, directionY, distance, visible) {
   }
   if (enemy.behavior === 'golem-ring-windup') {
     if (enemy.stateTimer <= 0) {
-      fireBossRadial(enemy, phaseTwo ? 14 : 8, 185, 'stone', '#c6b29a', elapsed * 0.25);
+      fireBossRadial(enemy, phaseThree ? 20 : phaseTwo ? 14 : 8, 185, 'stone', '#c6b29a', elapsed * 0.25);
       const obstaclePosition = findEnemySpawnPosition(
         enemy.slamTarget?.x ?? player.x,
         enemy.slamTarget?.y ?? player.y,
@@ -575,23 +595,25 @@ function updateGolemBoss(enemy, dt, directionX, directionY, distance, visible) {
   }
 
   const distanceDirection = distance < 125 ? -1 : distance > 170 ? 1 : 0;
-  const movementMultiplier = phaseTwo ? 1.4 : 1;
+  const movementMultiplier = phaseThree ? 1.65 : phaseTwo ? 1.4 : 1;
   moveEnemy(enemy, directionX * enemy.speed * distanceDirection * movementMultiplier,
     directionY * enemy.speed * distanceDirection * movementMultiplier, dt);
   if (visible && enemy.attackCooldown <= 0) {
-    const attack = (enemy.golemAttackIndex || 0) % 4;
-    enemy.golemAttackIndex = attack + 1;
+    const attackSet = bossPhaseAttackSets.golem[enemy.phase - 1];
+    const attack = attackSet[(enemy.golemAttackIndex || 0) % attackSet.length];
+    enemy.golemAttackIndex = (enemy.golemAttackIndex || 0) + 1;
     playEnemyAttackSound(enemy, 0.24);
-    enemy.behavior = attack === 0 ? 'golem-slam-windup'
-      : attack === 1 ? 'golem-bomb-windup' : attack === 2 ? 'golem-ring-windup' : 'golem-charge-windup';
-    enemy.stateTimer = attack === 0 ? phaseTwo ? 0.64 : 0.92 : attack === 3 ? 0.8 : 0.72;
-    enemy.attackCooldown = phaseTwo ? 3.2 : 4.2;
+    enemy.behavior = `golem-${attack}-windup`;
+    enemy.stateTimer = attack === 'slam' ? phaseThree ? 0.48 : phaseTwo ? 0.64 : 0.92
+      : attack === 'charge' ? 0.8 : 0.72;
+    enemy.attackCooldown = phaseThree ? 2.3 : phaseTwo ? 3.2 : 4.2;
     enemy.slamTarget = { x: player.x, y: player.y };
   }
 }
 
-function uniqueBossSignature(kind, attackIndex = 0) {
-  const rotation = bossAttackRotations[kind];
+function uniqueBossSignature(kind, attackIndex = 0, phase = 1) {
+  const phaseSets = bossPhaseAttackSets[kind];
+  const rotation = phaseSets?.[clamp(phase, 1, 3) - 1] || bossAttackRotations[kind];
   if (rotation) return rotation[attackIndex % rotation.length];
   return ({
     'slime-mother': 'slime-trail',
@@ -772,7 +794,8 @@ function resolveUniqueBossAttack(enemy, phaseTwo) {
     for (let index = 0; index < (phaseTwo ? 3 : 2) && enemies.length < 8; index += 1) {
       const angle = index * Math.PI * 2 / 3;
       const spawn = findEnemySpawnPosition(enemy.x + Math.cos(angle) * 76, enemy.y + Math.sin(angle) * 76, 16, 0);
-      if (spawn) enemies.push(createEnemy(summonKinds[Math.floor(Math.random() * summonKinds.length)], spawn.x, spawn.y));
+      if (spawn) enemies.push(createBossSummon(
+        summonKinds[Math.floor(Math.random() * summonKinds.length)], spawn.x, spawn.y));
     }
     const obstacle = findEnemySpawnPosition(target.x, target.y, 20, 0);
     if (obstacle) breakables.push(createBossObstacle(obstacle.x, obstacle.y, obstacleSprites[1]));
@@ -811,7 +834,7 @@ function resolveUniqueBossAttack(enemy, phaseTwo) {
       const spawn = findEnemySpawnPosition(enemy.x + Math.cos(angle) * 68, enemy.y + Math.sin(angle) * 68, 16, 0);
       if (spawn) {
         const kind = summonKinds.length > 0 ? summonKinds[Math.floor(Math.random() * summonKinds.length)] : enemyKindsForCurrentMap()[0];
-        enemies.push(createEnemy(kind, spawn.x, spawn.y));
+        enemies.push(createBossSummon(kind, spawn.x, spawn.y));
       }
     }
   } else if (signature === 'bone-bomb') {
@@ -906,6 +929,8 @@ function performBossMove(enemy, move, target, phaseTwo) {
   } else if (move === 'wind-gust') {
     const push = phaseTwo ? 360 : 300;
     player.windPush = { vx: Math.cos(angle) * push, vy: Math.sin(angle) * push, timer: phaseTwo ? 1.1 : 0.9 };
+    enemy.gustVisualTimer = 1.1;
+    enemy.gustVisualAngle = angle;
     addParticles(enemy.x, enemy.y, '#dfeff5', 14, 160);
     showMessage('A violent gust shoves you back!', 1.5);
   } else if (move === 'hook-pull') {
@@ -1021,7 +1046,7 @@ function slimeMotherCrash(enemy, phaseTwo) {
     const angle = Math.random() * Math.PI * 2;
     const spawn = findEnemySpawnPosition(enemy.x + Math.cos(angle) * 90, enemy.y + Math.sin(angle) * 90, 18, 0, enemy);
     if (!spawn) continue;
-    const minion = createEnemy('slime', spawn.x, spawn.y);
+    const minion = createBossSummon('slime', spawn.x, spawn.y);
     minion.archetype = 'ranged';
     minion.arrowShot = true;
     minion.behavior = 'hover';
@@ -1037,10 +1062,11 @@ function contactDamage(enemy) {
 
 function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) {
   const phaseTwo = enemy.phase >= 2;
+  const phaseThree = enemy.phase >= 3;
   if (enemy.behavior === 'signature-laser-windup') {
     if (enemy.stateTimer <= 0) {
       enemy.behavior = 'signature-laser';
-      enemy.stateTimer = phaseTwo ? 0.72 : 0.52;
+      enemy.stateTimer = phaseThree ? 0.9 : phaseTwo ? 0.72 : 0.52;
       enemy.laserHit = false;
     }
     return;
@@ -1061,10 +1087,10 @@ function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) 
       damagePlayer(0.5, enemy);
     }
     if (enemy.stateTimer <= 0) {
-      fireBossRadial(enemy, phaseTwo ? 8 : 4, 205, 'void-orb', '#a98be4', enemy.laserAngle);
+      fireBossRadial(enemy, phaseThree ? 12 : phaseTwo ? 8 : 4, 205, 'void-orb', '#a98be4', enemy.laserAngle);
       enemy.behavior = 'signature-recover';
       enemy.stateTimer = 0.45;
-      enemy.attackCooldown = phaseTwo ? 2.6 : 3.7;
+      enemy.attackCooldown = phaseThree ? 1.8 : phaseTwo ? 2.6 : 3.7;
     }
     return;
   }
@@ -1090,7 +1116,7 @@ function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) 
       if (enemy.signature === 'slime-crash') slimeMotherCrash(enemy, phaseTwo);
       enemy.behavior = 'signature-recover';
       enemy.stateTimer = 0.45;
-      enemy.attackCooldown = phaseTwo ? 2.6 : 3.8;
+      enemy.attackCooldown = phaseThree ? 1.8 : phaseTwo ? 2.6 : 3.8;
     }
     return;
   }
@@ -1114,30 +1140,35 @@ function updateUniqueBoss(enemy, dt, directionX, directionY, distance, visible) 
   if (enemy.boss || enemy.miniBoss) {
     // Bosses and minibosses never stand still: they strafe constantly while closing in.
     const strafe = Math.sin(elapsed * 0.9 + enemy.x * 0.01) >= 0 ? 1 : -1;
-    const pressure = enemy.miniBoss ? 1.25 : 1;
-    moveEnemy(enemy,
-      (directionX * (distance > 90 ? 1 : 0.3) - directionY * strafe * 0.55) * enemy.speed * pressure,
-      (directionY * (distance > 90 ? 1 : 0.3) + directionX * strafe * 0.55) * enemy.speed * pressure, dt);
+      const pressure = enemy.miniBoss ? 1.25 : 1;
+      const phasePressure = phaseThree ? 1.25 : 1;
+      moveEnemy(enemy,
+        (directionX * (distance > 90 ? 1 : 0.3) - directionY * strafe * 0.55) * enemy.speed * pressure * phasePressure,
+        (directionY * (distance > 90 ? 1 : 0.3) + directionX * strafe * 0.55) * enemy.speed * pressure * phasePressure, dt);
   } else {
     moveEnemy(enemy, directionX * enemy.speed * spacing, directionY * enemy.speed * spacing, dt);
   }
   if (!visible || enemy.attackCooldown > 0) return;
-  enemy.signature = uniqueBossSignature(enemy.kind, enemy.bossAttackIndex || 0);
-  if (bossAttackRotations[enemy.kind]) {
-    enemy.bossAttackIndex = ((enemy.bossAttackIndex || 0) + 1) % bossAttackRotations[enemy.kind].length;
+  const phaseRotation = bossPhaseAttackSets[enemy.kind]?.[Math.min(2, enemy.phase - 1)] || bossAttackRotations[enemy.kind];
+  enemy.signature = uniqueBossSignature(enemy.kind, enemy.bossAttackIndex || 0, enemy.phase);
+  if (phaseRotation) {
+    enemy.bossAttackIndex = ((enemy.bossAttackIndex || 0) + 1) % phaseRotation.length;
   }
   enemy.signatureTarget = { x: player.x, y: player.y };
   enemy.chargeHit = false;
   enemy.behavior = 'signature-windup';
-  enemy.stateTimer = phaseTwo ? 0.42 : enemy.miniBoss ? 0.55 : 0.68;
-  enemy.attackCooldown = enemy.miniBoss ? (phaseTwo ? 1.5 : 2.2) : phaseTwo ? 2.6 : 3.7;
+  enemy.stateTimer = phaseThree ? 0.28 : phaseTwo ? 0.42 : enemy.miniBoss ? 0.55 : 0.68;
+  enemy.attackCooldown = enemy.miniBoss
+    ? (phaseThree ? 1 : phaseTwo ? 1.5 : 2.2)
+    : phaseThree ? 1.6 : phaseTwo ? 2.6 : 3.7;
   playEnemyAttackSound(enemy, 0.24);
 }
 
 function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
   enemy.summonCooldown -= dt;
   const phaseTwo = enemy.phase >= 2;
-  const movementMultiplier = phaseTwo ? 1.35 : 1;
+  const phaseThree = enemy.phase >= 3;
+  const movementMultiplier = phaseThree ? 1.65 : phaseTwo ? 1.35 : 1;
 
   if (enemy.behavior === 'jacko-idle') {
     const tangentX = -directionY * enemy.strafeDirection;
@@ -1158,16 +1189,17 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
       playSound('ML/Skill00.ogg', 0.34);
       showMessage('"Come forth, my minions!"', 2.8);
     } else if (visible && enemy.attackCooldown <= 0) {
-      const attackCount = phaseTwo ? 4 : 3;
-      const attack = enemy.attackIndex % attackCount;
+      const attackSet = bossPhaseAttackSets.jacko[enemy.phase - 1];
+      const attack = attackSet[enemy.attackIndex % attackSet.length];
       enemy.attackIndex += 1;
       playEnemyAttackSound(enemy, 0.24);
-      enemy.behavior = attack === 0 ? 'jacko-roll-windup'
-        : attack === 1 ? 'jacko-jump-windup'
-          : attack === 2 ? 'jacko-shot-windup' : 'jacko-ground-pound-windup';
-      enemy.stateTimer = (phaseTwo ? 0.55 : 0.78) + (attack === 0 ? 0.18 : 0);
-      enemy.attackCooldown = phaseTwo ? 3.2 + Math.random() * 0.8 : 3.8 + Math.random() * 1.1;
-      enemy.groundPoundTarget = phaseTwo && attack === 3 ? { x: player.x, y: player.y } : null;
+      enemy.behavior = attack === 'roll' ? 'jacko-roll-windup'
+        : attack === 'jump' ? 'jacko-jump-windup'
+          : attack === 'shot' ? 'jacko-shot-windup' : 'jacko-ground-pound-windup';
+      enemy.stateTimer = (phaseThree ? 0.38 : phaseTwo ? 0.55 : 0.78) + (attack === 'roll' ? 0.18 : 0);
+      enemy.attackCooldown = phaseThree ? 2.2 + Math.random() * 0.4
+        : phaseTwo ? 3.2 + Math.random() * 0.8 : 3.8 + Math.random() * 1.1;
+      enemy.groundPoundTarget = phaseTwo && attack === 'ground-pound' ? { x: player.x, y: player.y } : null;
     }
     return;
   }
@@ -1175,16 +1207,16 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
   if (enemy.behavior === 'jacko-summon') {
     if (enemy.stateTimer <= 0) {
       const kinds = enemyKindsForCurrentMap();
-      for (let index = 0; index < 2 && enemies.length < 7; index += 1) {
+      for (let index = 0; index < (phaseThree ? 3 : 2) && enemies.length < 7; index += 1) {
         const angle = Math.random() * Math.PI * 2;
         const kind = kinds[Math.floor(Math.random() * kinds.length)];
         const spawn = findEnemySpawnPosition(
           enemy.x + Math.cos(angle) * 76,
           enemy.y + Math.sin(angle) * 76,
         );
-        if (spawn) enemies.push(createEnemy(kind, spawn.x, spawn.y));
+        if (spawn) enemies.push(createBossSummon(kind, spawn.x, spawn.y));
       }
-      fireJackoBurst(enemy, 6);
+      fireJackoBurst(enemy, phaseThree ? 10 : 6);
       enemy.behavior = 'jacko-idle';
     }
     return;
@@ -1195,7 +1227,7 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
       enemy.behavior = 'jacko-roll';
       enemy.leapX = directionX;
       enemy.leapY = directionY;
-      enemy.stateTimer = phaseTwo ? 1.05 : 0.9;
+      enemy.stateTimer = phaseThree ? 1.15 : phaseTwo ? 1.05 : 0.9;
     }
     return;
   }
@@ -1210,7 +1242,7 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
       enemy.leapX = directionX;
       enemy.leapY = directionY;
       enemy.behavior = 'jacko-jump';
-      enemy.stateTimer = phaseTwo ? 0.7 : 0.85;
+      enemy.stateTimer = phaseThree ? 0.56 : phaseTwo ? 0.7 : 0.85;
       enemy.jumpBurstFired = false;
     }
     return;
@@ -1237,7 +1269,7 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
   if (enemy.behavior === 'jacko-ground-pound-windup') {
     if (enemy.stateTimer <= 0) {
       enemy.behavior = 'jacko-ground-pound-hidden';
-      enemy.stateTimer = phaseTwo ? 0.48 : 0.65;
+      enemy.stateTimer = phaseThree ? 0.34 : phaseTwo ? 0.48 : 0.65;
       enemy.x = -enemy.radius * 3;
       enemy.y = -enemy.radius * 3;
     }
@@ -1273,7 +1305,7 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
 
   if (enemy.behavior === 'jacko-ground-pound-charge') {
     const previous = { x: enemy.x, y: enemy.y };
-    const chargeSpeed = phaseTwo ? 760 : 620;
+    const chargeSpeed = phaseThree ? 920 : phaseTwo ? 760 : 620;
     enemy.x += enemy.leapX * chargeSpeed * dt;
     enemy.y += enemy.leapY * chargeSpeed * dt;
     const targetReached = distanceBetween(enemy, enemy.groundPoundTarget) < chargeSpeed * dt + 16;
@@ -1295,7 +1327,7 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
       enemy.stateTimer = 0.34;
       triggerCameraShake('groundPound');
       if (distanceBetween(player, enemy) < player.radius + 90) damagePlayer(2, enemy);
-      fireJackoBurst(enemy, phaseTwo ? 12 : 8);
+      fireJackoBurst(enemy, phaseThree ? 16 : phaseTwo ? 12 : 8);
     }
     return;
   }
@@ -1322,7 +1354,7 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
   }
 }
 
-function dropLoot(x, y, boss = false) {
+function dropLoot(x, y, boss = false, bossSummoned = false) {
   const gems = boss ? 8 : 1 + (Math.random() < 0.35 ? 1 : 0);
   for (let gem = 0; gem < gems; gem += 1) {
     pickups.push({ x: x + (Math.random() - 0.5) * 36, y: y + (Math.random() - 0.5) * 36, kind: 'xp' });
@@ -1330,15 +1362,22 @@ function dropLoot(x, y, boss = false) {
   if (boss) {
     const abilityCount = ownedAbilityCount() + reservedAbilityCount();
     const abilities = shopItemCatalog.filter((item) => item.kind === 'ability' &&
-      !ownedItems.has(item.id) && !reservedUpgradeIds.has(item.id) && abilityCount < 2);
+      !ownedItems.has(item.id) && !reservedUpgradeIds.has(item.id) &&
+      !abilityAlreadyOffered(item.id) &&
+      (item.id === 'orbiting-projectiles' || abilityCount < 2));
     if (abilities.length > 0) {
       const ability = abilities[Math.floor(Math.random() * abilities.length)];
+      markAbilityOffered(ability);
       pickups.push({ x, y, kind: 'upgrade', item: ability, room: currentRoom });
+    }
+    const guardianHeart = shopItemCatalog.find((item) => item.id === 'guardian-heart');
+    if (guardianHeart && !ownedItems.has(guardianHeart.id)) {
+      pickups.push({ x: x + 44, y, kind: 'upgrade', item: guardianHeart, room: currentRoom });
     }
     return;
   }
   if (Math.random() < 0.3) spawnCoin(x + 14, y);
-  if (Math.random() < 0.14) pickups.push({ x, y, kind: 'heart' });
+  if (!bossSummoned && Math.random() < 0.14) pickups.push({ x, y, kind: 'heart' });
   if (Math.random() < 0.08) pickups.push({ x: x - 12, y, kind: 'bomb' });
 }
 
@@ -1401,18 +1440,26 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       Math.sin(impactAngle) * recoilDistance / 0.06, 0.06);
   }
   if (applyHitStop) hitStopTimer = Math.max(hitStopTimer, enemy.boss ? 0.04 : 0.025);
-  if ((enemy.boss || enemy.miniBoss) && enemy.phase === 1 && enemy.hp <= enemy.maxHp * 0.5) {
-    enemy.phase = 2;
+  const nextPhase = enemy.phase === 1 && enemy.hp <= enemy.maxHp * (2 / 3) ? 2
+    : enemy.phase === 2 && enemy.hp <= enemy.maxHp / 3 ? 3 : 0;
+  if ((enemy.boss || enemy.miniBoss) && nextPhase) {
+    enemy.phase = nextPhase;
     enemy.attackCooldown = Math.min(enemy.attackCooldown, 0.7);
     enemy.summonCooldown = Math.min(enemy.summonCooldown, 4);
+    enemy.bossAttackIndex = 0;
+    enemy.golemAttackIndex = 0;
+    enemy.spiderAttackIndex = 0;
+    player.hp = Math.min(player.maxHp, player.hp + phaseRewardHealAmount());
+    updateHud();
     if (enemy.kind === 'yetiking' || enemy.kind === 'yeti') {
       enemy.yetiBaseSpeed = enemy.speed;
       enemy.behavior = 'yeti-berserk-windup';
       enemy.stateTimer = 0.55;
       enemy.signatureTarget = { x: player.x, y: player.y };
     }
-    showMessage(`${enemy.title} enters Phase II!`, 3);
-    addParticles(enemy.x, enemy.y, '#ff8e38', 24, 150);
+    const phaseName = ['I', 'II', 'III'][enemy.phase - 1];
+    showMessage(`${enemy.title} enters Phase ${phaseName}! You recover up to two hearts.`, 3.5);
+    addParticles(enemy.x, enemy.y, enemy.phase === 3 ? '#f5dd82' : '#ff8e38', 24, 150);
   }
   if (enemy.hp <= 0) {
     score += enemy.boss ? 100 : 10;
@@ -1434,7 +1481,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
     }
     playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/die1.ogg' : 'monsters/zombie/zombiedie.ogg',
       enemy.boss ? 0.65 : 0.38);
-    dropLoot(enemy.x, enemy.y, enemy.boss);
+    dropLoot(enemy.x, enemy.y, enemy.boss, enemy.bossSummoned);
     const linkedTwin = enemy.linkId
       ? enemies.find((candidate) => candidate !== enemy && candidate.linkId === enemy.linkId)
       : null;
@@ -1684,29 +1731,17 @@ function applyBossPressure(enemy, dt, directionX, directionY, distance) {
     moveEnemy(enemy, directionX * enemy.speed * hunt, directionY * enemy.speed * hunt, dt);
   }
 
+  if (enemy.boss && !enemy.miniBoss) return;
   if (enemy.pressureCooldown > 0) return;
   enemy.pressureCooldown = (still ? 2.0 : phaseTwo ? 3.4 : 4.4) * (mini ? 1.4 : 1);
   const lead = still ? 0.2 : 0.45;
   const futureX = player.x + playerVelocity.x * lead;
   const futureY = player.y + playerVelocity.y * lead;
-  const speed = Math.hypot(playerVelocity.x, playerVelocity.y);
-  const sideX = speed > 20 ? -playerVelocity.y / speed : Math.cos(Math.random() * Math.PI * 2);
-  const sideY = speed > 20 ? playerVelocity.x / speed : Math.sin(Math.random() * Math.PI * 2);
   const strikeRadius = mini ? 50 : 60;
   const warning = 1.25;
   const damage = mini ? 1 : 2;
-  spawnBossStrike(player.x, player.y, strikeRadius, warning, damage);
-  spawnBossStrike(futureX, futureY, strikeRadius, warning + 0.3, damage);
-  spawnBossStrike(futureX + sideX * 110, futureY + sideY * 110, strikeRadius, warning + 0.6, damage);
-  spawnBossStrike(futureX - sideX * 110, futureY - sideY * 110, strikeRadius, warning + 0.9, damage);
-  if (phaseTwo && still) {
-    for (let index = 0; index < 4; index += 1) {
-      const angle = index * Math.PI / 2 + Math.PI / 4;
-      spawnBossStrike(player.x + Math.cos(angle) * 140, player.y + Math.sin(angle) * 140,
-        strikeRadius, warning + 1.2 + index * 0.2, damage);
-    }
-  }
-  showMessage(still ? 'Keep moving!' : 'The boss marks the ground!', 1.2);
+  spawnBossStrike(futureX, futureY, strikeRadius, warning + (phaseTwo ? 0.15 : 0), damage);
+  showMessage(still ? 'Keep moving!' : 'A foe marks your path!', 1.2);
 }
 
 function updateEnemy(enemy, dt) {
@@ -1734,6 +1769,7 @@ function updateEnemy(enemy, dt) {
 
 function updateEnemyBehavior(enemy, dt) {
   enemy.swordHitEffectTimer = Math.max(0, (enemy.swordHitEffectTimer || 0) - dt);
+  enemy.gustVisualTimer = Math.max(0, (enemy.gustVisualTimer || 0) - dt);
   enemy.freezeTimer = Math.max(0, enemy.freezeTimer || 0);
   enemy.slowTimer = Math.max(0, enemy.slowTimer || 0);
   if (enemy.freezeTimer > 0) {

@@ -569,11 +569,14 @@ function updateControlsHint() {
     const hasItem = consumables.some((item) => item.count > 0);
     const sig = classSignature()?.active ? classSignature().label : null;
     const pad = lastInputMode === 'controller';
+    const defenseLabel = ownedItems.has('orbiting-projectiles')
+      ? `Mana Guard (${orbitGuardChargeUps}/${ORBIT_GUARD_CHARGE_REQUIREMENT})`
+      : `Shockwave (${blanksHeld})`;
     const b = (id) => bindLabel(id, true);
     lines = [
       `${pad ? `LS Move · RS Aim+Fire (or ${padLabels().rt})` : 'WASD Move · Mouse Aim + Left-Click Attack'} · ${b('dash')} Dash · ` +
         `${b('nextWeapon')} Weapon · ${b('interact')} Interact`,
-      [`${b('item')} Item${hasItem ? '' : ' (none)'}`, `${b('shock')} Shockwave (${blanksHeld})`, `${b('bomb')} Bomb (${bombsHeld})`,
+      [`${b('item')} Item${hasItem ? '' : ' (none)'}`, `${b('shock')} ${defenseLabel}`, `${b('bomb')} Bomb (${bombsHeld})`,
         sig ? `${b('ability')} ${sig}` : null, `${b('map')} Map`, pad ? `${padLabels().menu} Pause` : 'P Pause'].filter(Boolean).join(' · '),
     ];
   } else if (mode === 'controls') {
@@ -989,6 +992,32 @@ function drawEnemyBody(enemy) {
       ctx.fillText(String(enemy.linkShieldCharges), enemy.x - enemy.radius + 1, enemy.y - enemy.radius - 1);
       ctx.restore();
     }
+  }
+  if (enemy.gustVisualTimer > 0) {
+    const angle = enemy.gustVisualAngle;
+    const strength = enemy.gustVisualTimer / 1.1;
+    ctx.save();
+    ctx.strokeStyle = `rgba(218, 243, 255, ${0.35 + strength * 0.5})`;
+    ctx.fillStyle = '#e8f7ff';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let index = -1; index <= 1; index += 1) {
+      const offset = index * 0.36;
+      const startX = enemy.x + Math.cos(angle + offset) * (enemy.radius + 9);
+      const startY = enemy.y + Math.sin(angle + offset) * (enemy.radius + 9);
+      const endX = startX + Math.cos(angle + offset) * (44 + (1 - strength) * 28);
+      const endY = startY + Math.sin(angle + offset) * (44 + (1 - strength) * 28);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.lineTo(endX - Math.cos(angle + offset - 0.55) * 10,
+        endY - Math.sin(angle + offset - 0.55) * 10);
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX - Math.cos(angle + offset + 0.55) * 10,
+        endY - Math.sin(angle + offset + 0.55) * 10);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
   const sprite = monsterSprites[enemy.kind];
   if (!sprite.image.complete || sprite.image.naturalWidth === 0) {
@@ -1410,7 +1439,9 @@ function drawEnemyBody(enemy) {
     ctx.fillStyle = '#f5debd';
     ctx.font = 'bold 14px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(enemy.boss ? `${enemy.title}${enemy.phase >= 2 ? ' - PHASE II' : ''}` : 'MINI-BOSS',
+    ctx.fillText(enemy.boss
+      ? `${enemy.title}${enemy.phase >= 3 ? ' - PHASE III' : enemy.phase >= 2 ? ' - PHASE II' : ''}`
+      : 'MINI-BOSS',
       enemy.x, enemy.y - enemy.radius - 18);
   }
 }
@@ -1463,6 +1494,7 @@ function drawPlayer() {
     frame = isBowAttack ? 11 + Math.floor(progress * 5) : 7 + Math.floor(progress * 4);
   }
   const bodyFrameIndex = directionRow * sprite.framesPerDirection + frame;
+  drawOrbitGuard();
   ctx.fillStyle = 'rgba(14, 16, 20, 0.28)';
   ctx.beginPath();
   ctx.ellipse(player.x, player.y - 1, 24, 9.5, 0, 0, Math.PI * 2);
@@ -1549,6 +1581,23 @@ function drawPlayer() {
   }
   if (heldStyle === 'magic') drawCastingHands(direction, glowColor || magicElementPalette.bubble);
   drawHead(character.hairStyle, direction, 0, 0, 1.45, wornHat());
+  ctx.restore();
+}
+
+function drawOrbitGuard() {
+  if (orbitGuards.length === 0) return;
+  ctx.save();
+  for (const guard of orbitGuards) {
+    ctx.save();
+    ctx.translate(guard.x, guard.y);
+    ctx.rotate(guard.kind === 'mana' ? 0 : guard.angle + Math.PI / 2);
+    const icon = orbitGuardIcons[guard.kind];
+    if (icon?.complete && icon.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(icon, -16, -16, 32, 32);
+    }
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -1874,6 +1923,277 @@ function drawSoulMenhir() {
   ctx.restore();
 }
 
+function drawRewardTrial() {
+  if (currentRoom.type !== 'trial' || currentRoom.trialCompleted) return;
+  const mode = currentRoom.trialMode;
+  if (mode === 'memory' || mode === 'relay') {
+    const nodes = rewardTrialNodes();
+    const progress = currentRoom.trialProgress;
+    const expectedIndex = mode === 'memory'
+      ? currentRoom.trialSequence[Math.floor(elapsed / 0.72) % currentRoom.trialSequence.length]
+      : progress;
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (const node of nodes) {
+      const active = mode === 'memory'
+        ? node.index === expectedIndex
+        : node.index === expectedIndex;
+      const near = mode === 'memory' && distanceBetween(player, node) < 70;
+      ctx.fillStyle = active ? (mode === 'memory' ? '#83dfcf' : '#f0d98a') : '#514e67';
+      ctx.strokeStyle = near ? '#fff1c4' : active ? '#fff1c4' : '#292837';
+      ctx.lineWidth = near ? 4 : 2;
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = active ? 16 : 3;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, active ? 20 : 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fff6db';
+      ctx.font = 'bold 12px Arial';
+      ctx.fillText(String(node.index + 1), node.x, node.y + 4);
+      if (near && active) {
+        ctx.fillStyle = '#fff1c4';
+        ctx.fillText('[E] TRACE', node.x, node.y - 28);
+      }
+    }
+    ctx.fillStyle = '#d7e6d2';
+    ctx.font = 'bold 13px Arial';
+    ctx.fillText(
+      mode === 'memory'
+        ? `WATCH THE RUNES, THEN REPEAT THE SEQUENCE  ${progress}/${currentRoom.trialSequence.length}`
+        : `CHASE THE MOVING SPARKS IN ORDER  ${progress}/3`,
+      ROOM_W / 2,
+      ROOM_WALL_THICKNESS + 26,
+    );
+    ctx.restore();
+    return;
+  }
+  const mirrors = rewardTrialMirrors();
+  const source = rewardTrialSource();
+  const receiver = rewardTrialReceiver();
+  const points = [source, ...mirrors, receiver];
+  let beamActive = true;
+  ctx.save();
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  for (let index = 0; index < points.length - 1; index += 1) {
+    if (index > 0 && mirrors[index - 1]?.orientation !== mirrors[index - 1]?.solution) {
+      beamActive = false;
+    }
+    ctx.beginPath();
+    ctx.moveTo(points[index].x, points[index].y);
+    ctx.lineTo(points[index + 1].x, points[index + 1].y);
+    ctx.strokeStyle = index < 3 && beamActive ? '#80e7e4' : 'rgba(138, 150, 150, 0.24)';
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = beamActive && index < 3 ? 10 : 0;
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#d9c68d';
+  ctx.beginPath();
+  ctx.arc(source.x, source.y, 13, 0, Math.PI * 2);
+  ctx.fill();
+  for (const mirror of mirrors) {
+    const active = mirror.orientation === mirror.solution;
+    const near = distanceBetween(player, mirror) < 70;
+    ctx.fillStyle = active ? '#7bd5cd' : '#9a657a';
+    ctx.strokeStyle = near ? '#fff1c4' : '#322b34';
+    ctx.lineWidth = near ? 4 : 2;
+    ctx.beginPath();
+    ctx.arc(mirror.x, mirror.y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#fff0cc';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    if (mirror.orientation === '/') {
+      ctx.moveTo(mirror.x - 10, mirror.y + 10);
+      ctx.lineTo(mirror.x + 10, mirror.y - 10);
+    } else {
+      ctx.moveTo(mirror.x - 10, mirror.y - 10);
+      ctx.lineTo(mirror.x + 10, mirror.y + 10);
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle = beamActive && mirrors.every((mirror) => mirror.orientation === mirror.solution)
+    ? '#f4d58c' : '#675b68';
+  ctx.strokeStyle = '#fff1c4';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(receiver.x, receiver.y, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#edf0dc';
+  ctx.font = 'bold 12px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('LIGHT', source.x, source.y - 24);
+  ctx.fillText('RECEIVER', receiver.x, receiver.y - 28);
+  for (const mirror of mirrors) {
+    if (distanceBetween(player, mirror) < 70) {
+      ctx.fillStyle = '#fff1c4';
+      ctx.fillText('[E] TURN', mirror.x, mirror.y - 34);
+      break;
+    }
+  }
+  ctx.fillStyle = '#d7e6d2';
+  ctx.font = 'bold 13px Arial';
+  ctx.fillText('TURN THE LENSES TO GUIDE LIGHT INTO THE RECEIVER', ROOM_W / 2, ROOM_WALL_THICKNESS + 26);
+  ctx.restore();
+}
+
+function drawElementalMenhir() {
+  const { x, y } = elementalShrinePosition();
+  const element = currentRoom.shrineElement;
+  const color = magicElementPalette[element] || '#d8d0bc';
+  const t = performance.now() / 1000;
+  const active = !currentRoom.shrineUsed;
+  ctx.save();
+  const glow = ctx.createRadialGradient(x, y - 28, 8, x, y - 28, 100);
+  glow.addColorStop(0, `${color}${active ? '66' : '33'}`);
+  glow.addColorStop(1, `${color}00`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 110, y - 140, 220, 220);
+
+  ctx.fillStyle = '#494943';
+  ctx.strokeStyle = '#bdb7a5';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x - 34, y + 36);
+  ctx.lineTo(x - 29, y - 38);
+  ctx.lineTo(x - 12, y - 69);
+  ctx.lineTo(x + 13, y - 75);
+  ctx.lineTo(x + 31, y - 43);
+  ctx.lineTo(x + 35, y + 36);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = active ? color : '#77746e';
+  ctx.fillStyle = active ? `${color}44` : 'rgba(80, 80, 76, 0.35)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(x, y - 23, 21, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(x, y - 23);
+  ctx.strokeStyle = active ? '#fff4dc' : '#aaa69c';
+  ctx.fillStyle = active ? '#fff4dc' : '#aaa69c';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (element === 'bubble') {
+    for (const [bx, by, radius] of [[-7, 5, 5], [5, 0, 7], [9, -10, 3]]) {
+      ctx.beginPath();
+      ctx.arc(bx, by, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  } else if (element === 'fire') {
+    ctx.beginPath();
+    ctx.moveTo(-11, 10);
+    ctx.lineTo(-8, -1);
+    ctx.lineTo(-2, -13);
+    ctx.lineTo(1, -3);
+    ctx.lineTo(8, -12);
+    ctx.lineTo(11, 2);
+    ctx.lineTo(7, 11);
+    ctx.closePath();
+    ctx.fill();
+  } else if (element === 'lightning') {
+    ctx.beginPath();
+    ctx.moveTo(3, -14);
+    ctx.lineTo(-9, 2);
+    ctx.lineTo(-1, 2);
+    ctx.lineTo(-4, 14);
+    ctx.lineTo(10, -4);
+    ctx.lineTo(2, -4);
+    ctx.closePath();
+    ctx.fill();
+  } else if (element === 'gas') {
+    for (const [bx, by, radius] of [[-7, 3, 6], [0, -4, 8], [8, 3, 6]]) {
+      ctx.beginPath();
+      ctx.arc(bx, by, radius, Math.PI, 0);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-12, 4);
+    ctx.lineTo(12, 4);
+    ctx.stroke();
+  } else if (element === 'spore') {
+    ctx.beginPath();
+    ctx.arc(0, -3, 10, Math.PI, 0);
+    ctx.lineTo(8, 1);
+    ctx.lineTo(-8, 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(-2, 1, 4, 10);
+    for (const dot of [[-5, -4], [1, -8], [6, -2]]) {
+      ctx.beginPath();
+      ctx.arc(dot[0], dot[1], 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+  } else if (element === 'ice') {
+    for (let arm = 0; arm < 3; arm += 1) {
+      ctx.save();
+      ctx.rotate(arm * Math.PI / 3);
+      ctx.beginPath();
+      ctx.moveTo(0, -13);
+      ctx.lineTo(0, 13);
+      ctx.moveTo(-4, -7);
+      ctx.lineTo(0, -3);
+      ctx.lineTo(4, -7);
+      ctx.moveTo(-4, 7);
+      ctx.lineTo(0, 3);
+      ctx.lineTo(4, 7);
+      ctx.stroke();
+      ctx.restore();
+    }
+  } else if (element === 'wind') {
+    for (let row = -5; row <= 5; row += 5) {
+      ctx.beginPath();
+      ctx.moveTo(-12, row);
+      ctx.quadraticCurveTo(0, row - 5, 11, row);
+      ctx.stroke();
+    }
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(-12, 8);
+    ctx.lineTo(-3, -8);
+    ctx.lineTo(2, 0);
+    ctx.lineTo(7, -12);
+    ctx.lineTo(13, 8);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  if (active) {
+    for (let index = 0; index < 10; index += 1) {
+      const phase = (t * 0.28 + index / 10) % 1;
+      const angle = t * 0.55 + index * 2.4;
+      const radius = 30 + (index % 3) * 7;
+      ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.85;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(angle) * radius, y - 20 - phase * 80 + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#f2e5c6';
+  ctx.font = 'bold 13px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(active ? `${element.toUpperCase()} MENHIR` : 'MENHIR ATTUNED', x, y + 62);
+  if (active && distanceBetween(player, { x, y }) < 92) {
+    ctx.fillStyle = '#fff0bd';
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText('[E] ATTUNE', x, y + 81);
+  }
+  ctx.restore();
+}
+
 function drawShopItemIcon(item, centerX, centerY) {
   const itemImage = shopItemIconImages[item.id];
   if (itemImage?.complete && itemImage.naturalWidth > 0) {
@@ -1885,7 +2205,8 @@ function drawShopItemIcon(item, centerX, centerY) {
   }
   const colors = {
     passive: '#79d3dc', skill: '#c3a7e7', weapon: '#e0bb78', clothing: '#9dce9a',
-    ability: '#86dce8', mod: '#ffb35a', element: magicElementPalette[item.element],
+    ability: '#86dce8', mod: '#ffb35a', lore: '#a8f0d7', element: magicElementPalette[item.element],
+    'shop-bomb': '#f2c774',
     companion: '#e7b877', consumable: '#e89676',
   };
   ctx.save();
@@ -1895,7 +2216,29 @@ function drawShopItemIcon(item, centerX, centerY) {
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (item.kind === 'element' && item.element === 'fire') {
+  if (item.kind === 'lore') {
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.lineTo(6, 0);
+    ctx.lineTo(0, 9);
+    ctx.lineTo(-6, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -14);
+    ctx.lineTo(0, -11);
+    ctx.moveTo(14, 0);
+    ctx.lineTo(11, 0);
+    ctx.moveTo(0, 14);
+    ctx.lineTo(0, 11);
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(-11, 0);
+    ctx.stroke();
+  } else if (item.kind === 'element' && item.element === 'fire') {
     ctx.beginPath();
     ctx.moveTo(0, -13);
     ctx.quadraticCurveTo(2, -5, 8, -3);
@@ -2031,7 +2374,7 @@ function drawShopItemIcon(item, centerX, centerY) {
     ctx.arc(-3, 0, 1, 0, Math.PI * 2);
     ctx.arc(3, 0, 1, 0, Math.PI * 2);
     ctx.fill();
-  } else if (item.id === 'bomb-bundle') {
+  } else if (item.id === 'bomb-bundle' || item.id === 'shop-bomb') {
     ctx.beginPath();
     ctx.arc(0, 2, 8, 0, Math.PI * 2);
     ctx.moveTo(3, -6);
@@ -2293,7 +2636,9 @@ function drawEnemyProjectile(projectile) {
 function drawWorld() {
   drawRoomFloor();
   drawGroundHazards();
+  drawRewardTrial();
   if (currentRoom.type === 'start') drawSoulMenhir();
+  if (currentRoom.type === 'elemental-shrine') drawElementalMenhir();
   if (currentRoom.type === 'boss' && currentRoom.cleared) {
     ctx.fillStyle = '#a8d7b4';
     ctx.fillRect(ROOM_W * 0.72 - 30, ROOM_H / 2 - 8, 60, 16);
@@ -2486,6 +2831,35 @@ function drawWorld() {
     ctx.fillRect(bomb.x + 4, renderY - 14, 3, 5);
   }
   for (const pickup of pickups) {
+    if (pickup.kind === 'lore-relic') {
+      const bob = Math.sin(elapsed * 3 + pickup.x) * 3;
+      ctx.save();
+      ctx.translate(pickup.x, pickup.y + bob);
+      ctx.shadowColor = '#a8f0d7';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = 'rgba(27, 68, 61, 0.88)';
+      ctx.strokeStyle = '#b7f4df';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#d7fff0';
+      ctx.beginPath();
+      ctx.moveTo(0, -11);
+      ctx.lineTo(7, 0);
+      ctx.lineTo(0, 11);
+      ctx.lineTo(-7, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#effff7';
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('INTERACT', 0, 30);
+      ctx.restore();
+      continue;
+    }
     if (pickup.guaranteedTreasure) {
       ctx.strokeStyle = 'rgba(255, 224, 139, 0.88)';
       ctx.lineWidth = 2;
@@ -2667,6 +3041,40 @@ function drawWorld() {
   for (const projectile of projectiles) {
     if (projectile.type === 'reflected') {
       drawEnemyProjectile(projectile);
+      continue;
+    }
+    if (projectile.type === 'charge-beam') {
+      const startX = projectile.originX;
+      const startY = projectile.originY;
+      const endX = projectile.beamEndX ?? startX + projectile.vx * projectile.beamRange;
+      const endY = projectile.beamEndY ?? startY + projectile.vy * projectile.beamRange;
+      const pulse = 0.85 + Math.sin(elapsed * 32) * 0.15;
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = projectile.color;
+      ctx.shadowColor = projectile.color;
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = projectile.beamWidth;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fff4d8';
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+      if (projectile.beamExplosionTimer > 0) {
+        ctx.fillStyle = '#fff3ce';
+        ctx.beginPath();
+        ctx.arc(projectile.beamExplosionX, projectile.beamExplosionY,
+          projectile.beamWidth * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
       continue;
     }
     const size = 18 * (projectile.size || 1);
@@ -3063,7 +3471,10 @@ function drawMap() {
     ctx.fillStyle = room === currentRoom ? '#79c9c2' :
       room.type === 'boss' ? '#aa5e72' : room.type === 'miniboss' ? '#bd765d'
         : room.type === 'shop' ? '#d9aa66' : room.type === 'bank' ? '#d7b66e'
-          : room.type === 'shrine' ? '#a77fc2' : '#514d59';
+          : room.type === 'shrine' ? '#a77fc2'
+            : room.type === 'elemental-shrine' ? magicElementPalette[room.shrineElement] || '#80d9d2'
+              : room.type === 'trial' ? '#d27a70'
+                : '#514d59';
     const rect = roomMapRect(room, x, y, cell);
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     if (rect.larger) {
@@ -3074,7 +3485,8 @@ function drawMap() {
     ctx.font = '12px Arial';
     ctx.fillText(room.type === 'boss' ? 'B' : room.type === 'miniboss' ? '!'
       : room.type === 'shop' ? '$' : room.type === 'bank' ? 'Z'
-        : room.type === 'shrine' ? 'S' : room.type === 'secret' ? '?' : '',
+        : room.type === 'shrine' ? 'S' : room.type === 'elemental-shrine' ? 'E'
+          : room.type === 'trial' ? 'T' : room.type === 'secret' ? '?' : '',
     x + cell / 2, y + cell / 2 + 4);
     drawRoomLeftovers(room, x + 2, y + 2, cell - 4, 5);
   }
@@ -3140,6 +3552,8 @@ function drawMinimap() {
       room.type === 'boss' ? '#bb7181' : room.type === 'miniboss' ? '#d78c69'
         : room.type === 'shop' ? '#edc878' : room.type === 'bank' ? '#e4ca75' :
         room.type === 'shrine' ? '#c69be5' :
+        room.type === 'elemental-shrine' ? magicElementPalette[room.shrineElement] || '#80d9d2' :
+        room.type === 'trial' ? '#d27a70' :
         room.type === 'secret' ? '#c69be5' : '#aaa19a';
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     if (explored && rect.larger) {
@@ -3153,13 +3567,15 @@ function drawMinimap() {
       ctx.strokeRect(rect.x - 1.5, rect.y - 1.5, rect.w + 3, rect.h + 3);
     }
     if ((explored && (room.type === 'boss' || room.type === 'miniboss' || room.type === 'shop' ||
-      room.type === 'bank' || room.type === 'secret' || room.type === 'shrine')) || room.type === 'boss') {
+      room.type === 'bank' || room.type === 'secret' || room.type === 'shrine' ||
+      room.type === 'elemental-shrine' || room.type === 'trial')) || room.type === 'boss') {
       ctx.fillStyle = room.type === 'boss' ? '#fff0f0' : '#211e25';
       ctx.font = 'bold 9px Arial';
       ctx.textAlign = 'center';
       ctx.fillText(room.type === 'boss' ? 'B' : room.type === 'miniboss' ? '!'
         : room.type === 'shop' ? '$' : room.type === 'bank' ? 'Z'
-          : room.type === 'shrine' ? 'S' : '?',
+          : room.type === 'shrine' ? 'S' : room.type === 'elemental-shrine' ? 'E'
+            : room.type === 'trial' ? 'T' : '?',
       x + cell / 2, y + cell / 2 + 3);
     }
     if (room === currentRoom) {
@@ -3187,11 +3603,12 @@ function drawInGameCommentary() {
     const alpha = Math.min(1, (4 - age) / 0.6);
     ctx.font = 'bold 14px Arial';
     const width = Math.min(canvas.width - 40, ctx.measureText(text).width + 28);
+    const messageY = currentRoom?.type === 'shop' ? 78 : 408;
     ctx.globalAlpha = alpha;
     ctx.fillStyle = 'rgba(8, 10, 12, 0.78)';
-    ctx.fillRect(canvas.width / 2 - width / 2, 408, width, 26);
+    ctx.fillRect(canvas.width / 2 - width / 2, messageY, width, 26);
     ctx.fillStyle = '#f4e8c8';
-    ctx.fillText(text.slice(0, 120), canvas.width / 2, 426, canvas.width - 48);
+    ctx.fillText(text.slice(0, 120), canvas.width / 2, messageY + 18, canvas.width - 48);
   }
   if (calm && controlsHelpVisible) {
     const hint = (controlsEl.textContent || '').replace(/\n/g, ' · ');
@@ -3214,7 +3631,13 @@ function drawActionBar() {
       cooldown: dashCooldown, cooldownMax: character?.className === 'Scout' ? 0.42 : 0.85 },
     { id: 'item', key: bindLabel('item'), label: activeItem ? activeItem.name.toUpperCase().slice(0, 9) : 'ITEM',
       color: '#e89676', count: itemTotal, icon: activeItem ? shopItemIconImages[activeItem.id] : null },
-    { id: 'shock', key: bindLabel('shock'), label: 'SHOCKWAVE', color: '#ffffff', count: blanksHeld },
+    { id: 'shock', key: bindLabel('shock'),
+      label: ownedItems.has('orbiting-projectiles') ? 'MANA GUARD' : 'SHOCKWAVE',
+      color: ownedItems.has('orbiting-projectiles') ? '#62d9ee' : '#ffffff',
+      icon: ownedItems.has('orbiting-projectiles') ? orbitGuardIcons[orbitGuardStyle().kind] : null,
+      count: ownedItems.has('orbiting-projectiles') ? undefined : blanksHeld,
+      chargeUps: ownedItems.has('orbiting-projectiles') ? orbitGuardChargeUps : undefined,
+      chargeRequired: ownedItems.has('orbiting-projectiles') ? ORBIT_GUARD_CHARGE_REQUIREMENT : undefined },
     { id: 'bomb', key: bindLabel('bomb'), label: 'BOMB', color: '#f2c774', count: bombsHeld },
   ];
   if (frostActive && ownedItems.has('frost-rune')) {
@@ -3241,7 +3664,8 @@ function drawActionBar() {
   ctx.fillStyle = '#bdb59f';
   slots.forEach((slot, index) => {
     const x = baseX + index * (size + gap);
-    const empty = (slot.count !== undefined && slot.count <= 0) || (slot.id === 'item' && !activeItem);
+    const empty = (slot.count !== undefined && slot.count <= 0) ||
+      (slot.chargeUps !== undefined && slot.chargeUps <= 0) || (slot.id === 'item' && !activeItem);
     const cooling = slot.cooldown > 0;
     ctx.globalAlpha = empty ? 0.45 : 1;
     ctx.fillStyle = 'rgba(4, 6, 8, 0.96)';
@@ -3271,9 +3695,15 @@ function drawActionBar() {
         ctx.stroke();
       }
     } else if (slot.id === 'shock') {
-      for (const radius of [4, 9, 14]) {
+      if (!ownedItems.has('orbiting-projectiles')) {
         ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - 13, cy);
+        ctx.lineTo(cx + 13, cy);
+        ctx.moveTo(cx, cy - 13);
+        ctx.lineTo(cx, cy + 13);
         ctx.stroke();
       }
     } else if (slot.id === 'element') {
@@ -3326,6 +3756,20 @@ function drawActionBar() {
       ctx.font = 'bold 12px Arial';
       ctx.fillStyle = slot.count > 0 ? '#ffffff' : '#e06a6a';
       ctx.fillText(String(slot.count), x + size - 3, baseY + size - 14);
+    }
+    if (slot.chargeUps !== undefined) {
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 8px Arial';
+      ctx.fillStyle = slot.chargeUps >= slot.chargeRequired ? '#fff0a0' : '#ffffff';
+      ctx.fillText(`${slot.chargeUps}/${slot.chargeRequired}`, x + size - 3, baseY + 4);
+      const pipWidth = 5;
+      const pipGap = 2;
+      const pipsWidth = slot.chargeRequired * pipWidth + (slot.chargeRequired - 1) * pipGap;
+      const pipsX = x + (size - pipsWidth) / 2;
+      for (let pip = 0; pip < slot.chargeRequired; pip += 1) {
+        ctx.fillStyle = pip < slot.chargeUps ? slot.color : 'rgba(220, 220, 220, 0.25)';
+        ctx.fillRect(pipsX + pip * (pipWidth + pipGap), baseY + size - 4, pipWidth, 2);
+      }
     }
     ctx.textAlign = 'center';
     ctx.font = '8px Arial';
@@ -3650,7 +4094,7 @@ function drawGameHud() {
     ctx.font = 'bold 11px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(boss.boss
-      ? `${boss.title}${boss.phase >= 2 ? ' - PHASE II' : ''}`
+      ? `${boss.title}${boss.phase >= 3 ? ' - PHASE III' : boss.phase >= 2 ? ' - PHASE II' : ''}`
       : boss.title || 'MINI-BOSS', canvas.width / 2, y + 12);
   }
 }
@@ -3717,8 +4161,9 @@ function closeCodex() {
   updateHud();
 }
 
-function toggleCodexTab() {
-  codexTab = codexTab === 'items' ? 'enemies' : 'items';
+function toggleCodexTab(direction = 1) {
+  const tabs = ['items', 'enemies', 'lore'];
+  codexTab = tabs[(tabs.indexOf(codexTab) + direction + tabs.length) % tabs.length];
   codexScroll = 0;
 }
 
@@ -3727,6 +4172,7 @@ function codexEntries() {
     return shopItemCatalog.filter((item) => save.discoveredItemIds.includes(item.id) ||
       save.unlockedItemIds.includes(item.id));
   }
+  if (codexTab === 'lore') return manaLoreRelics.map((relic) => ({ ...relic, kind: 'lore' }));
   const enemyMoves = {
     bandit: ['arrow-shot'],
     banditlord: ['arrow-shot', 'fire-burst'],
@@ -4048,9 +4494,13 @@ function drawCodex() {
   ctx.font = '12px Arial';
   ctx.fillText(`Descent time ${Math.floor(save.playtimeSeconds / 60)}m ${Math.floor(save.playtimeSeconds % 60)}s`, 70, 116);
 
-  const tabs = [{ id: 'items', label: 'ITEMS' }, { id: 'enemies', label: 'ENEMIES' }];
+  const tabs = [
+    { id: 'items', label: 'ITEMS' },
+    { id: 'enemies', label: 'ENEMIES' },
+    { id: 'lore', label: 'MANA ECHOES' },
+  ];
   tabs.forEach((tab, index) => {
-    const x = 70 + index * 126;
+    const x = 70 + index * 132;
     ctx.fillStyle = codexTab === tab.id ? '#49634d' : '#28352d';
     ctx.fillRect(x, 132, 112, 28);
     ctx.strokeStyle = codexTab === tab.id ? '#a5c79b' : '#63796a';
@@ -4069,7 +4519,8 @@ function drawCodex() {
     ctx.font = '15px Arial';
     ctx.fillText(codexTab === 'items'
       ? 'Find an item in a descent to record it here.'
-      : 'Meet a creature during a descent to record it here.', 72, 210);
+      : codexTab === 'lore' ? 'Recover Mana echoes in each region to unlock a new delver.'
+        : 'Meet a creature during a descent to record it here.', 72, 210);
   }
   visibleEntries.forEach((entry, index) => {
     const y = 172 + index * 43;
@@ -4090,9 +4541,12 @@ function drawCodex() {
     ctx.font = '11px Arial';
     ctx.fillText(entry.description || 'A newly recorded discovery.', 116, y + 30, 620);
     if (entry.kind !== 'enemy') {
-      const status = save.discoveredItemIds.includes(entry.id) ? 'FOUND' : 'READY TO FIND';
+      const found = entry.kind === 'lore'
+        ? (save.loreRelics || []).includes(entry.id)
+        : save.discoveredItemIds.includes(entry.id);
+      const status = found ? 'FOUND' : entry.kind === 'lore' ? 'UNFOUND' : 'READY TO FIND';
       ctx.textAlign = 'right';
-      ctx.fillStyle = status === 'FOUND' ? '#a9d79e' : '#e0c77c';
+      ctx.fillStyle = found ? '#a9d79e' : '#e0c77c';
       ctx.font = 'bold 10px Arial';
       ctx.fillText(status, canvas.width - 78, y + 23);
     }
@@ -4101,7 +4555,9 @@ function drawCodex() {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#c5cebf';
   ctx.font = '12px Arial';
-  ctx.fillText(`${entries.length === 0 ? 0 : codexScroll + 1}-${Math.min(entries.length, codexScroll + 7)} / ${entries.length}  ·  ↑/↓ Browse  ·  ←/→ Change tab`, canvas.width / 2, 480);
+  const collectionProgress = codexTab === 'lore'
+    ? ` · ${(save.loreRelics || []).length}/${manaLoreRelics.length} collected` : '';
+  ctx.fillText(`${entries.length === 0 ? 0 : codexScroll + 1}-${Math.min(entries.length, codexScroll + 7)} / ${entries.length}${collectionProgress}  ·  ↑/↓ Browse  ·  ←/→ Change tab`, canvas.width / 2, 480);
   ctx.fillStyle = '#a5c79b';
   ctx.fillText('K / ESC / B  ·  Close', canvas.width / 2, 500);
 }
@@ -4375,7 +4831,7 @@ function tutorialPages() {
       ['Move and aim', pad
         ? `Left stick moves. Right stick aims and fires, or hold ${p.rt} to fire. The D-pad never moves you in play.`
         : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
-      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} sets off a shockwave. ${b('ability')} uses your class ability.`],
+      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover the Mana Familiar Sigil to replace it with orbiting weapon guards. Firing follows only your controller right stick, nearest touch target, or mouse cursor. ${b('ability')} uses your class ability.`],
       ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
       ['Menus', `${b('map')} map, ${b('journal')} journal, ${pad ? p.menu : 'P'} pause. Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}). Weapon upgrades may also change how that weapon fires.`],
     ] },
@@ -4391,13 +4847,13 @@ function tutorialPages() {
       ['Deflect and elements', 'Bat shots out of the air anywhere along your visible melee sweep. The first clean intercept per swing has a 40% chance to heal half a heart. Late body-contact deflections still hurt. Charged releases deflect nearby shots outward. Returned shots keep their original appearance.'],
       ['Arrow returns', 'Shoot enemy projectiles away with the forgiving area around an arrow tip. Clashes accelerate shots and scatter them widely, retaining their original look. An arrow-returned shot has one 40% chance to heal half a heart when it first damages an enemy. Interception alone never heals.'],
       ['Spore Bloom', 'Collect mushroom spores to make magic shots split into eight slowing projectiles when they hit an enemy, object, or wall. The smaller spores do not split again. Collecting it also unlocks Sporeling for future runs.'],
-      ['Wild magic', 'Mage starts with random elemental magic; other classes start with water. Every upgrade changes your element; sigils grant their named element. Magic effects share your element color. White diamond marks identify friendly effects. Mage surprises: 40% enemy, 20% object, 6% special shot; others: 10%, 5%, 1%. Bosses cannot be lifted or teleported.'],
+      ['Wild magic', 'Mage starts with random elemental magic; other classes start with water. Items no longer reroll your element; find an elemental menhir and interact to attune. Element sigils grant their named element. Magic effects share your element color. White diamond marks identify friendly effects. Mage surprises: 40% enemy, 20% object, 6% special shot; others: 10%, 5%, 1%. Bosses cannot be lifted or teleported.'],
     ] },
-    { title: 'CONSUMABLES, BOMBS, SHOCKWAVE', sections: [
+    { title: 'CONSUMABLES, BOMBS, MANA GUARD', sections: [
       ['Consumables', `Break scenery to uncover stored consumables, or buy them in shops. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
       ['Bombs', `Press ${b('bomb')} to drop a bomb. Shots from either side push grounded bombs; they slide and bounce off scenery without resetting the fuse. Explosions hurt nearby foes and open sealed rooms. Stay out of the blast.`],
-      ['Shockwave', `Press ${b('shock')} to blast a ring that deletes enemy bullets, shoves foes back and protects you briefly. You earn one each floor.`],
-      ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you pick up an element sigil. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
+      ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find the Mana Familiar Sigil to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
+      ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENNY AND KEYS', sections: [
       ['Zenny', 'Enemies and rooms drop zenny. Spend it in shops, or bank it so it stays with you after a run ends.'],
@@ -4409,7 +4865,8 @@ function tutorialPages() {
       ['The minimap', `Top right. Bright rooms are visited. A dark room is one you have seen a door to but not entered. Press ${b('map')} for the full map. A bigger room is drawn bigger.`],
       ['Doors', 'A shut door is locked until the room is clear, or needs a key. An open door is free to use. Bombed entrances stay hidden until you find them.'],
       ['Enemies', 'Squads take turns committing attacks while allies reposition. Later floors allow staggered overlaps. Ranged windups show a locked aim line: change direction after they commit. Later floors also mix in mini boss moves.'],
-      ['Bosses', 'Boss health targets minute-plus fights, not a hard timer. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],
+      ['Bosses', 'Bosses have three distinct phases. Reaching a new phase restores up to TWO hearts. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],
+      ['Optional trials', 'Key-locked trial rooms are enemy-free mini-games: route light with mirrors, repeat a rune sequence, or chase moving sparks. Complete one for a collectible reward; an uncollected regional Codex appears most of the time.'],
     ] },
     { title: 'TIPS FOR A GOOD RUN', sections: [
       ['Keep moving', `Dash with ${b('dash')} to slip out of danger. Strafe around foes instead of standing still.`],

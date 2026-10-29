@@ -16,6 +16,7 @@ function combat() {
       }],
     },
     enemyProjectiles: [], enemies: [], returned: [], damageCalls: [], elapsed: 1, mode: 'playing',
+    ROOM_WALL_THICKNESS: 64,
     streakCallout: { duration: 1 }, hearts: 0,
     clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
     hasLineOfSight: () => true,
@@ -304,7 +305,7 @@ test('real projectile loops remove the hostile shot and heal only on its later e
   `, c);
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   const loops = source.slice(source.indexOf('  for (let i = projectiles.length - 1;'),
-    source.indexOf('  for (let i = particles.length - 1;'));
+    source.indexOf('  updateParticles(dt);'));
   vm.runInContext(loops, c);
   assert.equal(c.enemyProjectiles.length, 0);
   assert.equal(c.damageCalls.length, 0);
