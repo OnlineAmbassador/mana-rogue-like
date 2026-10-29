@@ -413,8 +413,13 @@ function reservedAbilityCount() {
     reservedUpgradeIds.has(item.id) && !ownedItems.has(item.id)).length;
 }
 
+// Roster health (3–12) maps onto 3–6 starting hearts.
+function startingHearts(entry) {
+  return clamp(Math.round(2 + (entry.hp || 6) / 3), 3, 6);
+}
+
 function extraHearts() {
-  return Math.max(0, player.maxHp - BASE_HEARTS);
+  return Math.max(0, player.maxHp - (character ? startingHearts(character) : BASE_HEARTS));
 }
 
 function phaseRewardHealAmount() {
@@ -453,7 +458,8 @@ function strongestPlayerSingleHit() {
   if (consumables.some((item) => item.id === 'mana-burst' && item.count > 0)) {
     strongestHit = Math.max(strongestHit, 8);
   }
-  if (ownedItems.has('prism') && weapon.shotCount > 1 && getActiveAttackElement()) {
+  if (ownedItems.has('prism') && weapon.shotCount > 1 && getActiveAttackElement() &&
+      getActiveAttackElement() !== 'bubble') {
     strongestHit = Math.max(strongestHit, Math.ceil(baseDamage * 1.6));
   }
   return Math.ceil(strongestHit);
@@ -1145,7 +1151,9 @@ function shoot(options = null) {
       ? style === 'magic' ? -0.08 : 0.08
       : 0;
     const element = style === 'bow' ? null : getActiveAttackElement();
-    const fusedElementalShot = !morph.surround && ownedItems.has('prism') && Boolean(element) && weapon.shotCount > 1;
+    // Prism fans out by default; only a non-water element fuses the fan into one heavy shot.
+    const fusedElementalShot = !morph.surround && ownedItems.has('prism') && Boolean(element) &&
+      element !== 'bubble' && weapon.shotCount > 1;
     const baseShots = tripleBow ? Math.max(3, weapon.shotCount) : weapon.shotCount;
     const shotCount = Math.min(morph.surround ? 4 : fusedElementalShot ? 1 : baseShots, volleyBudget);
     volleyBudget -= shotCount;
@@ -1349,7 +1357,7 @@ function updateBombMotion(bomb, dt) {
 
 function explodeBomb(bomb) {
   triggerCameraShake('bomb');
-  playSound('special/nature-thunder.ogg', bomb.owner === 'enemy' ? 0.32 : 0.55);
+  playSound('system/boom.ogg', bomb.owner === 'enemy' ? 0.32 : 0.55);
   const hurtByBlast = (target) => distanceBetween(bomb, target) <= bomb.radius && hasLineOfSight(bomb, target);
   if (hurtByBlast(player)) damagePlayer(0.5, bomb);
   if (bomb.owner !== 'enemy') {
@@ -1383,7 +1391,7 @@ function explodeBomb(bomb) {
       : Math.abs(bomb.y - ROOM_H / 2) < 78;
     if (secret.room.hidden && alongWall && distanceBetween(bomb, wallPoint) < bomb.radius + 60) {
       secret.room.hidden = false;
-      recordStory('A hidden passage', 'A bomb opened a concealed room. Its relics are your discovery in this side-story, not a change to a canonical TMW quest.');
+      recordStory('A hidden passage', 'A bomb blasted open a concealed room. Its relics have waited a long time for someone to find them.');
       const extraKeyFound = !secret.keyDropped && Math.random() < (secret.room.extraKeyChance || 0);
       if (extraKeyFound) {
         pickups.push({ x: bomb.x, y: bomb.y, kind: 'key' });
@@ -1500,7 +1508,7 @@ function gainXp(amount) {
     streakCallout.y = player.y - 70;
     streakCallout.text = `LEVEL ${xpLevel}! ${label}`;
     addParticles(player.x, player.y, '#7ee8ff', 16, 140);
-    playSound('special/fanfare.ogg', 0.1);
+    playSound('som:alteration/levelup.ogg', 0.3);
   }
   updateHud();
 }
@@ -1547,7 +1555,7 @@ function updateClassSignature(dt) {
 }
 
 function useClassSignature() {
-  if (mode !== 'playing') return;
+  if (mode !== 'playing' || deathTimer > 0) return;
   const sig = classSignature();
   if (!sig?.active) return;
   if (player.signatureCooldown > 0) {
@@ -1556,7 +1564,7 @@ function useClassSignature() {
   }
   const cls = character.className;
   const angle = currentAimAngle();
-  if (cls === 'Sentinel') {
+  if (cls === 'Sapper') {
     if (bombs.some((bomb) => bomb.owner !== 'enemy' && bomb.fuse > 0)) return;
     bombsHeld += 1;
     placeBomb();
@@ -1681,6 +1689,22 @@ function vibrateController(damageAmount) {
   }
 }
 
+// Counts down the slow-motion beat between the killing blow and the game-over screen.
+let deathTimer = 0;
+
+// Tallies for the end-of-run summary; saved with the run.
+const runStats = { seconds: 0, kills: 0, guardians: 0, zennyFound: 0, lastHitBy: '', unlocked: [] };
+
+const DEATH_SLOWDOWN_SECONDS = 1.1;
+
+function damageSourceName(origin) {
+  if (!origin) return 'a hazard';
+  if (origin.fuse !== undefined) return 'a bomb';
+  if (origin.title) return origin.title;
+  const kind = origin.ownerKind || origin.kind;
+  return monsterSprites[kind] ? monsterDisplayName(kind) : 'an enemy attack';
+}
+
 function knockPlayerBack(source, incomingDamage) {
   let awayX = 0;
   let awayY = 0;
@@ -1705,7 +1729,7 @@ function knockPlayerBack(source, incomingDamage) {
 }
 
 function damagePlayer(damageAmount = 1, source) {
-  if (player.invuln > 0 || mode !== 'playing') return;
+  if (player.invuln > 0 || mode !== 'playing' || deathTimer > 0) return;
   if (source === undefined) {
     // No explicit source: assume the closest enemy or enemy shot did it.
     source = [...enemies, ...enemyProjectiles]
@@ -1742,11 +1766,18 @@ function damagePlayer(damageAmount = 1, source) {
   if (remainingDamage > 0) player.hp -= remainingDamage;
   if (incomingDamage > 1) triggerCameraShake('playerHeavyHit');
   else triggerCameraShake('playerHurt');
+  playSound('punch.ogg', 0.32);
+  runStats.lastHitBy = damageSourceName(source);
   player.invuln = 0.9;
   if (player.hp <= 0) {
-    mode = 'gameover';
+    // The run is lost now; a short slow-motion beat plays before the game-over screen.
+    deathTimer = DEATH_SLOWDOWN_SECONDS;
+    player.invuln = DEATH_SLOWDOWN_SECONDS + 1;
+    player.knockback = null;
+    player.hook = null;
+    dashTimer = 0;
     clearSavedRun();
-    showMessage('The sanctum claims another delver. Select a character to try again.', 5);
+    playSound('system/event-fail.ogg', 0.5);
   }
   updateHud();
 }
@@ -1763,7 +1794,7 @@ function shieldWithCompanion(projectile) {
   addParticles(companion.x, companion.y, '#bcf0a3', 9, 100);
   if (companion.hp <= 0) {
     companion.respawnTimer = 10;
-    showMessage(`${companion.kind} familiar was knocked out and will return in 10 seconds.`, 2.5);
+    showMessage(`${monsterDisplayName(companion.kind)} familiar was knocked out and will return in 10 seconds.`, 2.5);
   }
   return true;
 }
@@ -1830,7 +1861,7 @@ function updateCompanions(dt) {
         companion.hp = companion.maxHp;
         companion.hitCooldown = 0;
         companion.enemyCooldowns.clear();
-        showMessage(`${companion.kind} familiar has returned.`, 1.5);
+        showMessage(`${monsterDisplayName(companion.kind)} familiar has returned.`, 1.5);
       }
       companion.hp = Math.min(companion.maxHp, companion.hp);
       return;
@@ -1885,11 +1916,11 @@ function drawHurtVignette(shake) {
   // Snap in quickly, then ease out slowly.
   const intensity = hurtVignetteStrength * (progress > 0.85 ? (1 - progress) / 0.15 : Math.pow(progress / 0.85, 1.6));
   if (intensity <= 0.01) return;
-  const centerX = clamp(player.x - camera.x + shake.x, 0, canvas.width);
-  const centerY = clamp(player.y - 28 - camera.y + shake.y, 0, canvas.height);
+  const centerX = clamp(player.x - camera.x + shake.x, 0, VIEW_W);
+  const centerY = clamp(player.y - 28 - camera.y + shake.y, 0, VIEW_H);
   const farthest = Math.max(
-    Math.hypot(centerX, centerY), Math.hypot(canvas.width - centerX, centerY),
-    Math.hypot(centerX, canvas.height - centerY), Math.hypot(canvas.width - centerX, canvas.height - centerY),
+    Math.hypot(centerX, centerY), Math.hypot(VIEW_W - centerX, centerY),
+    Math.hypot(centerX, VIEW_H - centerY), Math.hypot(VIEW_W - centerX, VIEW_H - centerY),
   );
   const innerRadius = Math.max(60, farthest * (0.72 - 0.3 * intensity));
   const gradient = ctx.createRadialGradient(centerX, centerY, innerRadius, centerX, centerY, farthest);
@@ -1898,6 +1929,6 @@ function drawHurtVignette(shake) {
   gradient.addColorStop(1, `rgba(0, 0, 0, ${(0.78 * intensity).toFixed(3)})`);
   ctx.save();
   ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.restore();
 }

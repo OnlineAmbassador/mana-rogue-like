@@ -28,7 +28,7 @@ function ttsButtonBounds() {
 }
 
 function ttsPromptBounds(yes) {
-  return { x: canvas.width / 2 + (yes ? -190 : 30), y: 330, width: 160, height: 44 };
+  return { x: VIEW_W / 2 + (yes ? -190 : 30), y: 330, width: 160, height: 44 };
 }
 
 function setVolumeFromPointer(px, which = audioSliderDragging) {
@@ -75,7 +75,7 @@ function handleAudioPanelPointerDown(px, py) {
     setVolumeFromPointer(px);
     return true;
   }
-  if (pointInBounds(ttsButtonBounds(), px, py)) {
+  if (NARRATION_ENABLED && pointInBounds(ttsButtonBounds(), px, py)) {
     setTextToSpeech(audioSettings.tts !== true);
     return true;
   }
@@ -115,15 +115,15 @@ function handleAudioPanelPad(horizontal, confirmPressed) {
 function drawTtsPrompt() {
   ctx.save();
   ctx.fillStyle = 'rgba(8, 10, 9, 0.92)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 28px Georgia';
-  ctx.fillText('Read the story aloud?', canvas.width / 2, 230);
+  ctx.fillText('Read the story aloud?', VIEW_W / 2, 230);
   ctx.fillStyle = '#d6d0be';
   ctx.font = '16px Arial';
-  ctx.fillText('Turn on text-to-speech narration for the prologue and chapter intros.', canvas.width / 2, 268);
-  ctx.fillText('You can change this later with the narration button.', canvas.width / 2, 292);
+  ctx.fillText('Turn on text-to-speech narration for the prologue and chapter intros.', VIEW_W / 2, 268);
+  ctx.fillText('You can change this later with the narration button.', VIEW_W / 2, 292);
   for (const [yes, label] of [[true, 'YES (Y)'], [false, 'NO (N)']]) {
     const bounds = ttsPromptBounds(yes);
     ctx.fillStyle = yes ? '#30443b' : '#4a3a2a';
@@ -138,7 +138,7 @@ function drawTtsPrompt() {
 }
 
 function ttsPromptActive() {
-  return audioSettings.tts === null && mode === 'prologue';
+  return NARRATION_ENABLED && audioSettings.tts === null && mode === 'prologue';
 }
 
 function drawAudioPanel() {
@@ -160,6 +160,10 @@ function drawAudioPanel() {
     ctx.fillRect(bounds.x, bounds.y + 4, bounds.width * value, 6);
     ctx.fillStyle = '#fff0d1';
     ctx.fillRect(bounds.x + bounds.width * value - 4, bounds.y, 8, bounds.height);
+  }
+  if (!NARRATION_ENABLED) {
+    ctx.restore();
+    return;
   }
   const ttsOn = audioSettings.tts === true;
   ctx.fillStyle = ttsOn ? '#30443b' : '#4a2f2f';
@@ -197,8 +201,9 @@ function playSound(path, volume = 0.4) {
   volume *= audioSettings.sfxVolume;
   let pool = soundPools.get(path);
   if (!pool) {
+    const url = path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`;
     pool = Array.from({ length: 4 }, () => {
-      const audio = new Audio(`${soundRoot}/${path}`);
+      const audio = new Audio(url);
       audio.preload = 'auto';
       return audio;
     });
@@ -208,6 +213,20 @@ function playSound(path, volume = 0.4) {
   audio.currentTime = 0;
   audio.volume = volume;
   audio.play().catch(() => {});
+}
+
+// Pickups and obstacle hits can arrive in clusters, so each cue has a minimum gap between plays.
+const throttledSoundTimes = new Map();
+
+function playThrottledSound(path, volume, minGapMs = 70) {
+  const now = performance.now();
+  if (now - (throttledSoundTimes.get(path) || 0) < minGapMs) return;
+  throttledSoundTimes.set(path, now);
+  playSound(path, volume);
+}
+
+function playPickupSound(name, volume, minGapMs = 70) {
+  playThrottledSound(`som:alteration/${name}.ogg`, volume, minGapMs);
 }
 
 function scheduleMusicNote(midiNote, startTime, duration, volume, waveform) {
@@ -299,6 +318,7 @@ function speakWithNarrator(utterance, onReady) {
 }
 
 function startPrologueSpeechFallback(pageIndex) {
+  if (!narrationActive()) return false;
   if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
   if (prologueSpeechFallbackActive && window.speechSynthesis.speaking) return true;
   window.speechSynthesis.cancel();
@@ -327,7 +347,7 @@ function startPrologueSpeechFallback(pageIndex) {
 }
 
 function startPrologueNarration() {
-  if (mode !== 'prologue' || audioSettings.tts !== true) return false;
+  if (mode !== 'prologue' || !narrationActive()) return false;
   const audio = prologueNarrations[prologuePage];
   if (activePrologueNarration !== prologuePage) stopPrologueNarration();
   activePrologueNarration = prologuePage;
@@ -482,6 +502,7 @@ function stopChapterNarration() {
 }
 
 function speakChapter(text) {
+  if (!narrationActive()) return;
   if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -495,7 +516,7 @@ function speakChapter(text) {
 
 function startChapterNarration(card) {
   stopChapterNarration();
-  if (audioSettings.tts !== true) return;
+  if (!narrationActive()) return;
   const audio = new Audio(`assets/audio/intro-${card.key.replace(':', '-')}.ogg`);
   audio.volume = 0.76;
   chapterAudio = audio;
@@ -524,6 +545,15 @@ function closeChapter() {
   activeChapter = null;
   mode = chapterReturnMode;
   updateHud();
+}
+
+function resetRunStats(saved = {}) {
+  runStats.seconds = Number(saved.seconds) || 0;
+  runStats.kills = Number(saved.kills) || 0;
+  runStats.guardians = Number(saved.guardians) || 0;
+  runStats.zennyFound = Number(saved.zennyFound) || 0;
+  runStats.lastHitBy = typeof saved.lastHitBy === 'string' ? saved.lastHitBy : '';
+  runStats.unlocked = Array.isArray(saved.unlocked) ? saved.unlocked.filter((id) => typeof id === 'string') : [];
 }
 
 function padLabels() {
@@ -601,8 +631,8 @@ function updateControlsHint() {
       : ['←/→ Change Page · H/ESC Back'];
   } else {
     lines = lastInputMode === 'controller'
-      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex · Y How to Play · Back Controls']
-      : ['←/→ Select · Enter Descend · K Codex · H How to Play · C Controls'];
+      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex · Y How to Play · Back Controls · LB Prologue']
+      : ['←/→ Select · Enter Descend · K Codex · H How to Play · C Controls · P Prologue'];
   }
   const hintText = lines.join('\n');
   if (controlsEl.textContent !== hintText) controlsEl.textContent = hintText;
@@ -610,18 +640,28 @@ function updateControlsHint() {
 
 function updateHud() {
   if (!character) {
-    statsEl.textContent = mode === 'prologue' ? 'Candor Island · Hurnscald · Artis Ruins' : 'Choose a delver';
+    statsEl.textContent = mode === 'prologue' ? 'Tulimshar · Hurnscald · Artis Ruins' : 'Choose a delver';
     updateControlsHint();
     return;
   }
-  statsEl.textContent =
+  // updateHud runs every frame; only touch the DOM when the text changes.
+  const stats =
     `${currentFloorTheme().name} · ${character.className} • Lead: ${activeCombatStyle} | Zenny: ${coins} | Bank: ${save.bankedZenny}`;
+  if (statsEl.textContent !== stats) statsEl.textContent = stats;
   updateControlsHint();
 }
+
+const MAX_MESSAGE_TOASTS = 3;
 
 function showMessage(text, seconds = 2.5) {
   messageEl.textContent = text;
   messageTimer = seconds;
+  // During play, notices also stack on the canvas so they are seen and don't overwrite each other.
+  if (mode !== 'playing' || seconds > 60) return;
+  const existing = messageToasts.findIndex((toast) => toast.text === text);
+  if (existing >= 0) messageToasts.splice(existing, 1);
+  messageToasts.unshift({ text, timer: clamp(seconds, 1.5, 4) });
+  messageToasts.length = Math.min(messageToasts.length, MAX_MESSAGE_TOASTS);
 }
 
 function toggleControlsHelp() {
@@ -1155,7 +1195,6 @@ function drawEnemyBody(enemy) {
           (enemy.phase >= 2 ? 0.7 : 0.85) * Math.PI) * (enemy.phase >= 2 ? 86 : 56)
         : enemy.kind === 'wisp' ? Math.sin(elapsed * 5 + enemy.x) * 5 : 0;
     ctx.save();
-    if (enemy.hitFlash > 0) ctx.globalAlpha = 0.55;
     ctx.translate(enemy.x, enemy.y - hop);
     if (enemy.archetype === 'charger' && enemy.behavior === 'roll' ||
       enemy.linkDash && enemy.linkDash.windup <= 0 && enemy.linkDash.kind === 'roll' ||
@@ -1177,6 +1216,8 @@ function drawEnemyBody(enemy) {
       ctx.shadowBlur = enemy.phase >= 2 ? 30 : 16;
       if (enemy.phase >= 2) ctx.filter = 'saturate(1.5) brightness(1.25)';
     }
+    // A brief bright flash confirms the hit without fading the sprite out.
+    if (enemy.hitFlash > 0) ctx.filter = 'brightness(2.6) saturate(0.3)';
     ctx.drawImage(sprite.image, sourceX, sourceY, sprite.frameWidth, sprite.frameHeight,
       -width / 2, -height / 2, width, height);
     if ((enemy.kind === 'bandit' || enemy.kind === 'banditlord') &&
@@ -1430,11 +1471,13 @@ function drawEnemyBody(enemy) {
     ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = '#160f13';
-  ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11, enemy.radius * 2, 5);
-  ctx.fillStyle = enemy.boss ? '#e376bd' : '#9be08d';
-  ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11,
-    (enemy.hp / enemy.maxHp) * enemy.radius * 2, 5);
+  if (enemy.hp < enemy.maxHp) {
+    ctx.fillStyle = '#160f13';
+    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11, enemy.radius * 2, 5);
+    ctx.fillStyle = enemy.boss ? '#e376bd' : '#9be08d';
+    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11,
+      (enemy.hp / enemy.maxHp) * enemy.radius * 2, 5);
+  }
   if (enemy.boss || enemy.miniBoss) {
     ctx.fillStyle = '#f5debd';
     ctx.font = 'bold 14px Arial';
@@ -2656,7 +2699,7 @@ function drawWorld() {
     ctx.fillStyle = '#f2e5c6';
     ctx.font = 'bold 13px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('KEEPER', ROOM_W / 2, ROOM_H / 2 - 28);
+    ctx.fillText('MERCHANT', ROOM_W / 2, ROOM_H / 2 - 28);
     ctx.fillStyle = '#d3c4a6';
     ctx.font = '12px Arial';
     ctx.fillText('Stand by an item and press E to buy', ROOM_W / 2, ROOM_H / 2 + 43);
@@ -2877,7 +2920,7 @@ function drawWorld() {
       const auraColor = pickup.item.kind === 'element'
         ? magicElementPalette[pickup.item.element] || '#8fe0bd'
         : pickup.item.kind === 'ability' ? '#86dce8' : '#a8e39c';
-      if (bubbleScreenX + radius > canvas.width - 154 && bubbleY - camera.y - radius < 154) {
+      if (bubbleScreenX + radius > VIEW_W - 154 && bubbleY - camera.y - radius < 154) {
         bubbleY = camera.y + 154 + radius + 6;
       }
       ctx.save();
@@ -3317,9 +3360,6 @@ function drawWorld() {
     }
     ctx.restore();
   }
-  for (const projectile of enemyProjectiles) {
-    drawEnemyProjectile(projectile);
-  }
   for (const particle of particles) {
     ctx.globalAlpha = clamp(particle.ttl / particle.maxTtl, 0, 1);
     ctx.fillStyle = particle.color;
@@ -3416,6 +3456,8 @@ function drawWorld() {
   for (const enemy of enemies) drawEnemy(enemy);
   for (const companion of companions) drawCompanion(companion);
   drawPlayer();
+  // Enemy shots draw above the delver so the sprite never hides an incoming hit.
+  for (const projectile of enemyProjectiles) drawEnemyProjectile(projectile);
   drawOverheadPops();
   drawLaserBeams();
   drawSporePods();
@@ -3455,15 +3497,15 @@ function drawRoomLeftovers(room, x, y, cell, radius) {
 
 function drawMap() {
   ctx.fillStyle = 'rgba(12, 13, 20, 0.92)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#f3e9d8';
   ctx.font = 'bold 24px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('SANCTUM MAP', canvas.width / 2, 86);
+  ctx.fillText('SANCTUM MAP', VIEW_W / 2, 86);
 
   const cell = 55;
-  const originX = canvas.width / 2 - cell * 3.5;
-  const originY = canvas.height / 2 - cell * 3.5;
+  const originX = VIEW_W / 2 - cell * 3.5;
+  const originY = VIEW_H / 2 - cell * 3.5;
   for (const room of rooms) {
     if (!room.visited) continue;
     const x = originX + room.x * cell;
@@ -3492,7 +3534,7 @@ function drawMap() {
   }
   ctx.fillStyle = '#ded4c4';
   ctx.font = '16px Arial';
-  ctx.fillText('Press M to return', canvas.width / 2, canvas.height - 48);
+  ctx.fillText('Press M to return', VIEW_W / 2, VIEW_H - 48);
 }
 
 function roomMapRect(room, x, y, cell) {
@@ -3504,7 +3546,7 @@ function roomMapRect(room, x, y, cell) {
 }
 
 function drawMinimap() {
-  const panel = { x: canvas.width - 154, y: 12, width: 142, height: 142 };
+  const panel = { x: VIEW_W - 154, y: 12, width: 142, height: 142 };
   const cell = 16;
   const originX = panel.x + 14;
   const originY = panel.y + 25;
@@ -3587,37 +3629,34 @@ function drawMinimap() {
   }
 }
 
+// Bottom-left 1/2/3 weapon slots; the active one is enlarged, glowing and tagged.
+// Bottom action bar: every non-weapon button, with its key, live count and cooldown.
+// Mirrors the page's text lines (message + controls hint) into the canvas so they are visible without scrolling.
 function drawInGameCommentary() {
-  const text = messageEl.textContent || '';
-  const now = performance.now();
-  if (text !== commentaryText) {
-    commentaryText = text;
-    commentaryShownAt = now;
-  }
   const calm = enemies.length === 0;
-  const age = (now - commentaryShownAt) / 1000;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  if (text && age < 4) {
-    const alpha = Math.min(1, (4 - age) / 0.6);
-    ctx.font = 'bold 14px Arial';
-    const width = Math.min(canvas.width - 40, ctx.measureText(text).width + 28);
-    const messageY = currentRoom?.type === 'shop' ? 78 : 408;
-    ctx.globalAlpha = alpha;
+  // Recent messages stack upward from the commentary line, newest at the bottom.
+  ctx.font = 'bold 14px Arial';
+  messageToasts.forEach((toast, index) => {
+    // In the shop the line sits near the top, so the stack grows downward there.
+    const y = currentRoom?.type === 'shop' ? 78 + index * 30 : 408 - index * 30;
+    const width = Math.min(VIEW_W - 40, ctx.measureText(toast.text).width + 28);
+    ctx.globalAlpha = Math.min(1, toast.timer / 0.6) * (index === 0 ? 1 : 0.85);
     ctx.fillStyle = 'rgba(8, 10, 12, 0.78)';
-    ctx.fillRect(canvas.width / 2 - width / 2, messageY, width, 26);
+    ctx.fillRect(VIEW_W / 2 - width / 2, y, width, 26);
     ctx.fillStyle = '#f4e8c8';
-    ctx.fillText(text.slice(0, 120), canvas.width / 2, messageY + 18, canvas.width - 48);
-  }
+    ctx.fillText(toast.text.slice(0, 120), VIEW_W / 2, y + 18, VIEW_W - 48);
+  });
   if (calm && controlsHelpVisible) {
     const hint = (controlsEl.textContent || '').replace(/\n/g, ' · ');
     ctx.globalAlpha = 0.85;
     ctx.font = '11px Arial';
     ctx.fillStyle = 'rgba(8, 10, 12, 0.7)';
-    ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+    ctx.fillRect(0, VIEW_H - 20, VIEW_W, 20);
     ctx.fillStyle = '#d8d2b8';
-    ctx.fillText(hint, canvas.width / 2, canvas.height - 6, canvas.width - 16);
+    ctx.fillText(hint, VIEW_W / 2, VIEW_H - 6, VIEW_W - 16);
   }
   ctx.restore();
 }
@@ -3916,6 +3955,8 @@ function drawHealthHeart(x, y, fill) {
   ctx.stroke();
   if (fill > 0) {
     ctx.save();
+    // The heart icon is drawn smaller than its source, so it keeps smoothing.
+    ctx.imageSmoothingEnabled = true;
     ctx.beginPath();
     ctx.rect(x, y, fill * 17, 17);
     ctx.clip();
@@ -4082,7 +4123,7 @@ function drawGameHud() {
   const boss = enemies.find((enemy) => enemy.boss || enemy.miniBoss);
   if (boss) {
     const width = boss.boss ? 380 : 300;
-    const x = (canvas.width - width) / 2;
+    const x = (VIEW_W - width) / 2;
     const y = 46;
     ctx.fillStyle = 'rgba(14, 12, 18, 0.72)';
     ctx.fillRect(x, y, width, 29);
@@ -4095,7 +4136,7 @@ function drawGameHud() {
     ctx.textAlign = 'center';
     ctx.fillText(boss.boss
       ? `${boss.title}${boss.phase >= 3 ? ' - PHASE III' : boss.phase >= 2 ? ' - PHASE II' : ''}`
-      : boss.title || 'MINI-BOSS', canvas.width / 2, y + 12);
+      : boss.title || 'MINI-BOSS', VIEW_W / 2, y + 12);
   }
 }
 
@@ -4104,7 +4145,7 @@ function characterCardBounds(pageIndex) {
 }
 
 function characterStartBounds() {
-  return { x: canvas.width / 2 - 100, y: 490, width: 200, height: 36 };
+  return { x: VIEW_W / 2 - 100, y: 490, width: 200, height: 36 };
 }
 
 function menuFocusEntries() {
@@ -4126,7 +4167,47 @@ function activateMenuFocus() {
   if (menuFocus === 'help') toggleControlsHelp();
   else if (menuFocus === 'resume' && hasSavedRun()) restoreRun();
   else if (menuFocus === 'reset') requestProgressReset();
-  else beginRun();
+  else requestNewRun();
+}
+
+function defaultMenuFocus() {
+  return hasSavedRun() ? 'resume' : 'start';
+}
+
+// Starting over replaces the saved descent, so that takes a second press.
+function requestNewRun() {
+  if (hasSavedRun() && isCharacterUnlocked(characterRoster[selectedIndex]) && newRunConfirmTimer <= 0) {
+    newRunConfirmTimer = 4;
+    showMessage('Start a new descent? Your saved descent will be lost. Select Descend again to confirm.', 4);
+    return;
+  }
+  newRunConfirmTimer = 0;
+  beginRun();
+}
+
+function openPrologue() {
+  if (mode !== 'select') return;
+  stopPrologueNarration();
+  prologuePage = 0;
+  mode = 'prologue';
+  updateHud();
+}
+
+// Below the music and effects controls on the delver ledger.
+function prologueReplayBounds() {
+  return { x: 24, y: 124, width: 170, height: 22 };
+}
+
+// In the margins beside the row of delver cards.
+function rosterPageButtonBounds(direction) {
+  return { x: direction < 0 ? 2 : VIEW_W - 26, y: 247, width: 24, height: 44 };
+}
+
+function changeRosterPage(direction) {
+  const pageCount = Math.ceil(characterRoster.length / rosterPageSize);
+  const page = (Math.floor(selectedIndex / rosterPageSize) + direction + pageCount) % pageCount;
+  selectedIndex = page * rosterPageSize;
+  updateHud();
 }
 
 function resetButtonBounds() {
@@ -4144,7 +4225,7 @@ function requestProgressReset() {
 }
 
 function codexButtonBounds() {
-  return { x: canvas.width - 174, y: 80, width: 150, height: 30 };
+  return { x: VIEW_W - 174, y: 80, width: 150, height: 30 };
 }
 
 function openCodex() {
@@ -4188,12 +4269,12 @@ function codexEntries() {
   };
   return save.discoveredEnemyIds.map((kind) => ({
     id: kind,
-    name: kind.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join(' '),
+    name: monsterDisplayName(kind),
     description: [({
-      bandit: 'A road fighter whose arrows reveal the Trail-Worn Bow.',
-      'banditlord': 'The bandit captain unleashes a spreading fire burst.',
-      wisp: 'A drifting spirit that hurls charged lightning shots.',
-      'spore-sower': 'A fungal caster whose spores bloom into a radial burst.',
+      bandit: 'A road fighter. Study their arrows to unlock the Trail-Worn Bow.',
+      'banditlord': 'Captain of the road bandits, who answers any threat with a spreading burst of fire.',
+      wisp: 'A drifting spirit that hurls crackling bolts of lightning.',
+      'spore-sower': 'A fungal caster whose seed orbs burst into a ring of spores.',
     }[kind] || 'Encountered during a descent.'),
     ...((enemyMoves[kind] || []).filter((abilityId) => save.discoveredEnemyAbilityIds.includes(abilityId))
       .map((abilityId) => `Witnessed: ${moveNames[abilityId]}.`))].join(' '),
@@ -4202,18 +4283,24 @@ function codexEntries() {
 }
 
 function resumeRunBounds() {
-  return { x: canvas.width / 2 - 120, y: 451, width: 240, height: 30 };
+  return { x: VIEW_W / 2 - 120, y: 451, width: 240, height: 30 };
 }
 
 function prologueButtonBounds(direction) {
-  return { x: direction < 0 ? 94 : canvas.width - 214, y: 458, width: 120, height: 38 };
+  return { x: direction < 0 ? 94 : VIEW_W - 214, y: 458, width: 120, height: 38 };
 }
 
 function advancePrologue(direction) {
   if (mode !== 'prologue' || ttsPromptActive()) return;
   if (direction > 0 && prologuePage === prologuePages.length - 1) {
     stopPrologueNarration();
+    // Later visits open on the delver ledger; the prologue stays available from there.
+    if (!save.introducedChapters.includes('prologue')) {
+      save.introducedChapters.push('prologue');
+      persistSave();
+    }
     mode = 'select';
+    menuFocus = defaultMenuFocus();
     updateHud();
     showMessage('Prologue complete. Choose a delver to begin.', 2.5);
     return;
@@ -4233,6 +4320,21 @@ function advancePrologue(direction) {
   stopPrologueNarration();
   prologuePage = nextPage;
   startPrologueNarration();
+}
+
+function countWrappedLines(text, maxWidth) {
+  let line = '';
+  let count = 1;
+  for (const word of text.split(/\s+/)) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(candidate).width > maxWidth) {
+      line = word;
+      count += 1;
+    } else {
+      line = candidate;
+    }
+  }
+  return count;
 }
 
 function wrapCanvasText(text, x, y, maxWidth, lineHeight) {
@@ -4256,16 +4358,16 @@ function wrapCanvasText(text, x, y, maxWidth, lineHeight) {
 function drawPrologue() {
   const page = prologuePages[prologuePage];
   ctx.fillStyle = '#161b1a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#283a31';
-  ctx.fillRect(0, 0, canvas.width, 98);
+  ctx.fillRect(0, 0, VIEW_W, 98);
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`THE MANA WORLD  /  ${page.heading}`, canvas.width / 2, 54);
+  ctx.fillText(`THE MANA WORLD  /  ${page.heading}`, VIEW_W / 2, 54);
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 30px Georgia';
-  ctx.fillText(page.title, canvas.width / 2, 150);
+  ctx.fillText(page.title, VIEW_W / 2, 150);
   ctx.fillStyle = '#d6d0be';
   ctx.font = '18px Arial';
   ctx.textAlign = 'left';
@@ -4273,7 +4375,7 @@ function drawPrologue() {
   ctx.fillStyle = '#b9c8b3';
   ctx.font = '13px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`${prologuePage + 1} / ${prologuePages.length}`, canvas.width / 2, 425);
+  ctx.fillText(`${prologuePage + 1} / ${prologuePages.length}`, VIEW_W / 2, 425);
   const previous = prologueButtonBounds(-1);
   const next = prologueButtonBounds(1);
   for (const [bounds, label] of [[previous, 'BACK'], [next, prologuePage === prologuePages.length - 1 ? 'DELVER ROSTER' : 'CONTINUE']]) {
@@ -4287,7 +4389,7 @@ function drawPrologue() {
   }
   ctx.fillStyle = '#c5b9a6';
   ctx.font = '12px Arial';
-  ctx.fillText('Use ← / →, A / D, or the controller D-pad to read the prologue.', canvas.width / 2, 520);
+  ctx.fillText('Use ← / →, A / D, or the controller D-pad to read the prologue.', VIEW_W / 2, 520);
   drawAudioPanel();
   if (ttsPromptActive()) drawTtsPrompt();
 }
@@ -4296,16 +4398,16 @@ function drawChapter() {
   const card = activeChapter;
   if (!card) return;
   ctx.fillStyle = '#161b1a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#283a31';
-  ctx.fillRect(0, 0, canvas.width, 98);
+  ctx.fillRect(0, 0, VIEW_W, 98);
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`${card.kind === 'region' ? 'NEW MAP DISCOVERED' : 'NEW DELVER UNLOCKED'}  /  ${card.heading}`, canvas.width / 2, 54);
+  ctx.fillText(`${card.kind === 'region' ? 'NEW MAP DISCOVERED' : 'NEW DELVER UNLOCKED'}  /  ${card.heading}`, VIEW_W / 2, 54);
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 30px Georgia';
-  ctx.fillText(card.title, canvas.width / 2, 150);
+  ctx.fillText(card.title, VIEW_W / 2, 150);
   ctx.fillStyle = '#d6d0be';
   ctx.font = '18px Arial';
   ctx.textAlign = 'left';
@@ -4321,26 +4423,51 @@ function drawChapter() {
   ctx.fillText('CONTINUE', next.x + next.width / 2, next.y + 24);
   ctx.fillStyle = '#c5b9a6';
   ctx.font = '12px Arial';
-  ctx.fillText('Enter, Space, a click, or A continues. The narrator reads each entry aloud.', canvas.width / 2, 520);
+  ctx.fillText(narrationActive()
+    ? 'Enter, Space, a click, or A continues. The narrator reads each entry aloud.'
+    : 'Enter, Space, a click, or A continues.', VIEW_W / 2, 520);
 }
 
 function drawCharacterSelect() {
   ctx.fillStyle = '#161b17';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#efd4a0';
   ctx.font = 'bold 29px Georgia';
   ctx.textAlign = 'center';
-  ctx.fillText('THE MANA WORLD  /  DELVER LEDGER', canvas.width / 2, 72);
+  ctx.fillText('THE MANA WORLD  /  DELVER LEDGER', VIEW_W / 2, 72);
   ctx.fillStyle = '#c8cbbd';
   ctx.font = '14px Arial';
   const pageStart = Math.floor(selectedIndex / rosterPageSize) * rosterPageSize;
   const pageNumber = Math.floor(pageStart / rosterPageSize);
-  ctx.fillText(`Page ${pageNumber + 1} / ${Math.ceil(characterRoster.length / rosterPageSize)}  •  ← / → selects delvers`, canvas.width / 2, 105);
+  ctx.fillText(`Page ${pageNumber + 1} / ${Math.ceil(characterRoster.length / rosterPageSize)}  •  ← / → selects delvers`, VIEW_W / 2, 105);
   if (lastInputMode === 'touch') {
     ctx.font = 'bold 32px Arial';
     ctx.fillText('‹', 35, 270);
-    ctx.fillText('›', canvas.width - 35, 270);
+    ctx.fillText('›', VIEW_W - 35, 270);
   }
+  // Touch shows its own swipe arrows; mouse and controller get the page buttons.
+  if (lastInputMode !== 'touch') for (const direction of [-1, 1]) {
+    const pageButton = rosterPageButtonBounds(direction);
+    ctx.fillStyle = pointInBounds(pageButton) ? '#52664f' : '#30443b';
+    ctx.fillRect(pageButton.x, pageButton.y, pageButton.width, pageButton.height);
+    ctx.strokeStyle = '#a5c79b';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pageButton.x, pageButton.y, pageButton.width, pageButton.height);
+    ctx.fillStyle = '#e4f0d7';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText(direction < 0 ? '‹' : '›', pageButton.x + pageButton.width / 2, pageButton.y + 28);
+  }
+  const prologueButton = prologueReplayBounds();
+  ctx.fillStyle = pointInBounds(prologueButton) ? '#52664f' : '#30443b';
+  ctx.fillRect(prologueButton.x, prologueButton.y, prologueButton.width, prologueButton.height);
+  ctx.strokeStyle = '#a5c79b';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(prologueButton.x, prologueButton.y, prologueButton.width, prologueButton.height);
+  ctx.fillStyle = '#e4f0d7';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText(lastInputMode === 'controller' ? 'PROLOGUE  [LB]' : 'PROLOGUE  [P]',
+    prologueButton.x + prologueButton.width / 2, prologueButton.y + 15);
+  ctx.font = '14px Arial';
   const codexButton = codexButtonBounds();
   ctx.fillStyle = pointer.x >= codexButton.x && pointer.x <= codexButton.x + codexButton.width &&
     pointer.y >= codexButton.y && pointer.y <= codexButton.y + codexButton.height ? '#52664f' : '#30443b';
@@ -4402,7 +4529,7 @@ function drawCharacterSelect() {
     ctx.fillText(`${entry.className}  •  ${entry.styleLabel}`, x, y + 67);
     const profile = characterProfile(entry);
     const rating = (value) => (value >= 1.3 ? '★★★' : value >= 1.1 ? '★★' : value >= 0.95 ? '★' : '·');
-    ctx.fillText(`HP 4  •  DMG ${entry.damage}  •  SPEED ${Math.round(entry.speed)}`, x, y + 84);
+    ctx.fillText(`HP ${startingHearts(entry)}  •  DMG ${entry.damage}  •  SPEED ${Math.round(entry.speed)}`, x, y + 84);
     ctx.font = '10px Arial';
     ctx.fillText(`⚔${rating(profile.melee)} 🏹${rating(Math.max(profile.bow, profile.bowRate))} ✦${rating(profile.magic)}`, x, y + 98);
     ctx.font = '11px Arial';
@@ -4419,7 +4546,7 @@ function drawCharacterSelect() {
   const selectedSignature = classSignature(selected);
   ctx.fillText(isCharacterUnlocked(selected)
     ? `${selected.trait}${selectedSignature ? `  ·  ${selectedSignature.label}: ${selectedSignature.desc}` : ''}`
-    : `LOCKED  /  ${selected.unlock}`, canvas.width / 2, 416);
+    : `LOCKED  /  ${selected.unlock}`, VIEW_W / 2, 416);
   if (hasSavedRun()) {
     const resume = resumeRunBounds();
     const hoveredResume = pointer.x >= resume.x && pointer.x <= resume.x + resume.width &&
@@ -4430,7 +4557,7 @@ function drawCharacterSelect() {
     ctx.strokeRect(resume.x, resume.y, resume.width, resume.height);
     ctx.fillStyle = '#fff0d1';
     ctx.font = 'bold 13px Arial';
-    ctx.fillText('RESUME SAVED DESCENT', canvas.width / 2, resume.y + 21);
+    ctx.fillText('RESUME SAVED DESCENT', VIEW_W / 2, resume.y + 21);
     if (lastInputMode === 'controller' && menuFocus === 'resume') {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 3;
@@ -4439,7 +4566,7 @@ function drawCharacterSelect() {
   } else {
     ctx.fillStyle = '#c5b9a6';
     ctx.font = '12px Arial';
-    ctx.fillText('Learn styles and weapons; all your attacks stack. Break cracked walls with bombs.', canvas.width / 2, 462);
+    ctx.fillText('Learn styles and weapons; all your attacks stack. Break cracked walls with bombs.', VIEW_W / 2, 462);
   }
   const start = characterStartBounds();
   const hoveredStart = pointer.x >= start.x && pointer.x <= start.x + start.width &&
@@ -4451,7 +4578,7 @@ function drawCharacterSelect() {
   ctx.strokeRect(start.x, start.y, start.width, start.height);
   ctx.fillStyle = '#fff0d1';
   ctx.font = 'bold 15px Arial';
-  ctx.fillText('DESCEND', canvas.width / 2, start.y + 25);
+  ctx.fillText(newRunConfirmTimer > 0 ? 'CONFIRM NEW DESCENT' : 'DESCEND', VIEW_W / 2, start.y + 25);
   const focusBounds = {
     start,
     reset: resetButtonBounds(),
@@ -4477,12 +4604,12 @@ function drawCharacterSelect() {
 
 function drawCodex() {
   ctx.fillStyle = '#111714';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.strokeStyle = '#83a588';
   ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4525,7 +4652,7 @@ function drawCodex() {
   visibleEntries.forEach((entry, index) => {
     const y = 172 + index * 43;
     ctx.fillStyle = 'rgba(8, 12, 10, 0.6)';
-    ctx.fillRect(68, y, canvas.width - 136, 38);
+    ctx.fillRect(68, y, VIEW_W - 136, 38);
     if (entry.kind !== 'enemy') drawShopItemIcon(entry, 91, y + 19);
     else {
       ctx.fillStyle = '#98c98e';
@@ -4548,7 +4675,7 @@ function drawCodex() {
       ctx.textAlign = 'right';
       ctx.fillStyle = found ? '#a9d79e' : '#e0c77c';
       ctx.font = 'bold 10px Arial';
-      ctx.fillText(status, canvas.width - 78, y + 23);
+      ctx.fillText(status, VIEW_W - 78, y + 23);
     }
   });
 
@@ -4557,9 +4684,9 @@ function drawCodex() {
   ctx.font = '12px Arial';
   const collectionProgress = codexTab === 'lore'
     ? ` · ${(save.loreRelics || []).length}/${manaLoreRelics.length} collected` : '';
-  ctx.fillText(`${entries.length === 0 ? 0 : codexScroll + 1}-${Math.min(entries.length, codexScroll + 7)} / ${entries.length}${collectionProgress}  ·  ↑/↓ Browse  ·  ←/→ Change tab`, canvas.width / 2, 480);
+  ctx.fillText(`${entries.length === 0 ? 0 : codexScroll + 1}-${Math.min(entries.length, codexScroll + 7)} / ${entries.length}${collectionProgress}  ·  ↑/↓ Browse  ·  ←/→ Change tab`, VIEW_W / 2, 480);
   ctx.fillStyle = '#a5c79b';
-  ctx.fillText('K / ESC / B  ·  Close', canvas.width / 2, 500);
+  ctx.fillText('K / ESC / B  ·  Close', VIEW_W / 2, 500);
 }
 
 function controlsActionList() {
@@ -4575,15 +4702,15 @@ function controlsRowBounds(index) {
 }
 
 function controlsBackBounds() {
-  return { x: canvas.width / 2 - 65, y: 468, width: 130, height: 28 };
+  return { x: VIEW_W / 2 - 65, y: 468, width: 130, height: 28 };
 }
 
 function controlsButtonBounds() {
-  return { x: canvas.width - 334, y: 114, width: 150, height: 28 };
+  return { x: VIEW_W - 334, y: 114, width: 150, height: 28 };
 }
 
 function helpButtonBounds() {
-  return { x: canvas.width - 494, y: 114, width: 150, height: 28 };
+  return { x: VIEW_W - 494, y: 114, width: 150, height: 28 };
 }
 
 function pointInBounds(bounds, x = pointer.x, y = pointer.y) {
@@ -4700,12 +4827,12 @@ function drawControls() {
   const actions = controlsActionList();
   controlsRow = Math.min(controlsRow, actions.length);
   ctx.fillStyle = '#111714';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.strokeStyle = '#83a588';
   ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4785,17 +4912,17 @@ function drawControls() {
   ctx.fillStyle = '#9fb59f';
   ctx.font = '11px Arial';
   ctx.fillText('Changes save automatically and update the tutorial and on-screen prompts. A key or button already in use swaps places.',
-    canvas.width / 2, 508);
+    VIEW_W / 2, 508);
 }
 
 function tutorialButtonBounds() {
-  return { x: canvas.width - 174 - 160, y: 80, width: 150, height: 30 };
+  return { x: VIEW_W - 174 - 160, y: 80, width: 150, height: 30 };
 }
 
 function tutorialNavBounds(which) {
   if (which === 'prev') return { x: 70, y: 468, width: 130, height: 30 };
-  if (which === 'next') return { x: canvas.width - 200, y: 468, width: 130, height: 30 };
-  return { x: canvas.width / 2 - 65, y: 468, width: 130, height: 30 };
+  if (which === 'next') return { x: VIEW_W - 200, y: 468, width: 130, height: 30 };
+  return { x: VIEW_W / 2 - 65, y: 468, width: 130, height: 30 };
 }
 
 function openTutorial() {
@@ -4883,12 +5010,12 @@ function drawTutorial() {
   const page = pages[tutorialPage];
   const pad = lastInputMode === 'controller';
   ctx.fillStyle = '#111714';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.strokeStyle = '#83a588';
   ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, canvas.width - 84, canvas.height - 56);
+  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4900,7 +5027,7 @@ function drawTutorial() {
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(70, 108);
-  ctx.lineTo(canvas.width - 70, 108);
+  ctx.lineTo(VIEW_W - 70, 108);
   ctx.stroke();
 
   const colWidth = 390;
@@ -4934,28 +5061,79 @@ function drawTutorial() {
   }
   ctx.fillStyle = '#9fb59f';
   ctx.font = '11px Arial';
-  ctx.fillText(pad ? `D-Pad ←/→ Page  ·  ${padLabels().b} Back` : '←/→ Page  ·  Esc Back', canvas.width / 2, 508);
+  ctx.fillText(pad ? `D-Pad ←/→ Page  ·  ${padLabels().b} Back` : '←/→ Page  ·  Esc Back', VIEW_W / 2, 508);
 }
 
-function drawGameOver() {
-  ctx.fillStyle = 'rgba(10, 9, 14, 0.84)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#f1dec1';
+function drawRunSummary(title) {
+  const centerX = VIEW_W / 2;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10, 9, 14, 0.88)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.textAlign = 'center';
+  ctx.fillStyle = '#f1dec1';
   ctx.font = 'bold 38px Georgia';
-  ctx.fillText('THE SANCTUM CLAIMS YOU', canvas.width / 2, canvas.height / 2 - 24);
-  ctx.font = '18px Arial';
-  ctx.fillText(`Score ${score}  •  Floor ${currentFloor}`, canvas.width / 2, canvas.height / 2 + 14);
-  ctx.fillText('Press Enter to choose a delver', canvas.width / 2, canvas.height / 2 + 52);
+  ctx.fillText(title, centerX, 112);
+
+  const minutes = Math.floor(runStats.seconds / 60);
+  const seconds = String(Math.floor(runStats.seconds % 60)).padStart(2, '0');
+  const lines = [
+    `${character?.name || 'Delver'}  •  Level ${xpLevel}  •  Floor ${currentFloor} of ${finalFloor}  •  ${minutes}:${seconds}`,
+    `Score ${score}  •  Foes defeated ${runStats.kills}  •  Guardians ${runStats.guardians}  •  Zenny found ${runStats.zennyFound}`,
+  ];
+  if (mode === 'gameover' && runStats.lastHitBy) lines.push(`Last hit: ${runStats.lastHitBy}`);
+  ctx.font = '16px Arial';
+  lines.forEach((line, index) => ctx.fillText(line, centerX, 158 + index * 26));
+
+  const routeY = 158 + lines.length * 26 + 14;
+  ctx.fillStyle = '#c8cbbd';
+  ctx.font = '13px Arial';
+  const route = mapOrder.slice(0, currentFloor).map((id) => floorThemes[id]?.name || id).join('  →  ');
+  const routeLines = wrapCanvasText(route, centerX, routeY, 780, 18);
+
+  const items = shopItemCatalog.filter((item) => ownedItems.has(item.id));
+  const iconsY = routeY + routeLines * 18 + 34;
+  const perRow = 18;
+  items.forEach((item, index) => {
+    const row = Math.floor(index / perRow);
+    const rowCount = Math.min(perRow, items.length - row * perRow);
+    const x = centerX + (index % perRow - (rowCount - 1) / 2) * 36;
+    drawShopItemIcon(item, x, iconsY + row * 38);
+  });
+
+  const unlockedNames = runStats.unlocked
+    .map((id) => characterRoster.find((entry) => entry.id === id)?.name).filter(Boolean);
+  if (unlockedNames.length > 0) {
+    ctx.fillStyle = '#a8d39b';
+    ctx.font = 'bold 13px Arial';
+    ctx.textAlign = 'center';
+    wrapCanvasText(`Unlocked: ${unlockedNames.join(', ')}`, centerX, 440, 780, 18);
+  }
+
+  ctx.fillStyle = '#f1dec1';
+  ctx.font = '17px Arial';
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = endScreenDelay > 0 ? 0.35 : 1;
+  ctx.fillText(lastInputMode === 'controller' ? 'Press A to choose a delver'
+    : 'Press Enter or click to choose a delver', centerX, 500);
+  ctx.restore();
+}
+
+function returnToCharacterSelect() {
+  if (endScreenDelay > 0) return;
+  mode = 'select';
+  // Stay on the delver who just descended instead of jumping back to the first card.
+  selectedIndex = Math.max(0, characterRoster.indexOf(character));
+  menuFocus = defaultMenuFocus();
+  updateHud();
 }
 
 function drawStoryJournal() {
   ctx.save();
   ctx.fillStyle = 'rgba(12, 14, 18, 0.94)';
-  ctx.fillRect(72, 35, canvas.width - 144, canvas.height - 70);
+  ctx.fillRect(72, 35, VIEW_W - 144, VIEW_H - 70);
   ctx.strokeStyle = '#aab98a';
   ctx.lineWidth = 2;
-  ctx.strokeRect(72, 35, canvas.width - 144, canvas.height - 70);
+  ctx.strokeRect(72, 35, VIEW_W - 144, VIEW_H - 70);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4963,21 +5141,34 @@ function drawStoryJournal() {
   ctx.fillStyle = '#f2e3c4';
   ctx.font = 'bold 25px Georgia';
   ctx.fillText('Roadside notes', 104, 116);
-  let y = 157;
-  for (const entry of storyLog.slice(-6)) {
+  // Keep the newest entries that fit, then draw them oldest first.
+  const textWidth = VIEW_W - 212;
+  const top = 157;
+  const bottom = VIEW_H - 85;
+  ctx.font = '14px Arial';
+  const visible = [];
+  let height = 0;
+  for (const entry of storyLog.slice().reverse()) {
+    const lines = countWrappedLines(entry.text, textWidth);
+    const entryHeight = 22 + lines * 20 + 18;
+    if (top + height + entryHeight - 38 > bottom) break;
+    visible.unshift(entry);
+    height += entryHeight;
+  }
+  let y = top;
+  for (const entry of visible) {
     ctx.fillStyle = '#d9bd83';
     ctx.font = 'bold 14px Arial';
     ctx.fillText(entry.title, 106, y);
     y += 22;
     ctx.fillStyle = '#d6d0be';
     ctx.font = '14px Arial';
-    const lines = wrapCanvasText(entry.text, 106, y, canvas.width - 212, 20);
+    const lines = wrapCanvasText(entry.text, 106, y, textWidth, 20);
     y += lines * 20 + 18;
-    if (y > canvas.height - 105) break;
   }
   ctx.fillStyle = '#b9c8b3';
   ctx.font = '12px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('J / left-stick click · Close journal', canvas.width / 2, canvas.height - 68);
+  ctx.fillText('J / left-stick click · Close journal', VIEW_W / 2, VIEW_H - 68);
   ctx.restore();
 }

@@ -15,6 +15,73 @@ function estimatedPlayerDps() {
   return Math.max(6, magic, bow, melee);
 }
 
+// Proper names for monsters whose sprite keys don't read as one.
+const monsterDisplayNames = {
+  'slime-mother': 'Great Red Slime', bosspinkie: 'Pinkie Matriarch', golem: 'Ancient Golem',
+  banditlord: 'Bandit Lord', yetiking: 'Yeti King', forestdragon: 'Forest Dragon',
+  nightdragon: 'Night Dragon', vampirebat: 'Vampire Bat', junglefowl: 'Jungle Fowl',
+};
+
+function monsterDisplayName(kind) {
+  return monsterDisplayNames[kind] ||
+    kind.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
+}
+
+// Source of Mana mobs that match a Hollow Sanctum enemy, with the cues SoM ships for each.
+const somMobEvents = {
+  ratto: ['attack', 'hit', 'death'],
+  bat: ['attack', 'death'],
+  slime: ['attack', 'hit', 'death'],
+  snake: ['attack'],
+  scorpion: ['attack', 'hit'],
+  croc: ['attack', 'dodge', 'hit'],
+  fluffy: ['attack', 'dodge', 'hit'],
+  skeleton: ['death'],
+  shroom: ['attack', 'hit', 'death'],
+  pinkie: ['attack', 'dodge'],
+  piou: ['attack', 'dodge', 'hit', 'death'],
+  turtle: ['attack', 'dodge', 'hit', 'death'],
+};
+
+const somMobByEnemy = {
+  ratto: 'ratto', bat: 'bat', vampirebat: 'bat', slime: 'slime',
+  snake: 'snake', scorpion: 'scorpion', croc: 'croc', fluffy: 'fluffy', skeleton: 'skeleton',
+  'spore-sower': 'shroom', bosspinkie: 'pinkie', junglefowl: 'piou', snail: 'turtle',
+};
+
+// As in SoM, any mob without its own hit or dodge cue uses the shared one.
+const somSharedEnemySounds = { hit: 'som:alteration/hit.ogg', dodge: 'som:alteration/dodge.ogg' };
+
+// TMW cues for species with no Source of Mana equivalent: attack is the swing, hit is the hurt cue.
+const tmwSpecies = (attack, hit, death) => ({ attack, hit, death });
+
+const tmwEnemySounds = {
+  zombie: tmwSpecies('monsters/zombie/zombie-miss1.ogg', null, 'monsters/zombie/zombie-dying1.ogg'),
+  spider: tmwSpecies('monsters/spider/spider-hit1.ogg', null, 'monsters/spider/spider-die1.ogg'),
+  'spider-queen': tmwSpecies('monsters/spider/spider-hit1.ogg'),
+  bee: tmwSpecies('monsters/bee/bee-miss1.ogg', 'monsters/bee/hurt.ogg', 'monsters/bee/bee-die1.ogg'),
+  yeti: tmwSpecies('monsters/yeti/yeti-miss1.ogg', 'monsters/yeti/yeti-hurt1.ogg', 'monsters/yeti/yeti-die1.ogg'),
+  yetiking: tmwSpecies('monsters/yeti/yeti-miss1.ogg', 'monsters/yeti/yeti-hurt1.ogg', 'monsters/yeti/yeti-die1.ogg'),
+  snowman: tmwSpecies('monsters/snowman_boss/miss1.ogg'),
+  'snowman-boss': tmwSpecies('monsters/snowman_boss/miss1.ogg'),
+  golem: tmwSpecies('monsters/golem/miss1.ogg', null, 'monsters/golem/die.ogg'),
+  reaper: tmwSpecies('monsters/reaper/reaper-hit1.ogg', 'monsters/reaper/reaper-hurt1.ogg', 'monsters/reaper/reaper-die1.ogg'),
+  jacko: tmwSpecies(null, null, 'monsters/pumpkin/die1.ogg'),
+  forestdragon: tmwSpecies('monsters/dragon/hit.ogg', null, 'monsters/dragon/die.ogg'),
+  nightdragon: tmwSpecies('monsters/dragon/hit.ogg', null, 'monsters/dragon/die.ogg'),
+  frostiana: tmwSpecies('monsters/frostiana/hit1.ogg'),
+  'slime-mother': tmwSpecies(null, 'monsters/slime-super/slime-super-hurt1.ogg', 'monsters/slime-super/slime-super-die1.ogg'),
+  wisp: tmwSpecies(null, null, 'monsters/ghost/ghost-die1.ogg'),
+};
+
+// Source of Mana's cue for the species, else its TMW cue, else the shared hit/dodge cue.
+// Attack and death return null when nothing matches so the caller's generic cue plays.
+function enemySound(enemy, event) {
+  const mob = somMobByEnemy[enemy.kind];
+  if (mob && somMobEvents[mob].includes(event)) return `som:entities/${mob}/${event}.ogg`;
+  return tmwEnemySounds[enemy.kind]?.[event] || somSharedEnemySounds[event] || null;
+}
+
 function createEnemy(kind, x, y, boss = false) {
   recordEnemyDiscovery(kind);
   const specs = {
@@ -235,8 +302,18 @@ function bossForCurrentArea() {
   })[currentRegionId()] || 'slime-mother';
 }
 
+function addRoomRewardPickup(room) {
+  if (!room.rewardUpgrade || room.rewardClaimed) return;
+  if (['miniboss', 'shrine'].includes(room.type) && !room.cleared) return;
+  if (pickups.some((pickup) => pickup.kind === 'upgrade' && pickup.item?.id === room.rewardUpgrade.id)) return;
+  pickups.push({ x: ROOM_W / 2, y: ROOM_H / 2, kind: 'upgrade', item: room.rewardUpgrade, room });
+}
+
 function playEnemyAttackSound(enemy, volume = enemy.boss ? 0.3 : 0.14) {
-  if (enemy.boss) {
+  const attackSound = enemySound(enemy, 'attack');
+  if (attackSound) {
+    playSound(attackSound, volume);
+  } else if (enemy.boss) {
     playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/hit1.ogg' : 'ML/Roar.ogg', volume);
   } else {
     playSound('monsters/zombie/zombiemiss.ogg', volume);
@@ -1364,11 +1441,17 @@ function dropLoot(x, y, boss = false, bossSummoned = false) {
     const abilities = shopItemCatalog.filter((item) => item.kind === 'ability' &&
       !ownedItems.has(item.id) && !reservedUpgradeIds.has(item.id) &&
       !abilityAlreadyOffered(item.id) &&
-      (item.id === 'orbiting-projectiles' || abilityCount < 2));
+      (item.id === 'orbiting-projectiles' || abilityCount < 2) &&
+      save.purchasedAbilityIds.includes(item.id) && isUpgradeAvailable(item));
     if (abilities.length > 0) {
       const ability = abilities[Math.floor(Math.random() * abilities.length)];
       markAbilityOffered(ability);
       pickups.push({ x, y, kind: 'upgrade', item: ability, room: currentRoom });
+    } else {
+      // No eligible ability: the guardian still leaves a heart and some zenny.
+      pickups.push({ x, y, kind: 'heart' });
+      spawnCoin(x + 18, y);
+      spawnCoin(x - 18, y);
     }
     const guardianHeart = shopItemCatalog.find((item) => item.id === 'guardian-heart');
     if (guardianHeart && !ownedItems.has(guardianHeart.id)) {
@@ -1429,6 +1512,12 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
   }
   enemy.hp -= damage;
   enemy.hitFlash = 0.16;
+  const hitSound = enemy.hp > 0 && damage > 0 && !(enemy.hitSoundUntil > performance.now())
+    ? enemySound(enemy, 'hit') : null;
+  if (hitSound) {
+    enemy.hitSoundUntil = performance.now() + 140;
+    playSound(hitSound, enemy.boss ? 0.2 : 0.16);
+  }
   const impactXDirection = enemy.x - impactX;
   const impactYDirection = enemy.y - impactY;
   const fallbackAngle = Math.atan2(player.lookY, player.lookX);
@@ -1466,12 +1555,17 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
     // A satisfying pop on every kill.
     addParticles(enemy.x, enemy.y - 10, enemy.color || '#ffffff', enemy.boss ? 40 : 16, enemy.boss ? 260 : 170);
     addParticles(enemy.x, enemy.y - 10, '#fff6d8', enemy.boss ? 18 : 6, 120);
+    runStats.kills += 1;
+    if (enemy.boss) runStats.guardians += 1;
     onClassKill(enemy);
     killStreak = killStreakTimer > 0 ? killStreak + 1 : 1;
     killStreakTimer = 3.2;
     if (killStreak % 3 === 0) {
       const bonusCoin = reserveCoin();
-      if (bonusCoin) coins += 1;
+      if (bonusCoin) {
+        coins += 1;
+        runStats.zennyFound += 1;
+      }
       streakCallout.timer = streakCallout.duration;
       streakCallout.x = player.x;
       streakCallout.y = player.y - 42;
@@ -1479,8 +1573,9 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       addParticles(enemy.x, enemy.y, '#ffe08b', 8, 95);
       playSound('special/fanfare.ogg', 0.12);
     }
-    playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/die1.ogg' : 'monsters/zombie/zombiedie.ogg',
-      enemy.boss ? 0.65 : 0.38);
+    playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/die1.ogg'
+      : enemySound(enemy, 'death') || 'monsters/zombie/zombiedie.ogg', enemy.boss ? 0.65 : 0.38);
+    if (enemy.boss || enemy.miniBoss) triggerCameraShake('bomb');
     dropLoot(enemy.x, enemy.y, enemy.boss, enemy.bossSummoned);
     const linkedTwin = enemy.linkId
       ? enemies.find((candidate) => candidate !== enemy && candidate.linkId === enemy.linkId)
@@ -1500,7 +1595,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       linkedTwin.linkShieldSeen = false;
       linkedTwin.speed /= 1.08;
       addParticles(linkedTwin.x, linkedTwin.y, '#d8e6ff', 8, 80);
-      showMessage(`${linkedTwin.title || linkedTwin.kind} loses its linked armor.`, 2.5);
+      showMessage(`${linkedTwin.title || monsterDisplayName(linkedTwin.kind)} loses its linked armor.`, 2.5);
     }
     spawnEnemyOffspring(enemy);
     if (wasBoss || wasMiniBoss) {
@@ -1517,7 +1612,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       bossStrikes.length = 0;
       groundHazards.length = 0;
       for (let i = bombs.length - 1; i >= 0; i--) if (bombs[i].owner === 'enemy') bombs.splice(i, 1);
-      playSound('special/fanfare.ogg', 0.45);
+      playSound('som:alteration/quest-done.ogg', 0.5);
       recordFloorClear(currentFloor);
       const unlockedId = ({
         'slime-mother': 'tulimshar-guard', bosspinkie: 'candor-runner',
@@ -1528,7 +1623,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       })[enemy.kind];
       const newlyUnlocked = unlockedId ? unlockCharacter(unlockedId) : false;
       const unlockedName = characterRoster.find((entry) => entry.id === unlockedId)?.name;
-      recordStory(`${enemy.title} defeated`, `${enemy.title} has fallen. ${newlyUnlocked && unlockedName ? `${unlockedName} is now available. ` : ''}This guardian belongs to the side-story and does not alter TMW quest history.`);
+      recordStory(`${enemy.title} defeated`, `${enemy.title} has fallen, and the Kaore in this land begins to thin.${newlyUnlocked && unlockedName ? ` ${unlockedName} is now available.` : ''}`);
       recordStory(`${currentFloorTheme().name} · echo`, regionalBossClues[currentRegionId()]);
       persistSave();
       const unlockNotice = newlyUnlocked && unlockedName ? ` ${unlockedName} is now selectable.` : '';
@@ -1620,6 +1715,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
       enemy.dodgeX = (-shot.vy / shotSpeed) * sign;
       enemy.dodgeY = (shot.vx / shotSpeed) * sign;
       enemy.dodgeTimer = 0.16;
+      playSound(enemySound(enemy, 'dodge'), 0.14);
       addParticles(enemy.x, enemy.y, '#ffffff', 3, 40);
       return true;
     }
@@ -1768,6 +1864,7 @@ function updateEnemy(enemy, dt) {
 }
 
 function updateEnemyBehavior(enemy, dt) {
+  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
   enemy.swordHitEffectTimer = Math.max(0, (enemy.swordHitEffectTimer || 0) - dt);
   enemy.gustVisualTimer = Math.max(0, (enemy.gustVisualTimer || 0) - dt);
   enemy.freezeTimer = Math.max(0, enemy.freezeTimer || 0);
@@ -1788,14 +1885,6 @@ function updateEnemyBehavior(enemy, dt) {
     damageEnemy(enemy, 1, enemy.x, enemy.y);
     if (!enemies.includes(enemy)) return;
   }
-  enemy.wetTimer = Math.max(0, (enemy.wetTimer || 0) - dt);
-  enemy.burnTimer = Math.max(0, (enemy.burnTimer || 0) - dt);
-  enemy.burnCooldown = Math.max(0, (enemy.burnCooldown || 0) - dt);
-  if (enemy.burnTimer > 0 && enemy.burnCooldown <= 0) {
-    enemy.burnCooldown = 0.8;
-    damageEnemy(enemy, 1, enemy.x, enemy.y);
-    if (!enemies.includes(enemy)) return;
-  }
   const dx = player.x - enemy.x;
   const dy = player.y - enemy.y;
   const distance = Math.hypot(dx, dy) || 1;
@@ -1805,7 +1894,6 @@ function updateEnemyBehavior(enemy, dt) {
   enemy.attackCooldown -= dt * (enemy.boss || enemy.miniBoss
     ? 1 + Math.max(0, currentFloor - 1) * 0.06 : 1 + Math.max(0, currentFloor - 1) * 0.08) * (enemy.boss ? 1.3 : 1);
   enemy.stateTimer -= dt;
-  enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
   enemy.spitFlash = Math.max(0, enemy.spitFlash - dt);
 
   if (enemy.boss || enemy.miniBoss || enemy.bossAI) {

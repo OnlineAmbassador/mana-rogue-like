@@ -160,6 +160,7 @@ function unlockCharacter(id) {
     showMessage('One delver can be unlocked per descent. Other discoveries will be waiting next run.', 3);
     return false;
   }
+  if (!runStats.unlocked.includes(id)) runStats.unlocked.push(id);
   save.unlockedCharacters.push(id);
   if (id === 'warden') save.warden = true;
   if (id === 'arcanist') save.arcanist = true;
@@ -375,11 +376,12 @@ function serializeRun() {
     companions: companions.map(({ enemyCooldowns, ...companion }) => companion),
     storyLog,
     mouseAimActive: typeof mouseAimActive !== 'undefined' && mouseAimActive,
+    runStats: { ...runStats, unlocked: [...runStats.unlocked] },
   };
 }
 
 function saveRunState() {
-  if (!character || !currentRoom || !['playing', 'paused'].includes(mode)) return;
+  if (!character || !currentRoom || deathTimer > 0 || !['playing', 'paused'].includes(mode)) return;
   try {
     localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(serializeRun()));
   } catch (error) {
@@ -472,7 +474,7 @@ function restoreRun() {
   player.characterUnlocksThisRun = clamp(
     Number.isInteger(player.characterUnlocksThisRun) ? player.characterUnlocksThisRun : 0, 0, 1,
   );
-  player.maxHp = clamp(player.maxHp, 1, BASE_HEARTS + MAX_EXTRA_HEARTS);
+  player.maxHp = clamp(player.maxHp, 1, startingHearts(character) + MAX_EXTRA_HEARTS);
   player.hp = Math.min(player.hp, player.maxHp);
   score = saved.score || 0;
   coins = saved.coins || 0;
@@ -524,6 +526,10 @@ function restoreRun() {
   consumables.push(...(saved.consumables || []));
   companions.length = 0;
   canvas.style.cursor = 'crosshair';
+  deathTimer = 0;
+  messageToasts.length = 0;
+  player.knockback = null;
+  resetRunStats(saved.runStats);
   mode = 'playing';
   showMap = false;
   showStoryJournal = false;

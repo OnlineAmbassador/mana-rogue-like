@@ -152,6 +152,7 @@ function pollGamepad() {
     if (wasButtonPressed(5)) openCodex();
     if (wasButtonPressed(3)) openTutorial();
     if (wasButtonPressed(8)) openControls('select');
+    if (wasButtonPressed(4)) openPrologue();
   } else if (mode === 'tutorial') {
     if (wasButtonPressed(1) || wasButtonPressed(9)) closeTutorial();
     if (wasButtonPressed(0) || wasButtonPressed(5)) stepTutorial(1);
@@ -159,7 +160,9 @@ function pollGamepad() {
   } else if (mode === 'codex') {
     if (wasButtonPressed(0) || wasButtonPressed(1) || wasButtonPressed(9)) closeCodex();
     if (wasButtonPressed(4) || wasButtonPressed(5)) toggleCodexTab();
-    if (dpadY !== 0) codexScroll = clamp(codexScroll + (dpadY > 0 ? 1 : -1), 0, Math.max(0, codexEntries().length - 7));
+    if (wasButtonPressed(12) || wasButtonPressed(13)) {
+      codexScroll = clamp(codexScroll + (wasButtonPressed(13) ? 1 : -1), 0, Math.max(0, codexEntries().length - 7));
+    }
   } else if (mode === 'chapter') {
     if (wasButtonPressed(0) || wasButtonPressed(1) || wasButtonPressed(9)) closeChapter();
   } else if (mode === 'controls') {
@@ -171,11 +174,7 @@ function pollGamepad() {
       else exitToTitle();
     } else if (wasButtonPressed(8)) openControls('paused');
   } else if (mode === 'gameover' || mode === 'won') {
-    if (wasButtonPressed(0) || wasButtonPressed(9)) {
-      mode = 'select';
-      selectedIndex = 0;
-      updateHud();
-    }
+    if (wasButtonPressed(0) || wasButtonPressed(9)) returnToCharacterSelect();
   } else if (mode === 'playing') {
     if (wasButtonPressed(9)) pauseGame();
     for (let button = 0; button < 16; button += 1) {
