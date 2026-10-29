@@ -83,7 +83,7 @@ test('ordinary upgrades and consumables preserve the active element; sigils unlo
     itemEffectTagsFor = () => [];
     isUpgradeAvailable = () => true;
     applyRandomFireMode = () => null;
-    recordItemDiscovery = updateHud = showMessage = popOverPlayer = () => {};
+    recordItemDiscovery = updateHud = showMessage = popOverPlayer = playSound = () => {};
     showPickupBanner = (name, tags) => { bannerTags = tags; };
   `, c);
   c.character.className = 'Rogue';

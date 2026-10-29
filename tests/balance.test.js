@@ -9,7 +9,7 @@ const source = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8
 function combat() {
   const c = vm.createContext({
     Math: Object.assign(Object.create(Math), { random: () => 0.05 }),
-    mode: 'playing', currentFloor: 1, elapsed: 10,
+    mode: 'playing', currentFloor: 1, elapsed: 10, performance,
     save: { unlockedCharacters: [], playtimeSeconds: 0 },
     player: { x: 300, y: 300, lookX: 1, lookY: 0, radius: 12, damage: 1, luck: 0 },
     weapon: { damageBonus: 0, shotDamageMultiplier: (2 / 3) / 0.23,
@@ -329,7 +329,7 @@ test('reward rooms only spawn relics that do not require bombs to break', () => 
   const c = combat();
   const bombOnly = { type: 'bomb-only', radius: 18 };
   const breakable = { type: 'regenerating', radius: 15 };
-  c.obstacleSpritesByFloor = { 1: [bombOnly, breakable] };
+  c.regionObstacleSprites = () => [bombOnly, breakable];
   c.currentFloor = 1;
   c.ROOM_W = 960;
   c.ROOM_H = 540;

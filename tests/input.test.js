@@ -31,6 +31,7 @@ function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {
     touchAttackEl: { classList: { add() {}, remove() {} } },
     gamepadInput: { connected: false },
     lastInputMode: 'touch', lastNonControllerInputMode: 'touch', mode: 'playing',
+    resizeCanvas() {}, VIEW_W: 960, VIEW_H: 540,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   vm.runInContext(source.slice(source.indexOf('function isTouchDevice()'), source.indexOf("let mode = 'prologue'")), context);
@@ -329,6 +330,7 @@ test('mouse movement updates player facing toward the pointer before firing', ()
   context.canvas = {
     width: 960,
     height: 540,
+    clientLeft: 0, clientTop: 0, clientWidth: 960, clientHeight: 540,
     style: {},
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 960, height: 540 }),
   };

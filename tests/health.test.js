@@ -23,6 +23,7 @@ function combat() {
     clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
     hasLineOfSight: () => true,
+    monsterSprites: {},
   });
   for (const file of ['playermanager.js', 'mobmanager.js', 'worldmanager.js', 'gameui.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), c);
@@ -40,7 +41,9 @@ test('four hearts withstand eight unprotected half-heart hits', () => {
     c.player.invuln = 0;
     c.damagePlayer(0.5, null);
     assert.equal(c.player.hp, 4 - hit * 0.5);
-    assert.equal(c.mode, hit === 8 ? 'gameover' : 'playing');
+    // The fatal hit starts a short death slow-motion; the game-over screen follows once it elapses.
+    assert.equal(vm.runInContext('deathTimer', c) > 0, hit === 8);
+    assert.equal(c.mode, 'playing');
   }
 });
 

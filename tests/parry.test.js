@@ -370,14 +370,21 @@ test('returned shots use the identical renderer as hostile shots and never draw 
   vm.runInContext(ui, c);
   const loop = ui.slice(ui.indexOf('  for (const projectile of projectiles) {'),
     ui.indexOf('  for (const particle of particles) {'));
+  const hostileLoop = 'for (const projectile of enemyProjectiles) drawEnemyProjectile(projectile);';
   for (const kind of ['arrow', 'venom', 'spore-orb', 'spore-shard', 'ice-orb']) {
     const original = { x: 300, y: 200, vx: 500, vy: 100, kind, color: '#91d8f5', radius: 9 };
+    // Hostile shots are drawn by their own loop after the particles, so render each side separately.
     c.projectiles = [{ ...original, type: 'reflected' }];
-    c.enemyProjectiles = [{ ...original }];
+    c.enemyProjectiles = [];
     calls.length = 0;
     vm.runInContext(loop, c);
-    const midpoint = calls.length / 2;
-    assert.deepEqual(calls.slice(0, midpoint), calls.slice(midpoint), kind);
-    assert.equal(calls.some(([command]) => command === 'drawImage'), false);
+    const reflected = [...calls];
+    c.projectiles = [];
+    c.enemyProjectiles = [{ ...original }];
+    calls.length = 0;
+    vm.runInContext(hostileLoop, c);
+    assert.ok(reflected.length > 0, kind);
+    assert.deepEqual(reflected, calls, kind);
+    assert.equal(reflected.some(([command]) => command === 'drawImage'), false);
   }
 });
