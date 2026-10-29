@@ -717,3 +717,73 @@ test('Yeti-style wind gusts carry a visible directional warning for the knockbac
   assert.equal(c.player.windPush.vx, 300);
   assert.equal(c.player.windPush.timer, 0.9);
 });
+
+// Top-level let/const in the manager scripts are not context properties, so read and write them through the VM.
+const peek = (c, expression) => vm.runInContext(expression, c);
+const setDominant = (c, style) => vm.runInContext(`dominantAIStyle = ${JSON.stringify(style)};`, c);
+
+test('mob AI follows the style the player relies on, with hysteresis against quick swaps', () => {
+  const c = combat();
+  c.activeCombatStyle = 'magic';
+  c.resetStyleHeat();
+  assert.equal(peek(c, 'dominantAIStyle'), 'magic');
+  c.recordStyleUse('melee', 0.8);
+  assert.equal(peek(c, 'dominantAIStyle'), 'magic');
+  for (let i = 0; i < 12; i += 1) c.recordStyleUse('melee', 0.8);
+  assert.equal(peek(c, 'dominantAIStyle'), 'melee');
+  c.recordStyleUse('bow', 0.3);
+  assert.equal(peek(c, 'dominantAIStyle'), 'melee');
+});
+
+test('style heat decays and mobs return to neutral when the player stops attacking', () => {
+  const c = combat();
+  c.activeCombatStyle = 'bow';
+  c.resetStyleHeat();
+  assert.equal(peek(c, 'dominantAIStyle'), 'bow');
+  for (let i = 0; i < 40; i += 1) c.updateStyleHeat(0.5);
+  assert.equal(peek(c, 'dominantAIStyle'), null);
+  assert.equal(c.aiStyleProfile(), peek(c, 'styleAIProfiles.neutral'));
+});
+
+test('each style draws a distinct mob response from the shared tactics', () => {
+  const profileFor = (style, className = 'Mage') => {
+    const c = combat();
+    c.character.className = className;
+    setDominant(c, style);
+    return c.aiStyleProfile();
+  };
+  assert.ok(profileFor('melee').ringScale > 1);
+  assert.equal(profileFor('melee').punishRecovery, true);
+  assert.ok(profileFor('bow').ringScale < 1);
+  assert.equal(profileFor('bow').tokenBonus, 1);
+  assert.ok(profileFor('bow').dodgeScale > 1);
+  assert.ok(profileFor('magic').spacingScale > 1);
+  assert.ok(profileFor('magic').rangedRate > 1);
+  assert.ok(profileFor('melee', 'Warrior').ringScale > profileFor('melee', 'Mage').ringScale);
+});
+
+test('the bow response lets one extra melee mob engage', () => {
+  const waitingCooldown = (style) => {
+    const c = combat();
+    c.currentFloor = 2;
+    setDominant(c, style);
+    const mobs = [0, 1, 2].map((i) => ({ x: 500 + i, y: 300, hp: 5, radius: 12, archetype: 'charger',
+      behavior: i < 2 ? 'charge' : 'patrol', attackCooldown: 0.2, speed: 40, dodgeCooldown: 5, tacticTimer: 5 }));
+    c.enemies.push(...mobs);
+    c.applyMobTactics(mobs[2], 0.016, 1, 0, 300);
+    return mobs[2].attackCooldown;
+  };
+  // Floor 2 allows two engaged chargers: a magic player's third waits, a bow player's may commit.
+  assert.equal(waitingCooldown('magic'), 0.25);
+  assert.equal(waitingCooldown('bow'), 0.2);
+});
+
+test('bosses and promoted boss-AI foes ignore the style response', () => {
+  const c = combat();
+  setDominant(c, 'magic');
+  assert.equal(c.styleCooldownRate({ boss: true, archetype: 'ranged' }), 1);
+  assert.equal(c.styleCooldownRate({ miniBoss: true, archetype: 'ranged' }), 1);
+  assert.equal(c.styleCooldownRate({ bossAI: true, archetype: 'ranged' }), 1);
+  assert.equal(c.styleCooldownRate({ archetype: 'charger' }), 1);
+  assert.ok(c.styleCooldownRate({ archetype: 'ranged' }) > 1);
+});

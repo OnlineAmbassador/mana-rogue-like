@@ -4970,6 +4970,7 @@ function tutorialPages() {
     { title: 'WEAPONS', sections: [
       ['Three weapon types', 'Melee swings a blade, the bow fires arrows and magic casts bolts. Your class hits hardest with one, but every weapon is always ready.'],
       ['No ammo, no waiting', 'There is nothing to refill or recharge. Swap weapons freely to fit the fight and just keep attacking.'],
+      ['Foes adapt', 'Ordinary foes adjust their tactics to the weapon you have been using for the past few seconds. Melee, bow and magic each draw a different response; bosses are unaffected.'],
       ['Weapon upgrades', 'Weapon-specific upgrades can change your firing style as a side effect. Watch the pickup banner to see when an upgrade changes how your weapon fires.'],
       ['Deflect and elements', 'Bat shots out of the air anywhere along your visible melee sweep. The first clean intercept per swing has a 40% chance to heal half a heart. Late body-contact deflections still hurt. Charged releases deflect nearby shots outward. Returned shots keep their original appearance.'],
       ['Arrow returns', 'Shoot enemy projectiles away with the forgiving area around an arrow tip. Clashes accelerate shots and scatter them widely, retaining their original look. An arrow-returned shot has one 40% chance to heal half a heart when it first damages an enemy. Interception alone never heals.'],

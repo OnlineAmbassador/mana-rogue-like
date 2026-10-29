@@ -15,6 +15,37 @@ function estimatedPlayerDps() {
   return Math.max(6, magic, bow, melee);
 }
 
+// How regular mobs answer the weapon the player relies on (see dominantAIStyle). Scale fields are multipliers on
+// the existing tactic knobs; tokenBonus and punishRecovery are on/off. Bosses never read this.
+const styleAIProfiles = {
+  neutral: { ringScale: 1, dodgeScale: 1, dodgeAll: false, tokenBonus: 0, spacingScale: 1, rangedRate: 1, punishRecovery: false },
+  // Melee: casters kite wide, and foes commit while the player recovers from a swing.
+  melee: { ringScale: 1.3, dodgeScale: 1, dodgeAll: false, tokenBonus: 0, spacingScale: 1, rangedRate: 1, punishRecovery: true },
+  // Bow: kiting is punished: foes close in, dodge more often and one more melee mob may engage.
+  bow: { ringScale: 0.75, dodgeScale: 1.5, dodgeAll: true, tokenBonus: 1, spacingScale: 1, rangedRate: 1, punishRecovery: false },
+  // Magic: foes spread out to blunt area and chain effects, and ranged mobs act a little faster.
+  magic: { ringScale: 1, dodgeScale: 1, dodgeAll: false, tokenBonus: 0, spacingScale: 1.6, rangedRate: 1.15, punishRecovery: false },
+};
+
+// The player's profile for the style scales how hard the counter bites (a Warrior's sword draws a firmer one).
+function aiStyleProfile() {
+  const style = dominantAIStyle;
+  const row = styleAIProfiles[style];
+  if (!row) return styleAIProfiles.neutral;
+  const intensity = clamp(characterProfile()[style] ?? 1, 0.8, 1.3);
+  const scaled = (value) => 1 + (value - 1) * intensity;
+  return { ...row, ringScale: scaled(row.ringScale), dodgeScale: scaled(row.dodgeScale),
+    spacingScale: scaled(row.spacingScale), rangedRate: scaled(row.rangedRate) };
+}
+
+const styleRangedArchetypes = ['ranged', 'cluster-caster', 'web-spitter'];
+
+// Attack-cooldown tick multiplier for one enemy; bosses and promoted boss-AI foes always tick at 1.
+function styleCooldownRate(enemy) {
+  if (enemy.boss || enemy.miniBoss || enemy.bossAI) return 1;
+  return styleRangedArchetypes.includes(enemy.archetype) ? aiStyleProfile().rangedRate : 1;
+}
+
 // Proper names for monsters whose sprite keys don't read as one.
 const monsterDisplayNames = {
   'slime-mother': 'Great Red Slime', bosspinkie: 'Pinkie Matriarch', golem: 'Ancient Golem',
@@ -1689,8 +1720,9 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
   }
 
   if (!calmMobBehaviors.has(enemy.behavior)) return false;
+  const styleAI = aiStyleProfile();
   if (enemy.attackCooldown <= 0 && distance < 430 && !mobAttackBeatAvailable(enemy)) {
-    const ring = ['ranged', 'cluster-caster', 'web-spitter'].includes(enemy.archetype) ? 265 : 205;
+    const ring = (styleRangedArchetypes.includes(enemy.archetype) ? 265 : 205) * styleAI.ringScale;
     const radial = distance > ring + 25 ? 0.6 : distance < ring - 25 ? -0.6 : 0;
     const side = enemy.strafeDirection || 1;
     moveEnemy(enemy, (directionX * radial - directionY * side * 0.55) * enemy.speed,
@@ -1698,7 +1730,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
     return true;
   }
 
-  const evasive = ['ranged', 'stalker', 'diver', 'cluster-caster'].includes(enemy.archetype);
+  const evasive = styleAI.dodgeAll || ['ranged', 'stalker', 'diver', 'cluster-caster'].includes(enemy.archetype);
   if (currentFloor >= 2 && evasive && enemy.dodgeCooldown <= 0) {
     for (const shot of projectiles) {
       if (shot.owner === 'companion') continue;
@@ -1710,7 +1742,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
       const side = (rx * -shot.vy + ry * shot.vx) / shotSpeed;
       if (Math.abs(side) > enemy.radius + shot.radius + 22) continue;
       enemy.dodgeCooldown = Math.max(0.9, 2.4 - floorScale * 0.25);
-      if (Math.random() > Math.min(0.6, 0.15 + floorScale * 0.1)) break;
+      if (Math.random() > Math.min(0.75, (0.15 + floorScale * 0.1) * styleAI.dodgeScale)) break;
       const sign = side >= 0 ? 1 : -1;
       enemy.dodgeX = (-shot.vy / shotSpeed) * sign;
       enemy.dodgeY = (shot.vx / shotSpeed) * sign;
@@ -1726,7 +1758,11 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
   const meleeArchetypes = ['charger', 'leaper', 'stalker', 'diver'];
   if (meleeArchetypes.includes(enemy.archetype) && distance < 420) {
     // Hades-style attack tokens: only a few melee mobs may commit at once; the rest circle and wait.
-    const maxAttackers = Math.min(3, 1 + Math.floor(currentFloor / 2));
+    const maxAttackers = Math.min(3, 1 + Math.floor(currentFloor / 2)) + styleAI.tokenBonus;
+    // A melee player mid-recovery is open: waiting foes line up their next strike for the end of it.
+    if (styleAI.punishRecovery && player.fireCooldown > 0.2 && distance < 220) {
+      enemy.attackCooldown = Math.min(enemy.attackCooldown, 0.25);
+    }
     const engaged = enemies.filter((other) => other !== enemy && meleeArchetypes.includes(other.archetype) &&
       !calmMobBehaviors.has(other.behavior)).length;
     if (engaged >= maxAttackers && enemy.attackCooldown <= 0.3) {
@@ -1747,7 +1783,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
       nearestDistance = gap;
       nearestAlly = ally;
     }
-    const spacing = enemy.radius + ally.radius + 10;
+    const spacing = (enemy.radius + ally.radius + 10) * styleAI.spacingScale;
     if (gap < spacing && gap > 0) {
       moveEnemy(enemy, ((enemy.x - ally.x) / gap) * enemy.speed * 0.8,
         ((enemy.y - ally.y) / gap) * enemy.speed * 0.8, dt);
@@ -1892,7 +1928,8 @@ function updateEnemyBehavior(enemy, dt) {
   const directionY = dy / distance;
   const visible = distance < 430 && hasLineOfSight(enemy, player);
   enemy.attackCooldown -= dt * (enemy.boss || enemy.miniBoss
-    ? 1 + Math.max(0, currentFloor - 1) * 0.06 : 1 + Math.max(0, currentFloor - 1) * 0.08) * (enemy.boss ? 1.3 : 1);
+    ? 1 + Math.max(0, currentFloor - 1) * 0.06 : 1 + Math.max(0, currentFloor - 1) * 0.08) * (enemy.boss ? 1.3 : 1) *
+    styleCooldownRate(enemy);
   enemy.stateTimer -= dt;
   enemy.spitFlash = Math.max(0, enemy.spitFlash - dt);
 

@@ -4,6 +4,13 @@ Notable changes to MANA: Hollow Sanctum, newest first. Entries list the commits 
 
 These entries were later ported onto upstream's module split (`gameui.js`, `mobmanager.js`, `playermanager.js`, `dbmanager.js`, `worldmanager.js`) in the `Text:`, `Fix:`, `Gameplay:`, `Feedback:`, `Audio:` and `Display:` commits. The original commit IDs listed below are kept on the `backup/main-pre-improvements` and `backup/hidpi-pre-improvements` tags. The slider fix from `3e1759f` was already made upstream.
 
+## 2026-10-29
+
+### Weapon-aware mob AI
+- Regular mobs adapt to the weapon style the player has been using. The player's recent attack time per style is tracked in `styleHeat` (`playermanager.js`, half-life 4 s); the leading style must hold a 25% lead to take over, so swapping weapons shifts the AI after a few seconds rather than instantly.
+- `styleAIProfiles` (`mobmanager.js`) holds the responses and is read in `applyMobTactics`: melee widens the ring casters keep and has waiting foes strike during the player's swing recovery; bow narrows the ring, raises dodge odds and the melee attacker cap by one; magic widens ally spacing and speeds ranged mobs' attack cooldown. The effect scales lightly with the character's profile for that style.
+- Bosses, minibosses and promoted boss-AI enemies ignore it. The first stance shift per run shows a short neutral message.
+
 ## 2026-10-27
 
 Built on the 2026-10-26 overhaul (`8ae8751`, "added some polish"). Covers commits `0654956`…`3e1759f`.

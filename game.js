@@ -1500,6 +1500,7 @@ function beginRun() {
   reservedUpgradeIds.clear();
   for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
   activeCombatStyle = entry.startingStyle;
+  resetStyleHeat();
   if (entry.startingAbility) ownedItems.add(entry.startingAbility);
   consumables.length = 0;
   companions.length = 0;
@@ -1889,6 +1890,7 @@ function update(dt) {
   lastPlayerSample.x = player.x;
   lastPlayerSample.y = player.y;
   playerStillTimer = Math.hypot(playerVelocity.x, playerVelocity.y) < 45 ? playerStillTimer + dt : 0;
+  updateStyleHeat(dt);
   updateBossStrikes(dt);
   resolveDoorCrossing();
   if (control) updateWalkInInteractions(dt);
