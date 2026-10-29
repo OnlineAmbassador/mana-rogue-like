@@ -1525,7 +1525,7 @@ function drawCompanion(companion) {
 
 function drawPlayer() {
   const sprite = humanoidSprites[character.sprite];
-  const direction = Math.abs(player.lookX) > Math.abs(player.lookY)
+  const direction = Math.abs(player.lookX) >= Math.abs(player.lookY)
     ? player.lookX < 0 ? 'left' : 'right'
     : player.lookY < 0 ? 'up' : 'down';
   const directionRow = { down: 0, left: 1, up: 2, right: 3 }[direction];
@@ -3887,6 +3887,28 @@ function drawStyleSlots() {
     }
     ctx.restore();
     ctx.save();
+    // After a swap the other slots stay greyed out; the wedge shrinks as the cooldown runs out.
+    if (!selected && weaponSwapCooldown > 0) {
+      ctx.save();
+      const centerX = x + size / 2;
+      const centerY = y + size / 2;
+      ctx.beginPath();
+      ctx.rect(x, y, size, size);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.66)';
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.arc(centerX, centerY, size, -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * Math.min(1, weaponSwapCooldown / WEAPON_SWAP_COOLDOWN));
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(String(Math.ceil(weaponSwapCooldown)), centerX, centerY + 1);
+      ctx.restore();
+    }
     ctx.font = 'bold 11px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -4970,6 +4992,7 @@ function tutorialPages() {
     { title: 'WEAPONS', sections: [
       ['Three weapon types', 'Melee swings a blade, the bow fires arrows and magic casts bolts. Your class hits hardest with one, but every weapon is always ready.'],
       ['No ammo, no waiting', 'There is nothing to refill or recharge. Swap weapons freely to fit the fight and just keep attacking.'],
+      ['Foes adapt', 'Ordinary foes adjust their tactics to the weapon you have been using for the past few seconds. Melee, bow and magic each draw a different response; bosses are unaffected.'],
       ['Weapon upgrades', 'Weapon-specific upgrades can change your firing style as a side effect. Watch the pickup banner to see when an upgrade changes how your weapon fires.'],
       ['Deflect and elements', 'Bat shots out of the air anywhere along your visible melee sweep. The first clean intercept per swing has a 40% chance to heal half a heart. Late body-contact deflections still hurt. Charged releases deflect nearby shots outward. Returned shots keep their original appearance.'],
       ['Arrow returns', 'Shoot enemy projectiles away with the forgiving area around an arrow tip. Clashes accelerate shots and scatter them widely, retaining their original look. An arrow-returned shot has one 40% chance to heal half a heart when it first damages an enemy. Interception alone never heals.'],

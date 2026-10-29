@@ -56,6 +56,56 @@ function styleSynergy(style) {
   return strong && Boolean(activeWeaponMod(style));
 }
 
+// Mob AI reacts to the weapon the player has been relying on, not the one held this instant, so a quick
+// swap cannot dodge the counter. Heat is seconds spent attacking with each style, decaying over time.
+const STYLE_HEAT_HALF_LIFE = 4;
+const STYLE_HEAT_MIN = 2;
+const STYLE_HEAT_LEAD = 1.25;
+const styleHeat = { melee: 0, bow: 0, magic: 0 };
+let dominantAIStyle = null;
+let styleShiftAnnounced = false;
+// Swapping weapons is free but not instant, so rapid swapping cannot sidestep the mob response above.
+const WEAPON_SWAP_COOLDOWN = 6;
+let weaponSwapCooldown = 0;
+
+function resetStyleHeat() {
+  weaponSwapCooldown = 0;
+  for (const style of Object.keys(styleHeat)) styleHeat[style] = 0;
+  dominantAIStyle = null;
+  styleShiftAnnounced = false;
+  if (styleHeat[activeCombatStyle] === 0) {
+    styleHeat[activeCombatStyle] = STYLE_HEAT_MIN * 2;
+    dominantAIStyle = activeCombatStyle;
+  }
+}
+
+function refreshDominantStyle() {
+  const leader = Object.keys(styleHeat).reduce((best, style) => (styleHeat[style] > styleHeat[best] ? style : best), 'melee');
+  if (dominantAIStyle && styleHeat[dominantAIStyle] < STYLE_HEAT_MIN * 0.5) dominantAIStyle = null;
+  if (leader === dominantAIStyle) return;
+  const incumbentHeat = dominantAIStyle ? styleHeat[dominantAIStyle] : 0;
+  if (styleHeat[leader] >= STYLE_HEAT_MIN && styleHeat[leader] >= incumbentHeat * STYLE_HEAT_LEAD) {
+    const shifted = dominantAIStyle !== null;
+    dominantAIStyle = leader;
+    if (shifted && !styleShiftAnnounced) {
+      styleShiftAnnounced = true;
+      showMessage('Foes adjust.', 1.4);
+    }
+  }
+}
+
+function recordStyleUse(style, seconds) {
+  if (!(style in styleHeat)) return;
+  styleHeat[style] += Math.min(1.5, Math.max(0, seconds));
+  refreshDominantStyle();
+}
+
+function updateStyleHeat(dt) {
+  const decay = Math.pow(0.5, dt / STYLE_HEAT_HALF_LIFE);
+  for (const style of Object.keys(styleHeat)) styleHeat[style] *= decay;
+  refreshDominantStyle();
+}
+
 function resolveElementalImpact(projectile, target) {
   const impactX = projectile.x - projectile.vx * 0.02;
   const impactY = projectile.y - projectile.vy * 0.02;
@@ -946,6 +996,7 @@ function performMeleeAttack(charged) {
   // Heavy, deliberate swings (Diablo-style); only Flurry Gauntlets speed them up.
   player.fireCooldown = Math.max(0.5, (nativeStyle() === 'melee' ? character.fireDelay || 0.3 : 0.3) * FIRE_RATE_SCALE * 2.4) *
     (charged ? 1.3 : flurry ? 0.4 : 1) / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
+  recordStyleUse('melee', player.fireCooldown);
   playSound('weapons/barehands/hit1.ogg', 0.2);
 }
 
@@ -1214,6 +1265,7 @@ function shoot(options = null) {
     }
   }
   player.fireCooldown = attackDelay * morph.delayMul * FIRE_RATE_SCALE * bowDelayMul;
+  recordStyleUse(style, player.fireCooldown);
   if (activeCombatStyle === 'bow' && rangedStyles.includes('bow')) {
     playSound('weapons/bow/shoot.ogg', 0.22);
   } else if (activeCombatStyle === 'magic' && rangedStyles.includes('magic')) {
@@ -1254,6 +1306,8 @@ function cycleCombatStyle(step = 1) {
 }
 
 function selectCombatStyle(style) {
+  if (style === activeCombatStyle || weaponSwapCooldown > 0) return;
+  weaponSwapCooldown = WEAPON_SWAP_COOLDOWN;
   activeCombatStyle = style;
   player.meleeCharge = 0;
   player.bowHold = 0;

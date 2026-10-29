@@ -23,6 +23,7 @@ function combat() {
     clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
     hasLineOfSight: () => true,
+    monsterSprites: {},
   });
   for (const file of ['playermanager.js', 'mobmanager.js', 'worldmanager.js', 'gameui.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), c);
@@ -40,7 +41,9 @@ test('four hearts withstand eight unprotected half-heart hits', () => {
     c.player.invuln = 0;
     c.damagePlayer(0.5, null);
     assert.equal(c.player.hp, 4 - hit * 0.5);
-    assert.equal(c.mode, hit === 8 ? 'gameover' : 'playing');
+    // The fatal hit starts a short death slow-motion; the game-over screen follows once it elapses.
+    assert.equal(vm.runInContext('deathTimer', c) > 0, hit === 8);
+    assert.equal(c.mode, 'playing');
   }
 });
 
@@ -442,4 +445,23 @@ test('heart renderer clips a half-heart to exactly half the icon with or without
     c.drawHealthHeart(0, 0, 1);
     assert.deepEqual(clips, [{ width: 17, height: 17 }]);
   }
+});
+
+test('weapon slots show the swap cooldown on the unselected styles only', () => {
+  const c = combat();
+  const texts = [];
+  c.ctx = new Proxy({}, {
+    get: (_, key) => (...args) => { if (key === 'fillText') texts.push(args[0]); },
+    set: () => true,
+  });
+  c.activeCombatStyle = 'magic';
+  c.currentAttackStyle = () => 'magic';
+  c.classSignature = () => null;
+  vm.runInContext('weaponSwapCooldown = 4.2;', c);
+  c.drawStyleSlots();
+  assert.equal(texts.filter((text) => text === '5').length, 2);
+  texts.length = 0;
+  vm.runInContext('weaponSwapCooldown = 0;', c);
+  c.drawStyleSlots();
+  assert.equal(texts.includes('5'), false);
 });

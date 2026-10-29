@@ -753,6 +753,9 @@ const stickKnobEl = document.getElementById('stick-knob');
 const touchAttackEl = document.getElementById('touch-attack');
 const pointer = { x: VIEW_W / 2, y: VIEW_H / 2, down: false };
 let mouseAimActive = false;
+// Seconds of mouse inactivity before walking direction takes over facing again.
+const MOUSE_AIM_HOLD = 1;
+let mouseAimIdleTimer = 0;
 let lastInputMode = 'keyboard';
 let lastNonControllerInputMode = 'keyboard';
 
@@ -788,6 +791,14 @@ function updateTouchControls() {
       button.disabled = count === 0;
       const badge = button.querySelector('.touch-count');
       if (badge.textContent !== String(count)) badge.textContent = String(count);
+    }
+    const switchButton = touchControlsEl.querySelector('[data-touch-action="nextWeapon"]');
+    const switchWait = typeof weaponSwapCooldown === 'number' ? Math.ceil(weaponSwapCooldown) : 0;
+    const switchText = switchButton?.querySelector?.('span');
+    if (switchButton && switchText) {
+      switchButton.disabled = switchWait > 0;
+      const switchLabel = switchWait > 0 ? `${switchWait}s` : 'Switch';
+      if (switchText.textContent !== switchLabel) switchText.textContent = switchLabel;
     }
     const defenseButton = touchControlsEl.querySelector('[data-touch-action="shock"]');
     const hasFamiliarSigil = typeof ownedItems !== 'undefined' && ownedItems.has('orbiting-projectiles');
@@ -1497,6 +1508,7 @@ function beginRun() {
   reservedUpgradeIds.clear();
   for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
   activeCombatStyle = entry.startingStyle;
+  resetStyleHeat();
   if (entry.startingAbility) ownedItems.add(entry.startingAbility);
   consumables.length = 0;
   companions.length = 0;
@@ -1715,6 +1727,23 @@ function shouldKeyboardMovementSetFacing(length) {
     lastInputMode !== 'controller' && lastInputMode !== 'touch';
 }
 
+// The cursor owns facing while the mouse is moving, held or attacking; after that, walking does.
+function updateMouseAimHold(dt) {
+  if (mouseAimActive && !pointer.down && player.attackAnimationTimer <= 0) {
+    mouseAimIdleTimer += dt;
+    if (mouseAimIdleTimer >= MOUSE_AIM_HOLD) mouseAimActive = false;
+  } else {
+    mouseAimIdleTimer = 0;
+  }
+}
+
+function shouldMovementSetFacing(length) {
+  if (length <= 0) return false;
+  if (lastInputMode === 'controller') return !gamepadInput.aimActive && !gamepadInput.shoot;
+  if (lastInputMode === 'touch') return !touchInput.attack && !touchInput.aimActive;
+  return shouldKeyboardMovementSetFacing(length);
+}
+
 function updateParticles(dt) {
   let writeIndex = 0;
   for (let readIndex = 0; readIndex < particles.length; readIndex += 1) {
@@ -1801,16 +1830,18 @@ function update(dt) {
   const keyboardMoveY = ((keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0)) * control;
   const moveX = clamp(keyboardMoveX + (gamepadInput.moveX + touchInput.moveX) * control, -1, 1);
   const moveY = clamp(keyboardMoveY + (gamepadInput.moveY + touchInput.moveY) * control, -1, 1);
-  const keyboardLength = Math.hypot(keyboardMoveX, keyboardMoveY);
-  if (shouldKeyboardMovementSetFacing(keyboardLength)) {
-    player.lookX = keyboardMoveX / keyboardLength;
-    player.lookY = keyboardMoveY / keyboardLength;
+  updateMouseAimHold(dt);
+  const moveLength = Math.hypot(moveX, moveY);
+  if (shouldMovementSetFacing(moveLength)) {
+    player.lookX = moveX / moveLength;
+    player.lookY = moveY / moveLength;
   }
   const length = Math.hypot(moveX, moveY) || 1;
   const groundSpeed = player.speed * curioMultiplier('speed') * (character?.className === 'Pilgrim' ? 1.12 : 1) *
     (player.groundSlowTimer > 0 ? 0.55 : 1);
   player.moving = moveX !== 0 || moveY !== 0;
   dashCooldown = Math.max(0, dashCooldown - dt);
+  weaponSwapCooldown = Math.max(0, weaponSwapCooldown - dt);
   if (dashTimer > 0) {
     dashTimer = Math.max(0, dashTimer - dt);
     player.x += dashVector.x * 620 * dt;
@@ -1868,6 +1899,7 @@ function update(dt) {
   lastPlayerSample.x = player.x;
   lastPlayerSample.y = player.y;
   playerStillTimer = Math.hypot(playerVelocity.x, playerVelocity.y) < 45 ? playerStillTimer + dt : 0;
+  updateStyleHeat(dt);
   updateBossStrikes(dt);
   resolveDoorCrossing();
   if (control) updateWalkInInteractions(dt);
@@ -2630,6 +2662,7 @@ function updatePointerPosition(event) {
   pointer.y = ((event.clientY - rect.top - canvas.clientTop) / canvas.clientHeight) * VIEW_H;
   if (event.pointerType === 'mouse' && mode === 'playing') {
     mouseAimActive = true;
+    mouseAimIdleTimer = 0;
     const dx = pointer.x + camera.x - player.x;
     const dy = pointer.y + camera.y - (player.y - 34);
     const length = Math.hypot(dx, dy) || 1;
