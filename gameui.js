@@ -237,12 +237,63 @@ function loadAsset(path, root = assetRoot) {
   return image;
 }
 
+function soundUrl(path) {
+  return path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`;
+}
+
+// Fetches and decodes a sound effect once. A failed fetch or decode leaves the HTMLAudio pool as the fallback.
+function loadSoundBuffer(path) {
+  const context = gameMusic.context;
+  if (!context || typeof fetch !== 'function' || soundBuffers.has(path)) return;
+  soundBuffers.set(path, 'loading');
+  fetch(soundUrl(path))
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.arrayBuffer();
+    })
+    .then((data) => new Promise((resolve, reject) => context.decodeAudioData(data, resolve, reject)))
+    .then((buffer) => soundBuffers.set(path, buffer))
+    .catch(() => soundBuffers.set(path, 'failed'));
+}
+
+function preloadSounds(paths) {
+  for (const path of paths) loadSoundBuffer(path);
+}
+
+function playSoundBuffer(buffer, volume) {
+  const context = gameMusic.context;
+  const source = context.createBufferSource();
+  const gain = context.createGain();
+  source.buffer = buffer;
+  gain.gain.value = volume;
+  source.connect(gain);
+  gain.connect(context.destination);
+  source.start();
+}
+
 function playSound(path, volume = 0.4) {
-  if (typeof Audio === 'undefined' || audioSettings.sfxVolume <= 0) return;
+  if (audioSettings.sfxVolume <= 0) return;
   volume *= audioSettings.sfxVolume;
+  const context = gameMusic.context;
+  if (context && context.state === 'running') {
+    const entry = soundBuffers.get(path);
+    if (entry && entry !== 'loading' && entry !== 'failed') {
+      playSoundBuffer(entry, volume);
+      return;
+    }
+    if (!entry) loadSoundBuffer(path);
+    // Still decoding: play this one cue through a throwaway element instead of building a pool.
+    if (entry !== 'failed' && typeof Audio !== 'undefined') {
+      const audio = new Audio(soundUrl(path));
+      audio.volume = volume;
+      audio.play().catch(() => {});
+      return;
+    }
+  }
+  if (typeof Audio === 'undefined') return;
   let pool = soundPools.get(path);
   if (!pool) {
-    const url = path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`;
+    const url = soundUrl(path);
     pool = Array.from({ length: 4 }, () => {
       const audio = new Audio(url);
       audio.preload = 'auto';
@@ -317,6 +368,7 @@ function startGameMusic() {
   gameMusic.starting = true;
   gameMusic.context.resume().then(() => {
     gameMusic.starting = false;
+    preloadSounds(commonSoundEffects);
     if (!gameMusic.enabled || gameMusic.timer !== null) return;
     gameMusic.nextBeat = gameMusic.context.currentTime + 0.06;
     scheduleGameMusic();

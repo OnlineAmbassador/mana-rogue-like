@@ -264,6 +264,14 @@ const soundRoot = 'assets/tmw/clientdata/sfx';
 const somSoundRoot = 'assets/som/sounds';
 
 const soundPools = new Map();
+// Decoded sound effects keyed by path; 'loading' and 'failed' mark in-flight and unusable entries.
+const soundBuffers = new Map();
+// Cues played in nearly every run, decoded as soon as audio is unlocked.
+const commonSoundEffects = [
+  'weapons/axe/hit.ogg', 'weapons/barehands/hit1.ogg', 'weapons/bow/shoot.ogg', 'system/click.ogg',
+  'system/boom.ogg', 'system/item.ogg', 'system/warp.ogg', 'punch.ogg',
+  'som:alteration/quest-update.ogg', 'som:alteration/levelup.ogg', 'som:alteration/skillup.ogg',
+];
 const gameMusic = {
   enabled: true,
   context: null,
