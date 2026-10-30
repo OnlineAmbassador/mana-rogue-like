@@ -1678,6 +1678,10 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
   }
   enemy.hp -= damage;
   enemy.hitFlash = 0.16;
+  // Elemental ticks pass applyHitStop = false and would flood the screen with numbers.
+  if (applyHitStop && typeof addDamageNumber === 'function') {
+    addDamageNumber(enemy.x, enemy.y - enemy.radius - 8, damage);
+  }
   const hitSound = enemy.hp > 0 && damage > 0 && !(enemy.hitSoundUntil > performance.now())
     ? enemySound(enemy, 'hit') : null;
   if (hitSound) {

@@ -1196,6 +1196,10 @@ const itemEffectTags = {
 const pickupBanner = { title: '', tags: [], timer: 0 };
 // Brief icons that float up above the player's head whenever something changes; the pause screen keeps the full list.
 const overheadPops = [];
+// Small numbers that drift up from an enemy when a hit lands. Skipped in low quality and with reduced motion.
+const damageNumbers = [];
+const MAX_DAMAGE_NUMBERS = 18;
+const DAMAGE_NUMBER_LIFE = 0.75;
 
 
 

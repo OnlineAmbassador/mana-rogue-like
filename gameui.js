@@ -496,6 +496,41 @@ function popOverPlayer({ icon, color = '#ffe38a', image = null }) {
   overheadPops.push({ icon, color, image, born: elapsed });
 }
 
+function addDamageNumber(x, y, amount) {
+  if (!(amount >= 1) || quality.low || prefersReducedMotion()) return;
+  if (damageNumbers.length >= MAX_DAMAGE_NUMBERS) damageNumbers.shift();
+  damageNumbers.push({
+    x: x + (Math.random() - 0.5) * 12,
+    y,
+    text: String(Math.round(amount)),
+    heavy: amount >= 10,
+    born: elapsed,
+  });
+}
+
+function drawDamageNumbers() {
+  for (let i = damageNumbers.length - 1; i >= 0; i -= 1) {
+    const age = elapsed - damageNumbers[i].born;
+    if (age < 0 || age > DAMAGE_NUMBER_LIFE) damageNumbers.splice(i, 1);
+  }
+  if (damageNumbers.length === 0) return;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(12, 10, 14, 0.85)';
+  for (const number of damageNumbers) {
+    const age = elapsed - number.born;
+    ctx.globalAlpha = Math.min(1, (DAMAGE_NUMBER_LIFE - age) / 0.25);
+    ctx.font = number.heavy ? 'bold 17px Arial' : 'bold 13px Arial';
+    ctx.fillStyle = number.heavy ? '#ffd27a' : '#f4f1e6';
+    const y = number.y - Math.min(1, age / 0.3) * 14 - age * 10;
+    ctx.strokeText(number.text, number.x, y);
+    ctx.fillText(number.text, number.x, y);
+  }
+  ctx.restore();
+}
+
 function showPickupBanner(title, tags) {
   pickupBanner.title = title;
   pickupBanner.tags = tags;
@@ -3706,6 +3741,7 @@ function drawWorld() {
   // Enemy shots draw above the delver so the sprite never hides an incoming hit.
   for (const projectile of enemyProjectiles) drawEnemyProjectile(projectile);
   drawOverheadPops();
+  drawDamageNumbers();
   drawLaserBeams();
   drawSporePods();
   if (streakCallout.timer > 0) {
