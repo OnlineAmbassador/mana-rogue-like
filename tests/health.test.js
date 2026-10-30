@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { sliceText } = require('./helpers/load');
+const { sliceText, loadFunctions } = require('./helpers/load');
 
 function combat() {
   const c = vm.createContext({
@@ -525,4 +525,14 @@ test('weapon slots show the swap cooldown on the unselected styles only', () => 
   vm.runInContext('weaponSwapCooldown = 0;', c);
   c.drawStyleSlots();
   assert.equal(texts.includes('5'), false);
+});
+
+test('restoring a room whose saved state lacks lists treats it as fresh instead of throwing', () => {
+  const c = vm.createContext({ enemies: [], breakables: [], pickups: [], rooms: [], obstacleSprites: [] });
+  loadFunctions(c, 'dbmanager.js', ['restoreRoomRuntime']);
+  assert.equal(c.restoreRoomRuntime({ runtime: null }), false);
+  assert.equal(c.restoreRoomRuntime({ runtime: {} }), false);
+  assert.equal(c.enemies.length, 0);
+  assert.equal(c.restoreRoomRuntime({ type: 'normal', runtime: { enemies: [{ hp: 1 }] } }), true);
+  assert.equal(c.enemies.length, 1);
 });

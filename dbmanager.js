@@ -266,10 +266,11 @@ function captureRoomRuntime(room) {
 
 function restoreRoomRuntime(room) {
   const runtime = room.runtime;
-  if (!runtime) return false;
+  // A save from an older build may lack the enemy list; treat that room as fresh instead of crashing.
+  if (!runtime || !Array.isArray(runtime.enemies)) return false;
   enemies.push(...runtime.enemies);
   // Runtime attacks are room-local and disposable; never resurrect a projectile or hazard from an old save.
-  for (const obstacle of runtime.breakables) {
+  for (const obstacle of runtime.breakables || []) {
     if (room.type === 'shop' || room.type === 'bank') continue;
     const { spriteIndex, roomKey: obstacleRoomKey, ...state } = obstacle;
     breakables.push({
@@ -278,7 +279,7 @@ function restoreRoomRuntime(room) {
       room: rooms.find((candidate) => roomKey(candidate) === obstacleRoomKey) || room,
     });
   }
-  for (const pickup of runtime.pickups) {
+  for (const pickup of runtime.pickups || []) {
     const { roomKey: pickupRoomKey, ...state } = pickup;
     pickups.push({
       ...state,
