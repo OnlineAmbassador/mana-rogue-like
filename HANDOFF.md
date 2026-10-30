@@ -20,6 +20,9 @@ Open questions for playtesting:
 - Whether boss warning reservations leave too much idle time or too many damage windows.
 - Whether each weapon style's mob response is distinct and fair, and whether the 6 s weapon-swap cooldown is too long.
 - Whether charged shots feel rewarding without making bosses trivial, whether advanced-AI promotions are readable, and whether two-room trials are worth the time.
+- The altar room's ambush (the right altar) is opt-in extra enemies, `min(6, floor + 1)` per use, and has not been played. Tune `RISK_SHRINE_CHANCE`, `RISK_SHRINE_MIN_HEARTS` and `RISK_SHRINE_MAX_AMBUSH` in `worldmanager.js` if it is too easy, too hard or too common. The altar drawing and prompts have not been seen on screen.
+- Sound effects now decode through Web Audio after the first input; the first play of each cue uses a plain Audio element. Check in a real browser (including Safari) that nothing is silent or doubled.
+- `assets/tmw` was trimmed to the referenced files. When the game gains a new asset, add the reference as a literal string, or extend `DYNAMIC_PREFIXES` in `tools/trim-assets.js` and re-run `tests/assets.test.js`.
 - Touch and controller use of the full map has not been tried on real devices. The final map legend change (Start shares the Room entry, hostile rooms get a red border) passes tests but was never seen on screen.
 - Room-entry cost of the desert floor on low-end mobile has not been measured. The background takes about 134 to 175 ms to build in the remote browser and is cached. Profile it before reducing detail.
 - The secret-room masonry floor is still an early composition and could get the same source-based treatment.
