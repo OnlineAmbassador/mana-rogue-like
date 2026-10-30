@@ -1448,7 +1448,7 @@ function explodeBomb(bomb) {
       : Math.abs(bomb.y - ROOM_H / 2) < 78;
     if (secret.room.hidden && alongWall && distanceBetween(bomb, wallPoint) < bomb.radius + 60) {
       secret.room.hidden = false;
-      recordStory('A hidden passage', 'A bomb blasted open a concealed room. Its relics have waited a long time for someone to find them.');
+      recordStory('A hidden passage', 'A crack in the cave wall reveals a concealed chamber. A whispering voice seems to come through, like a wind drafting past.');
       const extraKeyFound = !secret.keyDropped && Math.random() < (secret.room.extraKeyChance || 0);
       if (extraKeyFound) {
         pickups.push({ x: bomb.x, y: bomb.y, kind: 'key' });

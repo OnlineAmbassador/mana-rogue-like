@@ -290,14 +290,13 @@ function enemyKindsForCurrentMap() {
   const fallbackKinds = ['slime', 'ratto', 'bat', 'snake', 'scorpion', 'bandit'];
   const pools = {
     tulimshar: ['slime', 'ratto', 'piou', 'bat', 'snake', 'scorpion', 'bandit'],
-    candor: ['ratto', 'croc', 'wisp', 'bat', 'snake', 'slime', 'scorpion', 'tortuga'],
     hurnscald: ['ratto', 'croc', 'wisp', 'frog', 'spider', 'mouboo', 'bluepar', 'bee', 'spore-sower', 'fluffy', 'snail'],
     graveyard: ['skeleton', 'zombie', 'spider', 'vampirebat', 'maggot'],
     artis: ['ratto', 'wisp', 'skeleton', 'spider', 'slime', 'bluepar', 'zombie', 'fluffy', 'snail', 'maggot'],
     halinarzo: ['bandit', 'scorpion', 'mouboo', 'spore-sower', 'croc', 'junglefowl', 'tortuga'],
     nivalis: ['snowman', 'yeti', 'vampirebat', 'wisp', 'bee'],
     frostia: ['frostiana', 'snowman', 'yeti', 'vampirebat', 'spore-sower'],
-    fortress: ['troll', 'zombie', 'junglefowl', 'spore-sower', 'bandit', 'mouboo', 'snake'],
+    candor: ['troll', 'zombie', 'junglefowl', 'spore-sower', 'bandit', 'mouboo', 'snake'],
     worldedge: ['skeleton', 'zombie', 'vampirebat', 'troll', 'spider', 'frostiana'],
   };
   const availableKinds = (pools[currentRegionId()] || pools.tulimshar).filter(isEnemyAvailableForCurrentRun);
@@ -369,7 +368,7 @@ function miniBossKindsForCurrentFloor() {
     halinarzo: ['scorpion', 'bandit', 'junglefowl'],
     nivalis: ['snowman', 'yeti', 'vampirebat'],
     frostia: ['frostiana', 'yeti', 'snowman'],
-    fortress: ['troll', 'junglefowl', 'spore-sower'],
+    candor: ['troll', 'junglefowl', 'spore-sower'],
     worldedge: ['troll', 'skeleton', 'zombie'],
   };
   const availableKinds = (pools[currentRegionId()] || pools.tulimshar).filter(isEnemyAvailableForCurrentRun);
@@ -380,7 +379,7 @@ function bossForCurrentArea() {
   return ({
     tulimshar: 'slime-mother', hurnscald: 'jacko',
     graveyard: 'reaper', artis: 'golem', halinarzo: 'banditlord',
-    nivalis: 'snowman-boss', frostia: 'yetiking', fortress: 'forestdragon', worldedge: 'nightdragon',
+    nivalis: 'snowman-boss', frostia: 'yetiking', candor: 'forestdragon', worldedge: 'nightdragon',
   })[currentRegionId()] || 'slime-mother';
 }
 
@@ -1701,7 +1700,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
         jacko: 'hurnscald-herbalist', golem: 'artis-archivist',
         reaper: 'graveyard-keeper', banditlord: 'halinarzo-ranger',
         'snowman-boss': 'nivalis-oracle', yetiking: 'frostia-reclaimer',
-        forestdragon: 'fortress-keeper', nightdragon: 'world-edge-veteran',
+        forestdragon: 'candor-keeper', nightdragon: 'world-edge-veteran',
       })[enemy.kind];
       const newlyUnlocked = unlockedId ? unlockCharacter(unlockedId) : false;
       const unlockedName = characterRoster.find((entry) => entry.id === unlockedId)?.name;

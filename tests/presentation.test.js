@@ -164,6 +164,9 @@ test('sand haze excludes other regions and secret rooms; low quality skips textu
   c.drawRegionAtmosphere();
   assert.equal(c.calls.length, 0);
   c.region = 'candor';
+  c.drawRegionAtmosphere();
+  assert.equal(c.calls.length, 0);
+  c.region = 'tulimshar';
   c.currentRoom.type = 'secret';
   c.drawRegionAtmosphere();
   assert.equal(c.calls.length, 0);
@@ -532,7 +535,7 @@ test('regional floor selections reproduce verified TMX interiors in their author
     ['halinarzo', '011-4.tmx', 'Ground', 57, 49, [[241, 241], [241, 241]]],
     ['nivalis', '019-1.tmx', 'Ground', 0, 0, [[83, 83], [83, 83]]],
     ['frostia', '001-13-1.tmx', 'Ground', 23, 28, [[4, 4], [4, 4]]],
-    ['fortress', '004-2-1.tmx', 'Ground1', 56, 23, [[4, 4], [4, 4]]],
+    ['candor', '004-2-1.tmx', 'Ground1', 56, 23, [[4, 4], [4, 4]]],
     ['worldedge', '006-8.tmx', 'Ground', 32, 22, [[32, 33], [47, 48]]],
   ];
   for (const [region, file, layer, x, y, expected] of sources) {

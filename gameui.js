@@ -770,7 +770,7 @@ function drawPauseEquipment() {
 }
 
 function isDesertRegion() {
-  return ['tulimshar', 'candor'].includes(currentRegionId());
+  return currentRegionId() === 'tulimshar';
 }
 
 function terrainTileAt(terrain, column, row) {
@@ -1161,7 +1161,7 @@ function drawRoomFloor() {
         terrainContext.save();
         if (regionId === 'graveyard') {
           terrainContext.filter = 'saturate(0.28) brightness(0.52)';
-        } else if (regionId === 'artis' || regionId === 'fortress') {
+        } else if (regionId === 'artis' || regionId === 'candor') {
           terrainContext.filter = 'hue-rotate(205deg) saturate(0.75) brightness(0.72)';
         }
         const tileColumns = Math.floor(image.naturalWidth / 32);
