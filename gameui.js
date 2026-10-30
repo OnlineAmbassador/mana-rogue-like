@@ -3927,46 +3927,489 @@ function drawRoomLeftovers(room, x, y, cell, radius) {
   if (kinds.has('upgrade')) mark(x + cell - inset, y + cell - inset, '#b98cf0', '#ffffff');
 }
 
-function drawMap() {
-  ctx.fillStyle = 'rgba(12, 13, 20, 0.92)';
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.fillStyle = '#f3e9d8';
-  ctx.font = 'bold 24px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('SANCTUM MAP', VIEW_W / 2, 86);
+function roomMapColor(room, explored) {
+  if (!explored) return room.type === 'boss' ? '#9b2b3c' : '#4a4650';
+  if (room === currentRoom) return '#8ee0cf';
+  return room.type === 'boss' ? '#bb7181' : room.type === 'miniboss' ? '#d78c69'
+    : room.type === 'shop' ? '#edc878' : room.type === 'bank' ? '#e4ca75'
+      : room.type === 'shrine' ? '#c69be5'
+        : room.type === 'elemental-shrine' ? magicElementPalette[room.shrineElement] || '#80d9d2'
+          : room.type === 'trial' ? '#d27a70'
+            : room.type === 'secret' ? '#c69be5' : '#aaa19a';
+}
 
-  const cell = 55;
-  const originX = VIEW_W / 2 - cell * 3.5;
-  const originY = VIEW_H / 2 - cell * 3.5;
-  for (const room of rooms) {
-    if (!room.visited) continue;
-    const x = originX + room.x * cell;
-    const y = originY + room.y * cell;
-    ctx.fillStyle = room === currentRoom ? '#79c9c2' :
-      room.type === 'boss' ? '#aa5e72' : room.type === 'miniboss' ? '#bd765d'
-        : room.type === 'shop' ? '#d9aa66' : room.type === 'bank' ? '#d7b66e'
-          : room.type === 'shrine' ? '#a77fc2'
-            : room.type === 'elemental-shrine' ? magicElementPalette[room.shrineElement] || '#80d9d2'
-              : room.type === 'trial' ? '#d27a70'
-                : '#514d59';
-    const rect = roomMapRect(room, x, y, cell);
-    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-    if (rect.larger) {
-      ctx.strokeStyle = '#f4e3b0';
-      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-    }
-    ctx.fillStyle = '#e9dfd0';
-    ctx.font = '12px Arial';
-    ctx.fillText(room.type === 'boss' ? 'B' : room.type === 'miniboss' ? '!'
-      : room.type === 'shop' ? '$' : room.type === 'bank' ? 'Z'
-        : room.type === 'shrine' ? 'S' : room.type === 'elemental-shrine' ? 'E'
-          : room.type === 'trial' ? 'T' : room.type === 'secret' ? '?' : '',
-    x + cell / 2, y + cell / 2 + 4);
-    drawRoomLeftovers(room, x + 2, y + 2, cell - 4, 5);
+function roomMapLetter(room) {
+  return { boss: 'B', miniboss: '!', shop: '$', bank: 'Z', shrine: 'S',
+    'elemental-shrine': 'E', trial: 'T', secret: '?' }[room.type] || '';
+}
+
+function roomMapLabel(room) {
+  return { start: 'Start', boss: 'Guardian', miniboss: 'Mini-boss', shop: 'Shop', bank: 'Bank',
+    shrine: 'Shrine', 'elemental-shrine': 'Menhir', trial: 'Trial', secret: 'Secret' }[room.type] || 'Room';
+}
+
+const MAP_AREA = { x: 36, y: 92, w: 724, h: 372 };
+
+// Fits the revealed part of the 7×7 grid into the map area, so small floors draw large.
+function mapLayout() {
+  const shown = rooms.filter(roomIsRevealed);
+  const xs = shown.map((room) => room.x);
+  const ys = shown.map((room) => room.y);
+  const minX = Math.min(...xs, currentRoom.x);
+  const maxX = Math.max(...xs, currentRoom.x);
+  const minY = Math.min(...ys, currentRoom.y);
+  const maxY = Math.max(...ys, currentRoom.y);
+  const cols = maxX - minX + 1;
+  const rows = maxY - minY + 1;
+  const cell = Math.min(130, MAP_AREA.w / (cols + 0.3), MAP_AREA.h / (rows + 0.3));
+  return {
+    cell,
+    originX: MAP_AREA.x + (MAP_AREA.w - cols * cell) / 2 - minX * cell,
+    originY: MAP_AREA.y + (MAP_AREA.h - rows * cell) / 2 - minY * cell,
+  };
+}
+
+function mapRoomAt(x, y) {
+  const layout = mapLayout();
+  return rooms.find((room) => {
+    if (!roomIsRevealed(room)) return false;
+    const rect = roomMapRect(room, layout.originX + room.x * layout.cell, layout.originY + room.y * layout.cell, layout.cell);
+    return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+  }) || null;
+}
+
+function mapRoomPath(x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+function drawMapLeftoverIcon(kind, x, y, size) {
+  ctx.save();
+  ctx.translate(x, y);
+  const s = size / 20;
+  ctx.scale(s, s);
+  ctx.lineWidth = 2;
+  if (kind === 'heart') {
+    // Drawn rather than the heart sprite, whose padding leaves it too small at map size.
+    ctx.fillStyle = '#e95e72';
+    ctx.strokeStyle = '#fff0f0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 8);
+    ctx.bezierCurveTo(-3, 5, -9, 0, -8, -4);
+    ctx.bezierCurveTo(-7, -10, -2, -10, 0, -6);
+    ctx.bezierCurveTo(2, -10, 7, -10, 8, -4);
+    ctx.bezierCurveTo(9, 0, 3, 5, 0, 8);
+    ctx.fill();
+    ctx.stroke();
+  } else if (kind === 'coin') {
+    ctx.fillStyle = '#17201b';
+    ctx.beginPath();
+    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f2bd46';
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#49330f';
+    ctx.font = 'bold 9px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Z', 0, 0.5);
+  } else if (kind === 'bomb') {
+    ctx.fillStyle = '#25232a';
+    ctx.strokeStyle = '#d9d9e0';
+    ctx.beginPath();
+    ctx.arc(-1, 1, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#f2bd46';
+    ctx.beginPath();
+    ctx.moveTo(3, -4);
+    ctx.lineTo(7, -8);
+    ctx.stroke();
+  } else if (kind === 'key') {
+    ctx.strokeStyle = '#fbd96f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(-5, 0, 4, 0, Math.PI * 2);
+    ctx.moveTo(-1, 0);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(8, 4);
+    ctx.moveTo(4, 0);
+    ctx.lineTo(4, 4);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#b98cf0';
+    ctx.strokeStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(0, -8);
+    ctx.lineTo(7, 0);
+    ctx.lineTo(0, 8);
+    ctx.lineTo(-7, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   }
+  ctx.restore();
+}
+
+const MAP_LEFTOVER_ORDER = [
+  ['heart', 'heart'], ['coin', 'zeny'], ['bomb', 'bomb'], ['key', 'key'], ['upgrade', 'upgrade'],
+];
+
+function mapLeftovers(room) {
+  const kinds = roomLeftoverKinds(room);
+  if (kinds.has('curio')) kinds.add('upgrade');
+  return MAP_LEFTOVER_ORDER.filter(([kind]) => kinds.has(kind));
+}
+
+function drawMapPadlock(x, y, size) {
+  ctx.save();
+  ctx.translate(x, y);
+  const s = size / 14;
+  ctx.scale(s, s);
+  ctx.fillStyle = '#211b14';
+  ctx.beginPath();
+  ctx.arc(0, 0, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fbd96f';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, -2, 3.5, Math.PI, 0);
+  ctx.stroke();
+  ctx.fillStyle = '#fbd96f';
+  ctx.fillRect(-5, -2, 10, 7);
+  ctx.restore();
+}
+
+function drawMapDelver(x, y, cell) {
+  if (typeof character === 'undefined' || !character) return;
+  const sheet = humanoidSprites[character.sprite]?.image;
+  if (!sheet) return;
+  ctx.save();
+  // Draw at the select screen's scale, then shrink, so head and body stay aligned.
+  const k = Math.min(1, cell / 160);
+  ctx.translate(x, y);
+  ctx.scale(k, k);
+  ctx.fillStyle = 'rgba(14, 16, 20, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 16, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  drawHumanoid(sheet, 0, 0, 0, 0.95, character.hue);
+  drawHead(character.hairStyle, 'down', 0, 0, 0.95, wornHat());
+  ctx.restore();
+}
+
+function drawMap() {
+  const appear = clamp((elapsed - mapOpenedAt) / 0.15, 0, 1);
+  const routes = mapTravelRoutes();
+  const travelReady = mapTravelAvailable();
+  const layout = mapLayout();
+  const { cell, originX, originY } = layout;
+  const roomPos = (room) => ({ x: originX + room.x * cell, y: originY + room.y * cell });
+  const shown = rooms.filter(roomIsRevealed);
+
+  ctx.save();
+  ctx.globalAlpha = appear;
+  ctx.fillStyle = 'rgba(6, 6, 10, 0.55)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  const grow = 0.96 + appear * 0.04;
+  ctx.translate(VIEW_W / 2, VIEW_H / 2);
+  ctx.scale(grow, grow);
+  ctx.translate(-VIEW_W / 2, -VIEW_H / 2);
+
+  // Panel
+  mapRoomPath(16, 16, VIEW_W - 32, VIEW_H - 32, 14);
+  ctx.fillStyle = 'rgba(16, 14, 22, 0.95)';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#8a6d45';
+  ctx.stroke();
+  mapRoomPath(23, 23, VIEW_W - 46, VIEW_H - 46, 10);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(217, 189, 131, 0.35)';
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+  mapRoomPath(MAP_AREA.x - 8, MAP_AREA.y - 8, MAP_AREA.w + 16, MAP_AREA.h + 16, 10);
+  ctx.fill();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f3e9d8';
+  ctx.font = 'bold 22px Georgia';
+  ctx.fillText('SANCTUM MAP', MAP_AREA.x + MAP_AREA.w / 2, 52);
+  ctx.fillStyle = '#c9b48d';
+  ctx.font = '13px Arial';
+  ctx.fillText(`${currentFloorTheme().name} · Floor ${currentFloor}`, MAP_AREA.x + MAP_AREA.w / 2, 72);
+
+  // Corridors
+  const drawn = new Set();
+  for (const room of shown) {
+    const a = roomPos(room);
+    for (const direction of directions) {
+      const secretLink = room.secretExit?.direction === direction.name && !room.secretExit.room.hidden;
+      const returnLink = room.type === 'secret' && room.returnDirection === direction.name;
+      if (!room.links[direction.name] && !secretLink) continue;
+      const other = secretLink ? room.secretExit.room : returnLink ? room.returnTo
+        : rooms.find((candidate) => candidate.x === room.x + direction.dx && candidate.y === room.y + direction.dy);
+      if (!other || !roomIsRevealed(other)) continue;
+      const pairKey = [roomKey(room), roomKey(other)].sort().join('|');
+      if (drawn.has(pairKey)) continue;
+      drawn.add(pairKey);
+      const b = roomPos(other);
+      const ax = a.x + cell / 2;
+      const ay = a.y + cell / 2;
+      const bx = b.x + cell / 2;
+      const by = b.y + cell / 2;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#2a2530';
+      ctx.lineWidth = Math.max(6, cell * 0.16);
+      if (secretLink || returnLink) ctx.setLineDash([cell * 0.08, cell * 0.08]);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.strokeStyle = secretLink || returnLink ? '#a98cc7' : '#908572';
+      ctx.lineWidth = Math.max(3, cell * 0.08);
+      ctx.stroke();
+      ctx.restore();
+      if (room.lockedDoors[direction.name] || other.lockedDoors[oppositeDirection[direction.name]]) {
+        drawMapPadlock((ax + bx) / 2, (ay + by) / 2, Math.max(9, cell * 0.13));
+      }
+    }
+  }
+
+  // Rooms
+  for (const room of shown) {
+    const { x, y } = roomPos(room);
+    const explored = room.visited || room === currentRoom;
+    const rect = roomMapRect(room, x, y, cell);
+    const radius = cell * 0.08;
+    ctx.save();
+    if (!explored) {
+      mapRoomPath(rect.x, rect.y, rect.w, rect.h, radius);
+      // Opaque so corridors don't show through rooms you haven't entered.
+      ctx.fillStyle = '#25222b';
+      ctx.fill();
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = room.type === 'boss' ? '#d65a6c' : '#8a8291';
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = room.type === 'boss' ? '#ffd8dc' : '#b8b0bf';
+      ctx.font = `bold ${Math.round(cell * 0.2)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(room.type === 'boss' ? 'B' : '?', x + cell / 2, y + cell / 2);
+      ctx.restore();
+      continue;
+    }
+    mapRoomPath(rect.x, rect.y, rect.w, rect.h, radius);
+    ctx.fillStyle = roomMapColor(room, true);
+    ctx.fill();
+    const shade = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h);
+    shade.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+    shade.addColorStop(1, 'rgba(0, 0, 0, 0.32)');
+    ctx.fillStyle = shade;
+    ctx.fill();
+    if (!room.cleared) {
+      ctx.fillStyle = `rgba(200, 30, 40, ${0.35 + Math.sin(elapsed * 4) * 0.1})`;
+      ctx.fill();
+    }
+    ctx.lineWidth = !room.cleared ? 2.5 : rect.larger ? 2 : 1.5;
+    ctx.strokeStyle = !room.cleared ? '#ff6b6b' : rect.larger ? '#f4e3b0' : 'rgba(255, 244, 222, 0.55)';
+    ctx.stroke();
+    if (routes.has(room)) {
+      mapRoomPath(rect.x - 3, rect.y - 3, rect.w + 6, rect.h + 6, radius + 3);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(142, 224, 207, 0.45)';
+      ctx.stroke();
+    }
+    const letter = roomMapLetter(room);
+    if (letter && room !== currentRoom) {
+      const badge = Math.max(9, cell * 0.15);
+      ctx.fillStyle = 'rgba(20, 18, 26, 0.78)';
+      ctx.beginPath();
+      ctx.arc(x + cell / 2, y + cell / 2 - cell * 0.04, badge, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = room.type === 'boss' ? '#ffb3bd' : '#f3e9d8';
+      ctx.font = `bold ${Math.round(badge * 1.25)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(letter, x + cell / 2, y + cell / 2 - cell * 0.04 + 1);
+    }
+    const leftovers = mapLeftovers(room);
+    if (leftovers.length > 0) {
+      // Icons shrink to fit the room's width, on a dark strip so they read on any room colour.
+      const spacing = 1.1;
+      const iconSize = Math.min(clamp(cell * 0.2, 11, 20), (rect.w - 6) / (leftovers.length * spacing));
+      const stripW = leftovers.length * iconSize * spacing + 4;
+      const stripY = rect.y + rect.h - iconSize - 6;
+      mapRoomPath(x + cell / 2 - stripW / 2, stripY, stripW, iconSize + 4, (iconSize + 4) / 2);
+      ctx.fillStyle = 'rgba(16, 14, 22, 0.72)';
+      ctx.fill();
+      leftovers.forEach(([kind], index) => {
+        const iconX = x + cell / 2 + (index - (leftovers.length - 1) / 2) * iconSize * spacing;
+        drawMapLeftoverIcon(kind, iconX, stripY + iconSize / 2 + 2, iconSize);
+      });
+    }
+    ctx.restore();
+  }
+
+  // You are here
+  {
+    const { x, y } = roomPos(currentRoom);
+    const rect = roomMapRect(currentRoom, x, y, cell);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255, 241, 215, ${0.6 + Math.sin(elapsed * 5) * 0.35})`;
+    ctx.lineWidth = 2;
+    mapRoomPath(rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4, cell * 0.08 + 2);
+    ctx.stroke();
+    ctx.restore();
+    drawMapDelver(x + cell / 2, y + cell / 2 + cell * 0.12, cell);
+  }
+
+  // Selection
+  const selected = mapCursor && rooms.includes(mapCursor) && roomIsRevealed(mapCursor) ? mapCursor : currentRoom;
+  if (selected !== currentRoom) {
+    const { x, y } = roomPos(selected);
+    const rect = roomMapRect(selected, x, y, cell);
+    ctx.save();
+    ctx.strokeStyle = routes.has(selected) ? '#8ee0cf' : '#d9bd83';
+    ctx.lineWidth = 2.5 + Math.sin(elapsed * 6) * 0.8;
+    mapRoomPath(rect.x - 5, rect.y - 5, rect.w + 10, rect.h + 10, cell * 0.08 + 5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawMapSidebar(selected, routes, travelReady, shown);
+  ctx.restore();
+}
+
+function drawMapSidebar(selected, routes, travelReady, shown) {
+  const x = 784;
+  const width = VIEW_W - 36 - x;
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+  mapRoomPath(x - 10, MAP_AREA.y - 8, width + 20, MAP_AREA.h + 16, 10);
+  ctx.fill();
+
+  // Selected room
+  const explored = selected.visited || selected === currentRoom;
+  ctx.fillStyle = '#d9bd83';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText(selected === currentRoom ? 'YOU ARE HERE' : 'SELECTED', x, MAP_AREA.y + 10);
+  ctx.fillStyle = '#f3e9d8';
+  ctx.font = 'bold 17px Georgia';
+  ctx.fillText(explored ? roomMapLabel(selected) : 'Unexplored', x, MAP_AREA.y + 32);
+  ctx.font = '12px Arial';
+  ctx.fillStyle = '#c9bfb0';
+  const leftovers = explored ? mapLeftovers(selected) : [];
+  let lineY = MAP_AREA.y + 52;
+  if (leftovers.length > 0) {
+    leftovers.forEach(([kind, label], index) => {
+      const row = Math.floor(index / 2);
+      const col = index % 2;
+      drawMapLeftoverIcon(kind, x + 7 + col * 70, lineY + row * 20 - 4, 12);
+      ctx.fillStyle = '#c9bfb0';
+      ctx.fillText(label, x + 18 + col * 70, lineY + row * 20);
+    });
+    lineY += Math.ceil(leftovers.length / 2) * 20;
+  } else if (explored) {
+    ctx.fillText('Nothing left here', x, lineY);
+    lineY += 20;
+  }
+  const status = selected === currentRoom
+    ? (travelReady ? 'Pick a room to travel' : 'Clear this room to travel')
+    : routes.has(selected) ? 'Ready to travel'
+      : !travelReady ? 'Clear this room to travel'
+        : !explored ? 'Not yet explored'
+          : !selected.cleared ? 'Foes remain there'
+            : { foes: 'Foes block the way', locked: 'A locked door is in the way',
+              both: 'Foes and a locked door are in the way' }[mapRouteBlocker(selected)] || 'No open path';
+  ctx.fillStyle = selected !== currentRoom && routes.has(selected) ? '#8ee0cf' : '#a99f93';
+  ctx.font = 'italic 12px Arial';
+  let statusLine = '';
+  for (const word of status.split(' ')) {
+    const next = statusLine ? `${statusLine} ${word}` : word;
+    if (statusLine && ctx.measureText(next).width > width) {
+      ctx.fillText(statusLine, x, lineY + 2);
+      lineY += 15;
+      statusLine = word;
+    } else {
+      statusLine = next;
+    }
+  }
+  ctx.fillText(statusLine, x, lineY + 2);
+
+  // Legend: only room kinds on this floor's revealed map
+  const legendTop = MAP_AREA.y + 150;
+  ctx.strokeStyle = 'rgba(217, 189, 131, 0.25)';
+  ctx.beginPath();
+  ctx.moveTo(x, legendTop - 18);
+  ctx.lineTo(x + width, legendTop - 18);
+  ctx.stroke();
+  ctx.fillStyle = '#d9bd83';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText('LEGEND', x, legendTop);
+  const entries = [{ label: 'You', color: roomMapColor(currentRoom, true) }];
+  const seenTypes = new Set();
+  for (const room of shown) {
+    const explored = room.visited || room === currentRoom;
+    // The start room looks like any other room, so it shares the Room entry.
+    const type = room.type === 'start' ? 'normal' : room.type;
+    if (!explored || room === currentRoom || seenTypes.has(type)) continue;
+    seenTypes.add(type);
+    entries.push({ label: roomMapLabel({ type }), color: roomMapColor(room, true), letter: roomMapLetter(room) });
+  }
+  if (shown.some((room) => !room.visited && room !== currentRoom)) entries.push({ label: 'Unexplored', dashed: true });
+  if (shown.some((room) => room.visited && !room.cleared)) entries.push({ label: 'Foes remain', color: '#c8323c', hostile: true });
+  entries.slice(0, 11).forEach((entry, index) => {
+    const y = legendTop + 14 + index * 19;
+    mapRoomPath(x, y, 16, 14, 3);
+    if (entry.dashed) {
+      ctx.setLineDash([3, 2]);
+      ctx.strokeStyle = '#8a8291';
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = entry.color;
+      ctx.fill();
+      if (entry.hostile) {
+        ctx.strokeStyle = '#ff6b6b';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = '#e6dccb';
+    ctx.font = '12px Arial';
+    ctx.fillText(entry.letter ? `${entry.letter}  ${entry.label}` : entry.label, x + 24, y + 11);
+  });
+  ctx.restore();
+
+  // Footer prompt
+  ctx.save();
+  ctx.textAlign = 'center';
   ctx.fillStyle = '#ded4c4';
-  ctx.font = '16px Arial';
-  ctx.fillText('Press M to return', VIEW_W / 2, VIEW_H - 48);
+  ctx.font = '14px Arial';
+  const mapKey = bindLabel('map');
+  const p = padLabels();
+  const prompt = lastInputMode === 'controller'
+    ? `D-pad · Select   ${p.a} · Travel   ${p.b} or ${mapKey} · Close`
+    : lastInputMode === 'touch'
+      ? 'Tap a room to select it, tap again to travel · Map · Close'
+      : `Click a room or use arrows + Enter to travel · ${mapKey} or Esc · Close`;
+  ctx.fillText(prompt, VIEW_W / 2, VIEW_H - 32);
+  ctx.restore();
 }
 
 function roomMapRect(room, x, y, cell) {
@@ -4018,13 +4461,7 @@ function drawMinimap() {
     const y = originY + room.y * cell;
     const explored = room.visited || room === currentRoom;
     const rect = roomMapRect(room, x, y, cell);
-    ctx.fillStyle = !explored ? (room.type === 'boss' ? '#9b2b3c' : '#4a4650') : room === currentRoom ? '#8ee0cf' :
-      room.type === 'boss' ? '#bb7181' : room.type === 'miniboss' ? '#d78c69'
-        : room.type === 'shop' ? '#edc878' : room.type === 'bank' ? '#e4ca75' :
-        room.type === 'shrine' ? '#c69be5' :
-        room.type === 'elemental-shrine' ? magicElementPalette[room.shrineElement] || '#80d9d2' :
-        room.type === 'trial' ? '#d27a70' :
-        room.type === 'secret' ? '#c69be5' : '#aaa19a';
+    ctx.fillStyle = roomMapColor(room, explored);
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     if (explored && rect.larger) {
       ctx.strokeStyle = '#f4e3b0';
@@ -4036,17 +4473,11 @@ function drawMinimap() {
       ctx.lineWidth = 1.5;
       ctx.strokeRect(rect.x - 1.5, rect.y - 1.5, rect.w + 3, rect.h + 3);
     }
-    if ((explored && (room.type === 'boss' || room.type === 'miniboss' || room.type === 'shop' ||
-      room.type === 'bank' || room.type === 'secret' || room.type === 'shrine' ||
-      room.type === 'elemental-shrine' || room.type === 'trial')) || room.type === 'boss') {
+    if ((explored && roomMapLetter(room)) || room.type === 'boss') {
       ctx.fillStyle = room.type === 'boss' ? '#fff0f0' : '#211e25';
       ctx.font = 'bold 9px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(room.type === 'boss' ? 'B' : room.type === 'miniboss' ? '!'
-        : room.type === 'shop' ? '$' : room.type === 'bank' ? 'Z'
-          : room.type === 'shrine' ? 'S' : room.type === 'elemental-shrine' ? 'E'
-            : room.type === 'trial' ? 'T' : '?',
-      x + cell / 2, y + cell / 2 + 3);
+      ctx.fillText(roomMapLetter(room), x + cell / 2, y + cell / 2 + 3);
     }
     if (room === currentRoom) {
       ctx.strokeStyle = '#fff1d7';
@@ -5422,7 +5853,7 @@ function tutorialPages() {
       ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
     ] },
     { title: 'ROOMS, MAP AND ENEMIES', sections: [
-      ['The minimap', `Top right. Bright rooms are visited. A dark room is one you have seen a door to but not entered. Press ${b('map')} for the full map. A bigger room is drawn bigger.`],
+      ['The minimap', `Top right. Bright rooms are visited. A dark room is one you have seen a door to but not entered. Press ${b('map')} for the full map. A bigger room is drawn bigger. From a cleared room, pick another cleared room on the full map to travel there.`],
       ['Doors', 'A shut door is locked until the room is clear, or needs a key. An open door is free to use. Bombed entrances stay hidden until you find them.'],
       ['Enemies', 'Foes adapt to your input after about 2.5 seconds: touch draws close-range jukes, gamepads draw stronger flanking and staggered overlaps, and mouse/keyboard draws more predictive aim. Enemies steer around cover. Ranged windups show a locked aim line: change direction after they commit. Later floors also mix in mini boss moves.'],
       ['Bosses', 'Bosses have three distinct phases. Reaching a new phase restores up to TWO hearts. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses also mark your path and use wide pulses in later phases. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],

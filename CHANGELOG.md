@@ -4,6 +4,33 @@ Notable changes to MANA: Hollow Sanctum, newest first. Entries list the commits 
 
 These entries were later ported onto upstream's module split (`gameui.js`, `mobmanager.js`, `playermanager.js`, `dbmanager.js`, `worldmanager.js`) in the `Text:`, `Fix:`, `Gameplay:`, `Feedback:`, `Audio:` and `Display:` commits. The original commit IDs listed below are kept on the `backup/main-pre-improvements` and `backup/hidpi-pre-improvements` tags. The slider fix from `3e1759f` was already made upstream.
 
+## 2026-10-30
+
+### Full map overhaul and map travel
+- **Map travel.** From a cleared room, the full map can send the player straight to any visited, cleared room reachable through open doors.
+  - The route search is `mapTravelRoutes()` in `worldmanager.js`, a breadth-first search over `roomNeighbors()`. It walks open links and revealed secret walls, and never crosses locked doors or hostile rooms.
+  - The player arrives at the door of the route's last step. Arrival goes through `moveToRoom()`, the same path `enterDoor` now uses, so room state, autosave and companions behave as they do on a normal walk back.
+  - Travel is unavailable while the current room is hostile or during the death slow-motion.
+- **Bigger, clearer map.**
+  - `drawMap` (`gameui.js`) now fits the revealed rooms into the panel (`mapLayout()`, up to 130 px per cell), so small floors draw large.
+  - It adds:
+    - a framed panel with the region and floor;
+    - corridor bars, with padlocks on locked doors and dashed secret links;
+    - shaded rounded rooms with type badges;
+    - dashed unexplored rooms and a red tint on hostile ones;
+    - leftover-item icons;
+    - the delver in the current room;
+    - a sidebar with the selected room's contents, travel status and a legend of the room types present.
+  - When a room is out of reach, the sidebar says why: foes, a locked door, or both (`mapRouteBlocker`).
+  - Hostile rooms get a red border.
+  - The minimap shares the new `roomMapColor` and `roomMapLetter` helpers; it looks the same.
+- **Input while the map is open.**
+  - Keyboard: arrows/WASD move the selection, Enter/Space/Interact travels, M/Esc closes and P pauses.
+  - Mouse: hovering selects a room and a click travels there.
+  - Touch: the first tap selects and a second tap travels. The stick, attack and item buttons hide while the map is open.
+  - Controller: the D-pad or left stick moves the selection, A travels, and B or Back closes. The user approved this as a map-only exception to the controller lock.
+  - Other actions are ignored while the map is open, and pausing closes it.
+
 ## 2026-10-29
 
 ### Consistent ambient animation in automatic low quality

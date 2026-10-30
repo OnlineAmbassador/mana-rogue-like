@@ -785,6 +785,7 @@ function updateTouchControls() {
   }
   const visible = lastInputMode === 'touch' && mode === 'playing';
   touchControlsEl.hidden = !visible;
+  touchControlsEl.classList?.toggle('map-open', visible && showMap);
   if (!visible) resetTouchInput();
   if (visible) {
     const itemCount = consumables.reduce((total, item) => total + Math.max(0, item.count), 0);
@@ -953,6 +954,9 @@ let currentRoom;
 let storyText = '';
 const storyLog = [];
 let showMap = false;
+// The room highlighted on the full map, and when the map last opened (for its fade-in).
+let mapCursor = null;
+let mapOpenedAt = 0;
 let showStoryJournal = false;
 let lastTime = 0;
 let elapsed = 0;
@@ -1332,6 +1336,7 @@ function pauseGame() {
   for (const key of Object.keys(keys)) keys[key] = false;
   pointer.down = false;
   saveRunState();
+  closeMap();
   mode = 'paused';
   const labels = pauseControlLabels();
   showMessage(`Paused. Press ${labels.resume} to resume or ${labels.exit} to save and exit.`, 9999);
@@ -2468,6 +2473,11 @@ function loop(timestamp) {
 
 function runAction(id, options = {}) {
   if (deathTimer > 0) return;
+  // While the full map is open, only the map toggle works and interact travels to the selected room.
+  if (showMap && mode === 'playing' && id !== 'map') {
+    if (id === 'interact') travelToMapCursor();
+    return;
+  }
   if (id === 'interact') {
     interact(Boolean(options.shift));
     return;
@@ -2483,11 +2493,48 @@ function runAction(id, options = {}) {
     case 'weapon1': selectCombatStyle('melee'); break;
     case 'weapon2': selectCombatStyle('bow'); break;
     case 'weapon3': selectCombatStyle('magic'); break;
-    case 'map': showMap = !showMap; break;
+    case 'map': if (showMap) closeMap(); else openMap(); break;
     case 'journal': showStoryJournal = !showStoryJournal; break;
     case 'withdraw': interact(true); break;
     default: break;
   }
+}
+
+function openMap() {
+  showMap = true;
+  mapCursor = currentRoom;
+  mapOpenedAt = elapsed;
+  suppressHeldAttackInput();
+}
+
+function closeMap() {
+  if (showMap && canvas?.style) canvas.style.cursor = 'crosshair';
+  showMap = false;
+  mapCursor = null;
+}
+
+// Moves the map cursor to the nearest revealed room in a direction, favouring rooms in line.
+function stepMapCursor(dx, dy) {
+  const from = mapCursor && rooms.includes(mapCursor) ? mapCursor : currentRoom;
+  let best = null;
+  let bestScore = Infinity;
+  for (const room of rooms) {
+    if (room === from || !roomIsRevealed(room)) continue;
+    const along = (room.x - from.x) * dx + (room.y - from.y) * dy;
+    if (along <= 0) continue;
+    const across = Math.abs((room.x - from.x) * dy) + Math.abs((room.y - from.y) * dx);
+    const score = along + across * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = room;
+    }
+  }
+  if (best) mapCursor = best;
+}
+
+function travelToMapCursor() {
+  if (!mapCursor || mapCursor === currentRoom) return;
+  if (!travelToRoom(mapCursor)) playSound('system/click.ogg', 0.2);
 }
 
 function chooseCharacter(key) {
@@ -2558,6 +2605,16 @@ window.addEventListener('keydown', (event) => {
     if (key === 'p' || event.key === 'Escape' || key === 'r') resumeGame();
     else if (key === 'x') exitToTitle();
     else if (key === 'c') openControls('paused');
+    return;
+  }
+  if (mode === 'playing' && showMap) {
+    const mapAction = actionForKey(key);
+    const step = { arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1],
+      arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0] }[key];
+    if (step) stepMapCursor(...step);
+    else if (event.key === 'Enter' || event.key === ' ' || mapAction === 'interact') travelToMapCursor();
+    else if (event.key === 'Escape' || mapAction === 'map') closeMap();
+    else if (key === 'p') pauseGame();
     return;
   }
   if (mode === 'playing' && (key === 'p' || event.key === 'Escape')) {
@@ -2645,6 +2702,12 @@ function updatePointerPosition(event) {
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left - canvas.clientLeft) / canvas.clientWidth) * VIEW_W;
   pointer.y = ((event.clientY - rect.top - canvas.clientTop) / canvas.clientHeight) * VIEW_H;
+  if (mode === 'playing' && showMap) {
+    const room = mapRoomAt(pointer.x, pointer.y);
+    if (room && event.pointerType === 'mouse') mapCursor = room;
+    canvas.style.cursor = room && mapTravelRoutes().has(room) ? 'pointer' : 'default';
+    return;
+  }
   if (event.pointerType === 'mouse' && mode === 'playing') {
     mouseAimActive = true;
     mouseAimIdleTimer = 0;
@@ -2707,6 +2770,17 @@ canvas.addEventListener('wheel', (event) => {
 canvas.addEventListener('pointerdown', (event) => {
   if (!event.isPrimary) return;
   updatePointerPosition(event);
+  if (mode === 'playing' && showMap) {
+    event.preventDefault();
+    if (event.button !== 0) return;
+    const room = mapRoomAt(pointer.x, pointer.y);
+    if (!room) return;
+    // A touch tap selects first and travels on a second tap; a mouse click travels at once.
+    const confirm = event.pointerType !== 'touch' || room === mapCursor;
+    mapCursor = room;
+    if (confirm) travelToMapCursor();
+    return;
+  }
   if (event.button === 2 && mode === 'playing') {
     event.preventDefault();
     useClassSignature();

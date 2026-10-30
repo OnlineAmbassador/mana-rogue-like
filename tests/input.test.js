@@ -30,7 +30,7 @@ function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {
     stickKnobEl: { style: {} },
     touchAttackEl: { classList: { add() {}, remove() {} } },
     gamepadInput: { connected: false },
-    lastInputMode: 'touch', lastNonControllerInputMode: 'touch', mode: 'playing',
+    lastInputMode: 'touch', lastNonControllerInputMode: 'touch', mode: 'playing', showMap: false,
     resizeCanvas() {}, VIEW_W: 960, VIEW_H: 540,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
@@ -55,6 +55,7 @@ function controllerContext() {
     pointer: { x: 0, y: 0, down: false },
     touchInput: { attack: false },
     mode: 'playing',
+    showMap: false,
     lastInputMode: 'keyboard',
     lastNonControllerInputMode: 'keyboard',
     mouseAimActive: true,
@@ -323,6 +324,7 @@ test('walking sets facing on controller and touch only when not aiming or attack
 test('mouse movement updates player facing toward the pointer before firing', () => {
   const { context } = touchHarness();
   context.mode = 'playing';
+  context.showMap = false;
   context.pointer = { x: 0, y: 0, down: false };
   context.player = { x: 480, y: 270, lookX: 1, lookY: 0 };
   context.camera = { x: 0, y: 0 };

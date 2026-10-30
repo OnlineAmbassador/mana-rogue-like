@@ -1069,38 +1069,37 @@ function tryUnlock(room, direction) {
   return true;
 }
 
+// Puts the player just inside the door they came through, travelling in `direction`.
+function placePlayerAtEntry(direction) {
+  applyRoomSize(currentRoom);
+  const sideClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HALF_WIDTH + WALL_COLLISION_PADDING;
+  const verticalClearance = ROOM_WALL_THICKNESS + player.radius + WALL_COLLISION_PADDING;
+  const topClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HEIGHT + WALL_COLLISION_PADDING;
+  player.x = direction === 'left' ? ROOM_W - sideClearance
+    : direction === 'right' ? sideClearance : ROOM_W / 2;
+  player.y = direction === 'up' ? ROOM_H - verticalClearance
+    : direction === 'down' ? topClearance : ROOM_H / 2;
+}
+
+function moveToRoom(room, direction) {
+  suppressHeldAttackInput();
+  captureRoomRuntime(currentRoom);
+  currentRoom = room;
+  placePlayerAtEntry(direction);
+  spawnRoom(currentRoom);
+  saveRunState();
+}
+
 function enterDoor(direction) {
   if (!currentRoom.cleared) return;
   player.knockback = null;
-  const placeAtEntry = () => {
-    applyRoomSize(currentRoom);
-    const sideClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HALF_WIDTH + WALL_COLLISION_PADDING;
-    const verticalClearance = ROOM_WALL_THICKNESS + player.radius + WALL_COLLISION_PADDING;
-    const topClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HEIGHT + WALL_COLLISION_PADDING;
-    player.x = direction === 'left' ? ROOM_W - sideClearance
-      : direction === 'right' ? sideClearance : ROOM_W / 2;
-    player.y = direction === 'up' ? ROOM_H - verticalClearance
-      : direction === 'down' ? topClearance : ROOM_H / 2;
-  };
   if (currentRoom.secretExit?.direction === direction) {
     const secret = currentRoom.secretExit.room;
-    if (!secret.hidden) {
-      suppressHeldAttackInput();
-      captureRoomRuntime(currentRoom);
-      currentRoom = secret;
-      placeAtEntry();
-      spawnRoom(currentRoom);
-      saveRunState();
-    }
+    if (!secret.hidden) moveToRoom(secret, direction);
     return;
   }
   if (currentRoom.type === 'secret' && currentRoom.returnDirection === direction) {
-    suppressHeldAttackInput();
-    captureRoomRuntime(currentRoom);
-    currentRoom = currentRoom.returnTo;
-    placeAtEntry();
-    spawnRoom(currentRoom);
-    saveRunState();
+    moveToRoom(currentRoom.returnTo, direction);
     return;
   }
   if (!currentRoom.links[direction] || !tryUnlock(currentRoom, direction)) return;
@@ -1108,12 +1107,69 @@ function enterDoor(direction) {
   const vector = directions.find((item) => item.name === direction);
   const room = rooms.find((candidate) => candidate.x === currentRoom.x + vector.dx && candidate.y === currentRoom.y + vector.dy);
   if (!room) return;
-  suppressHeldAttackInput();
-  captureRoomRuntime(currentRoom);
-  currentRoom = room;
-  placeAtEntry();
-  spawnRoom(currentRoom);
-  saveRunState();
+  moveToRoom(room, direction);
+}
+
+// Doors the player could walk through from `room` without a key: open links and revealed secret walls.
+function roomNeighbors(room, allowLocked = false) {
+  const neighbors = [];
+  for (const direction of directions) {
+    if (room.secretExit?.direction === direction.name) {
+      if (!room.secretExit.room.hidden) neighbors.push({ room: room.secretExit.room, direction: direction.name });
+      continue;
+    }
+    if (room.type === 'secret' && room.returnDirection === direction.name) {
+      neighbors.push({ room: room.returnTo, direction: direction.name });
+      continue;
+    }
+    if (!room.links[direction.name] || (room.lockedDoors[direction.name] && !allowLocked)) continue;
+    const target = rooms.find((candidate) =>
+      candidate.x === room.x + direction.dx && candidate.y === room.y + direction.dy);
+    if (target && !target.hidden) neighbors.push({ room: target, direction: direction.name });
+  }
+  return neighbors;
+}
+
+function mapTravelAvailable() {
+  return mode === 'playing' && Boolean(currentRoom?.cleared) && deathTimer <= 0;
+}
+
+// Cleared rooms reachable through cleared rooms, each mapped to the direction of its final door.
+// The options relax the search only to explain why a room is out of reach; travel never uses them.
+function mapTravelRoutes({ allowHostile = false, allowLocked = false } = {}) {
+  const routes = new Map();
+  if (!mapTravelAvailable()) return routes;
+  const queue = [currentRoom];
+  const seen = new Set([currentRoom]);
+  while (queue.length > 0) {
+    const room = queue.shift();
+    for (const neighbor of roomNeighbors(room, allowLocked)) {
+      if (seen.has(neighbor.room) || !neighbor.room.visited) continue;
+      if (!neighbor.room.cleared && !allowHostile) continue;
+      seen.add(neighbor.room);
+      routes.set(neighbor.room, neighbor.direction);
+      queue.push(neighbor.room);
+    }
+  }
+  return routes;
+}
+
+// Why a visited, cleared room can't be reached: 'foes', 'locked', 'both', 'none', or null when it can be.
+function mapRouteBlocker(room) {
+  if (mapTravelRoutes().has(room)) return null;
+  if (mapTravelRoutes({ allowHostile: true }).has(room)) return 'foes';
+  if (mapTravelRoutes({ allowLocked: true }).has(room)) return 'locked';
+  return mapTravelRoutes({ allowHostile: true, allowLocked: true }).has(room) ? 'both' : 'none';
+}
+
+function travelToRoom(room) {
+  const direction = mapTravelRoutes().get(room);
+  if (!direction) return false;
+  player.knockback = null;
+  closeMap();
+  moveToRoom(room, direction);
+  playSound('system/warp.ogg', 0.22);
+  return true;
 }
 
 function resetFloorCoins() {

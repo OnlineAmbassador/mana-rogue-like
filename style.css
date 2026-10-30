@@ -281,6 +281,10 @@ body:not(.mobile-layout) #game {
   .touch-move-zone { left: 0; }
   .touch-aim-zone { right: 0; }
 
+  /* The full map takes taps on the canvas, so the stick, attack and item buttons step aside. */
+  .touch-controls.map-open .touch-zone,
+  .touch-controls.map-open .touch-quick-actions { visibility: hidden; }
+
   .touch-stick,
   .touch-attack,
   .touch-dash,

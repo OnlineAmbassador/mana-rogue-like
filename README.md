@@ -191,6 +191,13 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Every floor has a bombable hidden-room entrance. Rooms preserve their contents, enemy positions, and obstacle states when you leave and return.
 - The nine-region route always opens in Tulimshar and randomizes the order of Hurnscald, Graveyard, Artis Ruins, Halinarzo, Nivalis, Frostia, Candor Island, and the World Edge. Each region uses a TMW ground tileset and a persistent region label.
 - Track explored rooms, connections, and known special rooms on the persistent minimap; press M for the full map.
+  - The full map scales to fill the screen and draws:
+    - corridors, with padlocks on locked doors and dashed links to a revealed secret room;
+    - rooms you have seen but not entered;
+    - icons for what is left in each room;
+    - your delver in the current room;
+    - a legend of the room types on the floor.
+  - From a cleared room you can travel straight to any other cleared room reachable through open doors. Pick it with the mouse, arrows/WASD + Enter, the D-pad + A, or two taps. Travel never spends a key or passes through a room with foes in it.
 - Keep the HUD on the map's brick border so the play area stays clear: hearts and armor top-left, with zeny, keys, bombs and familiars stacked beneath them; weapon slots top-centre-left and action buttons top-centre-right (the door gap stays clear); the minimap top-right; charge meters bottom-left; and the boss health bar just under the top slots. Labels use a dark text outline for contrast.
 - Clear rooms to open doors. Some doors require a key.
 - Each floor now has three randomized dead-end chambers: one always holds a bomb cache, one is a key-locked elemental menhir 75% of the time (otherwise it is a key-locked ability room), and the last contains a guaranteed key cache. Interact with the menhir to change elements; ordinary items no longer reroll your element, and explicit sigils unlock their named element without changing it. Boss rewards guarantee an upgrade; secret, bomb, and other side rooms can be sparse or empty. Bomb cracked walls to reveal a hidden chamber and that region's Mana echo; occasional hidden-room bonuses are not guaranteed.
@@ -245,7 +252,7 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Map: Back/Share (Back also opens Controls from the title or pause screen); Pause: Start/Options
 - On-screen prompts switch to controller after a button press or deliberate stick movement, and back to keyboard after a key press or mouse click; a touchscreen press selects touch controls.
 - Doors, the bank pad, the Soul Menhir and the descent pad are used with E; Shift+E withdraws from the bank
-- Map: M
+- Map: M. On the full map, arrows/WASD or the mouse select a room, and Enter, E or a click travels there. M or Esc closes it. On a controller, use the D-pad or left stick, A to travel, and B or Back to close.
 - Character select: Left/Right choose, Enter descends, K opens the Field Codex, H (or Y/△ on a controller, or the HOW TO PLAY button) opens the in-game tutorial, C opens Controls
 - Pause/resume: P or Esc
 - Fullscreen: Alt+Enter or the Fullscreen button under the title bar; Esc or Alt+Enter leaves it
