@@ -2460,6 +2460,7 @@ function draw() {
     ctx.fillText('Your rooms and progress are saved automatically.', VIEW_W / 2, VIEW_H / 2 + 98);
     drawPauseEquipment();
     drawAudioPanel();
+    drawAdaptiveToggle();
   }
 
 }
@@ -2617,6 +2618,7 @@ window.addEventListener('keydown', (event) => {
     if (key === 'p' || event.key === 'Escape' || key === 'r') resumeGame();
     else if (key === 'x') exitToTitle();
     else if (key === 'c') openControls('paused');
+    else if (key === 'e') toggleAdaptiveEnemies();
     return;
   }
   if (mode === 'playing' && showMap) {
@@ -2741,6 +2743,10 @@ function updatePointerPosition(event) {
     canvas.style.cursor = 'pointer';
     return;
   }
+  if (mode === 'paused' && pointInBounds(adaptiveToggleBounds())) {
+    canvas.style.cursor = 'pointer';
+    return;
+  }
   if (mode === 'prologue') {
     const previous = prologueButtonBounds(-1);
     const next = prologueButtonBounds(1);
@@ -2799,6 +2805,10 @@ canvas.addEventListener('pointerdown', (event) => {
     return;
   }
   if (event.button !== 0) return;
+  if (mode === 'paused' && pointInBounds(adaptiveToggleBounds())) {
+    toggleAdaptiveEnemies();
+    return;
+  }
   if (mode === 'paused' && !pointerOverAudioPanel()) {
     if (pointer.y < VIEW_H / 2 + 14) resumeGame();
     else exitToTitle();

@@ -112,6 +112,47 @@ function handleAudioPanelPad(horizontal, confirmPressed) {
   return true;
 }
 
+// Pause-screen switch for input-adaptive enemy tactics (see BALANCE.md).
+function adaptiveToggleBounds() {
+  return { x: 24, y: ttsButtonBounds().y + (NARRATION_ENABLED ? 32 : 0), width: 190, height: 22 };
+}
+
+function toggleAdaptiveEnemies() {
+  gameSettings.adaptiveEnemies = !gameSettings.adaptiveEnemies;
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(gameSettings));
+  } catch (error) {
+    // Storage may be unavailable; the choice then lasts for this session only.
+  }
+}
+
+function adaptiveToggleKeyLabel() {
+  if (lastInputMode !== 'controller') return 'E';
+  return gamepadInput.family === 'ps' ? '△' : 'Y';
+}
+
+function drawAdaptiveToggle() {
+  const bounds = adaptiveToggleBounds();
+  const on = gameSettings.adaptiveEnemies;
+  const reading = { touch: 'touch', keyboard: 'keyboard and mouse', controller: 'gamepad' }[inputAI.mode];
+  ctx.save();
+  ctx.fillStyle = on ? '#30443b' : '#4a2f2f';
+  ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+  ctx.strokeStyle = on ? '#a5c79b' : '#c98a8a';
+  ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+  ctx.fillStyle = '#f0f0e0';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText(`ADAPTIVE ENEMIES [${adaptiveToggleKeyLabel()}]: ${on ? 'ON' : 'OFF'}`,
+    bounds.x + bounds.width / 2, bounds.y + 15);
+  ctx.textAlign = 'left';
+  ctx.font = '10px Arial';
+  ctx.fillStyle = '#d6d0be';
+  ctx.fillText(on ? (reading ? `Enemies are adapting to ${reading} play` : 'Enemies adapt to how you play')
+    : 'Original enemy tactics', bounds.x, bounds.y + bounds.height + 13);
+  ctx.restore();
+}
+
 function drawTtsPrompt() {
   ctx.save();
   ctx.fillStyle = 'rgba(8, 10, 9, 0.92)';

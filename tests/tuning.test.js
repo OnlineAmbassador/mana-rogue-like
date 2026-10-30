@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { combat, source, peek } = require('./helpers/combat');
-const { loadBetween } = require('./helpers/load');
+const { loadBetween, loadFunctions } = require('./helpers/load');
 
 const INPUTS = ['touch', 'keyboard', 'controller'];
 const tuning = (c) => peek(c, 'ADAPTIVE_AI_TUNING');
@@ -365,4 +365,36 @@ test('BALANCE.md and this file describe the same set of rules', () => {
   assert.ok(documented.length >= 12, 'BALANCE.md lists the rules as "### R1 ..." headings');
   assert.deepEqual(documented, tested);
   assert.match(source('mobmanager.js'), /BALANCE\.md/, 'the tuning table points at the document');
+});
+
+test('the pause toggle flips the setting, persists it, and labels the state and the input being read', () => {
+  const stored = {};
+  const texts = [];
+  const ctx = new Proxy({}, {
+    get: (target, method) => (method === 'fillText' ? (text) => texts.push(text) : () => {}),
+    set: () => true,
+  });
+  const context = vm.createContext({
+    ctx, gameSettings: { adaptiveEnemies: true }, SETTINGS_STORAGE_KEY: 'settings-key', NARRATION_ENABLED: false,
+    localStorage: { setItem: (key, value) => { stored[key] = value; } },
+    lastInputMode: 'keyboard', gamepadInput: { family: 'xbox' }, inputAI: { mode: 'touch' },
+    ttsButtonBounds: () => ({ x: 24, y: 100, width: 170, height: 22 }),
+  });
+  loadFunctions(context, 'gameui.js',
+    ['adaptiveToggleBounds', 'toggleAdaptiveEnemies', 'adaptiveToggleKeyLabel', 'drawAdaptiveToggle']);
+  context.drawAdaptiveToggle();
+  assert.deepEqual(texts, ['ADAPTIVE ENEMIES [E]: ON', 'Enemies are adapting to touch play']);
+  context.toggleAdaptiveEnemies();
+  assert.equal(JSON.parse(stored['settings-key']).adaptiveEnemies, false);
+  texts.length = 0;
+  context.drawAdaptiveToggle();
+  assert.deepEqual(texts, ['ADAPTIVE ENEMIES [E]: OFF', 'Original enemy tactics']);
+  context.lastInputMode = 'controller';
+  assert.equal(context.adaptiveToggleKeyLabel(), 'Y');
+  context.gamepadInput.family = 'ps';
+  assert.equal(context.adaptiveToggleKeyLabel(), '△');
+  context.localStorage = { setItem: () => { throw new Error('blocked'); } };
+  context.toggleAdaptiveEnemies();
+  assert.equal(context.gameSettings.adaptiveEnemies, true, 'a blocked store still lets the choice apply this session');
+  assert.ok(context.adaptiveToggleBounds().y >= 100, 'the button sits below the audio panel');
 });

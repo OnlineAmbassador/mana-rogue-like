@@ -184,6 +184,7 @@ function pollGamepad() {
       if (audioFocused) audioFocus = null;
       else exitToTitle();
     } else if (wasButtonPressed(8)) openControls('paused');
+    else if (wasButtonPressed(3)) toggleAdaptiveEnemies();
   } else if (mode === 'gameover' || mode === 'won') {
     if (wasButtonPressed(0) || wasButtonPressed(9)) returnToCharacterSelect();
   } else if (mode === 'playing' && showMap) {
