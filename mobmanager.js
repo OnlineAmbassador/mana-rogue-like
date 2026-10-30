@@ -1529,7 +1529,7 @@ function dropLoot(x, y, boss = false, bossSummoned = false) {
       markAbilityOffered(ability);
       pickups.push({ x, y, kind: 'upgrade', item: ability, room: currentRoom });
     } else {
-      // No eligible ability: the guardian still leaves a heart and some zenny.
+      // No eligible ability: the guardian still leaves a heart and some zeny.
       pickups.push({ x, y, kind: 'heart' });
       spawnCoin(x + 18, y);
       spawnCoin(x - 18, y);
@@ -1645,12 +1645,12 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       const bonusCoin = reserveCoin();
       if (bonusCoin) {
         coins += 1;
-        runStats.zennyFound += 1;
+        runStats.zenyFound += 1;
       }
       streakCallout.timer = streakCallout.duration;
       streakCallout.x = player.x;
       streakCallout.y = player.y - 42;
-      streakCallout.text = `${killStreak} CHAIN${bonusCoin ? '  +1 ZENNY' : ''}`;
+      streakCallout.text = `${killStreak} CHAIN${bonusCoin ? '  +1 ZENY' : ''}`;
       addParticles(enemy.x, enemy.y, '#ffe08b', 8, 95);
       playSound('special/fanfare.ogg', 0.12);
     }

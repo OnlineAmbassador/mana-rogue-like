@@ -19,7 +19,7 @@
 - [x] Add distinct horizontal, vertical, and diagonal movement attacks with telegraphs to the boss roster; keep each regional boss on a 3+ attack rotation and remove all boss hit-recoil.
 - [ ] Add an optional risk/reward shrine encounter.
 - [x] Give each regional boss a distinct 3+ attack rotation and movement signature, route minibosses through species-specific boss AI with lower health, and use available TMW walk/attack animation frames.
-- [x] Increase secret-room bonus treasure variety and frequency: zenny, an extra upgrade chance, and occasional bombs or hearts.
+- [x] Increase secret-room bonus treasure variety and frequency: zeny, an extra upgrade chance, and occasional bombs or hearts.
 
 ## Publishing and performance
 - [x] Auto quality mode (disables glow, caps particles when frame time is high).

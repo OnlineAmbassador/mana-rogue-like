@@ -551,7 +551,7 @@ function resetRunStats(saved = {}) {
   runStats.seconds = Number(saved.seconds) || 0;
   runStats.kills = Number(saved.kills) || 0;
   runStats.guardians = Number(saved.guardians) || 0;
-  runStats.zennyFound = Number(saved.zennyFound) || 0;
+  runStats.zenyFound = Number(saved.zenyFound ?? saved.zennyFound) || 0;
   runStats.lastHitBy = typeof saved.lastHitBy === 'string' ? saved.lastHitBy : '';
   runStats.unlocked = Array.isArray(saved.unlocked) ? saved.unlocked.filter((id) => typeof id === 'string') : [];
 }
@@ -646,7 +646,7 @@ function updateHud() {
   }
   // updateHud runs every frame; only touch the DOM when the text changes.
   const stats =
-    `${currentFloorTheme().name} · ${character.className} • Lead: ${activeCombatStyle} | Zenny: ${coins} | Bank: ${save.bankedZenny}`;
+    `${currentFloorTheme().name} · ${character.className} • Lead: ${activeCombatStyle} | Zeny: ${coins} | Bank: ${save.bankedZeny}`;
   if (statsEl.textContent !== stats) statsEl.textContent = stats;
   updateControlsHint();
 }
@@ -3177,10 +3177,10 @@ function drawWorld() {
     ctx.fillStyle = '#f4d78e';
     ctx.font = 'bold 18px Georgia';
     ctx.textAlign = 'center';
-    ctx.fillText('Zenny Vault', ROOM_W / 2, 118);
+    ctx.fillText('Zeny Vault', ROOM_W / 2, 118);
     ctx.fillStyle = '#f2e5c6';
     ctx.font = '14px Arial';
-    ctx.fillText(`Carried: ${coins}  ·  Stored: ${save.bankedZenny}`, ROOM_W / 2, 142);
+    ctx.fillText(`Carried: ${coins}  ·  Stored: ${save.bankedZeny}`, ROOM_W / 2, 142);
     ctx.font = '12px Arial';
     ctx.fillText('Step on a pad  ·  Shift+E / B withdraw all', ROOM_W / 2, 164);
     for (const withdraw of [false, true]) {
@@ -5382,7 +5382,7 @@ function tutorialPages() {
       ['Descend the Sanctum', 'Each floor is a chain of up to 10 rooms. Clear a floor, find its boss room, defeat the boss and step onto the descent pad to go deeper. Every floor brings stronger foes.'],
       ['Clear rooms to move on', 'Doors are shut while enemies live. Kill everything in a room and its doors open. A locked door needs a key instead, and shows a lock on the wall.'],
       ['Stay alive', 'Start with four hearts at the top left, each split into two hit points. Direct enemy contact costs a full heart; ordinary projectiles and splash cost half a heart. Telegraphed boss heavy slams cost TWO hearts. Floor hearts heal a full heart.'],
-      ['Grow stronger', 'Kills give XP and you level up, which raises your weapon pools. Items, weapon mods and boons make each run different. If you fall, unlocks and banked zenny carry over.'],
+      ['Grow stronger', 'Kills give XP and you level up, which raises your weapon pools. Items, weapon mods and boons make each run different. If you fall, unlocks and banked zeny carry over.'],
     ] },
     { title: 'CONTROLS', sections: [
       ['Move and aim', pad
@@ -5415,8 +5415,8 @@ function tutorialPages() {
       ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find the Mana Familiar Sigil to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
       ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
-    { title: 'SHOPS, ZENNY AND KEYS', sections: [
-      ['Zenny', 'Enemies and rooms drop zenny. Spend it in shops, or bank it so it stays with you after a run ends.'],
+    { title: 'SHOPS, ZENY AND KEYS', sections: [
+      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends.'],
       ['Shops', `Walk up to an item and press ${b('interact')} to buy it. Walking over an item never buys it. A shop is also a bank.`],
       ['Bank', `Step on the vault pad to deposit what you carry. ${pad ? p.b : 'Shift+' + b('interact')} near it withdraws your savings.`],
       ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
@@ -5432,7 +5432,7 @@ function tutorialPages() {
     { title: 'TIPS FOR A GOOD RUN', sections: [
       ['Keep moving', `Dash with ${b('dash')} to slip out of danger. Strafe around foes instead of standing still.`],
       ['Know your base weapon', 'Your class weapon hits hardest, but swapping to another weapon for range or crowds is always free.'],
-      ['Spend zenny', 'Buy potions and items. Keep a few coins in the bank so a bad run does not cost you everything.'],
+      ['Spend zeny', 'Buy potions and items. Keep a few coins in the bank so a bad run does not cost you everything.'],
       ['Make it yours', 'Open Controls to rebind keys and buttons. This guide updates to match. Enjoy the descent.'],
     ] },
   ];
@@ -5508,7 +5508,7 @@ function drawRunSummary(title) {
   const seconds = String(Math.floor(runStats.seconds % 60)).padStart(2, '0');
   const lines = [
     `${character?.name || 'Delver'}  •  Level ${xpLevel}  •  Floor ${currentFloor} of ${finalFloor}  •  ${minutes}:${seconds}`,
-    `Score ${score}  •  Foes defeated ${runStats.kills}  •  Guardians ${runStats.guardians}  •  Zenny found ${runStats.zennyFound}`,
+    `Score ${score}  •  Foes defeated ${runStats.kills}  •  Guardians ${runStats.guardians}  •  Zeny found ${runStats.zenyFound}`,
   ];
   if (mode === 'gameover' && runStats.lastHitBy) lines.push(`Last hit: ${runStats.lastHitBy}`);
   ctx.font = '16px Arial';

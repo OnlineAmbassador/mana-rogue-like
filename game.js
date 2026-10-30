@@ -600,8 +600,8 @@ const shopItemCatalog = [
   { id: 'heart-vessel-ii', name: 'Heart Vessel II', description: 'Gain one heart for this descent', cost: 11, kind: 'passive' },
   { id: 'heart-vessel-iii', name: 'Heart Vessel III', description: 'Gain one heart for this descent', cost: 14, kind: 'passive' },
   { id: 'guardian-heart', name: 'Guardian Heart', description: 'A boss-room relic: gain one heart container and restore up to two hearts', cost: 0, kind: 'boss-relic' },
-  { id: 'luck-up-i', name: 'Luck Up I', description: 'Zenny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
-  { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zenny windfall', cost: 9, kind: 'passive' },
+  { id: 'luck-up-i', name: 'Luck Up I', description: 'Zeny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
+  { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zeny windfall', cost: 9, kind: 'passive' },
   { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther', cost: 7, kind: 'passive' },
   { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Extend projectile range another 35%', cost: 10, kind: 'passive' },
   { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range; shots pierce solid barriers', cost: 13, kind: 'passive' },
@@ -1390,7 +1390,7 @@ const regionalBossClues = {
 
 
 // Obstacles are deliberate: indestructible pillars are mirrored cover against ranged enemies, and
-// a breakable cache in a corner always pays out (heart if hurt, otherwise zenny or a bomb).
+// a breakable cache in a corner always pays out (heart if hurt, otherwise zeny or a bomb).
 // Door lanes and the room centre stay clear.
 
 
@@ -2164,7 +2164,7 @@ function update(dt) {
     }
     if (pickup.kind === 'coin') {
       coins += 1;
-      runStats.zennyFound += 1;
+      runStats.zenyFound += 1;
       playPickupSound('gp', 0.25);
     }
     if (pickup.kind === 'heart') {

@@ -1750,7 +1750,7 @@ function vibrateController(damageAmount) {
 let deathTimer = 0;
 
 // Tallies for the end-of-run summary; saved with the run.
-const runStats = { seconds: 0, kills: 0, guardians: 0, zennyFound: 0, lastHitBy: '', unlocked: [] };
+const runStats = { seconds: 0, kills: 0, guardians: 0, zenyFound: 0, lastHitBy: '', unlocked: [] };
 
 const DEATH_SLOWDOWN_SECONDS = 1.1;
 

@@ -18,7 +18,7 @@ function getSave() {
   } catch (error) {
     messageEl.textContent = 'Progress could not be read from browser storage; unlocks last for this visit.';
     return {
-      arcanist: false, warden: false, highestFloorCleared: 0, unlockedCharacters: [], completedRuns: 0, bankedZenny: 0,
+      arcanist: false, warden: false, highestFloorCleared: 0, unlockedCharacters: [], completedRuns: 0, bankedZeny: 0,
       playtimeSeconds: 0, unlockedItemIds: [], discoveredItemIds: [], discoveredEnemyIds: [], discoveredEnemyAbilityIds: [],
       purchasedAbilityIds: [], introducedChapters: [], loreRelics: [],
     };
@@ -31,9 +31,11 @@ function getSave() {
   } catch (error) {
     messageEl.textContent = 'Bank storage could not be read; your saved profile balance is shown for this visit.';
   }
-  const profileBalance = Number.isFinite(storedSave.bankedZenny)
-    ? Math.max(0, Math.floor(storedSave.bankedZenny)) : 0;
-  const bankedZenny = storedBank === null || storedBank === undefined
+  // Profiles saved before the Zeny rename store the balance as bankedZenny.
+  const storedBalance = storedSave.bankedZeny ?? storedSave.bankedZenny;
+  const profileBalance = Number.isFinite(storedBalance)
+    ? Math.max(0, Math.floor(storedBalance)) : 0;
+  const bankedZeny = storedBank === null || storedBank === undefined
     ? profileBalance : Math.max(0, Math.floor(Number(storedBank) || 0));
   if (storedBank === null && profileBalance > 0) {
     try {
@@ -50,7 +52,7 @@ function getSave() {
     unlockedCharacters: Array.isArray(storedSave.unlockedCharacters)
       ? storedSave.unlockedCharacters.filter((id) => typeof id === 'string').map(currentSaveId) : [],
     completedRuns: Number.isFinite(storedSave.completedRuns) ? Math.max(0, Math.floor(storedSave.completedRuns)) : 0,
-    bankedZenny,
+    bankedZeny,
     playtimeSeconds: Number.isFinite(storedSave.playtimeSeconds) ? Math.max(0, storedSave.playtimeSeconds) : 0,
     unlockedItemIds: Array.isArray(storedSave.unlockedItemIds)
       ? storedSave.unlockedItemIds.filter((id) => typeof id === 'string') : [],
@@ -187,14 +189,14 @@ function recordFloorClear(floor) {
   persistSave();
 }
 
-function persistBankedZenny(amount) {
+function persistBankedZeny(amount) {
   const balance = Math.max(0, Math.floor(amount));
   try {
     localStorage.setItem(BANK_STORAGE_KEY, String(balance));
-    save.bankedZenny = balance;
+    save.bankedZeny = balance;
     return true;
   } catch (error) {
-    showMessage('The bank could not save your zenny. The transaction was cancelled.', 4);
+    showMessage('The bank could not save your zeny. The transaction was cancelled.', 4);
     return false;
   }
 }

@@ -1034,7 +1034,7 @@ function spawnRoom(room) {
   } else if (room.type === 'shop') {
     storyText = 'A traveling merchant has laid out wares for anyone who has coin.';
   } else if (room.type === 'bank') {
-    storyText = 'A quiet vault keeps your stored zenny safe between descents.';
+    storyText = 'A quiet vault keeps your stored zeny safe between descents.';
   } else {
     storyText = '';
   }
@@ -1237,7 +1237,7 @@ function updateWalkInInteractions(dt) {
       interact();
       return;
     }
-    if (save.bankedZenny > 0 && distanceBetween(player, bankPadPosition(true)) < 44) {
+    if (save.bankedZeny > 0 && distanceBetween(player, bankPadPosition(true)) < 44) {
       walkInCooldown = 1.5;
       interact(true);
       return;
@@ -1382,21 +1382,21 @@ function interact(withdrawFromBank = false) {
       (withdrawFromBank || distanceBetween(player, bankPadPosition(false)) < 160 ||
         distanceBetween(player, bankPadPosition(true)) < 160)) {
     if (withdrawFromBank) {
-      const amount = save.bankedZenny;
+      const amount = save.bankedZeny;
       if (amount <= 0) showMessage('Your vault is empty.', 2);
-      else if (persistBankedZenny(0)) {
+      else if (persistBankedZeny(0)) {
         coins += amount;
         persistRunAfterBankTransaction();
-        showMessage(`Withdrew ${amount} zenny from the vault.`, 2.5);
+        showMessage(`Withdrew ${amount} zeny from the vault.`, 2.5);
       }
     } else if (coins <= 0) {
-      showMessage('You have no zenny to deposit.', 2);
+      showMessage('You have no zeny to deposit.', 2);
     } else {
       const amount = coins;
-      if (persistBankedZenny(save.bankedZenny + amount)) {
+      if (persistBankedZeny(save.bankedZeny + amount)) {
         coins = 0;
         persistRunAfterBankTransaction();
-        showMessage(`Deposited ${amount} zenny. The vault now holds ${save.bankedZenny}.`, 2.5);
+        showMessage(`Deposited ${amount} zeny. The vault now holds ${save.bankedZeny}.`, 2.5);
       }
     }
     updateHud();
@@ -1454,7 +1454,7 @@ function buyShopItem(index) {
     return;
   }
   if (coins < item.cost) {
-    showMessage(`${item.name} costs ${item.cost} zenny.`, 2);
+    showMessage(`${item.name} costs ${item.cost} zeny.`, 2);
     return;
   }
   coins -= item.cost;
@@ -1760,7 +1760,7 @@ function grantRewardTrialLoot(room) {
     !abilityAlreadyOffered(item.id) &&
     (item.id === 'orbiting-projectiles' || abilityCount < 2) &&
     isUpgradeAvailable(item));
-  const rewards = ['bomb', 'zenny'];
+  const rewards = ['bomb', 'zeny'];
   if (player.hp < player.maxHp) rewards.push('heart');
   if (abilities.length > 0) rewards.push('ability');
   const reward = rewards[Math.floor(Math.random() * rewards.length)];
