@@ -2253,6 +2253,7 @@ function update(dt) {
     currentRoom.cleared = true;
     grantOrbitGuardChargeUp(currentRoom);
     if (['miniboss', 'shrine'].includes(currentRoom.type)) addRoomRewardPickup(currentRoom);
+    if (currentRoom.type === 'riskShrine') completeRiskShrineAmbush(currentRoom);
     if (currentRoom.type === 'boss') {
       showMessage('The guardian is defeated. The seal opens; the descent continues.', 5);
     } else {

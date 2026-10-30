@@ -327,6 +327,8 @@ function serializeRun() {
     rewardClaimed: room.rewardClaimed,
     shopStock: room.shopStock?.map(({ id, purchased }) => ({ id, purchased })) || null,
     rewardUpgrade: room.rewardUpgrade,
+    riskShrineChoice: room.riskShrineChoice,
+    riskShrineDone: room.riskShrineDone,
     secretExit: room.secretExit ? {
       direction: room.secretExit.direction,
       x: room.secretExit.room.x,

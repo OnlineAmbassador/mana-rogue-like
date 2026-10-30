@@ -249,9 +249,17 @@ function createRoom(x, y, type = 'normal') {
     rewardClaimed: false,
     shopStock: null,
     rewardUpgrade: null,
+    riskShrineChoice: null,
+    riskShrineDone: false,
     runtime: null,
   };
 }
+
+// Optional two-altar room: trade a heart for an upgrade, or fight an ambush wave for a heart vessel.
+const RISK_SHRINE_CHANCE = 0.5;
+const RISK_SHRINE_MIN_HEARTS = 2;
+const RISK_SHRINE_MAX_AMBUSH = 6;
+const RISK_SHRINE_RANGE = 80;
 
 function roomKey(room) {
   return `${currentFloor}:${room.x},${room.y}`;
@@ -475,8 +483,15 @@ function generateDungeonAttempt() {
       initializeRewardTrial(secondTrialRoom);
     }
   }
+  if (Math.random() < RISK_SHRINE_CHANCE) {
+    // A plain dead end off an unlocked, non-special room; a miss simply leaves the map without one.
+    const riskSources = [...occupied.values()].filter((room) =>
+      !['boss', 'secret', 'trial'].includes(room.type) && !room.optionalBranch &&
+      Object.keys(room.lockedDoors).length === 0);
+    attachRoom(riskSources, 'riskShrine');
+  }
   keysHeld = Math.max(keysHeld, 1);
-  miniBossRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-map`, [...occupied.values()]);
+  miniBossRoom.rewardUpgrade =createUpgradeReward(`floor-${currentFloor}-map`, [...occupied.values()]);
   initializeRewardTrial(lockTarget);
 
   // Exactly one oversized room per map; never the boss, shop, secret, shrine, or start room.
@@ -929,6 +944,12 @@ function spawnRoom(room) {
     }
   } else if (room.type === 'secret') {
     room.cleared = true;
+  } else if (room.type === 'riskShrine') {
+    // Only an accepted ambush that is still unfinished keeps the doors shut.
+    room.cleared = room.riskShrineChoice !== 'ambush' || room.riskShrineDone;
+    for (let index = breakables.length - 1; index >= 0; index -= 1) {
+      if (!breakables[index].room || breakables[index].room === room) breakables.splice(index, 1);
+    }
   } else if (room.type === 'boss') {
     if (!room.entered) {
       const bossKind = bossForCurrentArea();
@@ -1031,6 +1052,10 @@ function spawnRoom(room) {
     unlockCharacter('world-edge-pilgrim');
   } else if (room.type === 'trial') {
     storyText = 'An old leyline lens puzzle blocks the reward. Turn each facet and follow the light to the receiver.';
+  } else if (room.type === 'riskShrine') {
+    storyText = room.riskShrineChoice
+      ? 'The altars are quiet.'
+      : 'Two altars. One asks for a heart, the other for a fight.';
   } else if (room.type === 'shop') {
     storyText = 'A traveling merchant has laid out wares for anyone who has coin.';
   } else if (room.type === 'bank') {
@@ -1251,8 +1276,7 @@ function canInteract() {
   if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
       distanceBetween(player, elementalShrinePosition()) < 92) return true;
   if (nearestManaRelic()) return true;
-  if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
-      distanceBetween(player, elementalShrinePosition()) < 92) return true;
+  if (nearestRiskShrineAltar()) return true;
   if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 86) return true;
   if (nearestShopSlot() >= 0) return true;
   if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
@@ -1372,6 +1396,12 @@ function interact(withdrawFromBank = false) {
     showMessage(`The elemental menhir attunes you to ${activeMagicElement}.`, 3);
     updateHud();
     saveRunState();
+    return;
+  }
+  const riskAltar = nearestRiskShrineAltar();
+  if (riskAltar) {
+    if (riskAltar.id === 'offering') useRiskShrineOffering();
+    else startRiskShrineAmbush();
     return;
   }
   const relicPickup = nearestManaRelic();
@@ -1582,6 +1612,75 @@ function soulMenhirPosition() {
 
 function elementalShrinePosition() {
   return { x: ROOM_W / 2, y: ROOM_H / 2 };
+}
+
+function riskShrineAltars() {
+  return [
+    { id: 'offering', x: ROOM_W / 2 - 130, y: ROOM_H / 2 },
+    { id: 'ambush', x: ROOM_W / 2 + 130, y: ROOM_H / 2 },
+  ];
+}
+
+function nearestRiskShrineAltar() {
+  if (!currentRoom || currentRoom.type !== 'riskShrine' || currentRoom.riskShrineChoice) return null;
+  return riskShrineAltars().find((altar) => distanceBetween(player, altar) < RISK_SHRINE_RANGE) || null;
+}
+
+function riskShrineAmbushCount() {
+  return Math.min(RISK_SHRINE_MAX_AMBUSH, currentFloor + 1);
+}
+
+// Gives up one heart container for a guaranteed upgrade. The heart is only taken once the upgrade lands.
+function useRiskShrineOffering() {
+  if (player.maxHp <= RISK_SHRINE_MIN_HEARTS) {
+    showMessage('The altar asks for a heart you cannot spare.', 2.5);
+    return false;
+  }
+  const reward = createUpgradeReward(`floor-${currentFloor}-risk-${currentRoom.x}-${currentRoom.y}`, rooms);
+  if (!grantUpgrade(reward, 'shrine')) {
+    reservedUpgradeIds.delete(reward.id);
+    return false;
+  }
+  player.maxHp = Math.max(RISK_SHRINE_MIN_HEARTS, player.maxHp - 1);
+  player.hp = Math.min(player.hp, player.maxHp);
+  currentRoom.riskShrineChoice = 'offering';
+  currentRoom.riskShrineDone = true;
+  addParticles(ROOM_W / 2 - 130, ROOM_H / 2 - 30, '#e58a9a', 24, 95);
+  updateHud();
+  saveRunState();
+  return true;
+}
+
+// Locks the doors and spawns the ambush; clearing it pays out through completeRiskShrineAmbush.
+function startRiskShrineAmbush() {
+  const kinds = enemyKindsForCurrentMap();
+  currentRoom.riskShrineChoice = 'ambush';
+  currentRoom.cleared = false;
+  for (let i = 0; i < riskShrineAmbushCount(); i += 1) {
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    const spawn = findEnemySpawnPosition(180 + Math.random() * (ROOM_W - 360), 120 + Math.random() * (ROOM_H - 240), 18, 140);
+    if (!spawn) continue;
+    applyBossAIPromotion(applyEliteMutation(createEnemy(kind, spawn.x, spawn.y)));
+  }
+  addParticles(ROOM_W / 2 + 130, ROOM_H / 2 - 30, '#cc92e7', 24, 95);
+  showMessage('The doors seal. Survive the ambush.', 2.5);
+  updateHud();
+  saveRunState();
+}
+
+function completeRiskShrineAmbush(room) {
+  if (room.riskShrineChoice !== 'ambush' || room.riskShrineDone) return;
+  room.riskShrineDone = true;
+  if (heartVesselAllowed() && gainMaxHeart()) {
+    showPickupBanner('Heart Vessel', ['+1 MAX HEART']);
+    popOverPlayer({ icon: 'heart', color: '#ff7f93' });
+  } else {
+    player.hp = player.maxHp;
+    for (let i = 0; i < 3; i += 1) spawnCoin(ROOM_W / 2 - 24 + i * 24, ROOM_H / 2 + 40);
+    showMessage('The ambush is over. Your wounds close.', 3);
+  }
+  updateHud();
+  saveRunState();
 }
 
 function rewardTrialSolution(branch) {

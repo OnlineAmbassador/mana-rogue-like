@@ -3031,6 +3031,7 @@ function drawWorld() {
     ctx.fillText(currentRoom.cleared ? 'SHRINE OFFERING' : 'GUARDIAN SHRINE', ROOM_W / 2, ROOM_H / 2 + 76);
     ctx.restore();
   }
+  if (currentRoom.type === 'riskShrine') drawRiskShrine();
 
   for (const rock of breakables) {
     if (rock.broken) continue;
@@ -3741,12 +3742,52 @@ function drawRoomLeftovers(room, x, y, cell, radius) {
   if (kinds.has('upgrade')) mark(x + cell - inset, y + cell - inset, '#b98cf0', '#ffffff');
 }
 
+// Two altars: the left trades a heart for an upgrade, the right starts an ambush that pays a heart vessel.
+function drawRiskShrine() {
+  const labels = {
+    offering: ['HEART OFFERING', '-1 HEART, +1 UPGRADE', '#e58a9a'],
+    ambush: ['AMBUSH ALTAR', 'FIGHT FOR A HEART', '#cc92e7'],
+  };
+  const used = Boolean(currentRoom.riskShrineChoice);
+  ctx.save();
+  ctx.textAlign = 'center';
+  for (const altar of riskShrineAltars()) {
+    const [title, detail, color] = labels[altar.id];
+    const chosen = currentRoom.riskShrineChoice === altar.id;
+    const spent = used && !(chosen && !currentRoom.riskShrineDone);
+    ctx.fillStyle = 'rgba(17, 16, 25, 0.76)';
+    ctx.strokeStyle = spent ? '#6f6a78' : color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(altar.x, altar.y, 54, 32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (!spent) {
+      ctx.beginPath();
+      ctx.arc(altar.x, altar.y - 6, 16 + Math.sin(elapsed * 3) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = spent ? '#8d8896' : '#f2e5f7';
+    ctx.font = 'bold 12px Arial';
+    ctx.fillText(title, altar.x, altar.y + 52);
+    ctx.font = '11px Arial';
+    ctx.fillText(chosen && !currentRoom.riskShrineDone ? 'SURVIVE' : used ? 'SPENT' : detail, altar.x, altar.y + 66);
+    if (!used && distanceBetween(player, altar) < RISK_SHRINE_RANGE) {
+      ctx.fillStyle = '#fff0bd';
+      ctx.font = 'bold 12px Arial';
+      ctx.fillText('[E] CHOOSE', altar.x, altar.y + 84);
+    }
+  }
+  ctx.restore();
+}
+
 function roomMapColor(room, explored) {
   if (!explored) return room.type === 'boss' ? '#9b2b3c' : '#4a4650';
   if (room === currentRoom) return '#8ee0cf';
   return room.type === 'boss' ? '#bb7181' : room.type === 'miniboss' ? '#d78c69'
     : room.type === 'shop' ? '#edc878' : room.type === 'bank' ? '#e4ca75'
       : room.type === 'shrine' ? '#c69be5'
+        : room.type === 'riskShrine' ? '#e58a9a'
         : room.type === 'elemental-shrine' ? magicElementPalette[room.shrineElement] || '#80d9d2'
           : room.type === 'trial' ? '#d27a70'
             : room.type === 'secret' ? '#c69be5' : '#aaa19a';
@@ -3754,12 +3795,12 @@ function roomMapColor(room, explored) {
 
 function roomMapLetter(room) {
   return { boss: 'B', miniboss: '!', shop: '$', bank: 'Z', shrine: 'S',
-    'elemental-shrine': 'E', trial: 'T', secret: '?' }[room.type] || '';
+    'elemental-shrine': 'E', riskShrine: 'R', trial: 'T', secret: '?' }[room.type] || '';
 }
 
 function roomMapLabel(room) {
   return { start: 'Start', boss: 'Guardian', miniboss: 'Mini-boss', shop: 'Shop', bank: 'Bank',
-    shrine: 'Shrine', 'elemental-shrine': 'Menhir', trial: 'Trial', secret: 'Secret' }[room.type] || 'Room';
+    shrine: 'Shrine', 'elemental-shrine': 'Menhir', riskShrine: 'Altars', trial: 'Trial', secret: 'Secret' }[room.type] || 'Room';
 }
 
 const MAP_AREA = { x: 36, y: 92, w: 724, h: 372 };
@@ -5672,6 +5713,7 @@ function tutorialPages() {
       ['Enemies', 'Foes adapt to your input after about 2.5 seconds: touch draws close-range jukes, gamepads draw stronger flanking and staggered overlaps, and mouse/keyboard draws more predictive aim. Enemies steer around cover. Ranged windups show a locked aim line: change direction after they commit. Later floors also mix in mini boss moves.'],
       ['Bosses', 'Bosses have three distinct phases. Reaching a new phase restores up to TWO hearts. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses also mark your path and use wide pulses in later phases. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],
       ['Wide pulses', `A large marked circle warns before the blast and is too wide to walk out of in time. Ordinary mobs can use it too. Press ${b('dash')} at DASH NOW to use your brief invulnerability. Dashing too early may leave you exposed. These checks only begin from the second floor, with Dash ready and no competing hostile shots or nearby ground hazards. They can be turned off with Adaptive enemies on the pause screen.`],
+      ['Altar rooms', `Some floors have an unlocked side room with two altars (R on the map). Stand at one and press ${b('interact')}. The left altar takes one heart container for an upgrade. The right altar seals the doors and starts an ambush; clearing it gives a heart vessel. Each room allows one choice.`],
       ['Optional trials', 'Key-locked trial rooms are enemy-free mini-games: route light with mirrors, repeat a rune sequence, or chase moving sparks. Complete one for a collectible reward; an uncollected regional Codex appears most of the time.'],
     ] },
     { title: 'TIPS FOR A GOOD RUN', sections: [
