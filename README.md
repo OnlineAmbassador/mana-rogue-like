@@ -130,7 +130,7 @@ node --check worldmanager.js
 
 ## Third-party artwork
 
-The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3ab88eb52cb995be3d85c96810fe1826bc429ede`). Unlisted image files were removed from its `graphics` directory; image files whose paths appear in `LICENSE` were retained. XML descriptors and repository metadata remain. The game uses these client-data graphics:
+The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3ab88eb52cb995be3d85c96810fe1826bc429ede`). `node tools/trim-assets.js --apply` then removed every file the game scripts do not reference, so only the referenced `graphics` and `sfx` files, the license records, and the TMX maps cited below (with the tilesets they load) remain; the original files are in the upstream repository and git history. Run the script without `--apply` to see what a new import would remove. The game uses these client-data graphics:
 
 - `graphics/items/equipment/charms/heart-of-isis.png` — V0id; GPLv2 and CC BY-SA 3.0.
 - `graphics/items/equipment/ammo/stoneprojectile-icon.png` — wushin, tux9th; GPLv2 and CC BY-SA 3.0.

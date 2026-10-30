@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<sprite>
-    <imageset name="weapon"
-              src="graphics/sprites/equipment/weapons/pickaxe.png"
-              width="64"
-              height="64"/>
-
-    <include file="equipment/weapons/kanabo.xml"/>
-</sprite>

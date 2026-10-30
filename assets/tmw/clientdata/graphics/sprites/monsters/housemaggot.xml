@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-<sprite>
-    <imageset name="base" src="graphics/sprites/monsters/housemaggot.png" width="20" height="15"/>
-
-    <include file="monsters/maggot.xml"/>
-</sprite>

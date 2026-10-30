@@ -1,7 +1,0 @@
-<?xml version="1.0"?>
-<sprite>
-  <imageset name="staff" src="graphics/sprites/equipment/weapons/weapon-staff-red.png" width="128" height="128" />
-
-  <include file="equipment/weapons/scorpionkinglance.xml"/>
-
-</sprite>
