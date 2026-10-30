@@ -721,6 +721,18 @@ function recordStory(title, text) {
   if (storyLog.length > 18) storyLog.shift();
 }
 
+// The user's reduced-motion preference. The query is created once; its `matches` flag stays live.
+function prefersReducedMotion() {
+  if (prefersReducedMotion.query === undefined) {
+    try {
+      prefersReducedMotion.query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    } catch (error) {
+      prefersReducedMotion.query = null;
+    }
+  }
+  return prefersReducedMotion.query?.matches === true;
+}
+
 function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
   ctx.save();
   ctx.shadowBlur = 0;
@@ -810,10 +822,6 @@ function drawPauseEquipment() {
   ctx.restore();
 }
 
-function isDesertRegion() {
-  return currentRegionId() === 'tulimshar';
-}
-
 function terrainTileAt(terrain, column, row) {
   if (terrain.tilePattern) {
     const patternRow = terrain.tilePattern[row % terrain.tilePattern.length];
@@ -822,259 +830,24 @@ function terrainTileAt(terrain, column, row) {
   return terrain.tileIds[(column * 7 + row * 13) % terrain.tileIds.length];
 }
 
-function desertPavingCoverage(x, y) {
-  // Sample the same 4px cells for both drawing and footprint exclusion.
-  x = Math.floor(x / 4) * 4 + 2;
-  y = Math.floor(y / 4) * 4 + 2;
-  const seed = currentRoom.x * 1.73 + currentRoom.y * 2.37;
-  const dx = x - ROOM_W / 2;
-  const dy = y - ROOM_H / 2;
-  let distance = (Math.hypot(dx / 57, dy / 45) - 1) * 45;
-  for (const { name, dx: directionX, dy: directionY } of directions) {
-    if (!currentRoom.links[name]) continue;
-    const along = dx * directionX + dy * directionY;
-    const length = (directionX ? ROOM_W : ROOM_H) / 2 - 64;
-    if (along < 0 || along > length + 4) continue;
-    const t = along / length;
-    const phase = seed + (directionX ? 1.9 : 0.6) + (directionX + directionY) * 0.8;
-    const bend = Math.sin(t * Math.PI) *
-      (Math.sin(phase) * 29 + Math.sin(t * Math.PI * 2 + phase) * 15);
-    const across = -dx * directionY + dy * directionX;
-    const halfWidth = 34 + Math.sin(t * Math.PI) * (5 + Math.sin(t * 9 + phase) * 8);
-    distance = Math.min(distance, Math.abs(across - bend) - halfWidth);
-  }
-  const erosion = Math.sin(x * 0.061 + y * 0.037 + seed) * 4 +
-    Math.sin(x * 0.113 - y * 0.083 - seed) * 3 +
-    Math.sin(x * 0.29 + y * 0.23 + seed) * 2;
-  return Math.max(0, Math.min(1, (5 - distance - erosion) / 10));
-}
-
-function updateSandFootprints(dt) {
-  const trail = sandFootprints;
-  const distance = Math.hypot(player.x - trail.x, player.y - trail.y);
-  if (trail.room !== currentRoom || !isDesertRegion() || currentRoom.type === 'secret' || distance > 96) {
-    trail.marks.length = 0;
-    trail.distance = 0;
-    trail.room = currentRoom;
-    trail.x = player.x;
-    trail.y = player.y;
-    return;
-  }
-  for (const mark of trail.marks) mark.ttl -= dt;
-  trail.marks = trail.marks.filter((mark) => mark.ttl > 0);
-  if (player.moving && distance > 0) {
-    const dx = (player.x - trail.x) / distance;
-    const dy = (player.y - trail.y) / distance;
-    const heading = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-    const paving = terrainTiles.artis.image;
-    for (let step = 20 - trail.distance; step <= distance; step += 20) {
-      const x = trail.x + dx * step;
-      const y = trail.y + dy * step;
-      const onPaving = paving.complete && paving.naturalWidth >= 64 && paving.naturalHeight >= 32 &&
-        desertPavingCoverage(x, y) >= 0.25;
-      if (x >= 76 && y >= 76 && x <= ROOM_W - 76 && y <= ROOM_H - 76 && !onPaving) {
-        trail.marks.push({ x, y, heading, ttl: 8 });
-      }
-    }
-    trail.distance = (trail.distance + distance) % 20;
-    if (trail.marks.length > 96) trail.marks.splice(0, trail.marks.length - 96);
-  } else {
-    trail.distance = 0;
-  }
-  trail.x = player.x;
-  trail.y = player.y;
-}
-
-function drawSandFootprints() {
-  if (sandFootprints.room !== currentRoom || !isDesertRegion() || currentRoom.type === 'secret' ||
-      !sandFootprintImage.complete || sandFootprintImage.naturalWidth < 96 ||
-      sandFootprintImage.naturalHeight < 96) return;
-  const cells = [[2, 1], [2, 2], [1, 2], [0, 2], [0, 1], [0, 0], [1, 0], [2, 0]];
-  ctx.save();
-  for (const mark of sandFootprints.marks) {
-    const [column, row] = cells[mark.heading];
-    ctx.globalAlpha = 0.4 * Math.min(1, mark.ttl / 3);
-    ctx.drawImage(sandFootprintImage, column * 32, row * 32, 32, 32, mark.x - 12, mark.y - 12, 24, 24);
-  }
-  ctx.restore();
-}
-
-function drawDesertGround(context, image) {
-  context.save();
-  context.beginPath();
-  context.rect(64, 64, ROOM_W - 128, ROOM_H - 128);
-  context.clip();
-  context.filter = 'saturate(0.78) brightness(0.97)';
-  // Keep the atlas's dune patch intact instead of shuffling unrelated transition tiles.
-  for (let y = 64; y < ROOM_H - 64; y += 128) {
-    for (let x = 64; x < ROOM_W - 64; x += 128) {
-      context.drawImage(image, 256, 256, 128, 128, x, y, 128, 128);
-    }
-  }
-  const paving = terrainTiles.artis.image;
-  if (paving.complete && paving.naturalWidth >= 64 && paving.naturalHeight >= 32) {
-    context.filter = 'sepia(1) saturate(0.8) brightness(1.05)';
-    for (let y = 64; y < ROOM_H - 64; y += 32) {
-      for (let x = 64; x < ROOM_W - 64; x += 32) {
-        const tileId = terrainTileAt(terrainTiles.artis, x / 32 - 2, y / 32 - 2);
-        const columns = Math.floor(paving.naturalWidth / 32);
-        const sourceX = (tileId % columns) * 32;
-        const sourceY = Math.floor(tileId / columns) * 32;
-        const coverage = Array.from({ length: 64 }, (_, index) =>
-          desertPavingCoverage(x + index % 8 * 4, y + Math.floor(index / 8) * 4));
-        if (coverage.every((value) => value === 0)) continue;
-        if (coverage.every((value) => value === 1)) {
-          context.globalAlpha = 0.65;
-          context.drawImage(paving, sourceX, sourceY, 32, 32, x, y, 32, 32);
-          continue;
-        }
-        // Erode the texture at sub-tile resolution, without shuffling or stretching its stones.
-        for (let row = 0; row < 8; row += 1) {
-          for (let column = 0; column < 8;) {
-            const alpha = coverage[row * 8 + column];
-            let end = column + 1;
-            while (end < 8 && coverage[row * 8 + end] === alpha) end += 1;
-            if (alpha > 0) {
-              context.globalAlpha = alpha * 0.65;
-              context.drawImage(paving, sourceX + column * 4, sourceY + row * 4,
-                (end - column) * 4, 4, x + column * 4, y + row * 4, (end - column) * 4, 4);
-            }
-            column = end;
-          }
-        }
-      }
-    }
-  }
-  context.restore();
-}
-
-function drawDesertWind() {
-  if (!isDesertRegion() || currentRoom.type === 'secret') return;
-  const time = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : elapsed;
-  const width = ROOM_W - 128;
-  const height = ROOM_H - 128;
-  const count = quality.low ? 4 : Math.min(24, Math.max(10, Math.ceil(width * height / 42000)));
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(64, 64, width, height);
-  ctx.clip();
-  ctx.lineCap = 'round';
-  for (let index = 0; index < count; index += 1) {
-    const seed = index * 137 + currentRoom.x * 17 + currentRoom.y * 31;
-    const phase = ((seed % 997) / 997 + time * (22 + index % 4 * 3) / width) % 1;
-    const x = 64 + phase * width;
-    const y = 64 + ((seed * 7) % height) + Math.sin(time * 0.7 + index) * 7;
-    const length = 28 + seed % 42;
-    ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.2;
-    ctx.strokeStyle = '#f9e6b5';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(x - length, y + 4);
-    ctx.quadraticCurveTo(x - length / 2, y - 5, x, y);
-    ctx.stroke();
-    if (quality.low) continue;
-    ctx.globalAlpha *= 0.7;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x - length + 8, y + 7);
-    ctx.quadraticCurveTo(x - length / 2, y, x + 12, y + 3);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawDesertScenery() {
-  if (!isDesertRegion() || currentRoom.type === 'secret') return;
-  const time = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : elapsed;
-  ctx.save();
-  for (const x of [160, ROOM_W - 160]) {
-    for (const y of [10, ROOM_H - 54]) {
-      ctx.fillStyle = '#49382b';
-      ctx.fillRect(x - 16, y, 34, 4);
-      ctx.fillStyle = '#c9ac68';
-      ctx.fillRect(x - 17, y - 1, 36, 2);
-      // Cloth is drawn in short horizontal strips so only its free edge ripples.
-      for (let strip = 0; strip < 10; strip += 1) {
-        const sway = Math.sin(time * 2.4 - strip * 0.48 + x) * strip * 0.32;
-        const clothX = x - 11 + Math.round(sway);
-        const clothY = y + 4 + strip * 3;
-        ctx.fillStyle = strip % 3 === 0 ? '#974d47' : '#793d3d';
-        ctx.fillRect(clothX, clothY, 24, 3);
-        ctx.fillStyle = '#ddc18d';
-        ctx.fillRect(clothX + 3, clothY, 3, 3);
-        ctx.fillRect(clothX + 19, clothY, 2, 3);
-      }
-      const torchX = x + 34;
-      const flame = Math.sin(time * 9 + x + y) * 2;
-      ctx.fillStyle = '#4c3824';
-      ctx.fillRect(torchX - 2, y + 18, 5, 18);
-      ctx.fillStyle = '#aa8352';
-      ctx.fillRect(torchX - 5, y + 20, 11, 4);
-      ctx.fillStyle = '#d77b39';
-      ctx.beginPath();
-      ctx.moveTo(torchX - 5, y + 18);
-      ctx.quadraticCurveTo(torchX - 7, y + 11, torchX + flame, y + 3);
-      ctx.quadraticCurveTo(torchX + 8, y + 15, torchX + 4, y + 19);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#ffe0a0';
-      ctx.fillRect(torchX - 1 + Math.round(flame / 2), y + 12, 3, 7);
-    }
-  }
-  ctx.restore();
-}
-
-function drawRegionAtmosphere() {
-  if (!isDesertRegion() || currentRoom.type === 'secret') return;
-  ctx.save();
-  const edgeDepth = 100;
-  const left = -camera.x;
-  const top = -camera.y;
-  const edges = [
-    [left, top, ROOM_W, edgeDepth, left, top, left, top + edgeDepth],
-    [left, top + ROOM_H - edgeDepth, ROOM_W, edgeDepth,
-      left, top + ROOM_H, left, top + ROOM_H - edgeDepth],
-    [left, top, edgeDepth, ROOM_H, left, top, left + edgeDepth, top],
-    [left + ROOM_W - edgeDepth, top, edgeDepth, ROOM_H,
-      left + ROOM_W, top, left + ROOM_W - edgeDepth, top],
-  ];
-  for (const [x, y, width, height, x0, y0, x1, y1] of edges) {
-    const haze = ctx.createLinearGradient(x0, y0, x1, y1);
-    haze.addColorStop(0, 'rgba(232, 199, 128, 0.38)');
-    haze.addColorStop(0.55, 'rgba(232, 199, 128, 0.12)');
-    haze.addColorStop(1, 'rgba(232, 199, 128, 0)');
-    ctx.fillStyle = haze;
-    ctx.fillRect(x, y, width, height);
-  }
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!quality.low && desertSandstormImage.complete && desertSandstormImage.naturalWidth > 0) {
-    ctx.beginPath();
-    ctx.rect(left, top, ROOM_W, ROOM_H);
-    ctx.rect(left + 86, top + 86, ROOM_W - 172, ROOM_H - 172);
-    ctx.clip('evenodd');
-    ctx.globalAlpha = 0.15;
-    const drift = reducedMotion ? 0 : (elapsed * 12) % 512;
-    for (let y = top - 256; y < top + ROOM_H; y += 256) {
-      for (let x = left - 512 + drift; x < left + ROOM_W; x += 512) {
-        ctx.drawImage(desertSandstormImage, x, y, 512, 256);
-      }
-    }
-  }
-  ctx.restore();
-}
+// The wall band is the existing 64px collision boundary; open doorways cut a 96px gap through it.
+const ROOM_WALL_BAND = 64;
+const DOOR_OPENING_HALF_WIDTH = 48;
 
 function clipRoomWallBand() {
+  const band = ROOM_WALL_BAND;
+  const half = DOOR_OPENING_HALF_WIDTH;
   ctx.beginPath();
   ctx.rect(0, 0, ROOM_W, ROOM_H);
-  ctx.rect(64, 64, ROOM_W - 128, ROOM_H - 128);
+  ctx.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
   for (const { name } of directions) {
     const secretDoor = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
     if (!currentRoom.cleared || currentRoom.lockedDoors[name] ||
         !(currentRoom.links[name] || secretDoor)) continue;
     if (name === 'up' || name === 'down') {
-      ctx.rect(ROOM_W / 2 - 48, name === 'up' ? 0 : ROOM_H - 64, 96, 64);
+      ctx.rect(ROOM_W / 2 - half, name === 'up' ? 0 : ROOM_H - band, half * 2, band);
     } else {
-      ctx.rect(name === 'left' ? 0 : ROOM_W - 64, ROOM_H / 2 - 48, 64, 96);
+      ctx.rect(name === 'left' ? 0 : ROOM_W - band, ROOM_H / 2 - half, band, half * 2);
     }
   }
   ctx.clip('evenodd');
@@ -1111,55 +884,6 @@ function drawCastleWalls() {
   ctx.restore();
 }
 
-function drawSandstoneWalls() {
-  if (!sandstoneWallTiles.complete || sandstoneWallTiles.naturalWidth < 512 ||
-      sandstoneWallTiles.naturalHeight < 512) return;
-  // Tulimshar TMX: Over (39,25..28) and Ground (35..38,0), zero-based atlas IDs.
-  // Compress only wall depth to keep the existing 64px collision band and door positions.
-  const face = [2, 18, 34, 50];
-  const walkway = [0, 6, 6, 4];
-  const tile = (id, x, y, width, height) => {
-    ctx.drawImage(sandstoneWallTiles, id % 16 * 32, Math.floor(id / 16) * 32, 32, 32,
-      x, y, width, height);
-  };
-  ctx.save();
-  clipRoomWallBand();
-  for (let y = 64; y < ROOM_H - 64; y += 32) {
-    for (let column = 0; column < walkway.length; column += 1) {
-      tile(walkway[column], column * 16, y, 16, 32);
-      tile(walkway[column], ROOM_W - 64 + column * 16, y, 16, 32);
-    }
-  }
-  for (let x = 64; x < ROOM_W - 64; x += 32) {
-    for (let row = 0; row < face.length; row += 1) {
-      const width = Math.min(32, ROOM_W - 64 - x);
-      tile(face[row], x, row * 16, width, 16);
-      tile(face[row], x, ROOM_H - 64 + row * 16, width, 16);
-    }
-  }
-  // Handed elbows from Tulimshar's layered walkway/face joins; never rotate a facade.
-  const corners = [
-    [0, 0, [[0, 6, 6, 1], [0, 6, 6, 8], [0, 6, 6, 24], [0, 6, 6, 40]]],
-    [ROOM_W - 64, 0, [[3, 6, 6, 4], [6, 11, 6, 4], [26, 27, 6, 4], [42, 43, 6, 4]]],
-    [0, ROOM_H - 64, [[0, 6, 6, 1], [0, 6, 18, 18], [0, 25, 34, 34], [40, 41, 50, 50]]],
-    [ROOM_W - 64, ROOM_H - 64, [[3, 6, 6, 4], [18, 18, 6, 4], [34, 34, 26, 4], [50, 50, 42, 43]]],
-  ];
-  for (const [x, y, pattern] of corners) {
-    // The TMX places transparent corner artwork over the wall-top ground layer.
-    for (let row = 0; row < 4; row += 1) {
-      for (let column = 0; column < 4; column += 1) {
-        tile(walkway[column], x + column * 16, y + row * 16, 16, 16);
-      }
-    }
-    for (let row = 0; row < 4; row += 1) {
-      for (let column = 0; column < 4; column += 1) {
-        tile(pattern[row][column], x + column * 16, y + row * 16, 16, 16);
-      }
-    }
-  }
-  ctx.restore();
-}
-
 function drawRoomFloor() {
   const theme = currentFloorTheme();
   if (currentRoom.type === 'secret' && sacredRoomTiles.complete && sacredRoomTiles.naturalWidth > 0) {
@@ -1186,10 +910,7 @@ function drawRoomFloor() {
     if (image.complete && image.naturalWidth >= 32 && image.naturalHeight >= 32) {
       const regionId = currentRegionId();
       const desert = isDesertRegion();
-      const pavingReady = terrainTiles.artis.image.complete && terrainTiles.artis.image.naturalWidth > 0;
-      const layoutKey = desert
-        ? `:${currentRoom.x},${currentRoom.y}:${directions.filter((d) => currentRoom.links[d.name]).map((d) => d.name).join(',')}:${pavingReady}`
-        : '';
+      const layoutKey = desert ? desertLayoutKey(desertPavingReady()) : '';
       const terrainKey = `${regionId}:${ROOM_W}x${ROOM_H}${layoutKey}`;
       let terrainBackground = terrainBackgroundCache.get(terrainKey);
       if (!terrainBackground) {
@@ -2383,7 +2104,7 @@ function drawFallbackBreakable(rock, width, height) {
 
 function drawSoulMenhir() {
   const position = soulMenhirPosition();
-  const t = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : elapsed;
+  const t = prefersReducedMotion() ? 0 : elapsed;
   ctx.save();
   const glow = ctx.createRadialGradient(position.x, position.y - 34, 4, position.x, position.y - 34, 74);
   glow.addColorStop(0, `rgba(143, 211, 255, ${0.22 + Math.sin(t * 2) * 0.06})`);
