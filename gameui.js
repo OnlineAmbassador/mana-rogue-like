@@ -187,11 +187,11 @@ function drawAudioPanel() {
   ctx.restore();
 }
 
-function loadAsset(path) {
+function loadAsset(path, root = assetRoot) {
   const image = new Image();
-  image.src = `${assetRoot}/${path}`;
+  image.src = `${root}/${path}`;
   image.onerror = () => {
-    messageEl.textContent = `Could not load TMW artwork: ${path}`;
+    messageEl.textContent = `Could not load artwork: ${root}/${path}`;
   };
   return image;
 }
@@ -680,6 +680,361 @@ function recordStory(title, text) {
   if (storyLog.length > 18) storyLog.shift();
 }
 
+function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(28, 29, 25, 0.93)';
+  ctx.beginPath();
+  ctx.moveTo(x + 8, y);
+  ctx.lineTo(x + width - 8, y);
+  ctx.lineTo(x + width, y + 8);
+  ctx.lineTo(x + width, y + height - 8);
+  ctx.lineTo(x + width - 8, y + height);
+  ctx.lineTo(x + 8, y + height);
+  ctx.lineTo(x, y + height - 8);
+  ctx.lineTo(x, y + 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#211c13';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(245, 220, 155, 0.24)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 4.5, y + 4.5, width - 9, height - 9);
+  if (width > 100 && height > 60) {
+    ctx.fillStyle = '#34362e';
+    ctx.fillRect(x + 9, y + 7, width - 18, 19);
+    ctx.fillStyle = accent;
+    for (const cornerX of [x + 7, x + width - 7]) {
+      ctx.beginPath();
+      ctx.moveTo(cornerX, y + 3);
+      ctx.lineTo(cornerX + 4, y + 7);
+      ctx.lineTo(cornerX, y + 11);
+      ctx.lineTo(cornerX - 4, y + 7);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawPauseEquipment() {
+  const equipped = shopItemCatalog.filter((item) => ownedItems.has(item.id));
+  const supplies = consumables.filter((item) => item.count > 0);
+  const items = [...equipped, ...supplies];
+  const panel = { x: 104, y: 400, width: VIEW_W - 208, height: VIEW_H - 412 };
+  const gridWidth = panel.width - 24;
+  const gridHeight = panel.height - 38;
+  let cell = 36;
+  while (Math.floor(gridWidth / cell) * Math.floor(gridHeight / cell) < items.length && cell > 10) cell -= 1;
+  const columns = Math.floor(gridWidth / cell);
+  ctx.save();
+  drawManaPanel(panel.x, panel.y, panel.width, panel.height);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 12px Georgia';
+  ctx.fillStyle = '#e9d39f';
+  let label = `Inventory  /  Equipped ${equipped.length}  /  Supplies ${supplies.length}`;
+  items.forEach((item, index) => {
+    const x = panel.x + 12 + (index % columns) * cell;
+    const y = panel.y + 32 + Math.floor(index / columns) * cell;
+    const hovered = lastInputMode === 'keyboard' &&
+      pointer.x >= x && pointer.x < x + cell && pointer.y >= y && pointer.y < y + cell;
+    drawManaPanel(x + 1, y + 1, cell - 3, cell - 3, hovered ? '#f0d486' : '#796b47');
+    ctx.save();
+    ctx.translate(x + (cell - 1) / 2, y + (cell - 1) / 2);
+    ctx.scale((cell - 9) / 28, (cell - 9) / 28);
+    drawShopItemIcon(item, 0, 0);
+    ctx.restore();
+    if (item.count > 0) {
+      ctx.font = `bold ${Math.max(7, Math.min(10, cell / 3))}px Arial`;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#fff4d5';
+      ctx.fillText(String(item.count), x + cell - 4, y + cell - 5);
+    }
+    if (hovered) label = item.name + (item.count > 0 ? ` (${item.count})` : '');
+  });
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 12px Georgia';
+  ctx.fillStyle = '#e9d39f';
+  ctx.fillText(label, panel.x + 14, panel.y + 21, gridWidth);
+  if (!items.length) {
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#bbb49d';
+    ctx.fillText('Equipment and supplies collected during this descent appear here.', panel.x + 14, panel.y + 58, gridWidth);
+  }
+  ctx.restore();
+}
+
+function isDesertRegion() {
+  return ['tulimshar', 'candor'].includes(currentRegionId());
+}
+
+function terrainTileAt(terrain, column, row) {
+  if (terrain.tilePattern) {
+    const patternRow = terrain.tilePattern[row % terrain.tilePattern.length];
+    return patternRow[column % patternRow.length];
+  }
+  return terrain.tileIds[(column * 7 + row * 13) % terrain.tileIds.length];
+}
+
+function desertPavingTile(x, y) {
+  const dx = x + 16 - Math.floor(ROOM_W / 64) * 32;
+  const dy = y + 16 - Math.floor(ROOM_H / 64) * 32;
+  const hub = Math.abs(dx) < 80 && Math.abs(dy) < 80;
+  const vertical = Math.abs(dx) < 48 &&
+    ((dy <= 0 && currentRoom.links.up) || (dy >= 0 && currentRoom.links.down));
+  const horizontal = Math.abs(dy) < 48 &&
+    ((dx <= 0 && currentRoom.links.left) || (dx >= 0 && currentRoom.links.right));
+  if (!hub && !vertical && !horizontal) return null;
+  return {
+    seed: (x / 32 * 7 + y / 32 * 13 + currentRoom.x * 3 + currentRoom.y * 5) & 15,
+    edge: hub ? Math.max(Math.abs(dx), Math.abs(dy)) > 48
+      : vertical ? Math.abs(dx) > 16 : Math.abs(dy) > 16,
+  };
+}
+
+function updateSandFootprints(dt) {
+  const trail = sandFootprints;
+  const distance = Math.hypot(player.x - trail.x, player.y - trail.y);
+  if (trail.room !== currentRoom || !isDesertRegion() || currentRoom.type === 'secret' || distance > 96) {
+    trail.marks.length = 0;
+    trail.distance = 0;
+    trail.room = currentRoom;
+    trail.x = player.x;
+    trail.y = player.y;
+    return;
+  }
+  for (const mark of trail.marks) mark.ttl -= dt;
+  trail.marks = trail.marks.filter((mark) => mark.ttl > 0);
+  if (player.moving && distance > 0) {
+    const dx = (player.x - trail.x) / distance;
+    const dy = (player.y - trail.y) / distance;
+    const heading = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+    const paving = terrainTiles.artis.image;
+    for (let step = 20 - trail.distance; step <= distance; step += 20) {
+      const x = trail.x + dx * step;
+      const y = trail.y + dy * step;
+      const onPaving = paving.complete && paving.naturalWidth >= 64 && paving.naturalHeight >= 32 &&
+        desertPavingTile(Math.floor(x / 32) * 32, Math.floor(y / 32) * 32);
+      if (x >= 76 && y >= 76 && x <= ROOM_W - 76 && y <= ROOM_H - 76 && !onPaving) {
+        trail.marks.push({ x, y, heading, ttl: 8 });
+      }
+    }
+    trail.distance = (trail.distance + distance) % 20;
+    if (trail.marks.length > 96) trail.marks.splice(0, trail.marks.length - 96);
+  } else {
+    trail.distance = 0;
+  }
+  trail.x = player.x;
+  trail.y = player.y;
+}
+
+function drawSandFootprints() {
+  if (sandFootprints.room !== currentRoom || !isDesertRegion() || currentRoom.type === 'secret' ||
+      !sandFootprintImage.complete || sandFootprintImage.naturalWidth < 96 ||
+      sandFootprintImage.naturalHeight < 96) return;
+  const cells = [[2, 1], [2, 2], [1, 2], [0, 2], [0, 1], [0, 0], [1, 0], [2, 0]];
+  ctx.save();
+  for (const mark of sandFootprints.marks) {
+    const [column, row] = cells[mark.heading];
+    ctx.globalAlpha = 0.4 * Math.min(1, mark.ttl / 3);
+    ctx.drawImage(sandFootprintImage, column * 32, row * 32, 32, 32, mark.x - 12, mark.y - 12, 24, 24);
+  }
+  ctx.restore();
+}
+
+function drawDesertGround(context, image) {
+  context.save();
+  context.beginPath();
+  context.rect(64, 64, ROOM_W - 128, ROOM_H - 128);
+  context.clip();
+  context.filter = 'saturate(0.78) brightness(0.97)';
+  // Keep the atlas's dune patch intact instead of shuffling unrelated transition tiles.
+  for (let y = 64; y < ROOM_H - 64; y += 128) {
+    for (let x = 64; x < ROOM_W - 64; x += 128) {
+      context.drawImage(image, 256, 256, 128, 128, x, y, 128, 128);
+    }
+  }
+  const paving = terrainTiles.artis.image;
+  if (paving.complete && paving.naturalWidth >= 64 && paving.naturalHeight >= 32) {
+    context.filter = 'sepia(1) saturate(0.8) brightness(1.05)';
+    for (let y = 64; y < ROOM_H - 64; y += 32) {
+      for (let x = 64; x < ROOM_W - 64; x += 32) {
+        const tile = desertPavingTile(x, y);
+        if (!tile) continue;
+        const { seed, edge } = tile;
+        context.globalAlpha = edge ? 0.16 + seed * 0.015 : 0.52 + seed * 0.012;
+        const tileId = terrainTileAt(terrainTiles.artis, x / 32 - 2, y / 32 - 2);
+        const columns = Math.floor(paving.naturalWidth / 32);
+        context.drawImage(paving, (tileId % columns) * 32, Math.floor(tileId / columns) * 32,
+          32, 32, x, y, 32, 32);
+      }
+    }
+  }
+  context.restore();
+}
+
+function drawDesertWind() {
+  if (!isDesertRegion() || currentRoom.type === 'secret' || quality.low) return;
+  const time = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : elapsed;
+  const width = ROOM_W - 128;
+  const height = ROOM_H - 128;
+  const count = Math.min(24, Math.max(10, Math.ceil(width * height / 42000)));
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(64, 64, width, height);
+  ctx.clip();
+  ctx.lineCap = 'round';
+  for (let index = 0; index < count; index += 1) {
+    const seed = index * 137 + currentRoom.x * 17 + currentRoom.y * 31;
+    const phase = ((seed % 997) / 997 + time * (22 + index % 4 * 3) / width) % 1;
+    const x = 64 + phase * width;
+    const y = 64 + ((seed * 7) % height) + Math.sin(time * 0.7 + index) * 7;
+    const length = 28 + seed % 42;
+    ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.2;
+    ctx.strokeStyle = '#f9e6b5';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x - length, y + 4);
+    ctx.quadraticCurveTo(x - length / 2, y - 5, x, y);
+    ctx.stroke();
+    ctx.globalAlpha *= 0.7;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - length + 8, y + 7);
+    ctx.quadraticCurveTo(x - length / 2, y, x + 12, y + 3);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawDesertScenery() {
+  if (!isDesertRegion() || currentRoom.type === 'secret') return;
+  const time = window.matchMedia('(prefers-reduced-motion: reduce)').matches || quality.low ? 0 : elapsed;
+  ctx.save();
+  for (const x of [160, ROOM_W - 160]) {
+    for (const y of [10, ROOM_H - 54]) {
+      ctx.fillStyle = '#49382b';
+      ctx.fillRect(x - 16, y, 34, 4);
+      ctx.fillStyle = '#c9ac68';
+      ctx.fillRect(x - 17, y - 1, 36, 2);
+      // Cloth is drawn in short horizontal strips so only its free edge ripples.
+      for (let strip = 0; strip < 10; strip += 1) {
+        const sway = Math.sin(time * 2.4 - strip * 0.48 + x) * strip * 0.32;
+        const clothX = x - 11 + Math.round(sway);
+        const clothY = y + 4 + strip * 3;
+        ctx.fillStyle = strip % 3 === 0 ? '#974d47' : '#793d3d';
+        ctx.fillRect(clothX, clothY, 24, 3);
+        ctx.fillStyle = '#ddc18d';
+        ctx.fillRect(clothX + 3, clothY, 3, 3);
+        ctx.fillRect(clothX + 19, clothY, 2, 3);
+      }
+      const torchX = x + 34;
+      const flame = Math.sin(time * 9 + x + y) * 2;
+      ctx.fillStyle = '#4c3824';
+      ctx.fillRect(torchX - 2, y + 18, 5, 18);
+      ctx.fillStyle = '#aa8352';
+      ctx.fillRect(torchX - 5, y + 20, 11, 4);
+      ctx.fillStyle = '#d77b39';
+      ctx.beginPath();
+      ctx.moveTo(torchX - 5, y + 18);
+      ctx.quadraticCurveTo(torchX - 7, y + 11, torchX + flame, y + 3);
+      ctx.quadraticCurveTo(torchX + 8, y + 15, torchX + 4, y + 19);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffe0a0';
+      ctx.fillRect(torchX - 1 + Math.round(flame / 2), y + 12, 3, 7);
+    }
+  }
+  ctx.restore();
+}
+
+function drawRegionAtmosphere() {
+  if (!isDesertRegion() || currentRoom.type === 'secret') return;
+  ctx.save();
+  const edgeDepth = 100;
+  const left = -camera.x;
+  const top = -camera.y;
+  const edges = [
+    [left, top, ROOM_W, edgeDepth, left, top, left, top + edgeDepth],
+    [left, top + ROOM_H - edgeDepth, ROOM_W, edgeDepth,
+      left, top + ROOM_H, left, top + ROOM_H - edgeDepth],
+    [left, top, edgeDepth, ROOM_H, left, top, left + edgeDepth, top],
+    [left + ROOM_W - edgeDepth, top, edgeDepth, ROOM_H,
+      left + ROOM_W, top, left + ROOM_W - edgeDepth, top],
+  ];
+  for (const [x, y, width, height, x0, y0, x1, y1] of edges) {
+    const haze = ctx.createLinearGradient(x0, y0, x1, y1);
+    haze.addColorStop(0, 'rgba(232, 199, 128, 0.38)');
+    haze.addColorStop(0.55, 'rgba(232, 199, 128, 0.12)');
+    haze.addColorStop(1, 'rgba(232, 199, 128, 0)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(x, y, width, height);
+  }
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!quality.low && desertSandstormImage.complete && desertSandstormImage.naturalWidth > 0) {
+    ctx.beginPath();
+    ctx.rect(left, top, ROOM_W, ROOM_H);
+    ctx.rect(left + 86, top + 86, ROOM_W - 172, ROOM_H - 172);
+    ctx.clip('evenodd');
+    ctx.globalAlpha = 0.15;
+    const drift = reducedMotion ? 0 : (elapsed * 12) % 512;
+    for (let y = top - 256; y < top + ROOM_H; y += 256) {
+      for (let x = left - 512 + drift; x < left + ROOM_W; x += 512) {
+        ctx.drawImage(desertSandstormImage, x, y, 512, 256);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawSandstoneWalls() {
+  if (!sandstoneWallTiles.complete || sandstoneWallTiles.naturalWidth < 512 ||
+      sandstoneWallTiles.naturalHeight < 512) return;
+  // Tulimshar TMX: Over (39,25..28) and Ground (35..38,0), zero-based atlas IDs.
+  // Compress only wall depth to keep the existing 64px collision band and door positions.
+  const face = [2, 18, 34, 50];
+  const walkway = [0, 6, 6, 4];
+  const tile = (id, x, y, width, height) => {
+    ctx.drawImage(sandstoneWallTiles, id % 16 * 32, Math.floor(id / 16) * 32, 32, 32,
+      x, y, width, height);
+  };
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, ROOM_W, ROOM_H);
+  ctx.rect(64, 64, ROOM_W - 128, ROOM_H - 128);
+  for (const { name } of directions) {
+    const secretDoor = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
+    if (!currentRoom.cleared || currentRoom.lockedDoors[name] ||
+        !(currentRoom.links[name] || secretDoor)) continue;
+    if (name === 'up' || name === 'down') {
+      ctx.rect(ROOM_W / 2 - 48, name === 'up' ? 0 : ROOM_H - 64, 96, 64);
+    } else {
+      ctx.rect(name === 'left' ? 0 : ROOM_W - 64, ROOM_H / 2 - 48, 64, 96);
+    }
+  }
+  ctx.clip('evenodd');
+  for (let y = 64; y < ROOM_H - 64; y += 32) {
+    for (let column = 0; column < walkway.length; column += 1) {
+      tile(walkway[column], column * 16, y, 16, 32);
+      tile(walkway[column], ROOM_W - 64 + column * 16, y, 16, 32);
+    }
+  }
+  for (let x = 0; x < ROOM_W; x += 32) {
+    for (let row = 0; row < face.length; row += 1) {
+      const id = row === 0 && x === 0 ? 1
+        : row === 0 && x + 32 >= ROOM_W ? 3 : face[row];
+      tile(id, x, row * 16, 32, 16);
+      tile(id, x, ROOM_H - 64 + row * 16, 32, 16);
+    }
+  }
+  ctx.restore();
+}
+
 function drawRoomFloor() {
   const theme = currentFloorTheme();
   if (currentRoom.type === 'secret' && sacredRoomTiles.complete && sacredRoomTiles.naturalWidth > 0) {
@@ -705,7 +1060,12 @@ function drawRoomFloor() {
     const image = terrain.image;
     if (image.complete && image.naturalWidth >= 32 && image.naturalHeight >= 32) {
       const regionId = currentRegionId();
-      const terrainKey = `${regionId}:${ROOM_W}x${ROOM_H}`;
+      const desert = isDesertRegion();
+      const pavingReady = terrainTiles.artis.image.complete && terrainTiles.artis.image.naturalWidth > 0;
+      const layoutKey = desert
+        ? `:${currentRoom.x},${currentRoom.y}:${directions.filter((d) => currentRoom.links[d.name]).map((d) => d.name).join(',')}:${pavingReady}`
+        : '';
+      const terrainKey = `${regionId}:${ROOM_W}x${ROOM_H}${layoutKey}`;
       let terrainBackground = terrainBackgroundCache.get(terrainKey);
       if (!terrainBackground) {
         terrainBackground = document.createElement('canvas');
@@ -715,25 +1075,33 @@ function drawRoomFloor() {
         terrainContext.fillStyle = theme.wall;
         terrainContext.fillRect(0, 0, ROOM_W, ROOM_H);
         terrainContext.save();
-        if (regionId === 'artis' || regionId === 'graveyard' || regionId === 'fortress') {
+        if (regionId === 'graveyard') {
+          terrainContext.filter = 'saturate(0.28) brightness(0.52)';
+        } else if (regionId === 'artis' || regionId === 'fortress') {
           terrainContext.filter = 'hue-rotate(205deg) saturate(0.75) brightness(0.72)';
         }
         const tileColumns = Math.floor(image.naturalWidth / 32);
         for (let row = 2; row * 32 < ROOM_H - 64; row += 1) {
           for (let column = 2; column * 32 < ROOM_W - 64; column += 1) {
-            const tileId = terrain.tileIds[(column * 7 + row * 13) % terrain.tileIds.length];
+            const tileId = terrainTileAt(terrain, column - 2, row - 2);
             const sourceX = (tileId % tileColumns) * 32;
             const sourceY = Math.floor(tileId / tileColumns) * 32;
             terrainContext.drawImage(image, sourceX, sourceY, 32, 32, column * 32, row * 32, 32, 32);
           }
         }
         terrainContext.restore();
+        if (desert) drawDesertGround(terrainContext, image);
+        if (terrainBackgroundCache.size >= 12) {
+          terrainBackgroundCache.delete(terrainBackgroundCache.keys().next().value);
+        }
         terrainBackgroundCache.set(terrainKey, terrainBackground);
       }
       ctx.drawImage(terrainBackground, 0, 0);
-      if (castleWallTiles.complete && castleWallTiles.naturalWidth >= 512 && castleWallTiles.naturalHeight >= 32) {
-        const drawWallTile = (tileIndex, x, y) => {
-          const tileId = castleWallTileIds[tileIndex % castleWallTileIds.length];
+      if (desert) {
+        drawSandstoneWalls();
+      } else if (castleWallTiles.complete && castleWallTiles.naturalWidth >= 512 && castleWallTiles.naturalHeight >= 192) {
+        const drawWallTile = (x, y) => {
+          const tileId = 64 + (Math.floor(x / 32) % 2) + (Math.floor(y / 32) % 2) * 16;
           ctx.drawImage(
             castleWallTiles,
             (tileId % 16) * 32,
@@ -750,38 +1118,48 @@ function drawRoomFloor() {
           currentRoom.cleared && (currentRoom.links[direction] ||
             (currentRoom.secretExit?.direction === direction && !currentRoom.secretExit.room.hidden));
         for (let x = 0; x < ROOM_W; x += 32) {
-          const tileIndex = Math.floor(x / 32);
           const atVerticalDoor = x < ROOM_W / 2 + 48 && x + 32 > ROOM_W / 2 - 48;
           if (!(atVerticalDoor && hasOpenDoor('up'))) {
-            drawWallTile(tileIndex, x, 0);
-            drawWallTile(tileIndex + 1, x, 32);
+            drawWallTile(x, 0);
+            drawWallTile(x, 32);
           }
           if (!(atVerticalDoor && hasOpenDoor('down'))) {
-            drawWallTile(tileIndex + 1, x, ROOM_H - 64);
-            drawWallTile(tileIndex + 2, x, ROOM_H - 32);
+            drawWallTile(x, ROOM_H - 64);
+            drawWallTile(x, ROOM_H - 32);
           }
         }
         for (let y = 32; y < ROOM_H - 32; y += 32) {
-          const tileIndex = Math.floor(y / 32);
           const atHorizontalDoor = y < ROOM_H / 2 + 48 && y + 32 > ROOM_H / 2 - 48;
           if (!(atHorizontalDoor && hasOpenDoor('left'))) {
-            drawWallTile(tileIndex, 0, y);
-            drawWallTile(tileIndex + 1, 32, y);
+            drawWallTile(0, y);
+            drawWallTile(32, y);
           }
           if (!(atHorizontalDoor && hasOpenDoor('right'))) {
-            drawWallTile(tileIndex + 1, ROOM_W - 64, y);
-            drawWallTile(tileIndex + 2, ROOM_W - 32, y);
+            drawWallTile(ROOM_W - 64, y);
+            drawWallTile(ROOM_W - 32, y);
           }
         }
+        for (let x = 128; x < ROOM_W - 128; x += 192) {
+          if (x < ROOM_W / 2 + 64 && x + 64 > ROOM_W / 2 - 64) continue;
+          ctx.drawImage(castleWallTiles, 0, 32, 64, 64, x, 0, 64, 64);
+          ctx.drawImage(castleWallTiles, 0, 32, 64, 64, x, ROOM_H - 64, 64, 64);
+        }
       }
+      ctx.save();
+      const shade = ctx.createLinearGradient(0, 64, 0, 112);
+      shade.addColorStop(0, 'rgba(62, 43, 24, 0.24)');
+      shade.addColorStop(1, 'rgba(62, 43, 24, 0)');
+      ctx.fillStyle = shade;
+      ctx.fillRect(64, 64, ROOM_W - 128, 48);
+      ctx.restore();
     } else {
       ctx.fillStyle = theme.wall;
       ctx.fillRect(0, 0, ROOM_W, ROOM_H);
     }
   }
 
-  ctx.strokeStyle = `${theme.trim}66`;
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(113, 86, 45, 0.36)';
+  ctx.lineWidth = 1;
   ctx.strokeRect(63, 63, ROOM_W - 126, ROOM_H - 126);
 
   for (const direction of directions) {
@@ -1923,16 +2301,16 @@ function drawFallbackBreakable(rock, width, height) {
 
 function drawSoulMenhir() {
   const position = soulMenhirPosition();
-  const t = performance.now() / 1000;
+  const t = window.matchMedia('(prefers-reduced-motion: reduce)').matches || quality.low ? 0 : elapsed;
   ctx.save();
   const glow = ctx.createRadialGradient(position.x, position.y - 34, 4, position.x, position.y - 34, 74);
-  glow.addColorStop(0, `rgba(185, 166, 255, ${0.3 + Math.sin(t * 2) * 0.08})`);
-  glow.addColorStop(1, 'rgba(185, 166, 255, 0)');
+  glow.addColorStop(0, `rgba(143, 211, 255, ${0.22 + Math.sin(t * 2) * 0.06})`);
+  glow.addColorStop(1, 'rgba(143, 211, 255, 0)');
   ctx.fillStyle = glow;
   ctx.fillRect(position.x - 80, position.y - 110, 160, 160);
   ctx.restore();
-  if (soulMenhirImage.complete && soulMenhirImage.naturalWidth >= 64) {
-    ctx.drawImage(soulMenhirImage, 0, 0, 64, 64, position.x - 38, position.y - 76, 76, 76);
+  if (soulMenhirImage.complete && soulMenhirImage.naturalWidth >= 64 && soulMenhirImage.naturalHeight >= 64) {
+    ctx.drawImage(soulMenhirImage, 0, 0, 64, 64, position.x - 32, position.y - 60, 64, 64);
   } else {
     ctx.fillStyle = '#9c9b9b';
     ctx.beginPath();
@@ -2502,7 +2880,17 @@ function drawGroundHazards() {
     ctx.beginPath();
     ctx.arc(strike.x, strike.y, strike.radius * progress, 0, Math.PI * 2);
     ctx.fill();
-    if (strike.damage >= 2) {
+    if (strike.dashCheck) {
+      ctx.fillStyle = '#fff0d1';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(strike.timer <= 0.2 ? 'DASH NOW' : 'WIDE PULSE - PREPARE TO DASH',
+        strike.x, strike.y - 28);
+      if (strike.damage >= 2) {
+        ctx.font = 'bold 12px Arial';
+        ctx.fillText('HEAVY - 2 HEARTS', strike.x, strike.y - 8);
+      }
+    } else if (strike.damage >= 2) {
       ctx.fillStyle = '#fff0d1';
       ctx.font = 'bold 12px Arial';
       ctx.textAlign = 'center';
@@ -2678,6 +3066,9 @@ function drawEnemyProjectile(projectile) {
 
 function drawWorld() {
   drawRoomFloor();
+  drawSandFootprints();
+  drawDesertWind();
+  drawDesertScenery();
   drawGroundHazards();
   drawRewardTrial();
   if (currentRoom.type === 'start') drawSoulMenhir();
@@ -3551,11 +3942,7 @@ function drawMinimap() {
   const originX = panel.x + 14;
   const originY = panel.y + 25;
   const hostile = !currentRoom.cleared;
-  ctx.fillStyle = hostile ? 'rgba(88, 14, 20, 0.62)' : 'rgba(16, 14, 19, 0.48)';
-  ctx.fillRect(panel.x, panel.y, panel.width, panel.height);
-  ctx.strokeStyle = hostile ? 'rgba(235, 80, 80, 0.9)' : 'rgba(225, 201, 160, 0.62)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.width - 1, panel.height - 1);
+  drawManaPanel(panel.x, panel.y, panel.width, panel.height, hostile ? '#cf8172' : '#c9a65a');
   ctx.fillStyle = '#e6d8bd';
   ctx.font = 'bold 11px Arial';
   ctx.textAlign = 'left';
@@ -3644,8 +4031,7 @@ function drawInGameCommentary() {
     const y = currentRoom?.type === 'shop' ? 78 + index * 30 : 408 - index * 30;
     const width = Math.min(VIEW_W - 40, ctx.measureText(toast.text).width + 28);
     ctx.globalAlpha = Math.min(1, toast.timer / 0.6) * (index === 0 ? 1 : 0.85);
-    ctx.fillStyle = 'rgba(8, 10, 12, 0.78)';
-    ctx.fillRect(VIEW_W / 2 - width / 2, y, width, 26);
+    drawManaPanel(VIEW_W / 2 - width / 2, y, width, 26);
     ctx.fillStyle = '#f4e8c8';
     ctx.fillText(toast.text.slice(0, 120), VIEW_W / 2, y + 18, VIEW_W - 48);
   });
@@ -3707,14 +4093,7 @@ function drawActionBar() {
       (slot.chargeUps !== undefined && slot.chargeUps <= 0) || (slot.id === 'item' && !activeItem);
     const cooling = slot.cooldown > 0;
     ctx.globalAlpha = empty ? 0.45 : 1;
-    ctx.fillStyle = 'rgba(4, 6, 8, 0.96)';
-    ctx.fillRect(x - 2, baseY - 2, size + 4, size + 4);
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x - 1, baseY - 1, size + 2, size + 2);
-    ctx.strokeStyle = cooling || empty ? 'rgba(235, 225, 200, 0.7)' : slot.color;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x + 1, baseY + 1, size - 2, size - 2);
+    drawManaPanel(x, baseY, size, size, cooling || empty ? '#80765b' : '#c9a65a');
     const cx = x + size / 2;
     const cy = baseY + size / 2 + 3;
     ctx.save();
@@ -3843,17 +4222,12 @@ function drawStyleSlots() {
       ctx.shadowColor = '#ffe38a';
       ctx.shadowBlur = 14;
     }
-    ctx.fillStyle = 'rgba(4, 6, 8, 0.96)';
-    ctx.fillRect(x - 2, y - 2, size + 4, size + 4);
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x - 1, y - 1, size + 2, size + 2);
-    if (selected) ctx.fillStyle = 'rgba(70, 54, 16, 0.96)';
-    if (selected) ctx.fillRect(x, y, size, size);
+    drawManaPanel(x, y, size, size, selected ? '#f0d486' : '#988254');
+    if (selected) {
+      ctx.fillStyle = 'rgba(164, 128, 48, 0.18)';
+      ctx.fillRect(x + 4, y + 4, size - 8, size - 8);
+    }
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = selected ? '#ffe38a' : 'rgba(235, 225, 200, 0.75)';
-    ctx.lineWidth = selected ? 3 : 1.5;
-    ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
     ctx.translate(x + size / 2, y + size / 2 + 3);
     ctx.scale(0.78, 0.78);
     ctx.strokeStyle = selected ? '#fff2c0' : '#cfc6b2';
@@ -3925,8 +4299,7 @@ function drawStyleSlots() {
   if (sig?.active) {
     const x = baseX + 3 * (size + gap);
     const ready = !(player.signatureCooldown > 0);
-    ctx.fillStyle = 'rgba(8, 10, 12, 0.8)';
-    ctx.fillRect(x, baseY, size, size);
+    drawManaPanel(x, baseY, size, size, ready ? '#c9a65a' : '#80765b');
     ctx.fillStyle = sig.color;
     ctx.globalAlpha = ready ? 0.9 : 0.25;
     ctx.beginPath();
@@ -4008,6 +4381,8 @@ function drawGameHud() {
   const leftHud = { x: 32, y: 2 };
   const rightHud = { x: -4, y: 62 };
   ctx.save();
+  drawManaPanel(leftHud.x, leftHud.y + 4, Math.max(170, player.maxHp * 20 + 58), 56);
+  drawManaPanel(3, rightHud.y + 3, 54, 94);
   const drawIndicatorBorder = (x, y, width, height) => {
     ctx.save();
     ctx.shadowBlur = 0;
@@ -4147,8 +4522,7 @@ function drawGameHud() {
     const width = boss.boss ? 380 : 300;
     const x = (VIEW_W - width) / 2;
     const y = 46;
-    ctx.fillStyle = 'rgba(14, 12, 18, 0.72)';
-    ctx.fillRect(x, y, width, 29);
+    drawManaPanel(x, y, width, 29, boss.boss ? '#cf8172' : '#c9a65a');
     ctx.fillStyle = '#372d32';
     ctx.fillRect(x + 8, y + 19, width - 16, 6);
     ctx.fillStyle = boss.boss ? '#d16e84' : '#d99868';
@@ -4451,8 +4825,9 @@ function drawChapter() {
 }
 
 function drawCharacterSelect() {
-  ctx.fillStyle = '#161b17';
+  ctx.fillStyle = '#20221d';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  drawManaPanel(16, 18, VIEW_W - 32, 104);
   ctx.fillStyle = '#efd4a0';
   ctx.font = 'bold 29px Georgia';
   ctx.textAlign = 'center';
@@ -4627,11 +5002,7 @@ function drawCharacterSelect() {
 function drawCodex() {
   ctx.fillStyle = '#111714';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
-  ctx.strokeStyle = '#83a588';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
+  drawManaPanel(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4850,11 +5221,7 @@ function drawControls() {
   controlsRow = Math.min(controlsRow, actions.length);
   ctx.fillStyle = '#111714';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
-  ctx.strokeStyle = '#83a588';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
+  drawManaPanel(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -4979,8 +5346,10 @@ function tutorialPages() {
     { title: 'CONTROLS', sections: [
       ['Move and aim', pad
         ? `Left stick moves. Right stick aims and fires, or hold ${p.rt} to fire. The D-pad never moves you in play.`
-        : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
-      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover the Mana Familiar Sigil to replace it with orbiting weapon guards. Firing follows only your controller right stick, nearest touch target, or mouse cursor. ${b('ability')} uses your class ability.`],
+        : lastInputMode === 'touch'
+          ? 'Drag the left area to move. Hold Attack to target the nearest live enemy. With no enemies in the room, drag Attack to aim freely, or hold without dragging to fire where you face.'
+          : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
+      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover the Mana Familiar Sigil to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
       ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
       ['Menus', `${b('map')} map, ${b('journal')} journal, ${pad ? p.menu : 'P'} pause. Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}). Weapon upgrades may also change how that weapon fires.`],
     ] },
@@ -5014,8 +5383,9 @@ function tutorialPages() {
     { title: 'ROOMS, MAP AND ENEMIES', sections: [
       ['The minimap', `Top right. Bright rooms are visited. A dark room is one you have seen a door to but not entered. Press ${b('map')} for the full map. A bigger room is drawn bigger.`],
       ['Doors', 'A shut door is locked until the room is clear, or needs a key. An open door is free to use. Bombed entrances stay hidden until you find them.'],
-      ['Enemies', 'Squads take turns committing attacks while allies reposition. Later floors allow staggered overlaps. Ranged windups show a locked aim line: change direction after they commit. Later floors also mix in mini boss moves.'],
-      ['Bosses', 'Bosses have three distinct phases. Reaching a new phase restores up to TWO hearts. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],
+      ['Enemies', 'Foes adapt to your input after about 2.5 seconds: touch draws close-range jukes, gamepads draw stronger flanking and staggered overlaps, and mouse/keyboard draws more predictive aim. Enemies steer around cover. Ranged windups show a locked aim line: change direction after they commit. Later floors also mix in mini boss moves.'],
+      ['Bosses', 'Bosses have three distinct phases. Reaching a new phase restores up to TWO hearts. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses also mark your path and use wide pulses in later phases. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],
+      ['Wide pulses', `A large marked circle warns before the blast. Ordinary mobs can use it too. Leave the circle early, or press ${b('dash')} at DASH NOW to use your brief invulnerability. Dashing too early may leave you exposed. These checks only begin with Dash ready and no competing hostile shots or nearby ground hazards.`],
       ['Optional trials', 'Key-locked trial rooms are enemy-free mini-games: route light with mirrors, repeat a rune sequence, or chase moving sparks. Complete one for a collectible reward; an uncollected regional Codex appears most of the time.'],
     ] },
     { title: 'TIPS FOR A GOOD RUN', sections: [
@@ -5034,11 +5404,7 @@ function drawTutorial() {
   const pad = lastInputMode === 'controller';
   ctx.fillStyle = '#111714';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.fillStyle = '#1a241e';
-  ctx.fillRect(42, 28, VIEW_W - 84, VIEW_H - 56);
-  ctx.strokeStyle = '#83a588';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(42, 28, VIEW_W - 84, VIEW_H - 56);
+  drawManaPanel(42, 28, VIEW_W - 84, VIEW_H - 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';
@@ -5152,11 +5518,7 @@ function returnToCharacterSelect() {
 
 function drawStoryJournal() {
   ctx.save();
-  ctx.fillStyle = 'rgba(12, 14, 18, 0.94)';
-  ctx.fillRect(72, 35, VIEW_W - 144, VIEW_H - 70);
-  ctx.strokeStyle = '#aab98a';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(72, 35, VIEW_W - 144, VIEW_H - 70);
+  drawManaPanel(72, 35, VIEW_W - 144, VIEW_H - 70);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#d9bd83';
   ctx.font = 'bold 13px Arial';

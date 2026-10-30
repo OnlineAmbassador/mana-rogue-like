@@ -352,7 +352,7 @@ test('mouse movement updates player facing toward the pointer before firing', ()
   assert.equal(context.shouldKeyboardMovementSetFacing(1), false);
 });
 
-test('touch mode always aims at the nearest live mob, regardless of movement or dragged aim', () => {
+function touchAimContext() {
   const context = vm.createContext({
     player: { x: 100, y: 134, lookX: 1, lookY: 0 },
     touchInput: { attack: true, aimActive: true, aimX: 1, aimY: 0 },
@@ -370,12 +370,51 @@ test('touch mode always aims at the nearest live mob, regardless of movement or 
   const start = source.indexOf('function attackOriginY()');
   const end = source.indexOf('function meleeInputHeld()', start);
   vm.runInContext(source.slice(start, end), context);
+  return context;
+}
+
+test('touch mode always aims at the nearest live mob, regardless of movement or dragged aim', () => {
+  const context = touchAimContext();
   const aimAngle = context.currentAimAngle();
   const targetAngle = Math.atan2(30 - (134 - 34), 200 - 100);
   assert.ok(Math.abs(aimAngle - targetAngle) < 1e-10,
     `touch aim should lock directly to the nearest target: ${aimAngle} vs ${targetAngle}`);
 
   context.enemies = [{ x: 100, y: 400, radius: 12, hp: 5 }];
+  assert.equal(context.currentAimAngle(), Math.PI / 2);
+});
+
+test('enemy-free touch aim follows the attack drag in every direction', () => {
+  const context = touchAimContext();
+  context.enemies = [];
+  for (const [x, y] of [[1, 0], [-1, 0], [0, -1], [0, 1], [-1, -1], [1, 1]]) {
+    Object.assign(context.touchInput, { aimX: x, aimY: y });
+    const expected = Math.atan2(y, x);
+    assert.equal(context.currentAimAngle(), expected);
+    context.updateTouchAimFacing();
+    assert.ok(Math.abs(context.player.lookX - Math.cos(expected)) < 1e-10);
+    assert.ok(Math.abs(context.player.lookY - Math.sin(expected)) < 1e-10);
+  }
+});
+
+test('enemy-free touch hold uses facing, not a stale drag or an eastward fallback', () => {
+  const context = touchAimContext();
+  context.enemies = [];
+  context.touchInput.aimActive = false;
+  for (const [x, y] of [[-1, 0], [0, -1], [0, 1], [1, 0]]) {
+    Object.assign(context.player, { lookX: x, lookY: y });
+    assert.equal(context.currentAimAngle(), Math.atan2(y, x));
+  }
+});
+
+test('touch aim switches from enemy lock to manual aim on death and back for a new enemy', () => {
+  const context = touchAimContext();
+  context.enemies = [{ x: 200, y: 100, hp: 1 }];
+  Object.assign(context.touchInput, { aimX: 0, aimY: -1 });
+  assert.equal(context.currentAimAngle(), 0);
+  context.enemies[0].hp = 0;
+  assert.equal(context.currentAimAngle(), -Math.PI / 2);
+  context.enemies.push({ x: 100, y: 200, hp: 1 });
   assert.equal(context.currentAimAngle(), Math.PI / 2);
 });
 
@@ -449,6 +488,28 @@ test('independent fingers move and fire, and releasing one leaves the other acti
   aim.fire('pointercancel', 2);
   assert.equal(context.touchInput.attack, false);
   assert.equal(context.touchInput.aimActive, false);
+});
+
+test('touch drag and release keep enemy-free aim aligned with the last shot', () => {
+  const { context, elements } = touchHarness();
+  Object.assign(context, {
+    player: { x: 100, y: 134, lookX: 0, lookY: -1 },
+    enemies: [], lastInputMode: 'touch',
+  });
+  const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
+  vm.runInContext(source.slice(source.indexOf('function attackOriginY()'),
+    source.indexOf('function meleeInputHeld()')), context);
+  const aim = elements.get('touch-aim-zone');
+  aim.fire('pointerdown', 1, 200, 50);
+  assert.equal(context.currentAimAngle(), -Math.PI / 2);
+  aim.fire('pointermove', 1, 160, 50);
+  assert.equal(context.currentAimAngle(), Math.PI);
+  context.updateTouchAimFacing();
+  aim.fire('pointerup', 1);
+  aim.fire('pointerdown', 2, 200, 50);
+  assert.equal(context.touchInput.aimActive, false);
+  assert.equal(context.currentAimAngle(), Math.PI);
+  aim.fire('pointercancel', 2);
 });
 
 test('touch attack interacts instead of firing when pressed over the attack button near an object', () => {

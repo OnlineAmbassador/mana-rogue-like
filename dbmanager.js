@@ -519,6 +519,7 @@ function restoreRun() {
   for (const item of saved.meleeWeapons || []) meleeWeapons.add(item);
   activeCombatStyle = saved.activeCombatStyle;
   resetStyleHeat();
+  resetInputAI();
   frostNovaCooldown = saved.frostNovaCooldown || 0;
   frostActive = Boolean(saved.frostActive);
   equippedClothing.legs = shopItemCatalog.find((item) => item.id === saved.equippedClothing?.legs) || null;

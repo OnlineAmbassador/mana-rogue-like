@@ -9,9 +9,9 @@ const source = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8
 function combat() {
   const c = vm.createContext({
     Math: Object.assign(Object.create(Math), { random: () => 0.05 }),
-    mode: 'playing', currentFloor: 1, elapsed: 10, performance,
+    mode: 'playing', lastInputMode: 'keyboard', currentFloor: 1, elapsed: 10, performance,
     save: { unlockedCharacters: [], playtimeSeconds: 0 },
-    player: { x: 300, y: 300, lookX: 1, lookY: 0, radius: 12, damage: 1, luck: 0 },
+    player: { x: 300, y: 300, lookX: 1, lookY: 0, radius: 12, speed: 235, invuln: 0, damage: 1, luck: 0 },
     weapon: { damageBonus: 0, shotDamageMultiplier: (2 / 3) / 0.23,
       fireDelay: 2 / 3, shotCount: 1, rangeLevel: 0 },
     character: { className: 'Mage', raceHead: 'humanMale', startingStyle: 'magic', fireDelay: 0.23 },
@@ -23,7 +23,8 @@ function combat() {
     enemies: [], enemyProjectiles: [], projectiles: [], bombs: [], breakables: [], pickups: [],
     consumables: [], bossStrikes: [], groundHazards: [], laserBeams: [], sporePods: [], playerStillTimer: 0,
     playerVelocity: { x: 0, y: 0 }, hitStopTimer: 0,
-    ROOM_W: 960, ROOM_H: 540, ROOM_WALL_THICKNESS: 24,
+    ROOM_W: 960, ROOM_H: 540, ROOM_WALL_THICKNESS: 24, WALL_COLLISION_PADDING: 4,
+    dashCooldown: 0, dashTimer: 0,
     FIRE_RATE_SCALE: 0.82, MELEE_BASE_SCALE: 2.6,
     MAX_PLAYER_PROJECTILES: 100, currentRoom: {},
     magicElements: new Set(['bubble']), activeMagicElement: 'bubble',
@@ -46,6 +47,7 @@ function combat() {
   vm.runInContext(game.slice(game.indexOf('const magicElementPalette ='), game.indexOf('let hitStopTimer =')), c);
   vm.runInContext(game.slice(game.indexOf('const classProfiles ='), game.indexOf('// Every weapon style')), c);
   for (const file of ['playermanager.js', 'mobmanager.js', 'worldmanager.js']) vm.runInContext(source(file), c);
+  c.moveEnemyWithCollision = c.moveEnemy;
   vm.runInContext(`
     recordEnemyDiscovery = recordEnemyAbilityDiscovery = addParticles = playSound = showMessage = updateHud = () => {};
     curioMultiplier = () => 1;
@@ -198,6 +200,42 @@ test('charged magic cannot bypass the weapon recovery cooldown', () => {
   c.shoot({ magicCharge: 1 });
   assert.equal(c.projectiles.length, 0);
   assert.equal(c.player.fireCooldown, 0.5);
+});
+
+test('touch bow and magic projectiles use manual aim or facing only when no live enemies remain', () => {
+  for (const style of ['bow', 'magic']) {
+    for (const charged of [false, true]) {
+      const c = combat();
+      const playerSource = source('playermanager.js');
+      vm.runInContext(playerSource.slice(playerSource.indexOf('function attackOriginY()'),
+        playerSource.indexOf('function updateTouchAimFacing()')), c);
+      Object.assign(c, { lastInputMode: 'touch', activeCombatStyle: style });
+      Object.assign(c.weapon, { projectileSpeed: 480, rangeMultiplier: 1, tearSize: 1 });
+      Object.assign(c.player, { lookX: -1, lookY: 0 });
+      Object.assign(c.touchInput, { aimActive: false, aimX: 1, aimY: 0 });
+      c.breakables.push({ x: 200, y: 266, radius: 15, hp: 3, type: 'regenerating', broken: false });
+      const options = style === 'bow'
+        ? charged ? { charge: 1 } : { quick: true }
+        : charged ? { magicCharge: 1 } : null;
+      const checkShot = (expected) => {
+        c.projectiles.length = 0;
+        c.player.fireCooldown = 0;
+        c.shoot(options);
+        assert.ok(c.projectiles.length > 0, `${style} must emit a shot`);
+        const projectile = c.projectiles[0];
+        const actual = Math.atan2(projectile.vy, projectile.vx);
+        assert.ok(Math.abs(actual - expected) < 1e-10,
+          `${style} (charged=${charged}): ${actual} vs ${expected}`);
+      };
+      checkShot(Math.PI);
+      Object.assign(c.touchInput, { aimActive: true, aimX: 0, aimY: -1 });
+      checkShot(-Math.PI / 2);
+      c.enemies.push({ x: 500, y: 266, hp: 1 });
+      checkShot(0);
+      c.enemies[0].hp = 0;
+      checkShot(-Math.PI / 2);
+    }
+  }
 });
 
 test('a fully charged magic shot is large, explosive, and more damaging', () => {
@@ -803,4 +841,254 @@ test('weapon swaps have a short cooldown that ignores repeats and same-style pic
   vm.runInContext('weaponSwapCooldown = 0;', c);
   c.cycleCombatStyle(1);
   assert.equal(c.activeCombatStyle, 'magic');
+});
+
+function adoptInput(c, input) {
+  c.lastInputMode = input;
+  c.updateInputAI(0.016);
+}
+
+test('enemy input adaptation takes 2.5 seconds of stable play without changing player controls', () => {
+  const c = combat();
+  adoptInput(c, 'touch');
+  assert.equal(peek(c, 'inputAI.mode'), 'touch');
+  c.lastInputMode = 'controller';
+  c.updateInputAI(1);
+  assert.equal(peek(c, 'inputAI.mode'), 'touch');
+  c.mode = 'paused';
+  c.updateInputAI(10);
+  assert.equal(peek(c, 'inputAI.timer'), 1);
+  c.mode = 'playing';
+  c.updateInputAI(1.49);
+  assert.equal(peek(c, 'inputAI.mode'), 'touch');
+  c.updateInputAI(0.01);
+  assert.equal(peek(c, 'inputAI.mode'), 'controller');
+  assert.equal(c.lastInputMode, 'controller');
+  c.lastInputMode = 'keyboard';
+  c.updateInputAI(1);
+  c.lastInputMode = 'touch';
+  c.updateInputAI(1.5);
+  assert.equal(peek(c, 'inputAI.mode'), 'controller', 'rapid switches restart observation, not controls');
+  c.updateInputAI(1);
+  assert.equal(peek(c, 'inputAI.mode'), 'touch');
+  c.resetInputAI();
+  assert.equal(peek(c, 'inputAI.mode'), null);
+});
+
+test('input adaptation is frame-rate independent and each room gets a pressure grace period', () => {
+  for (const step of [0.01, 0.05, 0.25]) {
+    const c = combat();
+    adoptInput(c, 'keyboard');
+    c.lastInputMode = 'controller';
+    for (let time = 0; time < 2.4 - 1e-8; time += step) c.updateInputAI(Math.min(step, 2.4 - time));
+    assert.equal(peek(c, 'inputAI.mode'), 'keyboard');
+    c.updateInputAI(0.11);
+    assert.equal(peek(c, 'inputAI.mode'), 'controller');
+    c.currentRoom = {};
+    c.updateInputAI(0.016);
+    assert.ok(peek(c, 'inputAI.pressureCooldown') > 5.9);
+    assert.equal(peek(c, 'inputAI.mode'), 'controller', 'entering rooms does not reset learned input');
+  }
+});
+
+test('touch favors close-range physical evasion, gamepads flanking, and keyboard predictive shots', () => {
+  const profiles = {};
+  for (const input of ['touch', 'controller', 'keyboard']) {
+    const c = combat();
+    adoptInput(c, input);
+    profiles[input] = c.aiInputProfile();
+  }
+  assert.ok(profiles.touch.nearDodgeBonus > profiles.controller.nearDodgeBonus);
+  assert.ok(profiles.controller.strafe > profiles.touch.strafe);
+  assert.ok(profiles.controller.flankLead > profiles.touch.flankLead);
+  assert.ok(profiles.keyboard.shotLead > profiles.controller.shotLead);
+  assert.ok(profiles.touch.warning > profiles.keyboard.warning);
+});
+
+test('touch near-range dodges cause real misses without changing player shots or dodging point-blank hits', () => {
+  const attempt = (distance, ahead = 100) => {
+    const c = combat();
+    adoptInput(c, 'touch');
+    c.Math.random = () => 0.4;
+    c.player.x = 400 - distance;
+    const shot = { x: 400 - ahead, y: 300, vx: 500, vy: 0, radius: 4 };
+    c.projectiles.push(shot);
+    const enemy = { x: 400, y: 300, radius: 12, speed: 90, hp: 10, maxHp: 10,
+      behavior: 'hover', archetype: 'ranged', attackCooldown: 1, dodgeCooldown: 0, tacticTimer: 1 };
+    c.enemies.push(enemy);
+    const before = JSON.stringify(shot);
+    const dodged = c.applyMobTactics(enemy, 0.016, 1, 0, distance);
+    assert.equal(JSON.stringify(shot), before, 'never introduce random player aim error');
+    return { c, enemy, dodged };
+  };
+  assert.equal(attempt(300).dodged, false);
+  const near = attempt(80);
+  assert.equal(near.dodged, true);
+  const { c, enemy } = near;
+  const shot = c.projectiles[0];
+  for (let i = 0; i < 10; i++) c.moveEnemyWithCollision(enemy, enemy.dodgeX * enemy.speed * 3.4,
+    enemy.dodgeY * enemy.speed * 3.4, 0.016);
+  assert.ok(Math.abs(enemy.y - shot.y) > enemy.radius + shot.radius, 'physical sidestep leaves the projectile corridor');
+  assert.equal(attempt(80, 30).dodged, false, 'no instant reactions to shots under 140ms away');
+});
+
+test('gamepad pressure permits staggered overlap, never simultaneous windup starts', () => {
+  const c = combat();
+  adoptInput(c, 'controller');
+  const first = { x: 450, y: 300, hp: 5, behavior: 'shoot-windup', attackCooldown: 2, attackSpacingTimer: 0.2 };
+  const second = { x: 400, y: 300, hp: 5, behavior: 'hover', attackCooldown: -0.5 };
+  c.enemies.push(first, second);
+  assert.equal(c.mobAttackBeatAvailable(second), false);
+  first.attackSpacingTimer = 0;
+  assert.equal(c.mobAttackBeatAvailable(second), true);
+  c.lastInputMode = 'touch';
+  c.updateInputAI(2.5);
+  assert.equal(c.mobAttackBeatAvailable(second), false);
+  c.bossStrikes.push({ dashCheck: true });
+  c.lastInputMode = 'controller';
+  c.updateInputAI(2.5);
+  assert.equal(c.mobAttackBeatAvailable(second), false, 'dash checks own the attack beat');
+});
+
+test('stronger input-specific ranged prediction is still locked throughout windup and input switches', () => {
+  const c = combat();
+  adoptInput(c, 'keyboard');
+  c.playerVelocity = { x: 120, y: 0 };
+  const enemy = { x: 500, y: 300, hp: 5, kind: 'bandit', arrowShot: true, behavior: 'hover' };
+  c.enemies.push(enemy);
+  vm.runInContext('updateEnemyBehavior = (enemy) => { enemy.behavior = "shoot-windup"; };', c);
+  c.updateEnemy(enemy, 0.016);
+  assert.equal(enemy.shotTarget.x, 336, 'floor-one keyboard lead is 0.3 seconds');
+  const locked = JSON.stringify(enemy.shotTarget);
+  c.player.y = 450;
+  c.playerVelocity.y = 235;
+  c.lastInputMode = 'controller';
+  c.updateInputAI(2.5);
+  c.fireEnemyProjectile(enemy);
+  assert.equal(JSON.stringify(enemy.shotTarget), locked);
+  assert.ok(Math.abs(c.enemyProjectiles[0].vy) < 1e-10);
+});
+
+test('calm enemies navigate around cover without clipping it or the room walls', () => {
+  for (const obstacles of [
+    [{ x: 240, y: 270, radius: 34 }],
+    [{ x: 240, y: 245, radius: 28 }, { x: 240, y: 295, radius: 28 }],
+  ]) {
+    const c = combat();
+    c.ROOM_WALL_THICKNESS = 64;
+    c.breakables = obstacles;
+    const enemy = { x: 110, y: 270, radius: 12, behavior: 'hover', strafeDirection: 1 };
+    const goal = { x: 420, y: 270 };
+    let traveled = 0;
+    for (let frame = 0; frame < 360 && c.distanceBetween(enemy, goal) > 18; frame++) {
+      const gap = c.distanceBetween(enemy, goal);
+      const previous = { x: enemy.x, y: enemy.y };
+      c.moveEnemyWithCollision(enemy, (goal.x - enemy.x) / gap * 150, (goal.y - enemy.y) / gap * 150, 1 / 60);
+      traveled += c.distanceBetween(previous, enemy);
+      for (const obstacle of obstacles) assert.ok(c.distanceBetween(enemy, obstacle) >= obstacle.radius + enemy.radius - 1e-8);
+      assert.ok(enemy.x >= 80 && enemy.x <= 880 && enemy.y >= 80 && enemy.y <= 460);
+    }
+    assert.ok(c.distanceBetween(enemy, goal) <= 18, 'steering must make progress around actual cover');
+    assert.ok(traveled > 300 && traveled < 800);
+  }
+});
+
+test('obstacle steering ignores broken cover and never redirects committed lunges', () => {
+  const c = combat();
+  const enemy = { x: 100, y: 250, radius: 12, behavior: 'hover' };
+  c.breakables = [{ x: 150, y: 250, radius: 20 }];
+  const steered = c.steerEnemyVelocity(enemy, 120, 0);
+  assert.notEqual(steered.y, 0);
+  c.breakables[0].broken = true;
+  assert.deepEqual({ ...c.steerEnemyVelocity(enemy, 120, 0) }, { x: 120, y: 0 });
+  c.breakables[0].broken = false;
+  enemy.behavior = 'roll';
+  c.moveEnemyWithCollision(enemy, 120, 0, 0.1);
+  assert.equal(enemy.y, 250);
+});
+
+test('wide pulses are fixed, infrequent, require a ready dash, and do not overlap an attack', () => {
+  const c = combat();
+  adoptInput(c, 'touch');
+  const enemy = { x: 500, y: 300, hp: 6, radius: 15, behavior: 'hover', attackCooldown: 0, phase: 1 };
+  c.enemies.push(enemy);
+  assert.equal(c.tryDashPressure(enemy), false, 'room entry has a grace period');
+  c.updateInputAI(6);
+  c.dashCooldown = 0.1;
+  assert.equal(c.tryDashPressure(enemy), false);
+  c.dashCooldown = 0;
+  enemy.behavior = 'shoot-windup';
+  assert.equal(c.tryDashPressure(enemy), false);
+  enemy.behavior = 'hover';
+  c.enemyProjectiles.push({ x: c.player.x + 100, y: c.player.y });
+  assert.equal(c.tryDashPressure(enemy), false);
+  c.enemyProjectiles.length = 0;
+  assert.equal(c.tryDashPressure(enemy), true);
+  const strike = c.bossStrikes[0];
+  assert.equal(strike.damage, 1);
+  assert.equal(strike.dashCheck, true);
+  assert.ok(strike.duration >= 1);
+  assert.ok(strike.radius > c.player.speed * strike.duration, 'normal walking cannot outrun the marked blast from its center');
+  c.player.x += 50;
+  c.updateBossStrikes(0.5);
+  assert.equal(strike.x, 300, 'marker never follows movement');
+  assert.equal(c.tryDashPressure(enemy), false);
+  assert.ok(peek(c, 'inputAI.pressureCooldown') >= 10);
+});
+
+test('major bosses now use shared ranged pressure and reserve wide pulses for later phases', () => {
+  const c = combat();
+  const boss = { x: 700, y: 300, hp: 100, boss: true, phase: 1, radius: 40,
+    behavior: 'jacko-idle', pressureCooldown: 0, smackCooldown: 10, speed: 150 };
+  c.enemies.push(boss);
+  c.applyBossPressure(boss, 0.016, -1, 0, 400);
+  assert.equal(c.bossStrikes.length, 1, 'major bosses must not skip the pressure routine');
+  assert.equal(c.bossStrikes[0].damage, 2);
+  assert.ok(c.bossStrikes[0].duration >= 1.25);
+  c.bossStrikes.length = 0;
+  adoptInput(c, 'controller');
+  c.updateInputAI(6);
+  assert.equal(c.tryDashPressure(boss), false, 'phase one retains the simpler marker');
+  boss.phase = 2;
+  assert.equal(c.tryDashPressure(boss), true);
+  assert.equal(c.bossStrikes[0].damage, 2);
+  assert.equal(c.bossStrikes[0].dashCheck, true);
+});
+
+test('newly spawned boss pressure cannot start a signature or extra windup on the same frame', () => {
+  const c = combat();
+  const boss = c.createEnemy('golem', 650, 300, true);
+  boss.behavior = 'jacko-idle';
+  boss.attackCooldown = 0;
+  boss.pressureCooldown = 0;
+  boss.smackCooldown = 10;
+  boss.extraCooldown = 0;
+  c.enemies.push(boss);
+  c.updateEnemy(boss, 0.016);
+  assert.equal(c.bossStrikes.length, 1);
+  assert.equal(boss.behavior, 'jacko-idle');
+  assert.ok(!(boss.extraWindup > 0));
+});
+
+test('dash pressure waits for bursts, extra windups, hostile bombs, projectiles and nearby hazards to clear', () => {
+  const c = combat();
+  adoptInput(c, 'keyboard');
+  c.updateInputAI(6);
+  const enemy = { x: 500, y: 300, hp: 6, behavior: 'hover', attackCooldown: 0 };
+  c.enemies.push(enemy);
+  for (const property of ['burstRemaining', 'extraWindup', 'linkDash']) {
+    enemy[property] = 1;
+    assert.equal(c.tryDashPressure(enemy), false, property);
+    delete enemy[property];
+  }
+  c.enemyProjectiles.push({ x: 900, y: 300, vx: -800, vy: 0 });
+  assert.equal(c.tryDashPressure(enemy), false, 'even distant fast shots can arrive during the warning');
+  c.enemyProjectiles.length = 0;
+  c.bombs.push({ owner: 'enemy' });
+  assert.equal(c.tryDashPressure(enemy), false);
+  c.bombs.length = 0;
+  c.groundHazards.push({ x: 300, y: 300, radius: 40, owner: 'enemy' });
+  assert.equal(c.tryDashPressure(enemy), false);
+  c.groundHazards[0].owner = 'player';
+  assert.equal(c.tryDashPressure(enemy), true);
 });

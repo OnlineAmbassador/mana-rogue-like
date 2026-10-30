@@ -452,21 +452,25 @@ for (const [id, path] of Object.entries(uniqueItemIconPaths)) {
 }
 const sacredRoomTiles = loadAsset('tilesets/desert_castle_interior.png');
 const castleWallTiles = loadAsset('tilesets/desert_castle.png');
+const sandstoneWallTiles = loadAsset('wall.png', 'assets/som/graphics');
 const desertObstacleTiles = loadAsset('tilesets/desert1.png');
-const soulMenhirImage = loadAsset('sprites/npcs/sprite/soulmenhirs_x2.png');
+const desertGroundTiles = loadAsset('tilesets/desert2.png');
+const desertSandstormImage = loadAsset('images/ambient/sandstorm.png');
+const soulMenhirImage = loadAsset('soulmenhir.png', 'assets/som/graphics');
+const sandFootprintImage = loadAsset('tilesets/footprints.png');
+const sandFootprints = { room: null, marks: [], x: 0, y: 0, distance: 0 };
 const sacredRoomFloorTileIds = [65, 49, 81];
-const castleWallTileIds = [16, 17, 18];
 const terrainTiles = {
-  tulimshar: { image: desertObstacleTiles, tileIds: [0] },
-  candor: { image: loadAsset('tilesets/desert2.png'), tileIds: [100] },
+  tulimshar: { image: desertGroundTiles, tileIds: [136, 137, 138, 139] },
+  candor: { image: desertGroundTiles, tileIds: [136, 137, 138, 139] },
   hurnscald: { image: loadAsset('tilesets/woodland_ground.png'), tileIds: [32] },
-  graveyard: { image: loadAsset('tilesets/woodland_graveyard_ground.png'), tileIds: [0] },
-  artis: { image: loadAsset('tilesets/evol/artis-pavement.png'), tileIds: [0] },
-  halinarzo: { image: loadAsset('tilesets/savannah.png'), tileIds: [170] },
-  nivalis: { image: loadAsset('tilesets/snow.png'), tileIds: [37] },
-  frostia: { image: loadAsset('tilesets/icecave.png'), tileIds: [8] },
-  fortress: { image: loadAsset('tilesets/cave2.png'), tileIds: [0] },
-  worldedge: { image: loadAsset('tilesets/stoneground.png'), tileIds: [0] },
+  graveyard: { image: loadAsset('tilesets/woodland_graveyard_ground.png'), tilePattern: [[36, 20], [6, 37]] },
+  artis: { image: loadAsset('tilesets/evol/artis-pavement.png'), tilePattern: [[113, 114], [113, 114]] },
+  halinarzo: { image: loadAsset('tilesets/savannah.png'), tileIds: [241] },
+  nivalis: { image: loadAsset('tilesets/snow.png'), tileIds: [83] },
+  frostia: { image: loadAsset('tilesets/icecave.png'), tileIds: [4] },
+  fortress: { image: loadAsset('tilesets/cave2.png'), tileIds: [4] },
+  worldedge: { image: loadAsset('tilesets/stoneground.png'), tilePattern: [[32, 33], [47, 48]] },
 };
 const terrainBackgroundCache = new Map();
 const humanoidSprites = {
@@ -1509,6 +1513,7 @@ function beginRun() {
   for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
   activeCombatStyle = entry.startingStyle;
   resetStyleHeat();
+  resetInputAI();
   if (entry.startingAbility) ownedItems.add(entry.startingAbility);
   consumables.length = 0;
   companions.length = 0;
@@ -1900,8 +1905,10 @@ function update(dt) {
   lastPlayerSample.y = player.y;
   playerStillTimer = Math.hypot(playerVelocity.x, playerVelocity.y) < 45 ? playerStillTimer + dt : 0;
   updateStyleHeat(dt);
+  updateInputAI(dt);
   updateBossStrikes(dt);
   resolveDoorCrossing();
+  updateSandFootprints(dt);
   if (control) updateWalkInInteractions(dt);
   updateRewardTrial(dt);
 
@@ -2404,6 +2411,7 @@ function draw() {
   ctx.translate(shake.x - Math.round(camera.x), shake.y - Math.round(camera.y));
   withTextOutline(drawWorld);
   ctx.restore();
+  drawRegionAtmosphere();
   if (mode === 'playing' && hurtVignetteTimer > 0) drawHurtVignette(shake);
   if (mode === 'playing') {
     withTextOutline(() => {
@@ -2423,6 +2431,7 @@ function draw() {
   function drawPauseOverlay() {
     ctx.fillStyle = 'rgba(10, 9, 14, 0.82)';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    drawManaPanel(100, 154, VIEW_W - 200, 246);
     ctx.fillStyle = '#f1dec1';
     ctx.textAlign = 'center';
     ctx.font = 'bold 38px Georgia';
@@ -2439,27 +2448,6 @@ function draw() {
     drawAudioPanel();
   }
 
-  function drawPauseEquipment() {
-    const equipped = shopItemCatalog.filter((item) => ownedItems.has(item.id));
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#d9bd83';
-    ctx.font = 'bold 13px Arial';
-    const cell = 38;
-    const perRow = Math.max(1, Math.min(14, Math.floor((VIEW_W - 80) / cell)));
-    const top = VIEW_H / 2 + 140;
-    ctx.fillText(equipped.length ? `EQUIPPED (${equipped.length})` : 'NOTHING EQUIPPED YET', VIEW_W / 2, top - 14);
-    equipped.forEach((item, index) => {
-      const row = Math.floor(index / perRow);
-      const inRow = Math.min(perRow, equipped.length - row * perRow);
-      const x = VIEW_W / 2 + (index % perRow - (inRow - 1) / 2) * cell;
-      const y = top + 16 + row * cell;
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(x - 17, y - 17, 34, 34);
-      drawShopItemIcon(item, x, y);
-    });
-    ctx.restore();
-  }
 }
 
 

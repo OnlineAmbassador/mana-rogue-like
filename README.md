@@ -10,13 +10,43 @@ A browser-based, room-by-room action roguelike set in the world of [The Mana Wor
 
 Works in current Chrome, Edge, Firefox and Safari with a keyboard and mouse, an Xbox or PlayStation controller, or phone touch controls.
 
-On phones, drag the left movement area with one thumb and hold the right attack area with the other. Holding attacks automatically targets a nearby enemy; dragging aims manually. Tap the Attack button while in reach of an interactable to interact instead of attacking. Visible buttons also provide dash, bombs, explicit interaction, skills, items, mana guard (or unlocked Shockwave), weapon switching, bank withdrawal, map, journal, and pause. Touch controls hide when a controller connects or you use a mouse or keyboard; they return when the controller disconnects or you return to touch. Landscape uses the available screen height; portrait keeps the controls below the game. Both preserve the 960-by-540 game coordinates. Tap the roster's side arrows to select other delvers, and tap the upper or lower pause area to resume or save and exit.
+On phones, drag the left movement area with one thumb and hold the right attack area with the other. While any live enemy remains in the current room, attacks automatically target the nearest one, regardless of dragging. Once no live enemies remain, drag the attack area to aim freely at breakables; holding without dragging fires in your facing direction, so walking before attacking also lets you choose a direction. Tap the Attack button while in reach of an interactable to interact instead of attacking. Visible buttons also provide dash, bombs, explicit interaction, skills, items, mana guard (or unlocked Shockwave), weapon switching, bank withdrawal, map, journal, and pause. Touch controls hide when a controller connects or you use a mouse or keyboard; they return when the controller disconnects or you return to touch. Landscape uses the available screen height; portrait keeps the controls below the game. Both preserve the 960-by-540 game coordinates. Tap the roster's side arrows to select other delvers, and tap the upper or lower pause area to resume or save and exit.
 
-Control prompts and touch layout follow the most recently used input: controller button/stick, keyboard or mouse button, or touchscreen. A touchscreen activates its controls when first pressed rather than merely because the device supports touch. While dragging to aim on touch, attacks receive a stronger directional pull toward the nearest nearby enemy within the aim direction; manual aim outside the assist cone stays unchanged.
+Control prompts and touch layout follow the most recently used input: controller button/stick, keyboard or mouse button, or touchscreen. A touchscreen activates its controls when first pressed rather than merely because the device supports touch. Touch auto-targeting resumes as soon as a live enemy is present in the current room.
 
 Landscape touch layouts hide the external title/stats header and message panel, fit the game inside the browser's visible height and safe areas, and overlay the controls without pushing the canvas down. Touching the screen activates controls even when the browser reports a fine pointer or no touch capability. A smaller Dash bubble sits just above Attack within right-thumb reach. Large Bomb and Use Item buttons show inventory counts and are disabled when empty; Switch changes weapons. Use Item retains the normal smart selection of a usable consumable, including healing potions when injured.
 
 Compatible presentation fixes adapted from [WildX-480's fork](https://github.com/WildX-480/mana-rogue-like): preserved control-hint line breaks and live game-message announcements. Its unrelated balance and audio changes are not merged.
+
+## Visual presentation
+
+The UI uses original charcoal panels, fine gold bevels and corner ornaments inspired by [Source of Mana by Manasource and Reid](https://manasource.itch.io/source-of-mana), with matching HUD, minimap, menus and touch buttons. This is an independent fan project, not an official Source of Mana release; no Source of Mana UI artwork or screenshot pixels are copied.
+
+Tulimshar and Candor use continuous dune patches, translucent worn cobblestone approaches to connected doorways, and a quieter desert palette. Their sandstone walls now use Source of Mana's wall atlas and authored Tulimshar TMX courses: battlements above continuous faces, with wall-top walkways on the sides rather than sideways-facing brick facades. Wall depth is compressed to preserve the existing 64px collision band and exact door openings. Original cloth banners and torch flames animate. Windblown sand wisps drift across the ground beneath characters and combat warnings; denser sand haze stays at the room perimeter, underneath the HUD. The floor itself does not move. Reduced-motion preferences freeze the new scenery, wind and soul-menhir aura; low graphics quality omits sand animation and uses static scenery. Room backgrounds are cached with a twelve-entry limit. These changes are visual only: obstacles, doors, collision, combat and input rules are unchanged.
+
+Walking over desert sand leaves directional footprints which fade after eight seconds; paving does not receive tracks. Trails are distance-based, limited to 96 marks, and reset on room changes or teleports. The starting room's soul menhir now uses the native Source of Mana sprite, rather than a different TMW stone variant.
+
+The pause screen groups collected equipment and usable supplies into a framed icon grid, including stack counts. Icons fit inside the panel even on a well-equipped run; hovering an icon with the mouse shows its name in the inventory header. This is a read-only overview, not a new equip, drag-and-drop or item-use system.
+
+Reused images are unmodified in `assets/tmw/clientdata` and `assets/som/graphics`; canvas compositing, opacity and color filters provide the presentation. Source of Mana's Modanung/Reid wall artwork, Crush/Reid menhir, and Reid's TMX reference are CC BY-SA 4.0; exact source revision and adaptation details are in [the SoM credits](assets/som/CREDITS.md). Other attribution and original license terms remain below and in the bundled client-data `LICENSE`.
+
+### Authored terrain patterns
+
+The bundled TMW map crawl covered 491 orthogonal CSV maps and 2,555 visual layers. Patterns were compared using local atlas IDs, not map-specific global IDs; external TSX references and tile transforms were accounted for. A frequent tile is not necessarily walkable ground: cave voids, building faces and terrain edges must not be used as floor textures. The selected floor motifs below were also checked against the actual artwork and surrounding layers.
+
+| Region / use | TMX source, layer and zero-based top-left coordinate | Local IDs, rows separated by `/` |
+|---|---|---|
+| Graveyard ground | [029-6.tmx](assets/tmw/clientdata/maps/029-6.tmx), `Ground`, (140,32) | `36,20 / 6,37` |
+| Artis and desert paving | [005-1-1.tmx](assets/tmw/clientdata/maps/005-1-1.tmx), `Ground`, (9,7) | `113,114 / 113,114` |
+| Halinarzo ground | [011-4.tmx](assets/tmw/clientdata/maps/011-4.tmx), `Ground`, (57,49) | `241,241 / 241,241` |
+| Nivalis snow | [019-1.tmx](assets/tmw/clientdata/maps/019-1.tmx), `Ground`, (0,0) | `83,83 / 83,83` |
+| Frostia ice floor | [001-13-1.tmx](assets/tmw/clientdata/maps/001-13-1.tmx), `Ground`, (23,28) | `4,4 / 4,4` |
+| Fortress cave floor | [004-2-1.tmx](assets/tmw/clientdata/maps/004-2-1.tmx), `Ground1`, (56,23) | `4,4 / 4,4` |
+| World's Edge stone | [006-8.tmx](assets/tmw/clientdata/maps/006-8.tmx), `Ground`, (32,22) | `32,33 / 47,48` |
+
+Two-dimensional motifs retain their row/column order instead of shuffling individual pieces. Graveyard grass is darkened/desaturated, avoiding the magenta cast produced by the previous hue filter. These are bounded floor-texture adaptations, not imports of entire levels, decorations or collision maps. The desert dune composition and non-desert wall architecture are not redesigned by this floor correction.
+
+Map credits from the bundled [LICENSE](assets/tmw/clientdata/LICENSE): `029-6.tmx` is TMW.Org with jesusalva; `011-4.tmx`, `019-1.tmx`, `001-13-1.tmx` and `006-8.tmx` are jesusalva (`019-1` also credits TMW Org. and TMW/LOF), listed as GPLv3. `004-2-1.tmx` is Saulc with jesusalva/Pookie, and `005-1-1.tmx` has an unidentified primary author with Saulc/jesusalva, listed as CC BY-SA 4.0. These credits and terms also accompany the adapted motifs. Original TMX metadata remains untouched: it sometimes lists additional/different terms, notably CC BY-SA 3.0 in `029-6` and `005-1-1`, and GPL v2+ / CC BY-SA 4.0+ in `001-13-1`. This does not relicense the separate tileset images; their credits and licenses remain below.
 
 ## Source layout
 
@@ -45,7 +75,7 @@ These are classic browser scripts, not modules, so their shared top-level declar
 - Dramatic wild effects also include rising gas puffs, five-part flame walls, elemental spore clusters, red-flashing enemy bombs with a 1.2-second fuse, and lift-and-slam attacks. Gas, flames, and bursts inherit the casting element's color. Lifted mobs rise above a visible ground shadow, hang briefly, then slam down with splash damage. Bosses cannot be lifted; special lift shots instead mark them as bombs. These magic explosions hurt enemies, not the player. Wild lightning remains visible for 0.4 seconds; player ground effects are capped to prevent runaway clutter. Proc chances are unchanged.
 - New passive magic items: **Storm Spool** extends wild lightning to four targets, **Ember Seed** extends decay to four seconds, and **Nova Pearl** expands wild explosions. They use the normal shop/reward pools and do not increase proc probabilities.
 - Three weapon styles (sword, bow, magic) that you switch between. Weapon-specific upgrades can randomly shift that weapon's firing style as a side effect; there is no mode control or separate mode purchase.
-- Charge mode applies to every selectable weapon when granted. Magic charge requires a deliberate hold and respects the normal weapon recovery cooldown; short taps do not fire. Firing direction is controlled only by the active aim input: controller right stick, nearest live enemy on touch, or mouse cursor for keyboard/mouse.
+- Charge mode applies to every selectable weapon when granted. Magic charge requires a deliberate hold and respects the normal weapon recovery cooldown; short taps do not fire. Firing direction is controlled only by the active aim input: controller right stick, nearest live enemy on touch (or manual aim/facing in an enemy-free room), or mouse cursor for keyboard/mouse.
 - Ten rooms at most per floor, at most one larger room, never the boss room. The minimap shows doors you have seen, turns red while the room is hostile, and shows larger rooms larger.
 - Doors draw as locked or open (enemies remaining, key required, sealed boss room).
 - Bank and shop share one room. Merchants need an Interact press, and you are never offered an item you already own.
@@ -78,7 +108,7 @@ With Node.js installed, run the dependency-free regression suite from the reposi
 node --test tests/*.test.js
 ```
 
-The suite covers combat, healing/proc probability boundaries, class tradeoffs, floor/boss balance, bomb physics, loot, spore clusters, and wild magic. Element checks cover all eight Mage starting elements, upgrade-driven changes, save restoration without a purchased sigil, and matching colors on immediate and delayed effects. Boss telegraph checks cover real golem and Jacko windups, slam completion timing, and bounded arc radii for oversized or expired timers.
+The suite covers combat, healing/proc probability boundaries, class tradeoffs, floor/boss balance, bomb physics, loot, spore clusters, and wild magic. Element checks cover all eight Mage starting elements, upgrade-driven changes, save restoration without a purchased sigil, and matching colors on immediate and delayed effects. Boss telegraph checks cover real golem and Jacko windups, slam completion timing, and bounded arc radii for oversized or expired timers. Input-aware AI tests cover delayed switching, committed aim, physical dodging, obstacle routes, staggered attack limits and pulse safety; real dash tests verify walking and early dashes take the hit while a late dash survives all three warning lengths.
 
 Check all six runtime scripts before publishing:
 
@@ -100,9 +130,12 @@ The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3
 - `graphics/tilesets/snow.png` — GPL 2.0; TMW-BR, LoF.
 - `graphics/tilesets/savannah.png` — Modanung; GPLv3 and CC BY-SA 4.0.
 - `graphics/tilesets/cave2.png` — Bjorn; GPLv2.
+- `graphics/tilesets/stoneground.png` — Jetrel; CC0; source OpenGameArt.org.
 - `graphics/tilesets/icecave.png` — Crush, Octalot; GPLv2.
 - `graphics/tilesets/woodland_graveyard_ground.png` — Crush; GPLv2.
 - `graphics/tilesets/desert_city.png` — Modanung; CC BY-SA 3.0.
+- `graphics/tilesets/evol/artis-pavement.png` — IvanMorve, Reid; CC BY-SA 3.0. Used for the worn desert paving as well as Artis.
+- `graphics/images/ambient/sandstorm.png` — Crush; GPL 3.0 or CC BY-SA 3.0 (the CC BY-SA 3.0 option is used here). Used for the desert edge ambience, with canvas opacity and drift; the original image is unchanged.
 - `graphics/sprites/monsters/accessories/banditbow.png` — GPLv2; jesusalva.
 - `graphics/sprites/monsters/fluffy.png` — Crush; CC BY-SA 3.0.
 - `graphics/sprites/monsters/snail.png` — FotherJ; CC BY-SA 3.0.
@@ -118,9 +151,10 @@ The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3
 - `graphics/sprites/equipment/legs/assassin-female.png` — Black Don; GPLv2.
 - `graphics/sprites/equipment/chest/leather-female.png` — Modanung; GPLv2 and CC BY-SA 3.0.
 - `graphics/tilesets/desert_castle_interior.png` — Alige, EJlol, Irukard, IvanMorve Len, MerlinX420, Wushin; GPLv2.
-- `graphics/tilesets/desert_castle.png` — Alige, EJlol, Irukard, IvanMorve Len, MerlinX420, Wushin; GPLv2.
-- `graphics/tilesets/desert2.png` — :grey_question:, Wushin; GPLv2.
-- `graphics/tilesets/desert1.png` — :grey_question:, Wushin; GPLv2.
+- `graphics/tilesets/desert_castle.png` — Alige, EJlol, Irukard, IvanMorve; source credits Len, MerlinX420, Wushin; GPLv2.
+- `graphics/tilesets/desert2.png` — unidentified original contributor(s), Wushin; source credit Saulc; GPLv2.
+- `graphics/tilesets/desert1.png` — unidentified original contributor(s), Wushin; source credit Saulc; GPLv2.
+- `graphics/tilesets/footprints.png` — author unidentified in the bundled license; source TMW-BR; GPL 2.0. Used unmodified for fading desert tracks.
 - `graphics/tilesets/woodland_ground.png` — :grey_question:, Crush, Wombat, enchilado; GPLv2.
 - `graphics/sprites/monsters/ratto.png` — Coolkid782; CC BY-SA 3.0.
 - `graphics/sprites/monsters/croc.png` — Reid, Coolkid782, Enchilado; CC BY-SA 3.0.
@@ -168,7 +202,11 @@ The repository includes the license records in `assets/tmw/clientdata/LICENSE` a
 - Visit the bank room on each floor to deposit all carried zenny by walking onto the vault pad or withdraw your stored balance with Shift+E. Banked zenny is saved separately from the active run and persists across refreshes, closing the game, and new runs.
 - Pause with P or Esc. The game also pauses when its browser tab loses focus. Press X from the pause screen to save and return to the title; choose Resume Saved Descent or press R to continue. Starting a new descent while one is saved asks you to select Descend a second time. The current run autosaves and resumes after a page refresh, including room contents and run progress.
 - Ordinary breakables have a small chance to drop a heart or coin, and bomb-destroyed objects retain their 50% bomb-drop chance. Reward rooms may contain marked relics with guaranteed collectible drops, but destructible bonus loot is not guaranteed in every optional room; each obstacle still gets only one drop chance.
-- Ordinary mobs adapt to the weapon style you have been attacking with over the last few seconds (smoothed, so a quick swap does not dodge it): against melee, casters keep a wider distance and waiting foes strike as your swing recovers; against the bow, foes close in, dodge more often and one extra melee mob may engage; against magic, foes spread out and ranged mobs act slightly faster. Bosses are unaffected. Tuning lives in `styleAIProfiles` in `mobmanager.js`.
+- Ordinary mobs adapt to the weapon style you have been attacking with over the last few seconds (smoothed, so a quick swap does not dodge it): against melee, casters keep a wider distance and waiting foes strike as your swing recovers; against the bow, foes close in, dodge more often and one extra melee mob may engage; against magic, foes spread out and ranged mobs act slightly faster. Bosses are unaffected by these weapon counters. Tuning lives in `styleAIProfiles` in `mobmanager.js`.
+- Enemies also adapt to the active **input method**, independently of weapon counters. The first active input is learned immediately; subsequent switches take 2.5 seconds of stable playing time. Touch draws more close-range lateral movement and projectile dodging, so auto-aim is not a guaranteed hit. Gamepads draw stronger flanking, faster direction changes and one additional staggered attack slot. Mouse/keyboard draws stronger movement prediction on locked ranged windups. The player's aim, controls, dash timing and projectile accuracy are not changed, and switching input remains allowed.
+- Calm enemies use local obstacle steering around unbroken cover, including wall clearance; committed lunges/charges keep their direction. Ordinary attack cooldowns tick 12% faster while an input profile is active, without increasing damage or health. Dodges respond to actual projectiles (not button presses), never to point-blank shots less than 140ms away, and retain a cooldown. Slow chargers still commit instead of projectile-dodging.
+- Occasionally a fixed **wide pulse** marks the player's position. Its 300px radius catches an ordinary-speed walker starting at the center: leave the area proactively, use a defensive ability, or time Dash for the final **DASH NOW** cue (last 0.2s). The warning is 1.1s for touch, 1.05s for mouse/keyboard, and 0.95s for gamepads; existing dash invulnerability remains 0.24s. A pulse only starts with Dash ready, no active attack/burst/extra windup, no hostile projectiles/bombs and no nearby hostile ground hazards. Each room grants a six-second grace period, with at least ten seconds between ordinary pulses. These are minimum intervals, not a promise of an attack every ten seconds.
+- Major bosses now use the shared fixed path-marker pressure that previously only minibosses reached. Phase-two/three bosses can also use wide pulses, at least seven seconds apart. These keep ordinary/mini damage at one heart and major-boss damage at two, do not retarget after the warning starts, and reserve the attack beat instead of starting another boss signature simultaneously. Existing phase heals and death cleanup are unchanged. Profile values live in `inputAIProfiles`; input observation is transient and restarts on a new/resumed run.
 - Brawl with fists, swords, or daggers after learning melee; additional melee weapons stack and swing together. Learned magic and bow attacks also fire alongside them. Bow poses and the enlarged bow appear only during bow attacks. The mouse cursor controls facing and left-click attacks toward it; controller left stick moves (and faces that way while not aiming) while the right stick controls facing and aim.
 - Buy Mana Tonics, Bomb Bundles, and Mana Bursts as consumables; press Q to use the first item that can help.
 - Face the regional guardians: Great Red Slime in Tulimshar, Jacko in Hurnscald, Reaper in the Graveyard, Ancient Golem in the Artis Ruins, Bandit Lord in Halinarzo, Snowman Boss in Nivalis, Yeti King in Frostia, Forest Dragon on Candor Island, and Night Dragon at the World Edge. All regions after Tulimshar are shuffled between runs. Guardians use regional TMW sprites, unlock the delver tied to their region, and reveal a new journal clue. Attacks are telegraphed with recovery windows; clear surviving summons before a boss-room seal opens.

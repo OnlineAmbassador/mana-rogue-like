@@ -896,7 +896,7 @@ function nearestTouchTargetAngle() {
       targetDistance = distance;
     }
   }
-  return target ? Math.atan2(target.y - attackOriginY(), target.x - player.x) : 0;
+  return target ? Math.atan2(target.y - attackOriginY(), target.x - player.x) : null;
 }
 
 function currentAimAngle() {
@@ -906,7 +906,10 @@ function currentAimAngle() {
     return Math.atan2(aimY, aimX);
   }
   if (lastInputMode === 'touch') {
-    return nearestTouchTargetAngle();
+    const targetAngle = nearestTouchTargetAngle();
+    if (targetAngle !== null) return targetAngle;
+    if (touchInput.aimActive) return Math.atan2(touchInput.aimY, touchInput.aimX);
+    return Math.atan2(player.lookY, player.lookX);
   }
   if (lastInputMode === 'keyboard') {
     return Math.atan2(pointer.y + camera.y - attackOriginY(), pointer.x + camera.x - player.x);

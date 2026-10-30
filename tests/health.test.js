@@ -424,6 +424,35 @@ test('ordinary splash costs half a heart but marked boss heavy strikes cost two'
   assert.equal(c.player.hp, 1);
 });
 
+test('wide pulse punishes normal walking but a late real dash evades it through invulnerability', () => {
+  for (const warning of [0.95, 1.05, 1.1]) {
+    for (const [action, expectedHp] of [['walk', 3], ['late-dash', 4], ['early-dash', 3]]) {
+      const c = combat();
+      Object.assign(c, {
+        ROOM_W: 960, ROOM_H: 540, currentRoom: { type: 'normal' }, character: {},
+        dashTimer: 0, dashCooldown: 0, dashVector: { x: 1, y: 0 },
+        keys: {}, gamepadInput: { moveX: 0, moveY: 0 }, touchInput: { moveX: 0, moveY: 0 },
+      });
+      c.player.x = 480;
+      c.player.y = 270;
+      c.player.lookX = 1;
+      c.player.lookY = 0;
+      c.spawnBossStrike(480, 270, 300, warning, 1);
+      c.bossStrikes[0].dashCheck = true;
+      for (let frame = 0; frame < Math.ceil(warning * 120) + 2; frame++) {
+        if ((action === 'late-dash' && frame === Math.floor((warning - 0.15) * 120)) ||
+            (action === 'early-dash' && frame === 12)) c.startDash();
+        c.player.x += (c.dashTimer > 0 ? 620 : action === 'walk' ? 235 : 0) / 120;
+        c.dashTimer = Math.max(0, c.dashTimer - 1 / 120);
+        c.updateBossStrikes(1 / 120);
+        c.player.invuln = Math.max(0, c.player.invuln - 1 / 120);
+      }
+      assert.equal(c.player.hp, expectedHp, `${action}, ${warning}s warning`);
+      assert.equal(c.bossStrikes.length, 0);
+    }
+  }
+});
+
 test('heart renderer clips a half-heart to exactly half the icon with or without the image', () => {
   for (const imageLoaded of [true, false]) {
     const c = combat();

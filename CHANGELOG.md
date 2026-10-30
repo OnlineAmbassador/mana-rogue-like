@@ -6,6 +6,28 @@ These entries were later ported onto upstream's module split (`gameui.js`, `mobm
 
 ## 2026-10-29
 
+### Harder, input-aware enemy tactics
+- Enemy input profiles now follow active touch, gamepad or mouse/keyboard control, adapting after 2.5 seconds on a new input. Touch draws close-range physical jukes instead of artificial aim penalties; gamepads draw stronger flanking and staggered overlap; mouse/keyboard draws stronger committed prediction. Controller/input handlers and player aim are unchanged.
+- Calm mobs and bosses steer around cover while committed charges keep their direction. Ordinary attack cooldowns tick 12% faster; health, damage and existing weapon counters remain unchanged.
+- Fixed wide-pulse warnings occasionally require a well-timed dash or leaving the area early. They use the existing invulnerability/damage rules, a room-entry grace period, shared pacing, and readiness/overlap checks. The final DASH NOW cue fits inside the existing dash protection window.
+- Major bosses now reach shared path-marker pressure instead of returning early; later phases can use wide pulses. New pressure cannot start a signature or extra windup on the same frame. Phase heals, warning commitments and death cleanup are preserved.
+- Regression tests cover delayed input switches, physical misses, actual navigation, attack admission, locked aim, hazard safety and real walking/early-dash/late-dash outcomes. Tutorial and README describe the changed default difficulty; values remain open to playtest tuning.
+
+### Mana-inspired presentation
+- Crawled the bundled TMX corpus (491 maps, 2,555 visual layers) for repeat motifs, resolving local atlas IDs and external tilesets. Corrected seven regional floor selections: paving, graveyard and stone ground retain authored two-dimensional patterns; cave, ice, snow and savannah floors no longer stamp hole/wall/pond fragments. Desert paving now uses the verified cobblestone motif rather than decorative border tiles. Graveyard grass is darkened/desaturated instead of hue-shifted magenta. Source coordinates, map credits and license metadata are documented in the README, with direct TMX regression tests.
+- Corrected desert architecture using Source of Mana's actual wall atlas and authored Tulimshar TMX face/walkway courses, replacing the incorrect facade tiles and repeated windows. Door openings and collision remain unchanged; wall depth fits the existing 64px border. Added the unmodified TMX reference and regression checks against its actual tile positions.
+- Sand now receives distance-based directional footprints that fade, avoid paving and reset on room changes/teleports. The starting soul menhir uses SoM's native sprite and a reduced-motion-aware aura. Imported wall/menhir/map assets are CC BY-SA 4.0, with Modanung, Crush and Reid credited and the exact source revision recorded.
+- Windblown sand wisps now move across desert ground beneath entities and combat warnings, and decorative wall banners and torch flames animate. Reduced motion freezes the new effects; low quality skips wind and keeps scenery static. Terrain and collisions stay fixed.
+- Pause inventory now uses a fitted, framed icon grid for collected equipment and consumable stacks, with mouse-hover names. Item/equipment behavior is unchanged.
+- Original charcoal-and-gold canvas panels unify the HUD, minimap, weapon/action slots, messages, pause panel, codex, controls, tutorial and journal; matching page chrome and touch buttons retain their existing layouts and input behavior.
+- Tulimshar and Candor now use intact dune patches, lightly blended cobblestone approaches to connected doors, and a softer desert palette.
+- Subtle sand haze follows the desert room perimeter without obscuring the center or HUD. Reduced motion freezes drift; low quality skips the texture. Room-specific terrain caching is bounded to twelve entries.
+- Reuses bundled, credited TMW artwork; no Source of Mana UI art is copied. The README identifies Source of Mana / Manasource / Reid as the presentation inspiration and adds per-asset paving and sandstorm credits and licenses.
+
+### Touch aiming in cleared rooms
+- Combat keeps nearest-live-enemy auto-targeting. When no live enemies remain in the current room, dragging Attack aims freely at breakables; holding without dragging fires in the player's facing direction instead of always east.
+- Keyboard/mouse and controller aiming are unchanged. Touch instructions and regression tests cover manual aiming, facing, and transitions back to combat targeting.
+
 ### Weapon-aware mob AI
 - Regular mobs adapt to the weapon style the player has been using. The player's recent attack time per style is tracked in `styleHeat` (`playermanager.js`, half-life 4 s); the leading style must hold a 25% lead to take over, so swapping weapons shifts the AI after a few seconds rather than instantly.
 - `styleAIProfiles` (`mobmanager.js`) holds the responses and is read in `applyMobTactics`: melee widens the ring casters keep and has waiting foes strike during the player's swing recovery; bow narrows the ring, raises dodge odds and the melee attacker cap by one; magic widens ally spacing and speeds ranged mobs' attack cooldown. The effect scales lightly with the character's profile for that style.
