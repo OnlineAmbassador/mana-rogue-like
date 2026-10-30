@@ -1,6 +1,15 @@
 /* Local storage, profiles, progression, and save/load persistence. */
 
 const MANA_LORE_RELIC_COUNT = 9;
+// Saves from before Fortress Island became Candor Island still hold the old ids.
+const legacySaveIds = {
+  fortress: 'candor', 'fortress-keeper': 'candor-keeper', 'mana-echo-fortress': 'mana-echo-candor',
+  'region:fortress': 'region:candor', 'character:fortress-keeper': 'character:candor-keeper',
+};
+
+function currentSaveId(id) {
+  return legacySaveIds[id] || id;
+}
 
 function getSave() {
   let storedSave;
@@ -9,7 +18,7 @@ function getSave() {
   } catch (error) {
     messageEl.textContent = 'Progress could not be read from browser storage; unlocks last for this visit.';
     return {
-      arcanist: false, warden: false, highestFloorCleared: 0, unlockedCharacters: [], completedRuns: 0, bankedZenny: 0,
+      arcanist: false, warden: false, highestFloorCleared: 0, unlockedCharacters: [], completedRuns: 0, bankedZeny: 0,
       playtimeSeconds: 0, unlockedItemIds: [], discoveredItemIds: [], discoveredEnemyIds: [], discoveredEnemyAbilityIds: [],
       purchasedAbilityIds: [], introducedChapters: [], loreRelics: [],
     };
@@ -22,9 +31,11 @@ function getSave() {
   } catch (error) {
     messageEl.textContent = 'Bank storage could not be read; your saved profile balance is shown for this visit.';
   }
-  const profileBalance = Number.isFinite(storedSave.bankedZenny)
-    ? Math.max(0, Math.floor(storedSave.bankedZenny)) : 0;
-  const bankedZenny = storedBank === null || storedBank === undefined
+  // Profiles saved before the Zeny rename store the balance as bankedZenny.
+  const storedBalance = storedSave.bankedZeny ?? storedSave.bankedZenny;
+  const profileBalance = Number.isFinite(storedBalance)
+    ? Math.max(0, Math.floor(storedBalance)) : 0;
+  const bankedZeny = storedBank === null || storedBank === undefined
     ? profileBalance : Math.max(0, Math.floor(Number(storedBank) || 0));
   if (storedBank === null && profileBalance > 0) {
     try {
@@ -39,9 +50,9 @@ function getSave() {
     highestFloorCleared: Number.isFinite(storedSave.highestFloorCleared)
       ? Math.max(0, Math.floor(storedSave.highestFloorCleared)) : 0,
     unlockedCharacters: Array.isArray(storedSave.unlockedCharacters)
-      ? storedSave.unlockedCharacters.filter((id) => typeof id === 'string') : [],
+      ? storedSave.unlockedCharacters.filter((id) => typeof id === 'string').map(currentSaveId) : [],
     completedRuns: Number.isFinite(storedSave.completedRuns) ? Math.max(0, Math.floor(storedSave.completedRuns)) : 0,
-    bankedZenny,
+    bankedZeny,
     playtimeSeconds: Number.isFinite(storedSave.playtimeSeconds) ? Math.max(0, storedSave.playtimeSeconds) : 0,
     unlockedItemIds: Array.isArray(storedSave.unlockedItemIds)
       ? storedSave.unlockedItemIds.filter((id) => typeof id === 'string') : [],
@@ -54,9 +65,9 @@ function getSave() {
     purchasedAbilityIds: Array.isArray(storedSave.purchasedAbilityIds)
       ? storedSave.purchasedAbilityIds.filter((id) => typeof id === 'string') : [],
     introducedChapters: Array.isArray(storedSave.introducedChapters)
-      ? storedSave.introducedChapters.filter((id) => typeof id === 'string') : [],
+      ? storedSave.introducedChapters.filter((id) => typeof id === 'string').map(currentSaveId) : [],
     loreRelics: Array.isArray(storedSave.loreRelics)
-      ? storedSave.loreRelics.filter((id) => typeof id === 'string') : [],
+      ? storedSave.loreRelics.filter((id) => typeof id === 'string').map(currentSaveId) : [],
   };
 }
 
@@ -103,7 +114,7 @@ function recordLoreRelic(id) {
     queueChapter('character:echo-bound-delver', {
       heading: 'ECHO-BOUND DELVER',
       title: 'A shared memory',
-      text: 'The records do not reveal what first stirred the Mana Tree’s current. They do reveal that distant worlds have always answered one another. You carry their shared memory into the next descent.',
+      text: 'The records do not reveal what first stirred Mana’s currents. They do reveal that it once connected the Mana Trees to one another. You carry their shared memory into the next descent.',
     });
   } else {
     showMessage(`Mana echo recovered (${found}/${MANA_LORE_RELIC_COUNT}). Its story is recorded in the Codex.`, 3);
@@ -178,14 +189,14 @@ function recordFloorClear(floor) {
   persistSave();
 }
 
-function persistBankedZenny(amount) {
+function persistBankedZeny(amount) {
   const balance = Math.max(0, Math.floor(amount));
   try {
     localStorage.setItem(BANK_STORAGE_KEY, String(balance));
-    save.bankedZenny = balance;
+    save.bankedZeny = balance;
     return true;
   } catch (error) {
-    showMessage('The bank could not save your zenny. The transaction was cancelled.', 4);
+    showMessage('The bank could not save your zeny. The transaction was cancelled.', 4);
     return false;
   }
 }
@@ -255,10 +266,11 @@ function captureRoomRuntime(room) {
 
 function restoreRoomRuntime(room) {
   const runtime = room.runtime;
-  if (!runtime) return false;
+  // A save from an older build may lack the enemy list; treat that room as fresh instead of crashing.
+  if (!runtime || !Array.isArray(runtime.enemies)) return false;
   enemies.push(...runtime.enemies);
   // Runtime attacks are room-local and disposable; never resurrect a projectile or hazard from an old save.
-  for (const obstacle of runtime.breakables) {
+  for (const obstacle of runtime.breakables || []) {
     if (room.type === 'shop' || room.type === 'bank') continue;
     const { spriteIndex, roomKey: obstacleRoomKey, ...state } = obstacle;
     breakables.push({
@@ -267,7 +279,7 @@ function restoreRoomRuntime(room) {
       room: rooms.find((candidate) => roomKey(candidate) === obstacleRoomKey) || room,
     });
   }
-  for (const pickup of runtime.pickups) {
+  for (const pickup of runtime.pickups || []) {
     const { roomKey: pickupRoomKey, ...state } = pickup;
     pickups.push({
       ...state,
@@ -316,6 +328,8 @@ function serializeRun() {
     rewardClaimed: room.rewardClaimed,
     shopStock: room.shopStock?.map(({ id, purchased }) => ({ id, purchased })) || null,
     rewardUpgrade: room.rewardUpgrade,
+    riskShrineChoice: room.riskShrineChoice,
+    riskShrineDone: room.riskShrineDone,
     secretExit: room.secretExit ? {
       direction: room.secretExit.direction,
       x: room.secretExit.room.x,
@@ -411,7 +425,7 @@ function restoreRun() {
     return false;
   }
 
-  character = characterRoster.find((entry) => entry.id === saved.characterId);
+  character = characterRoster.find((entry) => entry.id === currentSaveId(saved.characterId));
   if (!character || !Number.isInteger(saved.floor) || saved.floor < 1 || saved.floor > finalFloor || !saved.player ||
       !saved.currentRoom || !saved.equippedClothing) {
     messageEl.textContent = 'The saved descent is incomplete; start a new descent.';
@@ -425,7 +439,7 @@ function restoreRun() {
     : createRunProgressionSnapshot();
   selectedIndex = characterRoster.indexOf(character);
   currentFloor = saved.floor;
-  const savedMapOrder = Array.isArray(saved.mapOrder) ? saved.mapOrder : [];
+  const savedMapOrder = Array.isArray(saved.mapOrder) ? saved.mapOrder.map(currentSaveId) : [];
   const validMapOrder = savedMapOrder.length === campaignRegionIds.length &&
     savedMapOrder[0] === 'tulimshar' &&
     new Set(savedMapOrder).size === campaignRegionIds.length &&

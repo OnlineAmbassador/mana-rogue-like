@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-<sprite>
-	<imageset name="base" src="graphics/sprites/monsters/bosspinkie.png" width="50" height="42" />
-
-    <include file="monsters/pinkie.xml"/>
-</sprite>

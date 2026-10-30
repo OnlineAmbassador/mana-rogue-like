@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText, loadBetween, loadFunctions } = require('./helpers/load');
 
 function presentation() {
   const calls = [];
@@ -50,11 +51,17 @@ function presentation() {
     keysHeld: 0,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
-  vm.runInContext(source.slice(source.indexOf('function drawManaPanel('),
-    source.indexOf('function drawPlayerMagicMark(')), c);
-  vm.runInContext(source.slice(source.indexOf('function drawSoulMenhir('),
-    source.indexOf('function drawRewardTrial(')), c);
+  vm.runInContext(sliceText(source, 'function drawManaPanel(', 'function drawPlayerMagicMark(', 'source'), c);
+  vm.runInContext(sliceText(source, 'function drawSoulMenhir(', 'function drawRewardTrial(', 'source'), c);
+  loadFunctions(c, 'gameui.js', ['prefersReducedMotion']);
+  loadBetween(c, 'desertart.js', 'const DESERT_ART');
   return c;
+}
+
+// The reduced-motion query is created once per page, so tests that change the preference reset it.
+function setReducedMotion(c, matches) {
+  c.window.matchMedia = () => ({ matches });
+  c.prefersReducedMotion.query = undefined;
 }
 
 function productionTerrain(c) {
@@ -65,7 +72,7 @@ function productionTerrain(c) {
   c.desertGroundTiles = c.loadAsset('tilesets/desert2.png');
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.terrainTiles = vm.runInContext(`(() => {
-    ${game.slice(game.indexOf('const terrainTiles ='), game.indexOf('const terrainBackgroundCache'))}
+    ${sliceText(game, 'const terrainTiles =', 'const terrainBackgroundCache', 'game')}
     return terrainTiles;
   })()`, c);
 }
@@ -164,6 +171,9 @@ test('sand haze excludes other regions and secret rooms; low quality skips textu
   c.drawRegionAtmosphere();
   assert.equal(c.calls.length, 0);
   c.region = 'candor';
+  c.drawRegionAtmosphere();
+  assert.equal(c.calls.length, 0);
+  c.region = 'tulimshar';
   c.currentRoom.type = 'secret';
   c.drawRegionAtmosphere();
   assert.equal(c.calls.length, 0);
@@ -177,7 +187,7 @@ test('sand haze excludes other regions and secret rooms; low quality skips textu
 test('reduced motion freezes drifting sand while ordinary motion follows elapsed time', () => {
   const c = presentation();
   const positions = () => c.calls.filter(({ method }) => method === 'drawImage').map(({ args }) => args.slice(1));
-  c.window.matchMedia = () => ({ matches: true });
+  setReducedMotion(c, true);
   c.drawRegionAtmosphere();
   const first = positions();
   c.calls.length = 0;
@@ -185,7 +195,7 @@ test('reduced motion freezes drifting sand while ordinary motion follows elapsed
   c.drawRegionAtmosphere();
   assert.deepEqual(positions(), first);
   c.calls.length = 0;
-  c.window.matchMedia = () => ({ matches: false });
+  setReducedMotion(c, false);
   c.drawRegionAtmosphere();
   assert.notDeepEqual(positions(), first);
 });
@@ -222,7 +232,7 @@ test('reduced motion freezes ground sand and decorative cloth/flames at either q
   for (const low of [false, true]) {
     const c = presentation();
     c.quality.low = low;
-    c.window.matchMedia = () => ({ matches: true });
+    setReducedMotion(c, true);
     c.drawDesertWind();
     c.drawDesertScenery();
     const first = JSON.stringify(c.calls);
@@ -313,6 +323,7 @@ test('pause inventory reveals hovered item names and handles an empty inventory'
 });
 
 test('desert walls follow the actual SoM TMX face courses and side walkway, not random face tiles', () => {
+  // tulimshar.tmx is not loaded by the game; it is the unmodified source this test checks the wall tile ids against.
   const map = fs.readFileSync(path.join(__dirname, '..', 'assets', 'som', 'maps', 'tulimshar.tmx'), 'utf8');
   const layers = [...map.matchAll(/<layer\b([^>]*)>[\s\S]*?<data encoding="csv">([\s\S]*?)<\/data>[\s\S]*?<\/layer>/g)];
   const tileAt = (name, x, y) => {
@@ -321,9 +332,10 @@ test('desert walls follow the actual SoM TMX face courses and side walkway, not 
   };
   const face = [25, 26, 27, 28].map((y) => tileAt('Over', 39, y));
   const walkway = [35, 36, 37, 38].map((x) => tileAt('Ground', x, 0));
-  assert.deepEqual(face, [2, 18, 34, 50]);
-  assert.deepEqual(walkway, [0, 6, 6, 4]);
   const c = presentation();
+  const art = vm.runInContext('DESERT_ART', c);
+  assert.deepEqual(face, [...art.walls.face], 'face courses come from the map');
+  assert.deepEqual(walkway, [...art.walls.walkway], 'side walkway comes from the map');
   c.drawRoomFloor();
   const tiles = c.calls.filter(({ method, args }) => method === 'drawImage' && args[0].name === 'som-walls');
   const id = ({ args }) => args[1] / 32 + args[2] / 32 * 16;
@@ -387,6 +399,8 @@ test('castle side walls use authored vertical edges and connected caps instead o
 
 ['drawSandstoneWalls', 'drawCastleWalls'].forEach((renderer) => test(`${renderer} clips exactly to the collision band and cleared unlocked doorways at any room size`, () => {
   const c = presentation();
+  const band = vm.runInContext('ROOM_WALL_BAND', c);
+  const half = vm.runInContext('DOOR_OPENING_HALF_WIDTH', c);
   c.currentRoom.links = { up: true, down: true, left: true, right: true };
   for (const [width, height] of [[960, 540], [1504, 804], [997, 573]]) {
     c.ROOM_W = width;
@@ -395,9 +409,9 @@ test('castle side walls use authored vertical edges and connected caps instead o
     c[renderer]();
     const rects = c.calls.filter(({ method }) => method === 'rect').map(({ args }) => args);
     assert.deepEqual(rects, [
-      [0, 0, width, height], [64, 64, width - 128, height - 128],
-      [width / 2 - 48, 0, 96, 64], [width / 2 - 48, height - 64, 96, 64],
-      [0, height / 2 - 48, 64, 96], [width - 64, height / 2 - 48, 64, 96],
+      [0, 0, width, height], [band, band, width - band * 2, height - band * 2],
+      [width / 2 - half, 0, half * 2, band], [width / 2 - half, height - band, half * 2, band],
+      [0, height / 2 - half, band, half * 2], [width - band, height / 2 - half, band, half * 2],
     ]);
     assert.ok(c.calls.some(({ method, args }) => method === 'clip' && args[0] === 'evenodd'));
     assert.equal(c.calls[0].method, 'save');
@@ -500,7 +514,7 @@ test('footprints exclude paving, secret rooms and non-desert regions without cha
 test('SoM soul menhir uses its full native image and freezes its aura for reduced motion', () => {
   const c = presentation();
   c.ctx.createRadialGradient = () => ({ addColorStop() {} });
-  c.window.matchMedia = () => ({ matches: true });
+  setReducedMotion(c, true);
   c.drawSoulMenhir();
   const first = JSON.stringify(c.calls);
   const sprite = c.calls.find(({ method }) => method === 'drawImage');
@@ -510,7 +524,7 @@ test('SoM soul menhir uses its full native image and freezes its aura for reduce
   c.drawSoulMenhir();
   assert.equal(JSON.stringify(c.calls), first);
   c.calls.length = 0;
-  c.window.matchMedia = () => ({ matches: false });
+  setReducedMotion(c, false);
   c.drawSoulMenhir();
   assert.notEqual(JSON.stringify(c.calls), first);
   c.quality.low = true;
@@ -532,7 +546,7 @@ test('regional floor selections reproduce verified TMX interiors in their author
     ['halinarzo', '011-4.tmx', 'Ground', 57, 49, [[241, 241], [241, 241]]],
     ['nivalis', '019-1.tmx', 'Ground', 0, 0, [[83, 83], [83, 83]]],
     ['frostia', '001-13-1.tmx', 'Ground', 23, 28, [[4, 4], [4, 4]]],
-    ['fortress', '004-2-1.tmx', 'Ground1', 56, 23, [[4, 4], [4, 4]]],
+    ['candor', '004-2-1.tmx', 'Ground1', 56, 23, [[4, 4], [4, 4]]],
     ['worldedge', '006-8.tmx', 'Ground', 32, 22, [[32, 33], [47, 48]]],
   ];
   for (const [region, file, layer, x, y, expected] of sources) {
@@ -688,14 +702,15 @@ test('footprints follow the eroded paving silhouette rather than its enclosing t
 test('wide pulse warns early and gives the dash cue inside the existing invulnerability window', () => {
   const c = presentation();
   const source = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
-  vm.runInContext(source.slice(source.indexOf('function drawGroundHazards('),
-    source.indexOf('function withTextOutline(')), c);
+  vm.runInContext(sliceText(source, 'function drawGroundHazards(', 'function withTextOutline(', 'source'), c);
+  loadBetween(c, 'mobmanager.js', 'const ADAPTIVE_AI_TUNING = {', '// Largest sideways component');
+  const cue = vm.runInContext('ADAPTIVE_AI_TUNING.pulse.dashCueSeconds', c);
   c.groundHazards = [];
-  c.bossStrikes = [{ x: 480, y: 270, radius: 300, duration: 1.1, timer: 0.8, damage: 2, dashCheck: true }];
+  c.bossStrikes = [{ x: 480, y: 270, radius: 300, duration: 1.1, timer: cue + 0.6, damage: 2, dashCheck: true }];
   c.drawGroundHazards();
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'WIDE PULSE - PREPARE TO DASH'));
   c.calls.length = 0;
-  c.bossStrikes[0].timer = 0.18;
+  c.bossStrikes[0].timer = cue - 0.02;
   c.drawGroundHazards();
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'DASH NOW'));
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'HEAVY - 2 HEARTS'));

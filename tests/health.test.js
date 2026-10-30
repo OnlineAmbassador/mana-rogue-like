@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText, loadFunctions } = require('./helpers/load');
 
 function combat() {
   const c = vm.createContext({
@@ -242,9 +243,7 @@ test('firing direction is independent of player movement velocity', () => {
     playerVelocity: { x: 0, y: 300 },
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  const start = source.indexOf('function attackOriginY()');
-  const end = source.indexOf('function updateTouchAimFacing()', start);
-  vm.runInContext(source.slice(start, end), c);
+  vm.runInContext(sliceText(source, 'function attackOriginY()', 'function updateTouchAimFacing()', 'source'), c);
   assert.equal(c.currentAimAngle(), 0);
   c.playerVelocity = { x: -300, y: 0 };
   assert.equal(c.currentAimAngle(), 0);
@@ -278,11 +277,44 @@ test('aligning trial mirrors clears the room and guarantees a collectible reward
     c.player.y = mirror.y;
     c.interact();
   }
+  assert.equal(c.currentRoom.trialCompleted, false);
+  c.updateRewardTrial(0.5);
+  assert.equal(c.currentRoom.trialCompleted, false);
+  c.updateRewardTrial(0.6);
   assert.equal(c.currentRoom.trialCompleted, true);
   assert.equal(c.currentRoom.cleared, true);
   assert.equal(c.currentRoom.trialRewardSpawned, true);
   assert.ok(c.pickups.length > 0);
   assert.ok(c.orbitGuardChargeUps > 0);
+});
+
+test('mirror trials always start at least two lenses from solved', () => {
+  const c = combat();
+  c.ROOM_W = 960;
+  c.ROOM_H = 540;
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const room = { type: 'trial', trialMode: 'mirror', trialBranch: attempt % 2 ? 1 : -1 };
+    c.initializeRewardTrial(room);
+    const wrong = c.rewardTrialMirrors(room)
+      .filter((mirror) => mirror.orientation !== mirror.solution).length;
+    assert.ok(wrong >= 2, `only ${wrong} lens(es) wrong`);
+  }
+});
+
+test('turning a single lens never clears a freshly generated mirror trial', () => {
+  const c = combat();
+  c.ROOM_W = 960;
+  c.ROOM_H = 540;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    c.currentRoom = { type: 'trial', trialMode: 'mirror', trialBranch: attempt % 2 ? 1 : -1 };
+    c.initializeRewardTrial(c.currentRoom);
+    const mirror = c.rewardTrialMirrors()[attempt % 3];
+    c.player.x = mirror.x;
+    c.player.y = mirror.y;
+    c.interact();
+    c.updateRewardTrial(5);
+    assert.notEqual(c.currentRoom.trialCompleted, true);
+  }
 });
 
 test('memory and moving-spark trials initialize randomized, persistent layouts', () => {
@@ -493,4 +525,14 @@ test('weapon slots show the swap cooldown on the unselected styles only', () => 
   vm.runInContext('weaponSwapCooldown = 0;', c);
   c.drawStyleSlots();
   assert.equal(texts.includes('5'), false);
+});
+
+test('restoring a room whose saved state lacks lists treats it as fresh instead of throwing', () => {
+  const c = vm.createContext({ enemies: [], breakables: [], pickups: [], rooms: [], obstacleSprites: [] });
+  loadFunctions(c, 'dbmanager.js', ['restoreRoomRuntime']);
+  assert.equal(c.restoreRoomRuntime({ runtime: null }), false);
+  assert.equal(c.restoreRoomRuntime({ runtime: {} }), false);
+  assert.equal(c.enemies.length, 0);
+  assert.equal(c.restoreRoomRuntime({ type: 'normal', runtime: { enemies: [{ hp: 1 }] } }), true);
+  assert.equal(c.enemies.length, 1);
 });

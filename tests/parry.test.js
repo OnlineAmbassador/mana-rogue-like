@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText } = require('./helpers/load');
 
 function combat() {
   const context = vm.createContext({
@@ -304,8 +305,7 @@ test('real projectile loops remove the hostile shot and heal only on its later e
     shieldWithCompanion = () => false;
   `, c);
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  const loops = source.slice(source.indexOf('  for (let i = projectiles.length - 1;'),
-    source.indexOf('  updateParticles(dt);'));
+  const loops = sliceText(source, '  for (let i = projectiles.length - 1;', '  updateParticles(dt);', 'source');
   vm.runInContext(loops, c);
   assert.equal(c.enemyProjectiles.length, 0);
   assert.equal(c.damageCalls.length, 0);
@@ -368,8 +368,7 @@ test('returned shots use the identical renderer as hostile shots and never draw 
   });
   const ui = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
   vm.runInContext(ui, c);
-  const loop = ui.slice(ui.indexOf('  for (const projectile of projectiles) {'),
-    ui.indexOf('  for (const particle of particles) {'));
+  const loop = sliceText(ui, '  for (const projectile of projectiles) {', '  for (const particle of particles) {', 'ui');
   const hostileLoop = 'for (const projectile of enemyProjectiles) drawEnemyProjectile(projectile);';
   for (const kind of ['arrow', 'venom', 'spore-orb', 'spore-shard', 'ice-orb']) {
     const original = { x: 300, y: 200, vx: 500, vy: 100, kind, color: '#91d8f5', radius: 9 };

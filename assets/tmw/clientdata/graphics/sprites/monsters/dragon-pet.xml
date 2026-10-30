@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-<sprite>
-    <imageset name="base" src="graphics/sprites/monsters/dragon-pet.png" width="128" height="64"/>
-
-    <include file="monsters/dragon.xml"/>
-</sprite>

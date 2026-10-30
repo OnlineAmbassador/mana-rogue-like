@@ -264,6 +264,14 @@ const soundRoot = 'assets/tmw/clientdata/sfx';
 const somSoundRoot = 'assets/som/sounds';
 
 const soundPools = new Map();
+// Decoded sound effects keyed by path; 'loading' and 'failed' mark in-flight and unusable entries.
+const soundBuffers = new Map();
+// Cues played in nearly every run, decoded as soon as audio is unlocked.
+const commonSoundEffects = [
+  'weapons/axe/hit.ogg', 'weapons/barehands/hit1.ogg', 'weapons/bow/shoot.ogg', 'system/click.ogg',
+  'system/boom.ogg', 'system/item.ogg', 'system/warp.ogg', 'punch.ogg',
+  'som:alteration/quest-update.ogg', 'som:alteration/levelup.ogg', 'som:alteration/skillup.ogg',
+];
 const gameMusic = {
   enabled: true,
   context: null,
@@ -273,6 +281,19 @@ const gameMusic = {
   step: 0,
   nextBeat: 0,
 };
+const SETTINGS_STORAGE_KEY = 'mana-hollow-sanctum-settings';
+const gameSettings = (() => {
+  // adaptiveEnemies: enemies adapt to the active input method and use dash-check pulses (see BALANCE.md).
+  const defaults = { adaptiveEnemies: true };
+  try {
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || '{}');
+    return {
+      adaptiveEnemies: typeof stored.adaptiveEnemies === 'boolean' ? stored.adaptiveEnemies : defaults.adaptiveEnemies,
+    };
+  } catch (error) {
+    return defaults;
+  }
+})();
 const AUDIO_STORAGE_KEY = 'mana-hollow-sanctum-audio';
 const audioSettings = (() => {
   // volume = music, sfxVolume = shots/monsters, tts = null until the player is asked.
@@ -340,7 +361,7 @@ let prologueNarrationNeedsGesture = true;
 let activePrologueSpeech = null;
 let prologueSpeechFallbackActive = false;
 const campaignRegionIds = [
-  'tulimshar', 'hurnscald', 'graveyard', 'artis', 'halinarzo', 'nivalis', 'frostia', 'fortress', 'worldedge',
+  'tulimshar', 'hurnscald', 'graveyard', 'artis', 'halinarzo', 'nivalis', 'frostia', 'candor', 'worldedge',
 ];
 let mapOrder = [];
 const directions = [
@@ -462,14 +483,13 @@ const sandFootprints = { room: null, marks: [], x: 0, y: 0, distance: 0 };
 const sacredRoomFloorTileIds = [65, 49, 81];
 const terrainTiles = {
   tulimshar: { image: desertGroundTiles, tileIds: [136, 137, 138, 139] },
-  candor: { image: desertGroundTiles, tileIds: [136, 137, 138, 139] },
   hurnscald: { image: loadAsset('tilesets/woodland_ground.png'), tileIds: [32] },
   graveyard: { image: loadAsset('tilesets/woodland_graveyard_ground.png'), tilePattern: [[36, 20], [6, 37]] },
   artis: { image: loadAsset('tilesets/evol/artis-pavement.png'), tilePattern: [[113, 114], [113, 114]] },
   halinarzo: { image: loadAsset('tilesets/savannah.png'), tileIds: [241] },
   nivalis: { image: loadAsset('tilesets/snow.png'), tileIds: [83] },
   frostia: { image: loadAsset('tilesets/icecave.png'), tileIds: [4] },
-  fortress: { image: loadAsset('tilesets/cave2.png'), tileIds: [4] },
+  candor: { image: loadAsset('tilesets/cave2.png'), tileIds: [4] },
   worldedge: { image: loadAsset('tilesets/stoneground.png'), tilePattern: [[32, 33], [47, 48]] },
 };
 const terrainBackgroundCache = new Map();
@@ -574,7 +594,6 @@ const obstacleSpritesByRegion = {
   halinarzo: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[3]],
   artis: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[3]],
   hurnscald: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[4]],
-  fortress: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[4]],
   candor: [obstacleSprites[0], obstacleSprites[2], obstacleSprites[4]],
   graveyard: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[4]],
   nivalis: [obstacleSprites[0], obstacleSprites[1], obstacleSprites[4]],
@@ -602,8 +621,8 @@ const shopItemCatalog = [
   { id: 'heart-vessel-ii', name: 'Heart Vessel II', description: 'Gain one heart for this descent', cost: 11, kind: 'passive' },
   { id: 'heart-vessel-iii', name: 'Heart Vessel III', description: 'Gain one heart for this descent', cost: 14, kind: 'passive' },
   { id: 'guardian-heart', name: 'Guardian Heart', description: 'A boss-room relic: gain one heart container and restore up to two hearts', cost: 0, kind: 'boss-relic' },
-  { id: 'luck-up-i', name: 'Luck Up I', description: 'Zenny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
-  { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zenny windfall', cost: 9, kind: 'passive' },
+  { id: 'luck-up-i', name: 'Luck Up I', description: 'Zeny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
+  { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zeny windfall', cost: 9, kind: 'passive' },
   { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther', cost: 7, kind: 'passive' },
   { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Extend projectile range another 35%', cost: 10, kind: 'passive' },
   { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range; shots pierce solid barriers', cost: 13, kind: 'passive' },
@@ -679,21 +698,21 @@ const characterRoster = [
   { id: 'halinarzo-ranger', name: 'Halinarzo Ranger', className: 'Ranger', startingStyle: 'bow', styleLabel: 'Long shots', hairStyle: 'quill', raceHead: 'elfFemale', sprite: 'elfFemale', color: '#c5d38b', hue: 45, speed: 255, hp: 4, damage: 2, fireDelay: 0.3, projectileSpeed: 580, trait: 'Quick and fragile', unlock: 'Defeat Bandit Lord' },
   { id: 'nivalis-oracle', name: 'Nivalis Oracle', className: 'Oracle', startingStyle: 'magic', styleLabel: 'Ice magic', hairStyle: 'pilgrim', raceHead: 'raijinFemale', sprite: 'raijin', color: '#a9dbed', hue: 185, speed: 195, hp: 7, damage: 1, fireDelay: 0.25, startingAbility: 'frost-rune', trait: 'Frost Rune, slow movement', unlock: 'Defeat Snowman Boss' },
   { id: 'frostia-reclaimer', name: 'Frostia Reclaimer', className: 'Reclaimer', startingStyle: 'melee', styleLabel: 'Heavy fists', hairStyle: 'ironbound', raceHead: 'tritanMale', sprite: 'tritan', color: '#88bdcf', hue: 205, speed: 170, hp: 10, damage: 2, fireDelay: 0.38, trait: 'High health, slow attacks', unlock: 'Defeat Yeti King' },
-  { id: 'fortress-keeper', name: 'Candor Keeper', className: 'Warden', startingStyle: 'magic', styleLabel: 'Rooted magic', hairStyle: 'herbalist', raceHead: 'elfMale', sprite: 'elf', color: '#99c98a', hue: 80, speed: 205, hp: 6, damage: 2, fireDelay: 0.27, trait: 'Steady, modest speed', unlock: 'Defeat Forest Dragon' },
+  { id: 'candor-keeper', name: 'Candor Keeper', className: 'Warden', startingStyle: 'magic', styleLabel: 'Rooted magic', hairStyle: 'herbalist', raceHead: 'elfMale', sprite: 'elf', color: '#99c98a', hue: 80, speed: 205, hp: 6, damage: 2, fireDelay: 0.27, trait: 'Steady, modest speed', unlock: 'Defeat Forest Dragon' },
   { id: 'world-edge-veteran', name: 'World Edge Veteran', className: 'Veteran', startingStyle: 'bow', styleLabel: 'Last light', hairStyle: 'archivist', raceHead: 'orcMale', sprite: 'orc', color: '#c0a1d4', hue: 260, speed: 155, hp: 12, damage: 3, fireDelay: 0.42, trait: 'Very tough, very slow', unlock: 'Defeat Night Dragon' },
   { id: 'random', name: 'Random Delver', className: '???', startingStyle: 'melee', styleLabel: 'Roll the dice', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'neutral', color: '#ffffff', hue: 300, speed: 200, hp: 6, damage: 1, fireDelay: 0.25, trait: 'Surprise me!', unlock: 'Available', random: true },
   { id: 'echo-bound-delver', name: 'Echo-Bound Delver', className: 'Echo Warden', startingStyle: 'magic', styleLabel: 'Echoing magic', hairStyle: 'archivist', raceHead: 'elfMale', sprite: 'elf', color: '#a8e7d0', hue: 165, speed: 218, hp: 8, damage: 2, fireDelay: 0.29, trait: 'Carries the memories of every region', unlock: 'Find all nine Mana echoes' },
 ];
 const manaLoreRelics = [
-  { id: 'mana-echo-tulimshar', region: 'tulimshar', name: 'Desert Echo', description: 'A buried note speaks of a seed that answers the Mana Tree.' },
+  { id: 'mana-echo-tulimshar', region: 'tulimshar', name: 'Desert Echo', description: 'A buried note tells of a seed drawn along Mana’s flow.' },
   { id: 'mana-echo-worldedge', region: 'worldedge', name: 'World Edge Echo', description: 'A final record names the Mana Tree, but leaves the seed’s origin unanswered.' },
-  { id: 'mana-echo-hurnscald', region: 'hurnscald', name: 'Forest Echo', description: 'Roots remember a light older than the road through Hurnscald.' },
-  { id: 'mana-echo-graveyard', region: 'graveyard', name: 'Grave Echo', description: 'The still dead were listening for a rhythm beneath the stones.' },
-  { id: 'mana-echo-artis', region: 'artis', name: 'Artis Echo', description: 'A ruin inscription links the seed to the world’s living current.' },
-  { id: 'mana-echo-halinarzo', region: 'halinarzo', name: 'Savannah Echo', description: 'A route chart traces the same pulse through distant habitats.' },
-  { id: 'mana-echo-nivalis', region: 'nivalis', name: 'Nivalis Echo', description: 'Ice preserved a fragment of a song carried from far away.' },
-  { id: 'mana-echo-frostia', region: 'frostia', name: 'Frostia Echo', description: 'A fading roar leaves a warning: the seed draws creatures near.' },
-  { id: 'mana-echo-fortress', region: 'fortress', name: 'Fortress Echo', description: 'The final record names the Mana Tree, but not the seed’s origin.' },
+  { id: 'mana-echo-hurnscald', region: 'hurnscald', name: 'Forest Echo', description: 'Roots beneath Hurnscald carry Mana’s flow toward the World Edge.' },
+  { id: 'mana-echo-graveyard', region: 'graveyard', name: 'Grave Echo', description: 'The restless dead stir wherever Mana’s flow passes beneath the stones.' },
+  { id: 'mana-echo-artis', region: 'artis', name: 'Artis Echo', description: 'A ruin inscription traces where Mana once flowed.' },
+  { id: 'mana-echo-halinarzo', region: 'halinarzo', name: 'Savannah Echo', description: 'A route chart traces Mana’s flow beneath the savannah.' },
+  { id: 'mana-echo-nivalis', region: 'nivalis', name: 'Nivalis Echo', description: 'Mana’s flow runs on beneath the ice, untouched by the cold.' },
+  { id: 'mana-echo-frostia', region: 'frostia', name: 'Frostia Echo', description: 'A fading roar leaves a warning: the Kaore-touched cannot bear Mana’s flow.' },
+  { id: 'mana-echo-candor', region: 'candor', name: 'Candor Echo', description: 'The seed strains toward a flow of Mana older than the island.' },
 ];
 const rosterPageSize = 5;
 const prologuePages = [
@@ -715,7 +734,7 @@ const prologuePages = [
   {
     heading: 'NINE ECHOES',
     title: 'The reason to descend',
-    text: 'Each region preserves one fragment of a larger account. Search for a cracked wall and use a bomb to find the hidden echo. These original records draw on broad Mana themes shared across The Mana World, TMW2, and Secrets of Mana—living mana, spirits, and the balance of nature—without retelling their established quests.',
+    text: 'Each region tells a story of Aemil, a world where Mana is the lifeforce behind all living things; and Kaore its corrupted echo.',
   },
 ];
 const regionChapters = {
@@ -726,13 +745,13 @@ const regionChapters = {
   halinarzo: { heading: 'HALINARZO', title: 'The Savannah Roads', text: 'Halinarzo’s library shelves and sun-baked savannah trails carry great knowledge for those who venture there. Bandits watch these roads as closely as the beasts do. Keep your guard up.' },
   nivalis: { heading: 'NIVALIS', title: 'Beneath the Snow', text: 'Nivalis lies buried under snow. The Blue Sage is said to know every northern trail, and here Mana’s flow runs through the ice itself, rousing the tainted creatures that shelter in the hills. Cold can slow it, but it cannot stop it.' },
   frostia: { heading: 'FROSTIA', title: 'The Ice Court', text: 'King Gelid rules Frostia from deep within its ice caves, where every sound comes back twice. The frozen halls magnify Mana’s pulse until the Kaore-touched creatures of the north follow it down the trail. Every footstep echoes here. Move with purpose.' },
-  fortress: { heading: 'CANDOR ISLAND', title: 'The Caves Below', text: 'Merchant ships put in at Candor Island, but few who come ashore venture into the caves beneath it. Mana’s flow runs strong in the dark below the island, and something old and tainted has made its lair there. Mind your footing.' },
+  candor: { heading: 'CANDOR ISLAND', title: 'The Caves Below', text: 'Merchant ships put in at Candor Island, but few who come ashore venture into the caves beneath it. Mana’s flow runs strong in the dark below the island, and something old and tainted has made its lair there. Mind your footing.' },
   worldedge: { heading: 'THE WORLD EDGE', title: 'The Edge of the Map', text: 'Travelers in Hurnscald speak of the World Edge as the place where Aemil gives out. The land thins to bare stone and open sky, yet Mana’s flow runs clearer here than anywhere else, and the seed pulls hard toward it. Step carefully. The quiet here is not empty.' },
 };
 const characterChapters = {
-  arcanist: { heading: 'THE WARRIOR', title: 'Strength Over Speed', text: 'Two floors cleared, and a Warrior steps forward. Sword blows land hard, but recovery is slow. Bows and spells lack that strength.' },
-  warden: { heading: 'THE ROGUE', title: 'Out of the Dark', text: 'The first floor is behind you. The Rogue joins the descent with rapid, light arrows and quick feet. Switching weapons trades away that rapid draw.' },
-  'mycelia-sporeling': { heading: 'THE SPORELING', title: 'A Growing Discovery', text: 'Spore Bloom has taken root. A mushroom-capped caster joins the descent with slowing spore pods, trading swift shots for spreading clusters.' },
+  arcanist: { heading: 'THE WARRIOR', title: 'Strength Over Speed', text: 'Two floors cleared, and a Warrior steps forward, wielding their sword with strength and confidence. They have no need for spells or arrows.' },
+  warden: { heading: 'THE ROGUE', title: 'Out of the Dark', text: 'The first floor is behind you. The Rogue joins the descent with rapid, light steps, barely visible as they come out of the shadows. One shot, one kill.' },
+  'mycelia-sporeling': { heading: 'THE SPORELING', title: 'A Growing Discovery', text: 'Spore Bloom has taken root. A mushroom-capped caster joins the descent with slowing spore pods and creepy mycelium clusters. The growth can’t be stopped.' },
   'candor-runner': { heading: 'CANDOR RUNNER', title: 'The Open Road', text: 'The Pinkie Matriarch is down, and the road to Candor lies open. The Runner is the fastest delver alive: slow to draw the bow, but never caught standing still. For this one, speed is the only armor worth wearing.' },
   'world-edge-pilgrim': { heading: 'WORLD EDGE PILGRIM', title: 'A Patient Walker', text: 'Another secret lies open, and a patient traveler has followed it in. The Pilgrim casts slowly and carefully, with the endurance for a very long walk. The World Edge calls to them, and they mean to answer.' },
   'hurnscald-herbalist': { heading: 'HURNSCALD HERBALIST', title: 'Roots and Frost', text: 'Hurnscald’s forest paths taught her which roots heal and which ones freeze. She sets out with a Frost Rune already in hand and moves at an unhurried pace. Cold magic and patient hands carry her through.' },
@@ -745,7 +764,7 @@ const characterChapters = {
   'halinarzo-ranger': { heading: 'HALINARZO RANGER', title: 'Long Shots', text: 'The Bandit Lord has fallen, and the savannah has a new watcher. The Ranger looses long shots from far away. Quick and fragile, she makes a habit of staying out of arm’s reach.' },
   'nivalis-oracle': { heading: 'NIVALIS ORACLE', title: 'The Snow Whispers', text: 'The Snowman Boss lies broken, and the snow whispers a name. The Oracle carries a Frost Rune and walks with slow, deliberate steps. Ice magic answers to those who are willing to wait.' },
   'frostia-reclaimer': { heading: 'FROSTIA RECLAIMER', title: 'Taking It Back', text: 'The Yeti King’s caves stand open again. The Reclaimer swings heavy fists and shrugs off punishment, slow but certain. Frostia’s ice is theirs to take back.' },
-  'fortress-keeper': { heading: 'CANDOR KEEPER', title: 'Rooted Ground', text: 'The Forest Dragon is beaten, and a warden of Candor Island steps forward. Rooted magic, steady footing, and an unhurried stride: the Candor Keeper does not give ground.' },
+  'candor-keeper': { heading: 'CANDOR KEEPER', title: 'Rooted Ground', text: 'The Forest Dragon is beaten, and a warden of Candor Island steps forward. Rooted magic, steady footing, and an unhurried stride: the Candor Keeper does not give ground.' },
   'world-edge-veteran': { heading: 'WORLD EDGE VETERAN', title: 'The Last Light', text: 'The Night Dragon has fallen. At the very edge of the map, a veteran raises a bow against the last of the light. Very tough, very slow, and still standing when everyone else has gone.' },
 };
 const keys = {};
@@ -787,6 +806,7 @@ function updateTouchControls() {
   }
   const visible = lastInputMode === 'touch' && mode === 'playing';
   touchControlsEl.hidden = !visible;
+  touchControlsEl.classList?.toggle('map-open', visible && showMap);
   if (!visible) resetTouchInput();
   if (visible) {
     const itemCount = consumables.reduce((total, item) => total + Math.max(0, item.count), 0);
@@ -955,6 +975,9 @@ let currentRoom;
 let storyText = '';
 const storyLog = [];
 let showMap = false;
+// The room highlighted on the full map, and when the map last opened (for its fade-in).
+let mapCursor = null;
+let mapOpenedAt = 0;
 let showStoryJournal = false;
 let lastTime = 0;
 let elapsed = 0;
@@ -1173,6 +1196,10 @@ const itemEffectTags = {
 const pickupBanner = { title: '', tags: [], timer: 0 };
 // Brief icons that float up above the player's head whenever something changes; the pause screen keeps the full list.
 const overheadPops = [];
+// Small numbers that drift up from an enemy when a hit lands. Skipped in low quality and with reduced motion.
+const damageNumbers = [];
+const MAX_DAMAGE_NUMBERS = 18;
+const DAMAGE_NUMBER_LIFE = 0.75;
 
 
 
@@ -1334,6 +1361,7 @@ function pauseGame() {
   for (const key of Object.keys(keys)) keys[key] = false;
   pointer.down = false;
   saveRunState();
+  closeMap();
   mode = 'paused';
   const labels = pauseControlLabels();
   showMessage(`Paused. Press ${labels.resume} to resume or ${labels.exit} to save and exit.`, 9999);
@@ -1362,14 +1390,13 @@ function exitToTitle() {
 
 const floorThemes = {
   tulimshar: { name: 'Tulimshar', wall: '#30383a', trim: '#49aaa3', detail: '#f4cb7a' },
-  candor: { name: 'Candor Island', wall: '#304342', trim: '#df865d', detail: '#f2d69f' },
   hurnscald: { name: 'Hurnscald', wall: '#203a31', trim: '#6ec49a', detail: '#e9d184' },
   graveyard: { name: 'Hurnscald Graveyard', wall: '#292833', trim: '#9e739a', detail: '#c9d7ad' },
   artis: { name: 'Artis Ruins', wall: '#292e39', trim: '#d17767', detail: '#f2c28c' },
   halinarzo: { name: 'Halinarzo Savannah', wall: '#453b2b', trim: '#d79d4e', detail: '#93c77d' },
   nivalis: { name: 'Nivalis', wall: '#314754', trim: '#6ec9dc', detail: '#ecf7ef' },
   frostia: { name: 'Frostia', wall: '#2e3146', trim: '#9b9ce1', detail: '#d9dcff' },
-  fortress: { name: 'Candor Island', wall: '#2c3531', trim: '#b78558', detail: '#d3c889' },
+  candor: { name: 'Candor Island', wall: '#2c3531', trim: '#b78558', detail: '#d3c889' },
   worldedge: { name: 'World Edge', wall: '#29253a', trim: '#a27dbc', detail: '#f1ae88' },
 };
 const regionalBossClues = {
@@ -1380,7 +1407,7 @@ const regionalBossClues = {
   halinarzo: 'A route chart salvaged from the Bandit Lord traces Mana’s flow beneath the savannah, along the same lines recorded in Halinarzo’s library. The seed pulls along them, across every habitat and past every kind of monster.',
   nivalis: 'The Snowman Boss breaks apart, yet Mana’s flow carries on beneath the snow, steady and untroubled. The guardian was never its source, only one more creature caught in its path.',
   frostia: 'The Yeti King’s rage rose and fell with Mana’s pulse. The Kaore in it could not bear the flow, and neither can the others.',
-  fortress: 'In the Forest Dragon’s lair, the seed strained toward a flow of Mana older than the island. No delver can yet say whether it is a root of the last Mana Tree, a splinter, or only a trace.',
+  candor: 'In the Forest Dragon’s lair, the seed strained toward a flow of Mana older than the island. No delver can yet say whether it is a root of the last Mana Tree, a splinter, or only a trace.',
   worldedge: 'With the Night Dragon gone, the seed goes still for a breath, as if listening for Mana’s flow. Every sign points toward the Mana Tree, yet the seed’s origin remains unanswered.',
 };
 
@@ -1393,7 +1420,7 @@ const regionalBossClues = {
 
 
 // Obstacles are deliberate: indestructible pillars are mirrored cover against ranged enemies, and
-// a breakable cache in a corner always pays out (heart if hurt, otherwise zenny or a bomb).
+// a breakable cache in a corner always pays out (heart if hurt, otherwise zeny or a bomb).
 // Door lanes and the room centre stay clear.
 
 
@@ -1842,8 +1869,7 @@ function update(dt) {
     player.lookY = moveY / moveLength;
   }
   const length = Math.hypot(moveX, moveY) || 1;
-  const groundSpeed = player.speed * curioMultiplier('speed') * (character?.className === 'Pilgrim' ? 1.12 : 1) *
-    (player.groundSlowTimer > 0 ? 0.55 : 1);
+  const groundSpeed = baseGroundSpeed() * (player.groundSlowTimer > 0 ? 0.55 : 1);
   player.moving = moveX !== 0 || moveY !== 0;
   dashCooldown = Math.max(0, dashCooldown - dt);
   weaponSwapCooldown = Math.max(0, weaponSwapCooldown - dt);
@@ -2167,7 +2193,7 @@ function update(dt) {
     }
     if (pickup.kind === 'coin') {
       coins += 1;
-      runStats.zennyFound += 1;
+      runStats.zenyFound += 1;
       playPickupSound('gp', 0.25);
     }
     if (pickup.kind === 'heart') {
@@ -2231,6 +2257,7 @@ function update(dt) {
     currentRoom.cleared = true;
     grantOrbitGuardChargeUp(currentRoom);
     if (['miniboss', 'shrine'].includes(currentRoom.type)) addRoomRewardPickup(currentRoom);
+    if (currentRoom.type === 'riskShrine') completeRiskShrineAmbush(currentRoom);
     if (currentRoom.type === 'boss') {
       showMessage('The guardian is defeated. The seal opens; the descent continues.', 5);
     } else {
@@ -2446,6 +2473,7 @@ function draw() {
     ctx.fillText('Your rooms and progress are saved automatically.', VIEW_W / 2, VIEW_H / 2 + 98);
     drawPauseEquipment();
     drawAudioPanel();
+    drawAdaptiveToggle();
   }
 
 }
@@ -2471,6 +2499,11 @@ function loop(timestamp) {
 
 function runAction(id, options = {}) {
   if (deathTimer > 0) return;
+  // While the full map is open, only the map toggle works and interact travels to the selected room.
+  if (showMap && mode === 'playing' && id !== 'map') {
+    if (id === 'interact') travelToMapCursor();
+    return;
+  }
   if (id === 'interact') {
     interact(Boolean(options.shift));
     return;
@@ -2486,11 +2519,48 @@ function runAction(id, options = {}) {
     case 'weapon1': selectCombatStyle('melee'); break;
     case 'weapon2': selectCombatStyle('bow'); break;
     case 'weapon3': selectCombatStyle('magic'); break;
-    case 'map': showMap = !showMap; break;
+    case 'map': if (showMap) closeMap(); else openMap(); break;
     case 'journal': showStoryJournal = !showStoryJournal; break;
     case 'withdraw': interact(true); break;
     default: break;
   }
+}
+
+function openMap() {
+  showMap = true;
+  mapCursor = currentRoom;
+  mapOpenedAt = elapsed;
+  suppressHeldAttackInput();
+}
+
+function closeMap() {
+  if (showMap && canvas?.style) canvas.style.cursor = 'crosshair';
+  showMap = false;
+  mapCursor = null;
+}
+
+// Moves the map cursor to the nearest revealed room in a direction, favouring rooms in line.
+function stepMapCursor(dx, dy) {
+  const from = mapCursor && rooms.includes(mapCursor) ? mapCursor : currentRoom;
+  let best = null;
+  let bestScore = Infinity;
+  for (const room of rooms) {
+    if (room === from || !roomIsRevealed(room)) continue;
+    const along = (room.x - from.x) * dx + (room.y - from.y) * dy;
+    if (along <= 0) continue;
+    const across = Math.abs((room.x - from.x) * dy) + Math.abs((room.y - from.y) * dx);
+    const score = along + across * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = room;
+    }
+  }
+  if (best) mapCursor = best;
+}
+
+function travelToMapCursor() {
+  if (!mapCursor || mapCursor === currentRoom) return;
+  if (!travelToRoom(mapCursor)) playSound('system/click.ogg', 0.2);
 }
 
 function chooseCharacter(key) {
@@ -2561,6 +2631,17 @@ window.addEventListener('keydown', (event) => {
     if (key === 'p' || event.key === 'Escape' || key === 'r') resumeGame();
     else if (key === 'x') exitToTitle();
     else if (key === 'c') openControls('paused');
+    else if (key === 'e') toggleAdaptiveEnemies();
+    return;
+  }
+  if (mode === 'playing' && showMap) {
+    const mapAction = actionForKey(key);
+    const step = { arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1],
+      arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0] }[key];
+    if (step) stepMapCursor(...step);
+    else if (event.key === 'Enter' || event.key === ' ' || mapAction === 'interact') travelToMapCursor();
+    else if (event.key === 'Escape' || mapAction === 'map') closeMap();
+    else if (key === 'p') pauseGame();
     return;
   }
   if (mode === 'playing' && (key === 'p' || event.key === 'Escape')) {
@@ -2648,6 +2729,12 @@ function updatePointerPosition(event) {
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left - canvas.clientLeft) / canvas.clientWidth) * VIEW_W;
   pointer.y = ((event.clientY - rect.top - canvas.clientTop) / canvas.clientHeight) * VIEW_H;
+  if (mode === 'playing' && showMap) {
+    const room = mapRoomAt(pointer.x, pointer.y);
+    if (room && event.pointerType === 'mouse') mapCursor = room;
+    canvas.style.cursor = room && mapTravelRoutes().has(room) ? 'pointer' : 'default';
+    return;
+  }
   if (event.pointerType === 'mouse' && mode === 'playing') {
     mouseAimActive = true;
     mouseAimIdleTimer = 0;
@@ -2666,6 +2753,10 @@ function updatePointerPosition(event) {
     return;
   }
   if ((mode === 'prologue' || mode === 'select' || mode === 'paused') && (audioSliderDragging || pointerOverAudioPanel())) {
+    canvas.style.cursor = 'pointer';
+    return;
+  }
+  if (mode === 'paused' && pointInBounds(adaptiveToggleBounds())) {
     canvas.style.cursor = 'pointer';
     return;
   }
@@ -2710,12 +2801,27 @@ canvas.addEventListener('wheel', (event) => {
 canvas.addEventListener('pointerdown', (event) => {
   if (!event.isPrimary) return;
   updatePointerPosition(event);
+  if (mode === 'playing' && showMap) {
+    event.preventDefault();
+    if (event.button !== 0) return;
+    const room = mapRoomAt(pointer.x, pointer.y);
+    if (!room) return;
+    // A touch tap selects first and travels on a second tap; a mouse click travels at once.
+    const confirm = event.pointerType !== 'touch' || room === mapCursor;
+    mapCursor = room;
+    if (confirm) travelToMapCursor();
+    return;
+  }
   if (event.button === 2 && mode === 'playing') {
     event.preventDefault();
     useClassSignature();
     return;
   }
   if (event.button !== 0) return;
+  if (mode === 'paused' && pointInBounds(adaptiveToggleBounds())) {
+    toggleAdaptiveEnemies();
+    return;
+  }
   if (mode === 'paused' && !pointerOverAudioPanel()) {
     if (pointer.y < VIEW_H / 2 + 14) resumeGame();
     else exitToTitle();

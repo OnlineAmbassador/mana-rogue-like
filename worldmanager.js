@@ -249,9 +249,17 @@ function createRoom(x, y, type = 'normal') {
     rewardClaimed: false,
     shopStock: null,
     rewardUpgrade: null,
+    riskShrineChoice: null,
+    riskShrineDone: false,
     runtime: null,
   };
 }
+
+// Optional two-altar room: trade a heart for an upgrade, or fight an ambush wave for a heart vessel.
+const RISK_SHRINE_CHANCE = 0.5;
+const RISK_SHRINE_MIN_HEARTS = 2;
+const RISK_SHRINE_MAX_AMBUSH = 6;
+const RISK_SHRINE_RANGE = 80;
 
 function roomKey(room) {
   return `${currentFloor}:${room.x},${room.y}`;
@@ -475,8 +483,15 @@ function generateDungeonAttempt() {
       initializeRewardTrial(secondTrialRoom);
     }
   }
+  if (Math.random() < RISK_SHRINE_CHANCE) {
+    // A plain dead end off an unlocked, non-special room; a miss simply leaves the map without one.
+    const riskSources = [...occupied.values()].filter((room) =>
+      !['boss', 'secret', 'trial'].includes(room.type) && !room.optionalBranch &&
+      Object.keys(room.lockedDoors).length === 0);
+    attachRoom(riskSources, 'riskShrine');
+  }
   keysHeld = Math.max(keysHeld, 1);
-  miniBossRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-map`, [...occupied.values()]);
+  miniBossRoom.rewardUpgrade =createUpgradeReward(`floor-${currentFloor}-map`, [...occupied.values()]);
   initializeRewardTrial(lockTarget);
 
   // Exactly one oversized room per map; never the boss, shop, secret, shrine, or start room.
@@ -929,6 +944,12 @@ function spawnRoom(room) {
     }
   } else if (room.type === 'secret') {
     room.cleared = true;
+  } else if (room.type === 'riskShrine') {
+    // Only an accepted ambush that is still unfinished keeps the doors shut.
+    room.cleared = room.riskShrineChoice !== 'ambush' || room.riskShrineDone;
+    for (let index = breakables.length - 1; index >= 0; index -= 1) {
+      if (!breakables[index].room || breakables[index].room === room) breakables.splice(index, 1);
+    }
   } else if (room.type === 'boss') {
     if (!room.entered) {
       const bossKind = bossForCurrentArea();
@@ -1006,14 +1027,13 @@ function spawnRoom(room) {
   if (room.type === 'start') {
     const regionStories = {
       tulimshar: 'Tulimshar, where every descent begins. Beyond its walls lie the old mines that gave up the Mana Seed.',
-      candor: 'Candor Island is where many new adventurers learn the roads. This side-story follows a rumor from the coast; it leaves the island’s established stories intact.',
       hurnscald: 'Hurnscald’s woodland roads. Mayor Rakinorf hears from every traveler bound for the World Edge. Mana’s flow runs deep beneath the forest.',
       graveyard: 'The old graveyard. The stones stay quiet until Mana’s flow passes under them, and then the Kaore-tainted dead begin to stir.',
       artis: 'The Artis Ruins. Elanore tells of the last living Mana Tree, saddened by war. The seed may be seeking that distant kin.',
       halinarzo: 'Halinarzo’s library holds clues to old pathways. Markings record the flow of Mana through the town’s roads.',
       nivalis: 'Snowbound Nivalis. The Blue Sage is said to know the northern trails, and Mana’s flow runs clear through the ice.',
       frostia: 'Frostia, ruled by King Gelid. Its ice caves magnify Mana’s pulse and draw the tainted down the trail.',
-      fortress: 'Candor Island, where ships put in and new adventurers learn the roads. Mana’s flow runs down into the caves below, and the seed pulls after it.',
+      candor: 'Candor Island, where ships put in and new adventurers learn the roads. Mana’s flow runs down into the caves below, and the seed pulls after it.',
       worldedge: 'The World Edge, where Hurnscald’s maps give out. Mana’s flow runs clearer here than anywhere else.',
     };
     storyText = regionStories[currentRegionId()];
@@ -1028,14 +1048,18 @@ function spawnRoom(room) {
   } else if (room.type === 'miniboss') {
     storyText = 'A powerful sentinel holds this side chamber.';
   } else if (room.type === 'secret') {
-    storyText = 'A concealed chamber holds an echo of the old mana current. Its other contents are uncertain.';
+    storyText = 'A concealed chamber holds an echo of the old Mana flow. Its other contents are uncertain.';
     unlockCharacter('world-edge-pilgrim');
   } else if (room.type === 'trial') {
     storyText = 'An old leyline lens puzzle blocks the reward. Turn each facet and follow the light to the receiver.';
+  } else if (room.type === 'riskShrine') {
+    storyText = room.riskShrineChoice
+      ? 'The altars are quiet.'
+      : 'Two altars. One asks for a heart, the other for a fight.';
   } else if (room.type === 'shop') {
-    storyText = 'A traveling merchant has laid out wares for anyone bold enough to come this far.';
+    storyText = 'A traveling merchant has laid out wares for anyone who has coin.';
   } else if (room.type === 'bank') {
-    storyText = 'A quiet vault keeps your stored zenny safe between descents.';
+    storyText = 'A quiet vault keeps your stored zeny safe between descents.';
   } else {
     storyText = '';
   }
@@ -1070,38 +1094,37 @@ function tryUnlock(room, direction) {
   return true;
 }
 
+// Puts the player just inside the door they came through, travelling in `direction`.
+function placePlayerAtEntry(direction) {
+  applyRoomSize(currentRoom);
+  const sideClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HALF_WIDTH + WALL_COLLISION_PADDING;
+  const verticalClearance = ROOM_WALL_THICKNESS + player.radius + WALL_COLLISION_PADDING;
+  const topClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HEIGHT + WALL_COLLISION_PADDING;
+  player.x = direction === 'left' ? ROOM_W - sideClearance
+    : direction === 'right' ? sideClearance : ROOM_W / 2;
+  player.y = direction === 'up' ? ROOM_H - verticalClearance
+    : direction === 'down' ? topClearance : ROOM_H / 2;
+}
+
+function moveToRoom(room, direction) {
+  suppressHeldAttackInput();
+  captureRoomRuntime(currentRoom);
+  currentRoom = room;
+  placePlayerAtEntry(direction);
+  spawnRoom(currentRoom);
+  saveRunState();
+}
+
 function enterDoor(direction) {
   if (!currentRoom.cleared) return;
   player.knockback = null;
-  const placeAtEntry = () => {
-    applyRoomSize(currentRoom);
-    const sideClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HALF_WIDTH + WALL_COLLISION_PADDING;
-    const verticalClearance = ROOM_WALL_THICKNESS + player.radius + WALL_COLLISION_PADDING;
-    const topClearance = ROOM_WALL_THICKNESS + PLAYER_VISUAL_HEIGHT + WALL_COLLISION_PADDING;
-    player.x = direction === 'left' ? ROOM_W - sideClearance
-      : direction === 'right' ? sideClearance : ROOM_W / 2;
-    player.y = direction === 'up' ? ROOM_H - verticalClearance
-      : direction === 'down' ? topClearance : ROOM_H / 2;
-  };
   if (currentRoom.secretExit?.direction === direction) {
     const secret = currentRoom.secretExit.room;
-    if (!secret.hidden) {
-      suppressHeldAttackInput();
-      captureRoomRuntime(currentRoom);
-      currentRoom = secret;
-      placeAtEntry();
-      spawnRoom(currentRoom);
-      saveRunState();
-    }
+    if (!secret.hidden) moveToRoom(secret, direction);
     return;
   }
   if (currentRoom.type === 'secret' && currentRoom.returnDirection === direction) {
-    suppressHeldAttackInput();
-    captureRoomRuntime(currentRoom);
-    currentRoom = currentRoom.returnTo;
-    placeAtEntry();
-    spawnRoom(currentRoom);
-    saveRunState();
+    moveToRoom(currentRoom.returnTo, direction);
     return;
   }
   if (!currentRoom.links[direction] || !tryUnlock(currentRoom, direction)) return;
@@ -1109,12 +1132,69 @@ function enterDoor(direction) {
   const vector = directions.find((item) => item.name === direction);
   const room = rooms.find((candidate) => candidate.x === currentRoom.x + vector.dx && candidate.y === currentRoom.y + vector.dy);
   if (!room) return;
-  suppressHeldAttackInput();
-  captureRoomRuntime(currentRoom);
-  currentRoom = room;
-  placeAtEntry();
-  spawnRoom(currentRoom);
-  saveRunState();
+  moveToRoom(room, direction);
+}
+
+// Doors the player could walk through from `room` without a key: open links and revealed secret walls.
+function roomNeighbors(room, allowLocked = false) {
+  const neighbors = [];
+  for (const direction of directions) {
+    if (room.secretExit?.direction === direction.name) {
+      if (!room.secretExit.room.hidden) neighbors.push({ room: room.secretExit.room, direction: direction.name });
+      continue;
+    }
+    if (room.type === 'secret' && room.returnDirection === direction.name) {
+      neighbors.push({ room: room.returnTo, direction: direction.name });
+      continue;
+    }
+    if (!room.links[direction.name] || (room.lockedDoors[direction.name] && !allowLocked)) continue;
+    const target = rooms.find((candidate) =>
+      candidate.x === room.x + direction.dx && candidate.y === room.y + direction.dy);
+    if (target && !target.hidden) neighbors.push({ room: target, direction: direction.name });
+  }
+  return neighbors;
+}
+
+function mapTravelAvailable() {
+  return mode === 'playing' && Boolean(currentRoom?.cleared) && deathTimer <= 0;
+}
+
+// Cleared rooms reachable through cleared rooms, each mapped to the direction of its final door.
+// The options relax the search only to explain why a room is out of reach; travel never uses them.
+function mapTravelRoutes({ allowHostile = false, allowLocked = false } = {}) {
+  const routes = new Map();
+  if (!mapTravelAvailable()) return routes;
+  const queue = [currentRoom];
+  const seen = new Set([currentRoom]);
+  while (queue.length > 0) {
+    const room = queue.shift();
+    for (const neighbor of roomNeighbors(room, allowLocked)) {
+      if (seen.has(neighbor.room) || !neighbor.room.visited) continue;
+      if (!neighbor.room.cleared && !allowHostile) continue;
+      seen.add(neighbor.room);
+      routes.set(neighbor.room, neighbor.direction);
+      queue.push(neighbor.room);
+    }
+  }
+  return routes;
+}
+
+// Why a visited, cleared room can't be reached: 'foes', 'locked', 'both', 'none', or null when it can be.
+function mapRouteBlocker(room) {
+  if (mapTravelRoutes().has(room)) return null;
+  if (mapTravelRoutes({ allowHostile: true }).has(room)) return 'foes';
+  if (mapTravelRoutes({ allowLocked: true }).has(room)) return 'locked';
+  return mapTravelRoutes({ allowHostile: true, allowLocked: true }).has(room) ? 'both' : 'none';
+}
+
+function travelToRoom(room) {
+  const direction = mapTravelRoutes().get(room);
+  if (!direction) return false;
+  player.knockback = null;
+  closeMap();
+  moveToRoom(room, direction);
+  playSound('system/warp.ogg', 0.22);
+  return true;
 }
 
 function resetFloorCoins() {
@@ -1196,8 +1276,7 @@ function canInteract() {
   if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
       distanceBetween(player, elementalShrinePosition()) < 92) return true;
   if (nearestManaRelic()) return true;
-  if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
-      distanceBetween(player, elementalShrinePosition()) < 92) return true;
+  if (nearestRiskShrineAltar()) return true;
   if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 86) return true;
   if (nearestShopSlot() >= 0) return true;
   if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
@@ -1238,7 +1317,7 @@ function updateWalkInInteractions(dt) {
       interact();
       return;
     }
-    if (save.bankedZenny > 0 && distanceBetween(player, bankPadPosition(true)) < 44) {
+    if (save.bankedZeny > 0 && distanceBetween(player, bankPadPosition(true)) < 44) {
       walkInCooldown = 1.5;
       interact(true);
       return;
@@ -1263,15 +1342,16 @@ function interact(withdrawFromBank = false) {
   if (mode !== 'playing') return;
   if (currentRoom.type === 'trial' && !currentRoom.trialCompleted) {
     if (currentRoom.trialMode === 'mirror') {
+      if (rewardTrialMirrorsSolved()) return;
       const mirror = nearestRewardTrialMirror();
       if (!mirror) {
         showMessage('Approach a lens and interact to rotate it.', 1.5);
         return;
       }
       currentRoom.trialMirrors[mirror.index] = mirror.orientation === '/' ? '\\' : '/';
-      if (rewardTrialMirrors().every((facet) => facet.orientation === facet.solution)) {
-        completeRewardTrial(rewardTrialReceiver());
-      } else showMessage('Facet turned. Follow the reflected light to the receiver.', 1.4);
+      showMessage(rewardTrialMirrorsSolved()
+        ? 'The receiver lights.'
+        : 'Facet turned. Follow the reflected light to the receiver.', 1.4);
       updateHud();
       saveRunState();
       return;
@@ -1316,6 +1396,12 @@ function interact(withdrawFromBank = false) {
     showMessage(`The elemental menhir attunes you to ${activeMagicElement}.`, 3);
     updateHud();
     saveRunState();
+    return;
+  }
+  const riskAltar = nearestRiskShrineAltar();
+  if (riskAltar) {
+    if (riskAltar.id === 'offering') useRiskShrineOffering();
+    else startRiskShrineAmbush();
     return;
   }
   const relicPickup = nearestManaRelic();
@@ -1382,21 +1468,21 @@ function interact(withdrawFromBank = false) {
       (withdrawFromBank || distanceBetween(player, bankPadPosition(false)) < 160 ||
         distanceBetween(player, bankPadPosition(true)) < 160)) {
     if (withdrawFromBank) {
-      const amount = save.bankedZenny;
+      const amount = save.bankedZeny;
       if (amount <= 0) showMessage('Your vault is empty.', 2);
-      else if (persistBankedZenny(0)) {
+      else if (persistBankedZeny(0)) {
         coins += amount;
         persistRunAfterBankTransaction();
-        showMessage(`Withdrew ${amount} zenny from the vault.`, 2.5);
+        showMessage(`Withdrew ${amount} zeny from the vault.`, 2.5);
       }
     } else if (coins <= 0) {
-      showMessage('You have no zenny to deposit.', 2);
+      showMessage('You have no zeny to deposit.', 2);
     } else {
       const amount = coins;
-      if (persistBankedZenny(save.bankedZenny + amount)) {
+      if (persistBankedZeny(save.bankedZeny + amount)) {
         coins = 0;
         persistRunAfterBankTransaction();
-        showMessage(`Deposited ${amount} zenny. The vault now holds ${save.bankedZenny}.`, 2.5);
+        showMessage(`Deposited ${amount} zeny. The vault now holds ${save.bankedZeny}.`, 2.5);
       }
     }
     updateHud();
@@ -1454,7 +1540,7 @@ function buyShopItem(index) {
     return;
   }
   if (coins < item.cost) {
-    showMessage(`${item.name} costs ${item.cost} zenny.`, 2);
+    showMessage(`${item.name} costs ${item.cost} zeny.`, 2);
     return;
   }
   coins -= item.cost;
@@ -1528,6 +1614,83 @@ function elementalShrinePosition() {
   return { x: ROOM_W / 2, y: ROOM_H / 2 };
 }
 
+function riskShrineAltars() {
+  return [
+    { id: 'offering', x: ROOM_W / 2 - 130, y: ROOM_H / 2 },
+    { id: 'ambush', x: ROOM_W / 2 + 130, y: ROOM_H / 2 },
+  ];
+}
+
+function nearestRiskShrineAltar() {
+  if (!currentRoom || currentRoom.type !== 'riskShrine' || currentRoom.riskShrineChoice) return null;
+  return riskShrineAltars().find((altar) => distanceBetween(player, altar) < RISK_SHRINE_RANGE) || null;
+}
+
+function riskShrineAmbushCount() {
+  return Math.min(RISK_SHRINE_MAX_AMBUSH, currentFloor + 1);
+}
+
+// Gives up one heart container for a guaranteed upgrade. The heart is only taken once the upgrade lands.
+function useRiskShrineOffering() {
+  if (player.maxHp <= RISK_SHRINE_MIN_HEARTS) {
+    showMessage('The altar asks for a heart you cannot spare.', 2.5);
+    return false;
+  }
+  const reward = createUpgradeReward(`floor-${currentFloor}-risk-${currentRoom.x}-${currentRoom.y}`, rooms);
+  if (!grantUpgrade(reward, 'shrine')) {
+    reservedUpgradeIds.delete(reward.id);
+    return false;
+  }
+  player.maxHp = Math.max(RISK_SHRINE_MIN_HEARTS, player.maxHp - 1);
+  player.hp = Math.min(player.hp, player.maxHp);
+  currentRoom.riskShrineChoice = 'offering';
+  currentRoom.riskShrineDone = true;
+  addParticles(ROOM_W / 2 - 130, ROOM_H / 2 - 30, '#e58a9a', 24, 95);
+  updateHud();
+  saveRunState();
+  return true;
+}
+
+// Locks the doors and spawns the ambush; clearing it pays out through completeRiskShrineAmbush.
+function startRiskShrineAmbush() {
+  const kinds = enemyKindsForCurrentMap();
+  currentRoom.riskShrineChoice = 'ambush';
+  currentRoom.cleared = false;
+  for (let i = 0; i < riskShrineAmbushCount(); i += 1) {
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    const spawn = findEnemySpawnPosition(180 + Math.random() * (ROOM_W - 360), 120 + Math.random() * (ROOM_H - 240), 18, 140);
+    if (!spawn) continue;
+    applyBossAIPromotion(applyEliteMutation(createEnemy(kind, spawn.x, spawn.y)));
+  }
+  addParticles(ROOM_W / 2 + 130, ROOM_H / 2 - 30, '#cc92e7', 24, 95);
+  showMessage('The doors seal. Survive the ambush.', 2.5);
+  updateHud();
+  saveRunState();
+}
+
+function completeRiskShrineAmbush(room) {
+  if (room.riskShrineChoice !== 'ambush' || room.riskShrineDone) return;
+  room.riskShrineDone = true;
+  if (heartVesselAllowed() && gainMaxHeart()) {
+    showPickupBanner('Heart Vessel', ['+1 MAX HEART']);
+    popOverPlayer({ icon: 'heart', color: '#ff7f93' });
+  } else {
+    player.hp = player.maxHp;
+    for (let i = 0; i < 3; i += 1) spawnCoin(ROOM_W / 2 - 24 + i * 24, ROOM_H / 2 + 40);
+    showMessage('The ambush is over. Your wounds close.', 3);
+  }
+  updateHud();
+  saveRunState();
+}
+
+function rewardTrialSolution(branch) {
+  return [
+    branch > 0 ? '\\' : '/',
+    branch > 0 ? '\\' : '/',
+    branch > 0 ? '/' : '\\',
+  ];
+}
+
 function initializeRewardTrial(room) {
   if (room.trialBranch !== -1 && room.trialBranch !== 1) {
     room.trialBranch = Math.random() < 0.5 ? -1 : 1;
@@ -1538,15 +1701,16 @@ function initializeRewardTrial(room) {
   }
   if (!Array.isArray(room.trialMirrors) || room.trialMirrors.length !== 3 ||
       room.trialMirrors.some((orientation) => orientation !== '/' && orientation !== '\\')) {
-    const branch = room.trialBranch;
-    const solution = [
-      branch > 0 ? '\\' : '/',
-      branch > 0 ? '\\' : '/',
-      branch > 0 ? '/' : '\\',
-    ];
+    const solution = rewardTrialSolution(room.trialBranch);
     room.trialMirrors = solution.map(() => Math.random() < 0.5 ? '/' : '\\');
-    if (room.trialMirrors.every((orientation, index) => orientation === solution[index])) {
-      room.trialMirrors[0] = room.trialMirrors[0] === '/' ? '\\' : '/';
+    // Start at least two lenses from solved so one turn can never finish the trial.
+    for (;;) {
+      const correct = room.trialMirrors
+        .map((orientation, index) => orientation === solution[index] ? index : -1)
+        .filter((index) => index >= 0);
+      if (correct.length <= solution.length - 2) break;
+      const index = correct[Math.floor(Math.random() * correct.length)];
+      room.trialMirrors[index] = room.trialMirrors[index] === '/' ? '\\' : '/';
     }
   }
   const nodeCount = room.trialMode === 'memory' ? 5 : room.trialMode === 'relay' ? 3 : 0;
@@ -1582,11 +1746,7 @@ function rewardTrialMirrors(room = currentRoom) {
   initializeRewardTrial(room);
   const branch = room.trialBranch === 1 ? 1 : -1;
   const y = ROOM_H / 2 + branch * ROOM_H * 0.23;
-  const solution = [
-    branch > 0 ? '\\' : '/',
-    branch > 0 ? '\\' : '/',
-    branch > 0 ? '/' : '\\',
-  ];
+  const solution = rewardTrialSolution(branch);
   return [
     { x: ROOM_W * 0.28, y: ROOM_H / 2 },
     { x: ROOM_W * 0.28, y },
@@ -1605,6 +1765,10 @@ function rewardTrialSource() {
 
 function rewardTrialReceiver() {
   return { x: ROOM_W * 0.68, y: ROOM_H / 2 };
+}
+
+function rewardTrialMirrorsSolved() {
+  return rewardTrialMirrors().every((facet) => facet.orientation === facet.solution);
 }
 
 function nearestRewardTrialMirror() {
@@ -1651,7 +1815,26 @@ function nearestRewardTrialNode() {
   return node;
 }
 
+const REWARD_TRIAL_SOLVE_HOLD = 1;
+
 function updateRewardTrial(dt) {
+  if (currentRoom?.type === 'trial' && currentRoom.trialMode === 'mirror' &&
+      !currentRoom.trialCompleted) {
+    // Hold the lit beam briefly so the player sees the solution land before the room clears.
+    if (!rewardTrialMirrorsSolved()) currentRoom.trialSolveHold = 0;
+    else {
+      currentRoom.trialSolveHold = (currentRoom.trialSolveHold || 0) + dt;
+      if (currentRoom.trialSolveHold >= REWARD_TRIAL_SOLVE_HOLD) {
+        completeRewardTrial(rewardTrialReceiver());
+        if (!currentRoom.trialCompleted) {
+          // Earlier chamber unfinished: knock a lens out of line so the player can retry later.
+          currentRoom.trialMirrors[0] = currentRoom.trialMirrors[0] === '/' ? '\\' : '/';
+          currentRoom.trialSolveHold = 0;
+        }
+      }
+    }
+    return;
+  }
   if (currentRoom?.type !== 'trial' || currentRoom.trialMode !== 'relay' ||
       currentRoom.trialCompleted) return;
   currentRoom.trialTime += dt;
@@ -1732,7 +1915,7 @@ function grantRewardTrialLoot(room) {
     !abilityAlreadyOffered(item.id) &&
     (item.id === 'orbiting-projectiles' || abilityCount < 2) &&
     isUpgradeAvailable(item));
-  const rewards = ['bomb', 'zenny'];
+  const rewards = ['bomb', 'zeny'];
   if (player.hp < player.maxHp) rewards.push('heart');
   if (abilities.length > 0) rewards.push('ability');
   const reward = rewards[Math.floor(Math.random() * rewards.length)];

@@ -40,55 +40,136 @@ function aiStyleProfile() {
 
 const styleRangedArchetypes = ['ranged', 'cluster-caster', 'web-spitter'];
 
-const inputAIProfiles = {
-  neutral: { strafe: 0, flankLead: 0, dodgeBonus: 0, nearDodgeBonus: 0, attackSlots: 0,
-    beatScale: 1, shotLead: 0, warning: 1.1 },
-  touch: { strafe: 0.48, flankLead: 0.1, dodgeBonus: 0.08, nearDodgeBonus: 0.32, attackSlots: 0,
-    beatScale: 0.85, shotLead: 0.12, warning: 1.1 },
-  controller: { strafe: 0.85, flankLead: 0.28, dodgeBonus: 0.22, nearDodgeBonus: 0.12, attackSlots: 1,
-    beatScale: 0.7, shotLead: 0.22, warning: 0.95 },
-  keyboard: { strafe: 0.4, flankLead: 0.18, dodgeBonus: 0.12, nearDodgeBonus: 0.08, attackSlots: 0,
-    beatScale: 0.8, shotLead: 0.3, warning: 1.05 },
+// Input-adaptive tactics. Every derived number and the rule behind it (R1-R10) is recorded in BALANCE.md; change a
+// value there, here and in tests/tuning.test.js together. Values marked "playtest" have no stronger anchor than the
+// pacing of the surrounding fights.
+const ADAPTIVE_AI_TUNING = {
+  adaptSeconds: 2.5, // playtest: stable play needed before enemies switch profile
+  roomGraceSeconds: 6, // playtest: no wide pulse this soon after entering a room
+  floorOneRamp: 0.5, // R5: share of a profile applied on floor 1 (full strength from floor 2)
+  tempoPerFloor: 0.08, // R4: the existing per-floor attack-cooldown scaling
+  minAttackGap: 0.25, // R6: seconds between ordinary attack starts; about human reaction time
+  maxMeleeAttackers: 4, // R7: the base cap of 3 plus at most one adaptation slot
+  maxTacticalSpeed: 1.25, // R8: times an enemy's speed stat; the enrage multiplier
+  floorLeadCap: 0.45, // seconds of floor-based shot lead (unchanged)
+  mobReactionSeconds: 0.14, // shots arriving sooner than this are not dodged
+  bossPressureCadence: { boss: 1.5, mini: 1.4 }, // playtest: multiplier on the path-marker interval
+  pulse: {
+    minFloor: 2,
+    range: 430, // the shared sight range
+    escapeMargin: 1.15, // R1: radius = ground speed * warning * margin
+    radiusMin: 180,
+    radiusMax: 320,
+    mobCooldown: 10, // playtest
+    bossCooldown: 7, // playtest
+    dashCueSeconds: 0.2, // R2: must not exceed DASH_INVULN_SECONDS
+    mobDamage: 1,
+    bossDamage: 2,
+  },
+  // R10: controller >= keyboard/mouse >= touch on the threat axes (attackSlots, tempoFloors, beatScale, warning,
+  // dodgeBonus, flankLead). strafe, nearDodgeBonus and shotShare counter how each input moves or aims.
+  // tempoFloors is attack tempo in floors of the usual +8% per floor; shotShare is the share of the shot's flight
+  // time that enemies lead beyond the floor-based lead (always below 1, so a stop or turn still dodges it).
+  profiles: {
+    neutral: { strafe: 0, flankLead: 0, dodgeBonus: 0, nearDodgeBonus: 0, attackSlots: 0, beatScale: 1,
+      shotShare: 0, warning: 1.1, tempoFloors: 0 },
+    touch: { strafe: 0.48, flankLead: 0.1, dodgeBonus: 0.08, nearDodgeBonus: 0.32, attackSlots: 0, beatScale: 0.85,
+      shotShare: 0.07, warning: 1.1, tempoFloors: 1 },
+    controller: { strafe: 0.75, flankLead: 0.28, dodgeBonus: 0.22, nearDodgeBonus: 0.12, attackSlots: 1, beatScale: 0.7,
+      shotShare: 0.13, warning: 0.95, tempoFloors: 2 },
+    keyboard: { strafe: 0.4, flankLead: 0.18, dodgeBonus: 0.12, nearDodgeBonus: 0.08, attackSlots: 0, beatScale: 0.8,
+      shotShare: 0.18, warning: 1.05, tempoFloors: 1.5 },
+  },
 };
-const inputAI = { mode: null, pending: null, timer: 0, room: null, pressureCooldown: 6 };
-const INPUT_AI_ADAPT_SECONDS = 2.5;
+// Largest sideways component (in enemy speed) that keeps total tactical speed within maxTacticalSpeed.
+const TACTICAL_LATERAL_CAP = Math.sqrt(ADAPTIVE_AI_TUNING.maxTacticalSpeed ** 2 - 1);
+
+function makeInputAIState() {
+  return { mode: null, pending: null, timer: 0, room: null, pressureCooldown: ADAPTIVE_AI_TUNING.roomGraceSeconds };
+}
+
+const inputAI = makeInputAIState();
+const inputProfileCache = { name: null, ramp: null, profile: null };
 
 function resetInputAI() {
-  inputAI.mode = null;
-  inputAI.pending = null;
-  inputAI.timer = 0;
-  inputAI.room = null;
-  inputAI.pressureCooldown = 6;
+  Object.assign(inputAI, makeInputAIState());
+}
+
+// One step of the input adaptation: a new input is only adopted after adaptSeconds of stable use, and each room
+// restarts the wide-pulse grace period. Pure, so it can be tested without the game loop.
+function stepInputAI(state, inputMode, dt, room) {
+  const tuning = ADAPTIVE_AI_TUNING;
+  const next = { ...state };
+  if (next.room !== room) {
+    next.room = room;
+    next.pressureCooldown = tuning.roomGraceSeconds;
+  }
+  next.pressureCooldown = Math.max(0, next.pressureCooldown - dt);
+  if (!tuning.profiles[inputMode]) return next;
+  if (next.mode === null) next.mode = inputMode;
+  if (next.mode === inputMode) {
+    next.pending = null;
+    next.timer = 0;
+    return next;
+  }
+  if (next.pending !== inputMode) {
+    next.pending = inputMode;
+    next.timer = 0;
+  }
+  next.timer += dt;
+  if (next.timer >= tuning.adaptSeconds) {
+    next.mode = next.pending;
+    next.pending = null;
+    next.timer = 0;
+  }
+  return next;
 }
 
 function updateInputAI(dt) {
   if (mode !== 'playing' || dt <= 0) return;
-  if (inputAI.room !== currentRoom) {
-    inputAI.room = currentRoom;
-    inputAI.pressureCooldown = 6;
-  }
-  inputAI.pressureCooldown = Math.max(0, inputAI.pressureCooldown - dt);
-  if (!inputAIProfiles[lastInputMode]) return;
-  if (inputAI.mode === null) inputAI.mode = lastInputMode;
-  if (inputAI.mode === lastInputMode) {
-    inputAI.pending = null;
-    inputAI.timer = 0;
-    return;
-  }
-  if (inputAI.pending !== lastInputMode) {
-    inputAI.pending = lastInputMode;
-    inputAI.timer = 0;
-  }
-  inputAI.timer += dt;
-  if (inputAI.timer >= INPUT_AI_ADAPT_SECONDS) {
-    inputAI.mode = inputAI.pending;
-    inputAI.pending = null;
-    inputAI.timer = 0;
-  }
+  Object.assign(inputAI, stepInputAI(inputAI, lastInputMode, dt, currentRoom));
+}
+
+// The pause-menu "Adaptive enemies" setting. Off restores the combat behavior from before input adaptation.
+function adaptiveEnemiesEnabled() {
+  return typeof gameSettings === 'undefined' || gameSettings.adaptiveEnemies !== false;
+}
+
+function adaptiveActive() {
+  return inputAI.mode !== null && adaptiveEnemiesEnabled();
+}
+
+function adaptiveRamp() {
+  return currentFloor <= 1 ? ADAPTIVE_AI_TUNING.floorOneRamp : 1;
+}
+
+function blendInputProfile(name, ramp) {
+  const tuning = ADAPTIVE_AI_TUNING;
+  const neutral = tuning.profiles.neutral;
+  const row = tuning.profiles[name];
+  const blend = (axis) => neutral[axis] + (row[axis] - neutral[axis]) * ramp;
+  return {
+    strafe: blend('strafe'),
+    flankLead: blend('flankLead'),
+    dodgeBonus: blend('dodgeBonus'),
+    nearDodgeBonus: blend('nearDodgeBonus'),
+    shotShare: blend('shotShare'),
+    beatScale: blend('beatScale'),
+    tempo: 1 + tuning.tempoPerFloor * row.tempoFloors * ramp,
+    attackSlots: Math.floor(row.attackSlots * ramp),
+    warning: row.warning,
+  };
 }
 
 function aiInputProfile() {
-  return inputAIProfiles[inputAI.mode] || inputAIProfiles.neutral;
+  const name = adaptiveActive() ? inputAI.mode : 'neutral';
+  const ramp = adaptiveRamp();
+  if (inputProfileCache.name !== name || inputProfileCache.ramp !== ramp) {
+    inputProfileCache.name = name;
+    inputProfileCache.ramp = ramp;
+    inputProfileCache.profile = blendInputProfile(name, ramp);
+  }
+  return inputProfileCache.profile;
 }
 
 // Attack-cooldown tick multiplier for one enemy; bosses and promoted boss-AI foes always tick at 1.
@@ -290,14 +371,13 @@ function enemyKindsForCurrentMap() {
   const fallbackKinds = ['slime', 'ratto', 'bat', 'snake', 'scorpion', 'bandit'];
   const pools = {
     tulimshar: ['slime', 'ratto', 'piou', 'bat', 'snake', 'scorpion', 'bandit'],
-    candor: ['ratto', 'croc', 'wisp', 'bat', 'snake', 'slime', 'scorpion', 'tortuga'],
     hurnscald: ['ratto', 'croc', 'wisp', 'frog', 'spider', 'mouboo', 'bluepar', 'bee', 'spore-sower', 'fluffy', 'snail'],
     graveyard: ['skeleton', 'zombie', 'spider', 'vampirebat', 'maggot'],
     artis: ['ratto', 'wisp', 'skeleton', 'spider', 'slime', 'bluepar', 'zombie', 'fluffy', 'snail', 'maggot'],
     halinarzo: ['bandit', 'scorpion', 'mouboo', 'spore-sower', 'croc', 'junglefowl', 'tortuga'],
     nivalis: ['snowman', 'yeti', 'vampirebat', 'wisp', 'bee'],
     frostia: ['frostiana', 'snowman', 'yeti', 'vampirebat', 'spore-sower'],
-    fortress: ['troll', 'zombie', 'junglefowl', 'spore-sower', 'bandit', 'mouboo', 'snake'],
+    candor: ['troll', 'zombie', 'junglefowl', 'spore-sower', 'bandit', 'mouboo', 'snake'],
     worldedge: ['skeleton', 'zombie', 'vampirebat', 'troll', 'spider', 'frostiana'],
   };
   const availableKinds = (pools[currentRegionId()] || pools.tulimshar).filter(isEnemyAvailableForCurrentRun);
@@ -369,7 +449,7 @@ function miniBossKindsForCurrentFloor() {
     halinarzo: ['scorpion', 'bandit', 'junglefowl'],
     nivalis: ['snowman', 'yeti', 'vampirebat'],
     frostia: ['frostiana', 'yeti', 'snowman'],
-    fortress: ['troll', 'junglefowl', 'spore-sower'],
+    candor: ['troll', 'junglefowl', 'spore-sower'],
     worldedge: ['troll', 'skeleton', 'zombie'],
   };
   const availableKinds = (pools[currentRegionId()] || pools.tulimshar).filter(isEnemyAvailableForCurrentRun);
@@ -380,7 +460,7 @@ function bossForCurrentArea() {
   return ({
     tulimshar: 'slime-mother', hurnscald: 'jacko',
     graveyard: 'reaper', artis: 'golem', halinarzo: 'banditlord',
-    nivalis: 'snowman-boss', frostia: 'yetiking', fortress: 'forestdragon', worldedge: 'nightdragon',
+    nivalis: 'snowman-boss', frostia: 'yetiking', candor: 'forestdragon', worldedge: 'nightdragon',
   })[currentRegionId()] || 'slime-mother';
 }
 
@@ -400,6 +480,12 @@ function playEnemyAttackSound(enemy, volume = enemy.boss ? 0.3 : 0.14) {
   } else {
     playSound('monsters/zombie/zombiemiss.ogg', volume);
   }
+}
+
+// Speed of an ordinary (non-boss, non-special) enemy shot; also the basis for how far enemies may lead a target.
+function ordinaryShotSpeed(enemy) {
+  const baseSpeed = enemy.kind === 'wisp' ? 185 : 155;
+  return baseSpeed * (1 + Math.max(0, currentFloor - 1) * 0.12);
 }
 
 function fireEnemyProjectile(enemy) {
@@ -437,11 +523,9 @@ function fireEnemyProjectile(enemy) {
   const baseAngle = Math.atan2(aimY - enemy.y, aimX - enemy.x);
   const count = specialKind ? 1 : enemy.boss || enemy.tripleShot ? 3 : 1;
   const spread = enemy.boss && enemy.phase >= 2 ? 0.14 : 0.38;
-  const floorProgress = Math.max(0, currentFloor - 1);
-  const baseSpeed = enemy.kind === 'wisp' ? 185 : 155;
   const speed = specialKind === 'venom' || specialKind === 'web-glob' ? 125 : enemy.boss || enemy.miniBoss
     ? (enemy.phase >= 2 ? 340 : 255) * (1 + Math.max(0, currentFloor - 1) * 0.18)
-    : baseSpeed * (1 + floorProgress * 0.12);
+    : ordinaryShotSpeed(enemy);
   for (let index = 0; index < count; index += 1) {
     const angle = baseAngle + (index - (count - 1) / 2) * spread;
     enemyProjectiles.push({
@@ -1530,7 +1614,7 @@ function dropLoot(x, y, boss = false, bossSummoned = false) {
       markAbilityOffered(ability);
       pickups.push({ x, y, kind: 'upgrade', item: ability, room: currentRoom });
     } else {
-      // No eligible ability: the guardian still leaves a heart and some zenny.
+      // No eligible ability: the guardian still leaves a heart and some zeny.
       pickups.push({ x, y, kind: 'heart' });
       spawnCoin(x + 18, y);
       spawnCoin(x - 18, y);
@@ -1594,6 +1678,10 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
   }
   enemy.hp -= damage;
   enemy.hitFlash = 0.16;
+  // Elemental ticks pass applyHitStop = false and would flood the screen with numbers.
+  if (applyHitStop && typeof addDamageNumber === 'function') {
+    addDamageNumber(enemy.x, enemy.y - enemy.radius - 8, damage);
+  }
   const hitSound = enemy.hp > 0 && damage > 0 && !(enemy.hitSoundUntil > performance.now())
     ? enemySound(enemy, 'hit') : null;
   if (hitSound) {
@@ -1646,12 +1734,12 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
       const bonusCoin = reserveCoin();
       if (bonusCoin) {
         coins += 1;
-        runStats.zennyFound += 1;
+        runStats.zenyFound += 1;
       }
       streakCallout.timer = streakCallout.duration;
       streakCallout.x = player.x;
       streakCallout.y = player.y - 42;
-      streakCallout.text = `${killStreak} CHAIN${bonusCoin ? '  +1 ZENNY' : ''}`;
+      streakCallout.text = `${killStreak} CHAIN${bonusCoin ? '  +1 ZENY' : ''}`;
       addParticles(enemy.x, enemy.y, '#ffe08b', 8, 95);
       playSound('special/fanfare.ogg', 0.12);
     }
@@ -1701,7 +1789,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
         jacko: 'hurnscald-herbalist', golem: 'artis-archivist',
         reaper: 'graveyard-keeper', banditlord: 'halinarzo-ranger',
         'snowman-boss': 'nivalis-oracle', yetiking: 'frostia-reclaimer',
-        forestdragon: 'fortress-keeper', nightdragon: 'world-edge-veteran',
+        forestdragon: 'candor-keeper', nightdragon: 'world-edge-veteran',
       })[enemy.kind];
       const newlyUnlocked = unlockedId ? unlockCharacter(unlockedId) : false;
       const unlockedName = characterRoster.find((entry) => entry.id === unlockedId)?.name;
@@ -1747,6 +1835,8 @@ function moveEnemy(enemy, vx, vy, dt) {
   enemy.y = clamp(enemy.y, wallClearance, ROOM_H - wallClearance);
 }
 
+const steeringCover = [];
+
 function steerEnemyVelocity(enemy, vx, vy) {
   const speed = Math.hypot(vx, vy);
   if (speed < 1) return { x: vx, y: vy };
@@ -1754,17 +1844,27 @@ function steerEnemyVelocity(enemy, vx, vy) {
   const lookahead = Math.max(40, speed * 0.4);
   const dx = vx / speed;
   const dy = vy / speed;
+  // Only cover within sweep distance of any heading can block it, so gather that once per call instead of testing
+  // every breakable for each of the up to seven candidate headings.
+  const reach = lookahead + enemy.radius + 3;
+  steeringCover.length = 0;
+  for (const obstacle of breakables) {
+    if (obstacle.broken) continue;
+    if (Math.abs(obstacle.x - enemy.x) > reach + obstacle.radius ||
+        Math.abs(obstacle.y - enemy.y) > reach + obstacle.radius) continue;
+    steeringCover.push(obstacle);
+  }
   const free = (x, y) => {
-    const end = { x: enemy.x + x * lookahead, y: enemy.y + y * lookahead };
-    if (end.x < clearance || end.x > ROOM_W - clearance ||
-        end.y < clearance || end.y > ROOM_H - clearance) return false;
-    return !breakables.some((obstacle) => {
-      if (obstacle.broken) return false;
+    const endX = enemy.x + x * lookahead;
+    const endY = enemy.y + y * lookahead;
+    if (endX < clearance || endX > ROOM_W - clearance || endY < clearance || endY > ROOM_H - clearance) return false;
+    for (const obstacle of steeringCover) {
       const projection = clamp(((obstacle.x - enemy.x) * x + (obstacle.y - enemy.y) * y) / lookahead, 0, 1);
       const gap = Math.hypot(obstacle.x - enemy.x - x * lookahead * projection,
         obstacle.y - enemy.y - y * lookahead * projection);
-      return gap < obstacle.radius + enemy.radius + 3;
-    });
+      if (gap < obstacle.radius + enemy.radius + 3) return false;
+    }
+    return true;
   };
   if (free(dx, dy)) return { x: vx, y: vy };
   const side = enemy.navigationSide || enemy.strafeDirection || 1;
@@ -1780,6 +1880,13 @@ function steerEnemyVelocity(enemy, vx, vy) {
     }
   }
   return { x: 0, y: 0 };
+}
+
+// R7: melee mobs that may commit at once. The floor-based base is capped at 3; the weapon-style bonus and the input
+// slot add to it, but never past maxMeleeAttackers.
+function meleeAttackerLimit(styleTokenBonus, inputSlots) {
+  return Math.min(ADAPTIVE_AI_TUNING.maxMeleeAttackers,
+    Math.min(3, 1 + Math.floor(currentFloor / 2)) + styleTokenBonus + inputSlots);
 }
 
 function applyMobTactics(enemy, dt, directionX, directionY, distance) {
@@ -1826,7 +1933,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
   }
 
   const evasive = styleAI.dodgeAll || ['ranged', 'stalker', 'diver', 'cluster-caster'].includes(enemy.archetype);
-  if ((currentFloor >= 2 || inputAI.mode !== null) && evasive && enemy.dodgeCooldown <= 0) {
+  if ((currentFloor >= 2 || adaptiveActive()) && evasive && enemy.dodgeCooldown <= 0) {
     for (const shot of projectiles) {
       if (shot.owner === 'companion') continue;
       const rx = enemy.x - shot.x;
@@ -1834,7 +1941,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
       const shotSpeed = Math.hypot(shot.vx, shot.vy) || 1;
       const ahead = (rx * shot.vx + ry * shot.vy) / shotSpeed;
       if (ahead < 20 || ahead > 190) continue;
-      if (inputAI.mode !== null && ahead / shotSpeed < 0.14) continue;
+      if (adaptiveActive() && ahead / shotSpeed < ADAPTIVE_AI_TUNING.mobReactionSeconds) continue;
       const side = (rx * -shot.vy + ry * shot.vx) / shotSpeed;
       if (Math.abs(side) > enemy.radius + shot.radius + 22) continue;
       enemy.dodgeCooldown = Math.max(0.9, 2.4 - floorScale * 0.25);
@@ -1857,7 +1964,7 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
   const meleeArchetypes = ['charger', 'leaper', 'stalker', 'diver'];
   if (meleeArchetypes.includes(enemy.archetype) && distance < 420) {
     // Hades-style attack tokens: only a few melee mobs may commit at once; the rest circle and wait.
-    const maxAttackers = Math.min(3, 1 + Math.floor(currentFloor / 2)) + styleAI.tokenBonus + input.attackSlots;
+    const maxAttackers = meleeAttackerLimit(styleAI.tokenBonus, input.attackSlots);
     // A melee player mid-recovery is open: waiting foes line up their next strike for the end of it.
     if (styleAI.punishRecovery && player.fireCooldown > 0.2 && distance < 220) {
       enemy.attackCooldown = Math.min(enemy.attackCooldown, 0.25);
@@ -1907,14 +2014,19 @@ function applyMobTactics(enemy, dt, directionX, directionY, distance) {
     const targetY = player.y + playerVelocity.y * input.flankLead;
     const flankAngle = Math.atan2(targetY - enemy.y, targetX - enemy.x);
     const proximity = inputAI.mode === 'touch' ? 0.5 + clamp(1 - distance / 260, 0, 1) : 1;
-    moveEnemy(enemy, -Math.sin(flankAngle) * side * enemy.speed * input.strafe * proximity,
-      Math.cos(flankAngle) * side * enemy.speed * input.strafe * proximity, dt);
+    // Added on top of the archetype's own movement, so it is capped to keep the total within maxTacticalSpeed.
+    const lateral = enemy.speed * Math.min(input.strafe * proximity, TACTICAL_LATERAL_CAP);
+    moveEnemy(enemy, -Math.sin(flankAngle) * side * lateral, Math.cos(flankAngle) * side * lateral, dt);
   }
   return false;
 }
 
+function dashPressureActive() {
+  return bossStrikes.some((strike) => strike.dashCheck);
+}
+
 function mobAttackBeatAvailable(enemy) {
-  if (bossStrikes.some((strike) => strike.dashCheck)) return false;
+  if (dashPressureActive()) return false;
   const squad = enemies.filter((other) => !other.boss && !other.miniBoss && !other.bossAI &&
     other.hp > 0 && distanceBetween(other, player) < 430 && hasLineOfSight(other, player));
   if (squad.some((other) => other !== enemy && other.attackSpacingTimer > 0)) return false;
@@ -1935,22 +2047,55 @@ function spawnBossStrike(x, y, radius, duration, damage, knockFrom = null) {
   });
 }
 
+// R1: the pulse is sized so that walking away at ground speed during the warning cannot clear it, for any class.
+function dashPulseRadius() {
+  const pulse = ADAPTIVE_AI_TUNING.pulse;
+  return clamp(Math.round(baseGroundSpeed() * aiInputProfile().warning * pulse.escapeMargin),
+    pulse.radiusMin, pulse.radiusMax);
+}
+
+// Conditions that keep a wide pulse from starting, one named predicate each (true blocks the pulse).
+function playerCannotDashNow() {
+  return dashCooldown > 0 || dashTimer > 0 || player.invuln > 0;
+}
+
+function anotherAttackInProgress() {
+  return enemies.some((other) => other.hp > 0 && (other.extraWindup > 0 || other.burstRemaining > 0 || other.linkDash ||
+    (!calmMobBehaviors.has(other.behavior) && !calmBossStates.has(other.behavior) &&
+    other.behavior !== 'recover')));
+}
+
+function hostileThreatsNearPlayer(clearance) {
+  return enemyProjectiles.length > 0 || bombs.some((bomb) => bomb.owner === 'enemy') ||
+    groundHazards.some((hazard) => hazard.owner !== 'player' &&
+      distanceBetween(hazard, player) < hazard.radius + clearance);
+}
+
+// Why `enemy` cannot start a wide pulse right now, or null when it can.
+function dashPressureBlocker(enemy) {
+  const pulse = ADAPTIVE_AI_TUNING.pulse;
+  if (!adaptiveActive()) return 'adaptive-off';
+  if (currentFloor < pulse.minFloor) return 'floor-too-low';
+  if (inputAI.pressureCooldown > 0 || currentRoom.cleared) return 'cooldown';
+  if (playerCannotDashNow()) return 'player-cannot-dash';
+  if (bossStrikes.length > 0) return 'strike-active';
+  if (distanceBetween(enemy, player) > pulse.range || !hasLineOfSight(enemy, player)) return 'out-of-reach';
+  if ((enemy.boss || enemy.miniBoss) && enemy.phase < 2) return 'boss-phase';
+  if (anotherAttackInProgress()) return 'attack-in-progress';
+  if (hostileThreatsNearPlayer(dashPulseRadius())) return 'hostile-threats';
+  return null;
+}
+
 function tryDashPressure(enemy) {
-  if (inputAI.mode === null || inputAI.pressureCooldown > 0 || currentRoom.cleared ||
-      dashCooldown > 0 || dashTimer > 0 || player.invuln > 0 || bossStrikes.length > 0 ||
-      distanceBetween(enemy, player) > 430 || !hasLineOfSight(enemy, player)) return false;
-  if ((enemy.boss || enemy.miniBoss) && enemy.phase < 2) return false;
-  if (enemies.some((other) => other.hp > 0 && (other.extraWindup > 0 || other.burstRemaining > 0 || other.linkDash ||
-      (!calmMobBehaviors.has(other.behavior) && !calmBossStates.has(other.behavior) &&
-      other.behavior !== 'recover')))) return false;
-  if (enemyProjectiles.length > 0 || bombs.some((bomb) => bomb.owner === 'enemy') ||
-      groundHazards.some((hazard) => hazard.owner !== 'player' && distanceBetween(hazard, player) < hazard.radius + 300)) return false;
+  if (dashPressureBlocker(enemy)) return false;
+  const pulse = ADAPTIVE_AI_TUNING.pulse;
   const warning = aiInputProfile().warning;
-  spawnBossStrike(player.x, player.y, 300, warning, enemy.boss ? 2 : 1);
+  spawnBossStrike(player.x, player.y, dashPulseRadius(), warning, enemy.boss ? pulse.bossDamage : pulse.mobDamage);
   bossStrikes[bossStrikes.length - 1].dashCheck = true;
-  inputAI.pressureCooldown = enemy.boss ? 7 : 10;
-  enemy.attackCooldown = Math.max(enemy.attackCooldown, warning + 0.6);
-  showMessage('Wide pulse! Dash at the flash, or leave the marked ground.', warning + 0.5);
+  inputAI.pressureCooldown = enemy.boss ? pulse.bossCooldown : pulse.mobCooldown;
+  // R3: no follow-up attack lands inside the invulnerability a hit from this pulse would grant.
+  enemy.attackCooldown = Math.max(enemy.attackCooldown, warning + PLAYER_HIT_INVULN_SECONDS);
+  showMessage('Wide pulse! Dash at the flash.', warning + 0.5);
   playEnemyAttackSound(enemy, 0.2);
   return true;
 }
@@ -1998,8 +2143,10 @@ function applyBossPressure(enemy, dt, directionX, directionY, distance) {
     moveEnemy(enemy, directionX * enemy.speed * hunt, directionY * enemy.speed * hunt, dt);
   }
 
+  if (enemy.boss && !enemy.miniBoss && !adaptiveEnemiesEnabled()) return;
   if (enemy.pressureCooldown > 0) return;
-  enemy.pressureCooldown = (still ? 2.0 : phaseTwo ? 3.4 : 4.4) * (mini ? 1.4 : 1.5);
+  const cadence = ADAPTIVE_AI_TUNING.bossPressureCadence;
+  enemy.pressureCooldown = (still ? 2.0 : phaseTwo ? 3.4 : 4.4) * (mini ? cadence.mini : cadence.boss);
   const lead = still ? 0.2 : 0.45;
   const futureX = player.x + playerVelocity.x * lead;
   const futureY = player.y + playerVelocity.y * lead;
@@ -2021,9 +2168,14 @@ function updateEnemy(enemy, dt) {
   updateEnemyBehavior(enemy, dt);
   if (!enemy.boss && !enemy.miniBoss && !enemy.bossAI &&
     calmMobBehaviors.has(previousBehavior) && !calmMobBehaviors.has(enemy.behavior)) {
-    enemy.attackSpacingTimer = (currentFloor >= 4 ? 0.35 : 0.55) * aiInputProfile().beatScale;
+    const input = aiInputProfile();
+    enemy.attackSpacingTimer = Math.max(ADAPTIVE_AI_TUNING.minAttackGap,
+      (currentFloor >= 4 ? 0.35 : 0.55) * input.beatScale);
     if (enemy.behavior === 'shoot-windup') {
-      const lead = Math.min(0.55, Math.max(0, currentFloor - 1) * 0.1 + aiInputProfile().shotLead);
+      const floorLead = Math.min(ADAPTIVE_AI_TUNING.floorLeadCap, Math.max(0, currentFloor - 1) * 0.1);
+      // R9: input prediction closes only a share of the remaining flight time, so it never becomes perfect aim.
+      const flightTime = distanceBetween(enemy, player) / ordinaryShotSpeed(enemy);
+      const lead = floorLead + input.shotShare * Math.max(0, flightTime - floorLead);
       enemy.shotTarget = { x: player.x + playerVelocity.x * lead, y: player.y + playerVelocity.y * lead };
     }
   }
@@ -2063,13 +2215,13 @@ function updateEnemyBehavior(enemy, dt) {
   const visible = distance < 430 && hasLineOfSight(enemy, player);
   enemy.attackCooldown -= dt * (enemy.boss || enemy.miniBoss
     ? 1 + Math.max(0, currentFloor - 1) * 0.06 : 1 + Math.max(0, currentFloor - 1) * 0.08) * (enemy.boss ? 1.3 : 1) *
-    styleCooldownRate(enemy) * (!enemy.boss && !enemy.miniBoss && !enemy.bossAI && inputAI.mode !== null ? 1.12 : 1);
+    styleCooldownRate(enemy) * (!enemy.boss && !enemy.miniBoss && !enemy.bossAI ? aiInputProfile().tempo : 1);
   enemy.stateTimer -= dt;
   enemy.spitFlash = Math.max(0, enemy.spitFlash - dt);
 
   if (enemy.boss || enemy.miniBoss || enemy.bossAI) {
     if (enemy.boss || enemy.miniBoss) applyBossPressure(enemy, dt, directionX, directionY, distance);
-    if (bossStrikes.length > 0 && calmBossStates.has(enemy.behavior)) return;
+    if (adaptiveEnemiesEnabled() && bossStrikes.length > 0 && calmBossStates.has(enemy.behavior)) return;
     updateBossExtras(enemy, dt);
     if (enemy.kind === 'spider-queen') {
       updateSpiderQueen(enemy, dt, directionX, directionY, distance, visible);

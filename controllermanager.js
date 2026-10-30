@@ -14,6 +14,8 @@ const gamepadInput = {
 const previousGamepadButtons = new Map();
 const previousGamepadAxes = new Map();
 let previousMenuDirection = 0;
+// Last map-cursor direction held ('1,0', '0,-1', …, or '' when none).
+let previousMapStep = '';
 
 function applyGamepadDeadzone(value) {
   const deadzone = 0.22;
@@ -138,6 +140,15 @@ function pollGamepad() {
   previousMenuDirection = mode === 'select' || mode === 'prologue' || mode === 'tutorial' ? menuDirection : 0;
   if (mode === 'select' && menuVertical !== 0 && menuVertical !== previousMenuVertical) moveMenuFocus(menuVertical);
   previousMenuVertical = mode === 'select' || mode === 'prologue' || mode === 'paused' ? menuVertical : 0;
+  // Tracked every frame, so a direction already held when the map opens does not move its cursor.
+  const mapX = (isButtonDown(15) ? 1 : 0) - (isButtonDown(14) ? 1 : 0) ||
+    (Math.abs(horizontalAxis) > 0.6 ? Math.sign(horizontalAxis) : 0);
+  const mapY = (isButtonDown(13) ? 1 : 0) - (isButtonDown(12) ? 1 : 0) ||
+    (Math.abs(verticalAxis) > 0.6 ? Math.sign(verticalAxis) : 0);
+  const mapStep = mapX !== 0 ? [mapX, 0] : mapY !== 0 ? [0, mapY] : null;
+  const mapStepKey = mapStep ? mapStep.join(',') : '';
+  const lastMapStep = previousMapStep;
+  previousMapStep = mapStepKey;
 
   if (mode === 'prologue') {
     if (!audioFocused && (wasButtonPressed(0) || wasButtonPressed(9))) advancePrologue(1);
@@ -173,8 +184,16 @@ function pollGamepad() {
       if (audioFocused) audioFocus = null;
       else exitToTitle();
     } else if (wasButtonPressed(8)) openControls('paused');
+    else if (wasButtonPressed(3)) toggleAdaptiveEnemies();
   } else if (mode === 'gameover' || mode === 'won') {
     if (wasButtonPressed(0) || wasButtonPressed(9)) returnToCharacterSelect();
+  } else if (mode === 'playing' && showMap) {
+    // Map-only navigation (an approved exception to the controller lock): gameplay is paused while the map is open.
+    if (mapStep && mapStepKey !== lastMapStep) stepMapCursor(...mapStep);
+    const mapButton = bindings.pad.map;
+    if (wasButtonPressed(9)) pauseGame();
+    else if (wasButtonPressed(0)) travelToMapCursor();
+    else if (wasButtonPressed(1) || (mapButton !== null && mapButton !== undefined && wasButtonPressed(mapButton))) closeMap();
   } else if (mode === 'playing') {
     if (wasButtonPressed(9)) pauseGame();
     for (let button = 0; button < 16; button += 1) {

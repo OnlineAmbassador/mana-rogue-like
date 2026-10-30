@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText } = require('./helpers/load');
 
 const source = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
@@ -26,9 +27,9 @@ function combat(className = 'Mage', style = 'magic') {
     characterChapters: {},
   });
   const game = source('game.js');
-  vm.runInContext(game.slice(game.indexOf('const magicElementPalette ='), game.indexOf('let hitStopTimer =')), c);
-  vm.runInContext(game.slice(game.indexOf('const characterRoster ='), game.indexOf('const rosterPageSize =')), c);
-  vm.runInContext(game.slice(game.indexOf('const classProfiles ='), game.indexOf('// Every weapon style')), c);
+  vm.runInContext(sliceText(game, 'const magicElementPalette =', 'let hitStopTimer =', 'game'), c);
+  vm.runInContext(sliceText(game, 'const characterRoster =', 'const rosterPageSize =', 'game'), c);
+  vm.runInContext(sliceText(game, 'const classProfiles =', '// Every weapon style', 'game'), c);
   for (const file of ['playermanager.js', 'mobmanager.js', 'dbmanager.js']) vm.runInContext(source(file), c);
   vm.runInContext(`
     character = characterRoster.find(entry => entry.className === '${className}');
@@ -182,8 +183,7 @@ test('real projectile loops split magic on enemy and object impacts, but not ord
     if (surface === 'expiry') parent.ttl = 0;
     if (surface === 'wall') parent.x = -1;
     const game = source('game.js');
-    const loop = game.slice(game.indexOf('  for (let i = projectiles.length - 1;'),
-      game.indexOf('  for (let i = enemyProjectiles.length - 1;'));
+    const loop = sliceText(game, '  for (let i = projectiles.length - 1;', '  for (let i = enemyProjectiles.length - 1;', 'game');
     vm.runInContext(loop, c);
     assert.equal(c.projectiles.includes(parent), false);
     assert.equal(c.projectiles.length, surface === 'expiry' ? 0 : 8, surface);

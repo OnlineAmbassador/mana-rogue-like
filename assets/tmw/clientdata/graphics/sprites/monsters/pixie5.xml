@@ -1,6 +1,0 @@
-<?xml version="1.0"?>
-<sprite>
-	<imageset name="base" src="graphics/sprites/monsters/pixie5.png" width="20" height="20" />
-
-    <include file="monsters/pixie2.xml"/>
-</sprite>

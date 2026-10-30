@@ -1448,7 +1448,7 @@ function explodeBomb(bomb) {
       : Math.abs(bomb.y - ROOM_H / 2) < 78;
     if (secret.room.hidden && alongWall && distanceBetween(bomb, wallPoint) < bomb.radius + 60) {
       secret.room.hidden = false;
-      recordStory('A hidden passage', 'A bomb blasted open a concealed room. Its relics have waited a long time for someone to find them.');
+      recordStory('A hidden passage', 'A crack in the cave wall reveals a concealed chamber. A whispering voice seems to come through, like a wind drafting past.');
       const extraKeyFound = !secret.keyDropped && Math.random() < (secret.room.extraKeyChance || 0);
       if (extraKeyFound) {
         pickups.push({ x: bomb.x, y: bomb.y, kind: 'key' });
@@ -1510,6 +1510,16 @@ function useConsumable() {
   showMessage('None of your consumables can help right now.', 2);
 }
 
+// Invulnerability granted by a dash and by taking a hit. Enemy timings in ADAPTIVE_AI_TUNING are checked against
+// these (see BALANCE.md), so change them here only together with the tuning rules.
+const DASH_INVULN_SECONDS = 0.24;
+const PLAYER_HIT_INVULN_SECONDS = 0.9;
+
+// Walking speed before temporary slows: what an enemy telegraph has to out-range to require a dash.
+function baseGroundSpeed() {
+  return player.speed * curioMultiplier('speed') * (character?.className === 'Pilgrim' ? 1.12 : 1);
+}
+
 function startDash() {
   if (mode !== 'playing' || dashCooldown > 0 || dashTimer > 0) return;
   if (currentRoom && (currentRoom.type === 'shop' || currentRoom.type === 'bank')) return;
@@ -1519,7 +1529,7 @@ function startDash() {
   dashVector = length > 0.1 ? { x: dx / length, y: dy / length } : { x: player.lookX, y: player.lookY };
   dashTimer = 0.16;
   dashCooldown = character?.className === 'Scout' ? 0.42 : 0.85;
-  player.invuln = Math.max(player.invuln, 0.24);
+  player.invuln = Math.max(player.invuln, DASH_INVULN_SECONDS);
   addParticles(player.x, player.y, '#cfe8ff', 8, 90);
   playSound('weapons/bow/shoot.ogg', 0.12);
 }
@@ -1750,7 +1760,7 @@ function vibrateController(damageAmount) {
 let deathTimer = 0;
 
 // Tallies for the end-of-run summary; saved with the run.
-const runStats = { seconds: 0, kills: 0, guardians: 0, zennyFound: 0, lastHitBy: '', unlocked: [] };
+const runStats = { seconds: 0, kills: 0, guardians: 0, zenyFound: 0, lastHitBy: '', unlocked: [] };
 
 const DEATH_SLOWDOWN_SECONDS = 1.1;
 
@@ -1825,7 +1835,7 @@ function damagePlayer(damageAmount = 1, source) {
   else triggerCameraShake('playerHurt');
   playSound('punch.ogg', 0.32);
   runStats.lastHitBy = damageSourceName(source);
-  player.invuln = 0.9;
+  player.invuln = PLAYER_HIT_INVULN_SECONDS;
   if (player.hp <= 0) {
     // The run is lost now; a short slow-motion beat plays before the game-over screen.
     deathTimer = DEATH_SLOWDOWN_SECONDS;
