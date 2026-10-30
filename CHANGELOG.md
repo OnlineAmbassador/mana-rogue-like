@@ -6,6 +6,25 @@ These entries were later ported onto upstream's module split (`gameui.js`, `mobm
 
 ## 2026-10-30
 
+### Adaptive-AI tuning rules, Adaptive enemies setting and desert art split
+- **Rules for the numbers.** New [BALANCE.md](BALANCE.md) records the anchors (dash and hit invulnerability, ground speed, shot speed, token cap, enrage speed) and ten rules (R1-R10) that the adaptive-AI numbers follow, plus the toggle contract (T1-T2). `tests/tuning.test.js` enforces each rule by ID and fails if the document and the tests list different rules. All tuning now lives in `ADAPTIVE_AI_TUNING` in `mobmanager.js`; values with no derivation are marked `playtest`.
+- **Numbers that changed because they broke a rule.**
+  - Wide-pulse radius is now `ground speed x warning x 1.15` (clamped 180 to 320) instead of a flat 300, so no class can walk out during the warning (R1). Base speed gives 297 for touch, 284 for mouse/keyboard, 257 for gamepad; a Delver gets 228, 217 and 197. The message no longer suggests leaving the circle on foot.
+  - After a pulse its caster waits the 0.9 s hit invulnerability on top of the warning instead of 0.6 s (R3).
+  - The flat 12% cooldown speed-up became per-input tempo (touch 8%, mouse/keyboard 12%, gamepad 16%; R4).
+  - Floor one applies half of a profile, extra attack slots and wide pulses wait for floor two (R5).
+  - Ordinary attack starts are at least 0.25 s apart (R6; gamepad on floor four and deeper was 0.245 s).
+  - Melee attack tokens are capped at four in total; bow style plus gamepad reached five (R7).
+  - Gamepad strafing is 0.75 of enemy speed instead of 0.85, so flanking never exceeds the enraged-enemy speed of 1.25x (R8; it reached 1.31x).
+  - Input shot prediction is a share of the shot's flight time instead of fixed seconds under a cap that erased the differences between inputs on deeper floors (R9). Touch, gamepad and keyboard now stay distinct on every floor.
+- **Adaptive enemies setting.** The pause screen has a saved on/off switch (E, Y or triangle on a controller, or click/tap). Off restores the earlier combat: no input profile, tempo, extra slots or wide pulses, and major bosses skip path markers again (T1). Obstacle steering stays on. The label shows which input enemies are reading.
+- **Code structure.**
+  - Input adaptation is a pure `stepInputAI`; wide-pulse admission is `dashPressureBlocker`, which returns a named reason. Both are table-tested.
+  - `steerEnemyVelocity` gathers nearby cover once per call; a test compares it with the previous algorithm over about 1,500 positions and layouts.
+  - New `DASH_INVULN_SECONDS`, `PLAYER_HIT_INVULN_SECONDS` and `baseGroundSpeed()` replace repeated literals.
+- **Desert art moved to `desertart.js`** (loaded after `gameui.js`) with its numbers in `DESERT_ART`. The drawing is unchanged; existing draw-call tests pass against the new file. The reduced-motion check is cached (`prefersReducedMotion()`) instead of calling `matchMedia` every frame, and the desert floor cache key no longer builds arrays each frame.
+- **Tests.** `tests/helpers/load.js` loads game source by marker or function name and throws when a marker is missing; every `indexOf`/`slice` site in the tests uses it. `tests/helpers/combat.js` shares the combat context. The Tulimshar TMX is documented as the unmodified fixture that the wall tile ids are checked against.
+
 ### Full map overhaul and map travel
 - **Map travel.** From a cleared room, the full map can send the player straight to any visited, cleared room reachable through open doors.
   - The route search is `mapTravelRoutes()` in `worldmanager.js`, a breadth-first search over `roomNeighbors()`. It walks open links and revealed secret walls, and never crosses locked doors or hostile rooms.
