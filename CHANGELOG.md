@@ -6,6 +6,22 @@ These entries were later ported onto upstream's module split (`gameui.js`, `mobm
 
 ## 2026-10-29
 
+### Consistent ambient animation in automatic low quality
+- Fixed intermittent-looking animation when automatic quality changed: cloth, flames and the menhir aura no longer freeze or reset their phase in low quality.
+- Low quality draws four lightweight moving sand wisps instead of hiding wind entirely. Expensive perimeter texture, glow and particle reductions remain; reduced-motion preferences still freeze ambient motion.
+- Added regressions for animation in both quality levels, phase continuity across quality changes and reduced-motion behavior.
+
+### Sandstone corners and natural pathways
+- Added explicit handed sandstone corner joins using the existing SoM atlas's curved/diagonal pieces, with wall-top ground beneath transparent artwork. Exact door clipping and collision geometry are unchanged.
+- Replaced the desert square paving hub/straight rectangular arms with deterministic bends, uneven widths, rounded junctions and worn 4px edges. Texture coordinates preserve the authored cobblestone motif; footprint exclusion follows the same mask.
+- Inspected Len's Whispers of Avalon path studies on The Mana World forum (post 110932, 17 August 2011) as layout references. No new artwork was imported; README and SoM credits document references and adaptations.
+- Added checks for source-backed corner pieces/layers, deterministic non-boxy geometry, connected door approaches at multiple room sizes, texture alignment and footprints along eroded edges.
+
+### Vertical castle wall correction
+- Replaced the remaining non-desert stacked horizontal facade blocks with the atlas's actual left/right vertical edge tiles, joined to separate top cap/corners and bottom cap/face/base courses verified in bundled TMX maps.
+- Removed repeated window stamps. Shared exact wall-band clipping preserves collision boundaries and only opens cleared, unlocked, revealed doorways, including non-grid room sizes.
+- Added source-backed rendering checks for vertical edges, cap courses and both renderers' doorway clipping. Existing TMW artwork/license attribution is retained; no input, AI or collision changes.
+
 ### Harder, input-aware enemy tactics
 - Enemy input profiles now follow active touch, gamepad or mouse/keyboard control, adapting after 2.5 seconds on a new input. Touch draws close-range physical jukes instead of artificial aim penalties; gamepads draw stronger flanking and staggered overlap; mouse/keyboard draws stronger committed prediction. Controller/input handlers and player aim are unchanged.
 - Calm mobs and bosses steer around cover while committed charges keep their direction. Ordinary attack cooldowns tick 12% faster; health, damage and existing weapon counters remain unchanged.
