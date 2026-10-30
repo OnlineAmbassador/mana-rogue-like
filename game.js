@@ -273,6 +273,19 @@ const gameMusic = {
   step: 0,
   nextBeat: 0,
 };
+const SETTINGS_STORAGE_KEY = 'mana-hollow-sanctum-settings';
+const gameSettings = (() => {
+  // adaptiveEnemies: enemies adapt to the active input method and use dash-check pulses (see BALANCE.md).
+  const defaults = { adaptiveEnemies: true };
+  try {
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || '{}');
+    return {
+      adaptiveEnemies: typeof stored.adaptiveEnemies === 'boolean' ? stored.adaptiveEnemies : defaults.adaptiveEnemies,
+    };
+  } catch (error) {
+    return defaults;
+  }
+})();
 const AUDIO_STORAGE_KEY = 'mana-hollow-sanctum-audio';
 const audioSettings = (() => {
   // volume = music, sfxVolume = shots/monsters, tts = null until the player is asked.
@@ -1844,8 +1857,7 @@ function update(dt) {
     player.lookY = moveY / moveLength;
   }
   const length = Math.hypot(moveX, moveY) || 1;
-  const groundSpeed = player.speed * curioMultiplier('speed') * (character?.className === 'Pilgrim' ? 1.12 : 1) *
-    (player.groundSlowTimer > 0 ? 0.55 : 1);
+  const groundSpeed = baseGroundSpeed() * (player.groundSlowTimer > 0 ? 0.55 : 1);
   player.moving = moveX !== 0 || moveY !== 0;
   dashCooldown = Math.max(0, dashCooldown - dt);
   weaponSwapCooldown = Math.max(0, weaponSwapCooldown - dt);

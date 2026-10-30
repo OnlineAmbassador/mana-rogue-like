@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { sliceText } = require('./helpers/load');
+const { sliceText, loadBetween } = require('./helpers/load');
 
 function presentation() {
   const calls = [];
@@ -691,12 +691,14 @@ test('wide pulse warns early and gives the dash cue inside the existing invulner
   const c = presentation();
   const source = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
   vm.runInContext(sliceText(source, 'function drawGroundHazards(', 'function withTextOutline(', 'source'), c);
+  loadBetween(c, 'mobmanager.js', 'const ADAPTIVE_AI_TUNING = {', '// Largest sideways component');
+  const cue = vm.runInContext('ADAPTIVE_AI_TUNING.pulse.dashCueSeconds', c);
   c.groundHazards = [];
-  c.bossStrikes = [{ x: 480, y: 270, radius: 300, duration: 1.1, timer: 0.8, damage: 2, dashCheck: true }];
+  c.bossStrikes = [{ x: 480, y: 270, radius: 300, duration: 1.1, timer: cue + 0.6, damage: 2, dashCheck: true }];
   c.drawGroundHazards();
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'WIDE PULSE - PREPARE TO DASH'));
   c.calls.length = 0;
-  c.bossStrikes[0].timer = 0.18;
+  c.bossStrikes[0].timer = cue - 0.02;
   c.drawGroundHazards();
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'DASH NOW'));
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'HEAVY - 2 HEARTS'));

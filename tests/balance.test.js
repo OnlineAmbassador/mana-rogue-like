@@ -843,13 +843,14 @@ test('touch favors close-range physical evasion, gamepads flanking, and keyboard
   assert.ok(profiles.touch.nearDodgeBonus > profiles.controller.nearDodgeBonus);
   assert.ok(profiles.controller.strafe > profiles.touch.strafe);
   assert.ok(profiles.controller.flankLead > profiles.touch.flankLead);
-  assert.ok(profiles.keyboard.shotLead > profiles.controller.shotLead);
+  assert.ok(profiles.keyboard.shotShare > profiles.controller.shotShare);
   assert.ok(profiles.touch.warning > profiles.keyboard.warning);
 });
 
 test('touch near-range dodges cause real misses without changing player shots or dodging point-blank hits', () => {
   const attempt = (distance, ahead = 100) => {
     const c = combat();
+    c.currentFloor = 2; // full input intensity; floor one applies half
     adoptInput(c, 'touch');
     c.Math.random = () => 0.4;
     c.player.x = 400 - distance;
@@ -876,6 +877,7 @@ test('touch near-range dodges cause real misses without changing player shots or
 
 test('gamepad pressure permits staggered overlap, never simultaneous windup starts', () => {
   const c = combat();
+  c.currentFloor = 2;
   adoptInput(c, 'controller');
   const first = { x: 450, y: 300, hp: 5, behavior: 'shoot-windup', attackCooldown: 2, attackSpacingTimer: 0.2 };
   const second = { x: 400, y: 300, hp: 5, behavior: 'hover', attackCooldown: -0.5 };
@@ -900,7 +902,11 @@ test('stronger input-specific ranged prediction is still locked throughout windu
   c.enemies.push(enemy);
   vm.runInContext('updateEnemyBehavior = (enemy) => { enemy.behavior = "shoot-windup"; };', c);
   c.updateEnemy(enemy, 0.016);
-  assert.equal(enemy.shotTarget.x, 336, 'floor-one keyboard lead is 0.3 seconds');
+  // R9/R5: floor one applies half the keyboard profile's share of the shot's flight time.
+  const tuning = peek(c, 'ADAPTIVE_AI_TUNING');
+  const flight = 200 / c.ordinaryShotSpeed(enemy);
+  const lead = tuning.profiles.keyboard.shotShare * tuning.floorOneRamp * flight;
+  assert.ok(Math.abs(enemy.shotTarget.x - (300 + 120 * lead)) < 1e-9, 'floor-one keyboard lead');
   const locked = JSON.stringify(enemy.shotTarget);
   c.player.y = 450;
   c.playerVelocity.y = 235;
@@ -951,6 +957,7 @@ test('obstacle steering ignores broken cover and never redirects committed lunge
 
 test('wide pulses are fixed, infrequent, require a ready dash, and do not overlap an attack', () => {
   const c = combat();
+  c.currentFloor = 2;
   adoptInput(c, 'touch');
   const enemy = { x: 500, y: 300, hp: 6, radius: 15, behavior: 'hover', attackCooldown: 0, phase: 1 };
   c.enemies.push(enemy);
@@ -980,6 +987,7 @@ test('wide pulses are fixed, infrequent, require a ready dash, and do not overla
 
 test('major bosses now use shared ranged pressure and reserve wide pulses for later phases', () => {
   const c = combat();
+  c.currentFloor = 2;
   const boss = { x: 700, y: 300, hp: 100, boss: true, phase: 1, radius: 40,
     behavior: 'jacko-idle', pressureCooldown: 0, smackCooldown: 10, speed: 150 };
   c.enemies.push(boss);
@@ -1014,6 +1022,7 @@ test('newly spawned boss pressure cannot start a signature or extra windup on th
 
 test('dash pressure waits for bursts, extra windups, hostile bombs, projectiles and nearby hazards to clear', () => {
   const c = combat();
+  c.currentFloor = 2;
   adoptInput(c, 'keyboard');
   c.updateInputAI(6);
   const enemy = { x: 500, y: 300, hp: 6, behavior: 'hover', attackCooldown: 0 };

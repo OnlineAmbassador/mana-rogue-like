@@ -2925,7 +2925,7 @@ function drawGroundHazards() {
       ctx.fillStyle = '#fff0d1';
       ctx.font = 'bold 16px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(strike.timer <= 0.2 ? 'DASH NOW' : 'WIDE PULSE - PREPARE TO DASH',
+      ctx.fillText(strike.timer <= ADAPTIVE_AI_TUNING.pulse.dashCueSeconds ? 'DASH NOW' : 'WIDE PULSE - PREPARE TO DASH',
         strike.x, strike.y - 28);
       if (strike.damage >= 2) {
         ctx.font = 'bold 12px Arial';
@@ -5857,7 +5857,7 @@ function tutorialPages() {
       ['Doors', 'A shut door is locked until the room is clear, or needs a key. An open door is free to use. Bombed entrances stay hidden until you find them.'],
       ['Enemies', 'Foes adapt to your input after about 2.5 seconds: touch draws close-range jukes, gamepads draw stronger flanking and staggered overlaps, and mouse/keyboard draws more predictive aim. Enemies steer around cover. Ranged windups show a locked aim line: change direction after they commit. Later floors also mix in mini boss moves.'],
       ['Bosses', 'Bosses have three distinct phases. Reaching a new phase restores up to TWO hearts. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses also mark your path and use wide pulses in later phases. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],
-      ['Wide pulses', `A large marked circle warns before the blast. Ordinary mobs can use it too. Leave the circle early, or press ${b('dash')} at DASH NOW to use your brief invulnerability. Dashing too early may leave you exposed. These checks only begin with Dash ready and no competing hostile shots or nearby ground hazards.`],
+      ['Wide pulses', `A large marked circle warns before the blast and is too wide to walk out of in time. Ordinary mobs can use it too. Press ${b('dash')} at DASH NOW to use your brief invulnerability. Dashing too early may leave you exposed. These checks only begin from the second floor, with Dash ready and no competing hostile shots or nearby ground hazards. They can be turned off with Adaptive enemies on the pause screen.`],
       ['Optional trials', 'Key-locked trial rooms are enemy-free mini-games: route light with mirrors, repeat a rune sequence, or chase moving sparks. Complete one for a collectible reward; an uncollected regional Codex appears most of the time.'],
     ] },
     { title: 'TIPS FOR A GOOD RUN', sections: [
