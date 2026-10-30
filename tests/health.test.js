@@ -278,11 +278,44 @@ test('aligning trial mirrors clears the room and guarantees a collectible reward
     c.player.y = mirror.y;
     c.interact();
   }
+  assert.equal(c.currentRoom.trialCompleted, false);
+  c.updateRewardTrial(0.5);
+  assert.equal(c.currentRoom.trialCompleted, false);
+  c.updateRewardTrial(0.6);
   assert.equal(c.currentRoom.trialCompleted, true);
   assert.equal(c.currentRoom.cleared, true);
   assert.equal(c.currentRoom.trialRewardSpawned, true);
   assert.ok(c.pickups.length > 0);
   assert.ok(c.orbitGuardChargeUps > 0);
+});
+
+test('mirror trials always start at least two lenses from solved', () => {
+  const c = combat();
+  c.ROOM_W = 960;
+  c.ROOM_H = 540;
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const room = { type: 'trial', trialMode: 'mirror', trialBranch: attempt % 2 ? 1 : -1 };
+    c.initializeRewardTrial(room);
+    const wrong = c.rewardTrialMirrors(room)
+      .filter((mirror) => mirror.orientation !== mirror.solution).length;
+    assert.ok(wrong >= 2, `only ${wrong} lens(es) wrong`);
+  }
+});
+
+test('turning a single lens never clears a freshly generated mirror trial', () => {
+  const c = combat();
+  c.ROOM_W = 960;
+  c.ROOM_H = 540;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    c.currentRoom = { type: 'trial', trialMode: 'mirror', trialBranch: attempt % 2 ? 1 : -1 };
+    c.initializeRewardTrial(c.currentRoom);
+    const mirror = c.rewardTrialMirrors()[attempt % 3];
+    c.player.x = mirror.x;
+    c.player.y = mirror.y;
+    c.interact();
+    c.updateRewardTrial(5);
+    assert.notEqual(c.currentRoom.trialCompleted, true);
+  }
 });
 
 test('memory and moving-spark trials initialize randomized, persistent layouts', () => {

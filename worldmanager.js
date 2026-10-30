@@ -1263,15 +1263,16 @@ function interact(withdrawFromBank = false) {
   if (mode !== 'playing') return;
   if (currentRoom.type === 'trial' && !currentRoom.trialCompleted) {
     if (currentRoom.trialMode === 'mirror') {
+      if (rewardTrialMirrorsSolved()) return;
       const mirror = nearestRewardTrialMirror();
       if (!mirror) {
         showMessage('Approach a lens and interact to rotate it.', 1.5);
         return;
       }
       currentRoom.trialMirrors[mirror.index] = mirror.orientation === '/' ? '\\' : '/';
-      if (rewardTrialMirrors().every((facet) => facet.orientation === facet.solution)) {
-        completeRewardTrial(rewardTrialReceiver());
-      } else showMessage('Facet turned. Follow the reflected light to the receiver.', 1.4);
+      showMessage(rewardTrialMirrorsSolved()
+        ? 'The receiver lights.'
+        : 'Facet turned. Follow the reflected light to the receiver.', 1.4);
       updateHud();
       saveRunState();
       return;
@@ -1528,6 +1529,14 @@ function elementalShrinePosition() {
   return { x: ROOM_W / 2, y: ROOM_H / 2 };
 }
 
+function rewardTrialSolution(branch) {
+  return [
+    branch > 0 ? '\\' : '/',
+    branch > 0 ? '\\' : '/',
+    branch > 0 ? '/' : '\\',
+  ];
+}
+
 function initializeRewardTrial(room) {
   if (room.trialBranch !== -1 && room.trialBranch !== 1) {
     room.trialBranch = Math.random() < 0.5 ? -1 : 1;
@@ -1538,15 +1547,16 @@ function initializeRewardTrial(room) {
   }
   if (!Array.isArray(room.trialMirrors) || room.trialMirrors.length !== 3 ||
       room.trialMirrors.some((orientation) => orientation !== '/' && orientation !== '\\')) {
-    const branch = room.trialBranch;
-    const solution = [
-      branch > 0 ? '\\' : '/',
-      branch > 0 ? '\\' : '/',
-      branch > 0 ? '/' : '\\',
-    ];
+    const solution = rewardTrialSolution(room.trialBranch);
     room.trialMirrors = solution.map(() => Math.random() < 0.5 ? '/' : '\\');
-    if (room.trialMirrors.every((orientation, index) => orientation === solution[index])) {
-      room.trialMirrors[0] = room.trialMirrors[0] === '/' ? '\\' : '/';
+    // Start at least two lenses from solved so one turn can never finish the trial.
+    for (;;) {
+      const correct = room.trialMirrors
+        .map((orientation, index) => orientation === solution[index] ? index : -1)
+        .filter((index) => index >= 0);
+      if (correct.length <= solution.length - 2) break;
+      const index = correct[Math.floor(Math.random() * correct.length)];
+      room.trialMirrors[index] = room.trialMirrors[index] === '/' ? '\\' : '/';
     }
   }
   const nodeCount = room.trialMode === 'memory' ? 5 : room.trialMode === 'relay' ? 3 : 0;
@@ -1582,11 +1592,7 @@ function rewardTrialMirrors(room = currentRoom) {
   initializeRewardTrial(room);
   const branch = room.trialBranch === 1 ? 1 : -1;
   const y = ROOM_H / 2 + branch * ROOM_H * 0.23;
-  const solution = [
-    branch > 0 ? '\\' : '/',
-    branch > 0 ? '\\' : '/',
-    branch > 0 ? '/' : '\\',
-  ];
+  const solution = rewardTrialSolution(branch);
   return [
     { x: ROOM_W * 0.28, y: ROOM_H / 2 },
     { x: ROOM_W * 0.28, y },
@@ -1605,6 +1611,10 @@ function rewardTrialSource() {
 
 function rewardTrialReceiver() {
   return { x: ROOM_W * 0.68, y: ROOM_H / 2 };
+}
+
+function rewardTrialMirrorsSolved() {
+  return rewardTrialMirrors().every((facet) => facet.orientation === facet.solution);
 }
 
 function nearestRewardTrialMirror() {
@@ -1651,7 +1661,26 @@ function nearestRewardTrialNode() {
   return node;
 }
 
+const REWARD_TRIAL_SOLVE_HOLD = 1;
+
 function updateRewardTrial(dt) {
+  if (currentRoom?.type === 'trial' && currentRoom.trialMode === 'mirror' &&
+      !currentRoom.trialCompleted) {
+    // Hold the lit beam briefly so the player sees the solution land before the room clears.
+    if (!rewardTrialMirrorsSolved()) currentRoom.trialSolveHold = 0;
+    else {
+      currentRoom.trialSolveHold = (currentRoom.trialSolveHold || 0) + dt;
+      if (currentRoom.trialSolveHold >= REWARD_TRIAL_SOLVE_HOLD) {
+        completeRewardTrial(rewardTrialReceiver());
+        if (!currentRoom.trialCompleted) {
+          // Earlier chamber unfinished: knock a lens out of line so the player can retry later.
+          currentRoom.trialMirrors[0] = currentRoom.trialMirrors[0] === '/' ? '\\' : '/';
+          currentRoom.trialSolveHold = 0;
+        }
+      }
+    }
+    return;
+  }
   if (currentRoom?.type !== 'trial' || currentRoom.trialMode !== 'relay' ||
       currentRoom.trialCompleted) return;
   currentRoom.trialTime += dt;

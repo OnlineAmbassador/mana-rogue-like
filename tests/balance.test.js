@@ -667,11 +667,11 @@ test('generated floors include three extra dead ends, optional elemental shrines
     }
     assert.ok([-1, 1].includes(trials[0].trialBranch));
     assert.equal(trials[0].trialMirrors.length, 3);
-    assert.ok(trials[0].trialMirrors.some((orientation, index) => {
+    assert.ok(trials[0].trialMirrors.filter((orientation, index) => {
       const branch = trials[0].trialBranch;
       const solutions = [branch > 0 ? '\\' : '/', branch > 0 ? '\\' : '/', branch > 0 ? '/' : '\\'];
       return orientation !== solutions[index];
-    }));
+    }).length >= 2);
     assert.ok(c.keysHeld >= 1);
   }
   assert.equal(observedShrine, true);
