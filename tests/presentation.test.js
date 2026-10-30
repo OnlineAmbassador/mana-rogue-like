@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText } = require('./helpers/load');
 
 function presentation() {
   const calls = [];
@@ -50,10 +51,8 @@ function presentation() {
     keysHeld: 0,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
-  vm.runInContext(source.slice(source.indexOf('function drawManaPanel('),
-    source.indexOf('function drawPlayerMagicMark(')), c);
-  vm.runInContext(source.slice(source.indexOf('function drawSoulMenhir('),
-    source.indexOf('function drawRewardTrial(')), c);
+  vm.runInContext(sliceText(source, 'function drawManaPanel(', 'function drawPlayerMagicMark(', 'source'), c);
+  vm.runInContext(sliceText(source, 'function drawSoulMenhir(', 'function drawRewardTrial(', 'source'), c);
   return c;
 }
 
@@ -65,7 +64,7 @@ function productionTerrain(c) {
   c.desertGroundTiles = c.loadAsset('tilesets/desert2.png');
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.terrainTiles = vm.runInContext(`(() => {
-    ${game.slice(game.indexOf('const terrainTiles ='), game.indexOf('const terrainBackgroundCache'))}
+    ${sliceText(game, 'const terrainTiles =', 'const terrainBackgroundCache', 'game')}
     return terrainTiles;
   })()`, c);
 }
@@ -691,8 +690,7 @@ test('footprints follow the eroded paving silhouette rather than its enclosing t
 test('wide pulse warns early and gives the dash cue inside the existing invulnerability window', () => {
   const c = presentation();
   const source = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
-  vm.runInContext(source.slice(source.indexOf('function drawGroundHazards('),
-    source.indexOf('function withTextOutline(')), c);
+  vm.runInContext(sliceText(source, 'function drawGroundHazards(', 'function withTextOutline(', 'source'), c);
   c.groundHazards = [];
   c.bossStrikes = [{ x: 480, y: 270, radius: 300, duration: 1.1, timer: 0.8, damage: 2, dashCheck: true }];
   c.drawGroundHazards();

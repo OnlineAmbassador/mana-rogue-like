@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText } = require('./helpers/load');
 
 function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {}) {
   const classes = new Set();
@@ -34,7 +35,7 @@ function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {
     resizeCanvas() {}, VIEW_W: 960, VIEW_H: 540,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  vm.runInContext(source.slice(source.indexOf('function isTouchDevice()'), source.indexOf("let mode = 'prologue'")), context);
+  vm.runInContext(sliceText(source, 'function isTouchDevice()', "let mode = 'prologue'", 'source'), context);
   return context;
 }
 
@@ -141,9 +142,7 @@ test('keyboard and mouse mode aims from the cursor even while buttons are releas
     attackOriginY: () => 100,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  const start = source.indexOf('function currentAimAngle()');
-  const end = source.indexOf('function updateTouchAimFacing()', start);
-  vm.runInContext(source.slice(start, end), context);
+  vm.runInContext(sliceText(source, 'function currentAimAngle()', 'function updateTouchAimFacing()', 'source'), context);
   assert.equal(context.currentAimAngle(), 0);
 });
 
@@ -157,9 +156,7 @@ test('controller mode always aims from the right stick, not cursor or movement f
     attackOriginY: () => 100,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  const start = source.indexOf('function attackOriginY()');
-  const end = source.indexOf('function updateTouchAimFacing()', start);
-  vm.runInContext(source.slice(start, end), context);
+  vm.runInContext(sliceText(source, 'function attackOriginY()', 'function updateTouchAimFacing()', 'source'), context);
   assert.equal(context.currentAimAngle(), Math.PI / 2);
 });
 
@@ -245,9 +242,7 @@ test('touch overlays stay out of menus and release held inputs', () => {
 test('keyboard movement does not override the mouse-selected facing direction', () => {
   const { context } = touchHarness();
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  const start = source.indexOf('function shouldKeyboardMovementSetFacing');
-  const end = source.indexOf('function update(dt)', start);
-  vm.runInContext(source.slice(start, end), context);
+  vm.runInContext(sliceText(source, 'function shouldKeyboardMovementSetFacing', 'function update(dt)', 'source'), context);
   context.lastInputMode = 'keyboard';
   Object.assign(context.gamepadInput, { dpadFacing: false, aimActive: false, shoot: false });
   context.pointer = { down: false };
@@ -274,9 +269,7 @@ function facingHoldContext() {
     touchInput: { attack: false, aimActive: false },
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  const start = source.indexOf('function shouldKeyboardMovementSetFacing');
-  const end = source.indexOf('function update(dt)', start);
-  vm.runInContext(source.slice(start, end), context);
+  vm.runInContext(sliceText(source, 'function shouldKeyboardMovementSetFacing', 'function update(dt)', 'source'), context);
   return context;
 }
 
@@ -339,12 +332,8 @@ test('mouse movement updates player facing toward the pointer before firing', ()
   context.updateControlsHint = () => {};
   context.ttsPromptActive = () => false;
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  const start = source.indexOf('function updatePointerPosition(event)');
-  const end = source.indexOf("canvas.addEventListener('pointermove'", start);
-  vm.runInContext(source.slice(start, end), context);
-  const facingStart = source.indexOf('function shouldKeyboardMovementSetFacing');
-  const facingEnd = source.indexOf('function update(dt)', facingStart);
-  vm.runInContext(source.slice(facingStart, facingEnd), context);
+  vm.runInContext(sliceText(source, 'function updatePointerPosition(event)', "canvas.addEventListener('pointermove'", 'source'), context);
+  vm.runInContext(sliceText(source, 'function shouldKeyboardMovementSetFacing', 'function update(dt)', 'source'), context);
 
   context.updatePointerPosition({ pointerType: 'mouse', clientX: 120, clientY: 260 });
   assert.equal(context.lastInputMode, 'touch');
@@ -369,9 +358,7 @@ function touchAimContext() {
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  const start = source.indexOf('function attackOriginY()');
-  const end = source.indexOf('function meleeInputHeld()', start);
-  vm.runInContext(source.slice(start, end), context);
+  vm.runInContext(sliceText(source, 'function attackOriginY()', 'function meleeInputHeld()', 'source'), context);
   return context;
 }
 
@@ -427,9 +414,7 @@ test('touch attack aim sets facing while touch movement alone does not', () => {
     currentAimAngle: () => 0,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  const start = source.indexOf('function updateTouchAimFacing()');
-  const end = source.indexOf('function meleeInputHeld()', start);
-  vm.runInContext(source.slice(start, end), context);
+  vm.runInContext(sliceText(source, 'function updateTouchAimFacing()', 'function meleeInputHeld()', 'source'), context);
   context.updateTouchAimFacing();
   assert.equal(context.player.lookX, 1);
   assert.equal(context.player.lookY, 0);
@@ -499,8 +484,7 @@ test('touch drag and release keep enemy-free aim aligned with the last shot', ()
     enemies: [], lastInputMode: 'touch',
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  vm.runInContext(source.slice(source.indexOf('function attackOriginY()'),
-    source.indexOf('function meleeInputHeld()')), context);
+  vm.runInContext(sliceText(source, 'function attackOriginY()', 'function meleeInputHeld()', 'source'), context);
   const aim = elements.get('touch-aim-zone');
   aim.fire('pointerdown', 1, 200, 50);
   assert.equal(context.currentAimAngle(), -Math.PI / 2);

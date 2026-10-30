@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText } = require('./helpers/load');
 
 function combat() {
   const c = vm.createContext({
@@ -242,9 +243,7 @@ test('firing direction is independent of player movement velocity', () => {
     playerVelocity: { x: 0, y: 300 },
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  const start = source.indexOf('function attackOriginY()');
-  const end = source.indexOf('function updateTouchAimFacing()', start);
-  vm.runInContext(source.slice(start, end), c);
+  vm.runInContext(sliceText(source, 'function attackOriginY()', 'function updateTouchAimFacing()', 'source'), c);
   assert.equal(c.currentAimAngle(), 0);
   c.playerVelocity = { x: -300, y: 0 };
   assert.equal(c.currentAimAngle(), 0);

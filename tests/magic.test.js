@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { sliceText } = require('./helpers/load');
 
 function combat() {
   const c = vm.createContext({
@@ -19,7 +20,7 @@ function combat() {
     destination: { x: 600, y: 300 },
   });
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  vm.runInContext(game.slice(game.indexOf('const magicElementPalette ='), game.indexOf('let hitStopTimer =')), c);
+  vm.runInContext(sliceText(game, 'const magicElementPalette =', 'let hitStopTimer =', 'game'), c);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8'), c);
   vm.runInContext(`
     damageEnemy = (enemy, damage, x, y, ignore, stop) => {
@@ -59,7 +60,7 @@ test('new Mage runs can start with each element; other classes keep water until 
   const c = combat();
   const elements = ['bubble', 'fire', 'lightning', 'gas', 'spore', 'ice', 'wind', 'earth'];
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  const init = game.slice(game.indexOf('  ownedItems.clear();'), game.indexOf('  combatStyles.clear();'));
+  const init = sliceText(game, '  ownedItems.clear();', '  combatStyles.clear();', 'game');
   for (const [index, element] of elements.entries()) {
     c.Math.random = () => (index + 0.5) / elements.length;
     c.entry = { className: 'Mage' };
@@ -140,7 +141,7 @@ test('saved random elements restore without requiring an owned element sigil', (
   c.saved = { magicElements: ['bubble', 'ice', 'not-an-element'], activeMagicElement: 'ice' };
   c.shopItemCatalog = [];
   const db = fs.readFileSync(path.join(__dirname, '..', 'dbmanager.js'), 'utf8');
-  vm.runInContext(db.slice(db.indexOf('  magicElements.clear();'), db.indexOf('  combatStyles.clear();')), c);
+  vm.runInContext(sliceText(db, '  magicElements.clear();', '  combatStyles.clear();', 'db'), c);
   assert.equal(c.activeMagicElement, 'ice');
   assert.equal(c.magicElements.has('not-an-element'), false);
 });
@@ -410,8 +411,7 @@ test('actual projectile loop triggers enemy and object wild impacts without chan
       resolveElementalImpact = (projectile, target) => { target.hp -= projectile.damage; };
     `, c);
     const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-    vm.runInContext(game.slice(game.indexOf('  for (let i = projectiles.length - 1;'),
-      game.indexOf('  for (let i = enemyProjectiles.length - 1;')), c);
+    vm.runInContext(sliceText(game, '  for (let i = projectiles.length - 1;', '  for (let i = enemyProjectiles.length - 1;', 'game'), c);
     assert.ok(target.manaRotTimer > 0, surface);
     assert.equal(target.hp, surface === 'enemy' ? 16 : 20);
     assert.equal(c.projectiles.length, 0);

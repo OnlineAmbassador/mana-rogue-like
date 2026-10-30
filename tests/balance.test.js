@@ -3,62 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-
-const source = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-
-function combat() {
-  const c = vm.createContext({
-    Math: Object.assign(Object.create(Math), { random: () => 0.05 }),
-    mode: 'playing', lastInputMode: 'keyboard', currentFloor: 1, elapsed: 10, performance,
-    save: { unlockedCharacters: [], playtimeSeconds: 0 },
-    player: { x: 300, y: 300, lookX: 1, lookY: 0, radius: 12, speed: 235, invuln: 0, damage: 1, luck: 0 },
-    weapon: { damageBonus: 0, shotDamageMultiplier: (2 / 3) / 0.23,
-      fireDelay: 2 / 3, shotCount: 1, rangeLevel: 0 },
-    character: { className: 'Mage', raceHead: 'humanMale', startingStyle: 'magic', fireDelay: 0.23 },
-    meleeWeapons: new Set(['hands']), combatStyles: new Set(['magic', 'bow', 'melee']),
-    ownedItems: new Set(), shopItemCatalog: [
-      { id: 'mana-tonic', name: 'Mana Tonic', kind: 'consumable' },
-      { id: 'bomb-bundle', name: 'Bomb Bundle', kind: 'consumable' },
-    ],
-    enemies: [], enemyProjectiles: [], projectiles: [], bombs: [], breakables: [], pickups: [],
-    consumables: [], bossStrikes: [], groundHazards: [], laserBeams: [], sporePods: [], playerStillTimer: 0,
-    playerVelocity: { x: 0, y: 0 }, hitStopTimer: 0,
-    ROOM_W: 960, ROOM_H: 540, ROOM_WALL_THICKNESS: 24, WALL_COLLISION_PADDING: 4,
-    dashCooldown: 0, dashTimer: 0,
-    FIRE_RATE_SCALE: 0.82, MELEE_BASE_SCALE: 2.6,
-    MAX_PLAYER_PROJECTILES: 100, currentRoom: {},
-    magicElements: new Set(['bubble']), activeMagicElement: 'bubble',
-    fireModes: { melee: 'rapid', bow: 'rapid', magic: 'rapid' }, activeCombatStyle: 'magic',
-    runOfferedAbilityIds: new Set(),
-    pointer: { down: false }, touchInput: {}, attackMorphs: {}, companions: [],
-    MAX_PLAYER_VOLLEY: 16, MAX_CHARGE_SHOTS: 8, BOW_TAP_WINDOW: 0.15, BOW_CHARGE_TIME: 1,
-    combatPalette: { melee: '#fff' },
-    calmBossStates: new Set(['jacko-idle']), calmMobBehaviors: new Set(['hover', 'crawl', 'patrol']),
-    clamp: (v, min, max) => Math.min(max, Math.max(min, v)),
-    distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
-    hasLineOfSight: () => true,
-    damageCalls: [], moves: [], bossExtraMoves: {},
-  });
-  const game = source('game.js');
-  const phaseStart = game.indexOf('const bossPhaseAttackSets =');
-  vm.runInContext(game.slice(phaseStart, game.indexOf('let ROOM_W =', phaseStart)), c);
-  const enemyUnlockStart = game.indexOf('const enemyUnlockAtSeconds =');
-  vm.runInContext(game.slice(enemyUnlockStart, game.indexOf('let enemyLinkSequence =', enemyUnlockStart)), c);
-  vm.runInContext(game.slice(game.indexOf('const magicElementPalette ='), game.indexOf('let hitStopTimer =')), c);
-  vm.runInContext(game.slice(game.indexOf('const classProfiles ='), game.indexOf('// Every weapon style')), c);
-  for (const file of ['playermanager.js', 'mobmanager.js', 'worldmanager.js']) vm.runInContext(source(file), c);
-  c.moveEnemyWithCollision = c.moveEnemy;
-  vm.runInContext(`
-    recordEnemyDiscovery = recordEnemyAbilityDiscovery = addParticles = playSound = showMessage = updateHud = () => {};
-    curioMultiplier = () => 1;
-    damagePlayer = (amount) => damageCalls.push(amount);
-    moveEnemy = (enemy, vx, vy) => moves.push({vx, vy});
-    triggerCameraShake = playEnemyAttackSound = () => {};
-    currentAimAngle = () => 0;
-    meleeChargeTime = () => 0.9;
-  `, c);
-  return c;
-}
+const { sliceText } = require('./helpers/load');
+const { combat, source } = require('./helpers/combat');
 
 test('ordinary and newly added TMW enemy health increases each floor without tracking damage upgrades', () => {
   const c = combat();
@@ -207,8 +153,7 @@ test('touch bow and magic projectiles use manual aim or facing only when no live
     for (const charged of [false, true]) {
       const c = combat();
       const playerSource = source('playermanager.js');
-      vm.runInContext(playerSource.slice(playerSource.indexOf('function attackOriginY()'),
-        playerSource.indexOf('function updateTouchAimFacing()')), c);
+      vm.runInContext(sliceText(playerSource, 'function attackOriginY()', 'function updateTouchAimFacing()', 'playerSource'), c);
       Object.assign(c, { lastInputMode: 'touch', activeCombatStyle: style });
       Object.assign(c.weapon, { projectileSpeed: 480, rangeMultiplier: 1, tearSize: 1 });
       Object.assign(c.player, { lookX: -1, lookY: 0 });
@@ -539,8 +484,7 @@ test('real player and enemy projectile loops push bombs and remove the impacting
   c.projectiles.push({ x: 350, y: 300, vx: 500, vy: 0, radius: 4, ttl: 1, trailTimer: 1 });
   c.enemyProjectiles.push({ x: 350, y: 300, vx: 0, vy: 500, radius: 4, ttl: 1 });
   const game = source('game.js');
-  const loops = game.slice(game.indexOf('  for (let i = projectiles.length - 1;'),
-    game.indexOf('  updateParticles(dt);'));
+  const loops = sliceText(game, '  for (let i = projectiles.length - 1;', '  updateParticles(dt);', 'game');
   vm.runInContext(loops, c);
   assert.equal(c.projectiles.length, 0);
   assert.equal(c.enemyProjectiles.length, 0);
@@ -555,9 +499,7 @@ test('particle updates compact expired effects in one pass and preserve live par
     { x: 20, y: 20, vx: -10, vy: 0, ttl: 0.01 },
   ] });
   const game = source('game.js');
-  const start = game.indexOf('function updateParticles(dt)');
-  const end = game.indexOf('function update(dt)', start);
-  vm.runInContext(game.slice(start, end), c);
+  vm.runInContext(sliceText(game, 'function updateParticles(dt)', 'function update(dt)', 'game'), c);
   vm.runInContext('updateParticles(0.02)', c);
   assert.equal(c.particles.length, 1);
   assert.equal(c.particles[0].x, 10);
@@ -757,7 +699,7 @@ test('Yeti-style wind gusts carry a visible directional warning for the knockbac
 });
 
 // Top-level let/const in the manager scripts are not context properties, so read and write them through the VM.
-const peek = (c, expression) => vm.runInContext(expression, c);
+const { peek } = require('./helpers/combat');
 const setDominant = (c, style) => vm.runInContext(`dominantAIStyle = ${JSON.stringify(style)};`, c);
 
 test('mob AI follows the style the player relies on, with hysteresis against quick swaps', () => {
