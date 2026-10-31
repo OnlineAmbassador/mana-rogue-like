@@ -51,7 +51,7 @@ test('rebalanced boss health targets at least 56 seconds of estimated sustained 
 test('a charge-mode unlock applies to every selectable weapon style', () => {
   const c = combat();
   c.Math.random = () => 0.01;
-  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'skill' }), 'charge');
+  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'weapon' }), 'charge');
   assert.deepEqual({ ...c.fireModes }, { melee: 'charge', bow: 'charge', magic: 'charge' });
 });
 
@@ -59,7 +59,7 @@ test('charge mode is a one-time five-percent discovery and is never rerolled aft
   const c = combat();
   const rolls = [0.05, 0.8, 0.01];
   c.Math.random = () => rolls.shift() ?? 0.8;
-  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'skill' }), 'rapid');
+  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'weapon' }), 'rapid');
   assert.deepEqual({ ...c.fireModes }, { melee: 'rapid', bow: 'rapid', magic: 'rapid' });
   assert.equal(c.applyRandomFireMode({ style: 'bow', kind: 'weapon' }), 'charge');
   assert.deepEqual({ ...c.fireModes }, { melee: 'charge', bow: 'charge', magic: 'charge' });
@@ -195,25 +195,21 @@ test('a fully charged magic shot is large, explosive, and more damaging', () => 
   assert.equal(shot.explode, 54);
 });
 
-test('the Guardian Heart is a boss-room-only collectible that improves maximum and current health', () => {
+test('every guardian drops a Lifestone, which is never a normal reward and never counts as owned', () => {
   const c = combat();
-  c.BASE_HEARTS = 4;
-  c.MAX_EXTRA_HEARTS = 9;
   c.shopItemIconImages = {};
-  c.shopItemCatalog = [{ id: 'guardian-heart', name: 'Guardian Heart', kind: 'boss-relic' }];
+  const lifestone = { id: 'lifestone', name: 'Lifestone', kind: 'boss-relic' };
+  c.shopItemCatalog = [lifestone];
   c.spawnCoin = () => false;
-  c.dropLoot(400, 300, true);
-  assert.equal(c.pickups.filter((pickup) => pickup.item?.id === 'guardian-heart').length, 1);
+  for (let boss = 0; boss < 3; boss += 1) {
+    c.pickups.length = 0;
+    c.dropLoot(400, 300, true);
+    assert.equal(c.pickups.filter((pickup) => pickup.item?.id === 'lifestone').length, 1);
+  }
   c.pickups.length = 0;
   c.dropLoot(400, 300, false);
-  assert.equal(c.pickups.some((pickup) => pickup.item?.id === 'guardian-heart'), false);
-  Object.assign(c.player, { maxHp: 8, hp: 2 });
-  c.recordItemDiscovery = c.updateHud = c.showMessage = c.showPickupBanner = c.popOverPlayer = () => {};
-  assert.equal(c.grantUpgrade({ id: 'guardian-heart', name: 'Guardian Heart', kind: 'boss-relic' }), true);
-  assert.equal(c.player.maxHp, 10);
-  assert.equal(c.player.hp, 4);
-  assert.equal(c.ownedItems.has('guardian-heart'), true);
-  assert.equal(c.isUpgradeAvailable({ id: 'guardian-heart', kind: 'boss-relic' }), false);
+  assert.equal(c.pickups.some((pickup) => pickup.item?.id === 'lifestone'), false);
+  assert.equal(c.isUpgradeAvailable(lifestone), false);
 });
 
 test('baseline real sword, arrow, and magic attacks need over 40 seconds of uninterrupted hits', () => {

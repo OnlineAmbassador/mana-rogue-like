@@ -112,7 +112,7 @@ function handleAudioPanelPad(horizontal, confirmPressed) {
   return true;
 }
 
-// Pause-screen switch for input-adaptive enemy tactics (see BALANCE.md).
+// Pause-screen switch for input-adaptive enemy tactics (see docs/BALANCE.md).
 function adaptiveToggleBounds() {
   return { x: 24, y: ttsButtonBounds().y + (NARRATION_ENABLED ? 32 : 0), width: 190, height: 22 };
 }
@@ -235,6 +235,49 @@ function loadAsset(path, root = assetRoot) {
     messageEl.textContent = `Could not load artwork: ${root}/${path}`;
   };
   return image;
+}
+
+// Maps the grey pixels of a TMW icon onto a gradient of evenly spaced colors, as the TMW client does for the
+// `|W:` dye of an item. Coloured and transparent pixels are left alone.
+function dyeGreyPixels(data, stops) {
+  const colors = stops.map((stop) => {
+    const hex = stop.replace('#', '');
+    return [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+  });
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index + 3] === 0 || data[index] !== data[index + 1] || data[index + 1] !== data[index + 2]) continue;
+    const position = (data[index] / 255) * (colors.length - 1);
+    const segment = Math.min(colors.length - 2, Math.floor(position));
+    const blend = position - segment;
+    for (let channel = 0; channel < 3; channel += 1) {
+      data[index + channel] = Math.round(colors[segment][channel] +
+        (colors[segment + 1][channel] - colors[segment][channel]) * blend);
+    }
+  }
+  return data;
+}
+
+// The PNG on disk stays unmodified; the dyed copy is made once the source has loaded. Browsers that block pixel
+// readback for local files keep the grey icon.
+function loadDyedAsset(path, stops, root = assetRoot) {
+  const dyed = new Image();
+  const source = loadAsset(path, root);
+  source.addEventListener('load', () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = source.naturalWidth;
+      canvas.height = source.naturalHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(source, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      dyeGreyPixels(pixels.data, stops);
+      context.putImageData(pixels, 0, 0);
+      dyed.src = canvas.toDataURL();
+    } catch {
+      dyed.src = source.src;
+    }
+  });
+  return dyed;
 }
 
 function soundUrl(path) {
@@ -864,7 +907,9 @@ function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
 function drawPauseEquipment() {
   const equipped = shopItemCatalog.filter((item) => ownedItems.has(item.id));
   const supplies = consumables.filter((item) => item.count > 0);
-  const items = [...equipped, ...supplies];
+  const carried = Object.keys(materialCatalog).filter((key) => materials[key] > 0)
+    .map((key) => ({ id: materialCatalog[key].id, name: materialCatalog[key].name, count: materials[key] }));
+  const items = [...equipped, ...supplies, ...carried];
   const panel = { x: 104, y: 400, width: VIEW_W - 208, height: VIEW_H - 412 };
   const gridWidth = panel.width - 24;
   const gridHeight = panel.height - 38;
@@ -877,7 +922,8 @@ function drawPauseEquipment() {
   ctx.textBaseline = 'alphabetic';
   ctx.font = 'bold 12px Georgia';
   ctx.fillStyle = '#e9d39f';
-  let label = `Inventory  /  Equipped ${equipped.length}  /  Supplies ${supplies.length}`;
+  let label = `Inventory  /  Equipped ${equipped.length}  /  Supplies ${supplies.length}` +
+    (carried.length ? `  /  Materials ${carried.reduce((total, stack) => total + stack.count, 0)}` : '');
   items.forEach((item, index) => {
     const x = panel.x + 12 + (index % columns) * cell;
     const y = panel.y + 32 + Math.floor(index / columns) * cell;
@@ -2974,54 +3020,7 @@ function drawWorld() {
     ctx.textAlign = 'center';
     ctx.fillText('DESCEND', ROOM_W * 0.72, ROOM_H / 2 - 18);
   }
-  if (currentRoom.type === 'shop') {
-    drawHumanoid(humanoidSprites.neutral.image, 0, ROOM_W / 2, ROOM_H / 2, 1.35, 40);
-    drawHead('keeper', 'down', ROOM_W / 2, ROOM_H / 2, 1.35);
-    ctx.fillStyle = '#f2e5c6';
-    ctx.font = 'bold 13px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('MERCHANT', ROOM_W / 2, ROOM_H / 2 - 28);
-    ctx.fillStyle = '#d3c4a6';
-    ctx.font = '12px Arial';
-    ctx.fillText('Stand by an item and press E to buy', ROOM_W / 2, ROOM_H / 2 + 43);
-    ctx.fillStyle = '#ab8058';
-    ctx.fillRect(ROOM_W / 2 - 34, ROOM_H / 2 + 18, 68, 11);
-    const stock = currentRoom.shopStock || [];
-    stock.forEach((item, index) => {
-      const spot = shopPedestalPosition(index);
-      const x = spot.x - 105;
-      const y = spot.y + 30;
-      ctx.fillStyle = item.purchased ? 'rgba(63, 77, 63, 0.92)' : 'rgba(25, 22, 29, 0.94)';
-      ctx.fillRect(x, y, 210, 64);
-      ctx.strokeStyle = item.purchased ? '#77936a' : '#b79664';
-      ctx.strokeRect(x, y, 210, 64);
-      ctx.save();
-      ctx.globalAlpha = item.purchased ? 0.4 : 1;
-      ctx.fillStyle = 'rgba(16, 14, 19, 0.55)';
-      ctx.strokeStyle = coins >= item.cost || item.purchased ? '#d9bd83' : '#9a6666';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(spot.x, spot.y, 30, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      drawShopItemIcon(item, spot.x, spot.y);
-      ctx.restore();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = item.purchased ? '#9bb38e' : '#f2dfa9';
-      ctx.font = 'bold 12px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`${item.name} · ${item.cost}z`, x + 12, y + 24, 186);
-      ctx.fillStyle = '#d4c7ae';
-      ctx.font = '10px Arial';
-      ctx.fillText(item.purchased ? 'SOLD' : item.description, x + 12, y + 43, 186);
-      ctx.textAlign = 'center';
-      if (nearestShopSlot() === index) {
-        ctx.fillStyle = '#fff0a8';
-        ctx.font = 'bold 13px Arial';
-        ctx.fillText('[E] BUY', spot.x, spot.y - 40);
-      }
-    });
-  }
+  if (currentRoom.type === 'shop') drawShopRoom();
   if (hasVault(currentRoom)) {
     ctx.fillStyle = '#f4d78e';
     ctx.font = 'bold 18px Georgia';
@@ -3268,6 +3267,25 @@ function drawWorld() {
         ctx.drawImage(icon, pickup.x - 12, pickup.y - 12, 24, 24);
       } else {
         ctx.fillRect(pickup.x - 7, pickup.y - 9, 14, 18);
+      }
+      ctx.restore();
+    } else if (pickup.kind === 'material' && materialCatalog[pickup.material]) {
+      // A small shadow and soft glow keep a dull grey-brown ore readable on every floor tile.
+      const icon = shopItemIconImages[materialCatalog[pickup.material].id];
+      const bob = prefersReducedMotion() ? 0 : Math.sin(elapsed * 4 + pickup.x) * 1.5;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      ctx.beginPath();
+      ctx.ellipse(pickup.x, pickup.y + 11, 9, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowColor = pickup.material === 'darkCrystal' ? 'rgba(186, 114, 236, 0.8)' : 'rgba(255, 224, 160, 0.55)';
+      ctx.shadowBlur = 9;
+      ctx.imageSmoothingEnabled = false;
+      if (icon?.complete && icon.naturalWidth > 0) {
+        ctx.drawImage(icon, pickup.x - 13, pickup.y - 13 + bob, 26, 26);
+      } else {
+        ctx.fillStyle = pickup.material === 'darkCrystal' ? '#923eda' : '#a8765a';
+        ctx.fillRect(pickup.x - 6, pickup.y - 8 + bob, 12, 16);
       }
       ctx.restore();
     } else if (pickup.kind === 'xp') {
@@ -4745,7 +4763,8 @@ function drawGameHud() {
   const rightHud = { x: -4, y: 62 };
   ctx.save();
   drawManaPanel(leftHud.x, leftHud.y + 4, Math.max(170, player.maxHp * 20 + 58), 56);
-  drawManaPanel(3, rightHud.y + 3, 54, 94);
+  const carriedMaterials = Object.keys(materialCatalog).filter((key) => materials[key] > 0);
+  drawManaPanel(3, rightHud.y + 3, 54, 94 + carriedMaterials.length * 21);
   const drawIndicatorBorder = (x, y, width, height) => {
     ctx.save();
     ctx.shadowBlur = 0;
@@ -4877,8 +4896,43 @@ function drawGameHud() {
   ctx.lineWidth = 3;
   ctx.strokeText(activeCompanions, familiarX + 18, rightHud.y + 17);
   ctx.fillText(activeCompanions, familiarX + 18, rightHud.y + 17);
+
+  // Carried ore and crystals appear beneath the other counts only while there are any.
+  ctx.shadowBlur = 0;
+  ctx.imageSmoothingEnabled = false;
+  for (const key of carriedMaterials) {
+    const icon = shopItemIconImages[materialCatalog[key].id];
+    ctx.translate(0, 21);
+    if (icon?.complete && icon.naturalWidth > 0) ctx.drawImage(icon, familiarX - 1, rightHud.y + 8, 18, 18);
+    ctx.fillStyle = '#f4e6c4';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeText(materials[key], familiarX + 20, rightHud.y + 17);
+    ctx.fillText(materials[key], familiarX + 20, rightHud.y + 17);
+  }
   ctx.textBaseline = 'alphabetic';
   ctx.restore();
+
+  const regen = player.lifestoneRegen;
+  if (regen && regen.ticks > 0) {
+    const regenIcon = shopItemIconImages.lifestone;
+    const panelRight = leftHud.x + Math.max(170, player.maxHp * 20 + 58);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffa0';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    const label = `+${regen.ticks} in ${Math.ceil(regen.timer)}s`;
+    ctx.strokeText(label, panelRight - 10, leftHud.y + 16);
+    ctx.fillText(label, panelRight - 10, leftHud.y + 16);
+    if (regenIcon?.complete && regenIcon.naturalWidth > 0) {
+      ctx.drawImage(regenIcon, panelRight - 14 - ctx.measureText(label).width - 14, leftHud.y + 8, 16, 16);
+    }
+    ctx.restore();
+  }
 
   const boss = enemies.find((enemy) => enemy.boss || enemy.miniBoss);
   if (boss) {
@@ -5712,7 +5766,7 @@ function tutorialPages() {
         : lastInputMode === 'touch'
           ? 'Drag the left area to move. Hold Attack to target the nearest live enemy. With no enemies in the room, drag Attack to aim freely, or hold without dragging to fire where you face.'
           : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
-      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover the Mana Familiar Sigil to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
+      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover Betsanc to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
       ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
       ['Menus', `${b('map')} map, ${b('journal')} journal, ${pad ? p.menu : 'P'} pause. Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}). Weapon upgrades may also change how that weapon fires.`],
     ] },
@@ -5732,13 +5786,13 @@ function tutorialPages() {
       ['Wild magic', 'Mage starts with random elemental magic; other classes start with water. Items no longer reroll your element; find an elemental menhir and interact to attune. Element sigils grant their named element. Magic effects share your element color. White diamond marks identify friendly effects. Mage surprises: 40% enemy, 20% object, 6% special shot; others: 10%, 5%, 1%. Bosses cannot be lifted or teleported.'],
     ] },
     { title: 'CONSUMABLES, BOMBS, MANA GUARD', sections: [
-      ['Consumables', `Break scenery to uncover stored consumables, or buy them in shops. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
+      ['Consumables', `Break scenery to uncover stored consumables. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
       ['Bombs', `Press ${b('bomb')} to drop a bomb. Shots from either side push grounded bombs; they slide and bounce off scenery without resetting the fuse. Explosions hurt nearby foes and open sealed rooms. Stay out of the blast.`],
-      ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find the Mana Familiar Sigil to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
+      ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find Betsanc to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
       ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENY AND KEYS', sections: [
-      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends.'],
+      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: step on the shop’s left pad to sell them for zeny.'],
       ['Shops', `Walk up to an item and press ${b('interact')} to buy it. Walking over an item never buys it. A shop is also a bank.`],
       ['Bank', `Step on the vault pad to deposit what you carry. ${pad ? p.b : 'Shift+' + b('interact')} near it withdraws your savings.`],
       ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
@@ -5755,7 +5809,7 @@ function tutorialPages() {
     { title: 'TIPS FOR A GOOD RUN', sections: [
       ['Keep moving', `Dash with ${b('dash')} to slip out of danger. Strafe around foes instead of standing still.`],
       ['Know your base weapon', 'Your class weapon hits hardest, but swapping to another weapon for range or crowds is always free.'],
-      ['Spend zeny', 'Buy potions and items. Keep a few coins in the bank so a bad run does not cost you everything.'],
+      ['Spend zeny', 'Buy items, or stand on the shop’s right pad and interact to repair armor. Keep a few coins in the bank so a bad run does not cost you everything.'],
       ['Make it yours', 'Open Controls to rebind keys and buttons. This guide updates to match. Enjoy the descent.'],
     ] },
   ];

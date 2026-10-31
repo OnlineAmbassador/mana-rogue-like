@@ -1,11 +1,14 @@
 /* Rooms, map generation, pickups, shops, and world objects. */
 
+// Damage curios and the chaos status multiply; boss HP never sees them, so the total is capped.
+const CURIO_DAMAGE_CAP = 2.5;
+
 function curioMultiplier(key) {
   let multiplier = chaosStatus?.[key] || 1;
   for (const item of shopItemCatalog) {
     if (item.kind === 'curio' && item.effects?.[key] && ownedItems.has(item.id)) multiplier *= item.effects[key];
   }
-  return multiplier;
+  return key === 'damage' ? Math.min(CURIO_DAMAGE_CAP, multiplier) : multiplier;
 }
 
 function rollChaosStatus(duration) {
@@ -46,7 +49,16 @@ function spawnCurioDrop(x, y, room) {
 function applyRandomFireMode(item) {
   const style = item.style;
   if (!['melee', 'bow', 'magic'].includes(style) ||
-      !['skill', 'weapon', 'mod', 'element'].includes(item.kind)) return null;
+      !['weapon', 'mod', 'element'].includes(item.kind)) return null;
+  // These two mods only speed up charging, so taking one puts its style in charge mode instead of re-rolling it.
+  if (item.id === 'mod-windup' || item.id === 'mod-draw') {
+    fireModes[style] = 'charge';
+    player.meleeCharge = 0;
+    player.bowHold = 0;
+    player.magicHold = 0;
+    player.chargeFraction = 0;
+    return 'charge';
+  }
   const chargeAlreadyFound = Object.values(fireModes).includes('charge');
   const chargedModeFound = !chargeAlreadyFound && Math.random() < 0.05;
   const choices = style === 'bow' ? ['rapid', 'triple'] : ['rapid'];
@@ -162,16 +174,16 @@ function createShopStock() {
     if (item.id.startsWith('heart-vessel-') && !heartVesselAllowed()) return false;
     if (reservedUpgradeIds.has(item.id) || ownedItems.has(item.id)) return false;
     if (item.kind === 'ability' && abilityAlreadyOffered(item.id)) return false;
-    if (item.kind === 'ability' && item.id !== 'orbiting-projectiles' &&
-        abilityCount + reservedAbilityCount() >= 2) return false;
-    return item.kind !== 'skill' || !combatStyles.has(item.style);
+    return !(item.kind === 'ability' && item.id !== 'orbiting-projectiles' &&
+      abilityCount + reservedAbilityCount() >= 2);
   });
-  const costFor = (item) => Math.max(MIN_ABILITY_COST,
-    Math.min(15, item.cost + Math.max(0, currentFloor - 1) * 2));
+  const costFor = (item) => Math.max(MIN_ABILITY_COST, Math.min(SHOP_PRICE_CAP, item.cost + shopFloorSteps() * 2));
+  // Bombs and hearts climb more slowly than upgrades, so a plain heart stays cheaper than a Heart Vessel.
+  const stapleCost = (base) => Math.min(SHOP_PRICE_CAP, base + shopFloorSteps());
   const bomb = { id: 'shop-bomb', name: 'Bomb', description: 'Gain one bomb immediately',
-    cost: Math.min(15, 4 + Math.max(0, currentFloor - 1) * 2), kind: 'shop-bomb', purchased: false };
+    cost: stapleCost(4), kind: 'shop-bomb', purchased: false };
   const heart = { id: 'shop-heart', name: 'Heart', description: 'Restore one health point',
-    cost: Math.min(15, 3 + Math.max(0, currentFloor - 1) * 2), kind: 'shop-heart', purchased: false };
+    cost: stapleCost(3), kind: 'shop-heart', purchased: false };
   const abilities = available.filter((item) => item.kind === 'ability');
   const upgrades = available.filter((item) => item.kind !== 'ability' && item.kind !== 'consumable');
   const stock = [bomb, heart];
@@ -184,14 +196,24 @@ function createShopStock() {
       markAbilityOffered(second);
       stock.push({ ...second, cost: costFor(second), purchased: false });
     }
-  } else if (upgrades.length > 0) {
+  }
+  // One non-ability upgrade is always offered, so passives, curios, mods and clothing reach the shop.
+  if (upgrades.length > 0) {
     const item = upgrades[Math.floor(Math.random() * upgrades.length)];
     stock.push({ ...item, cost: costFor(item), purchased: false });
-  } else {
+  } else if (stock.length === 2) {
     stock[1] = { id: 'shop-heart-2', name: 'Heart', description: 'Restore one health point',
       cost: heart.cost, kind: 'shop-heart', purchased: false };
   }
   return stock;
+}
+
+const SHOP_PRICE_CAP = 15;
+const SHOP_MAX_STALLS = 5;
+
+// Floors after the first; every shop price climbs with it.
+function shopFloorSteps() {
+  return Math.max(0, currentFloor - 1);
 }
 
 function shopItemStillValid(item) {
@@ -199,7 +221,6 @@ function shopItemStillValid(item) {
   if (item.kind === 'companion') return companions.length < 2 && !ownedItems.has(item.id);
   if (ownedItems.has(item.id)) return false;
   if (item.kind === 'ability' && item.id !== 'orbiting-projectiles' && ownedAbilityCount() >= 2) return false;
-  if (item.kind === 'skill' && combatStyles.has(item.style)) return false;
   return true;
 }
 
@@ -279,8 +300,8 @@ function roomAreaBonus() {
 function createUpgradeReward(idSuffix, dungeonRooms) {
   const abilityCount = ownedAbilityCount() + reservedAbilityCount();
   const upgrades = shopItemCatalog.filter((item) =>
-    ['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind) &&
-    (item.kind === 'skill' ? !combatStyles.has(item.style) : !ownedItems.has(item.id)) &&
+    ['passive', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind) &&
+    !ownedItems.has(item.id) &&
     isUpgradeAvailable(item) &&
     (!item.id.startsWith('heart-vessel-') || heartVesselAllowed()) &&
     (item.kind !== 'ability' || item.id === 'orbiting-projectiles' || abilityCount < 2) &&
@@ -737,20 +758,18 @@ function grantUpgrade(item, source = 'descent') {
     showMessage(`You already own ${item.name}.`, 2);
     return false;
   }
-  if (item.id === 'guardian-heart') {
-    const healthCap = (character ? startingHearts(character) : BASE_HEARTS) + MAX_EXTRA_HEARTS;
-    const previousMaxHp = player.maxHp;
-    player.maxHp = Math.min(healthCap, player.maxHp + 2);
-    player.hp = Math.min(player.maxHp, player.hp + phaseRewardHealAmount());
-    const gainedContainer = player.maxHp > previousMaxHp;
-    ownedItems.add(item.id);
-    markAbilityOffered(item);
+  if (item.id === 'lifestone') {
+    // A dying run cannot be healed: pickups are not gated during the death slow-motion.
+    if (deathTimer > 0 || player.hp <= 0) return false;
+    const gainedContainer = lifestoneGainsHeart();
+    if (gainedContainer) player.maxHp += 1;
+    startLifestoneRegen();
     recordItemDiscovery(item);
     updateHud();
     showMessage(gainedContainer
-      ? 'Guardian Heart: one heart container gained and up to two hearts restored.'
-      : 'Guardian Heart: your capacity is full, so it restores up to two hearts.', 4);
-    showPickupBanner(item.name, [gainedContainer ? '+1 HEART CONTAINER' : 'CAPACITY FULL', 'RESTORED UP TO 2 HEARTS']);
+      ? 'Lifestone: one heart container gained. You recover three hearts over 18 seconds.'
+      : 'Lifestone: you recover three hearts over 18 seconds.', 4);
+    showPickupBanner(item.name, [gainedContainer ? '+1 HEART CONTAINER' : 'CONTAINERS FULL', 'RECOVER 3 HEARTS OVER 18 S']);
     popOverPlayer({ icon: 'heart', color: '#ff7b8e', image: shopItemIconImages[item.id] });
     return true;
   }
@@ -763,7 +782,7 @@ function grantUpgrade(item, source = 'descent') {
     showMessage('Your two ability slots are already filled.', 2);
     return false;
   }
-  if (['ability', 'element', 'skill'].includes(item.kind)) {
+  if (['ability', 'element'].includes(item.kind)) {
     // Never slows an attack that is already faster than the 0.55 s floor.
     weapon.fireDelay = Math.max(Math.min(weapon.fireDelay, 0.55), weapon.fireDelay * 0.88);
   }
@@ -784,16 +803,15 @@ function grantUpgrade(item, source = 'descent') {
     weapon.damageBonus += 1;
   } else if (item.id === 'prism') {
     const previousShotCount = weapon.shotCount;
-    weapon.shotCount = Math.min(5, weapon.shotCount + 4);
-    weapon.shotDamageMultiplier *= previousShotCount / weapon.shotCount;
+    weapon.shotCount = Math.min(PRISM_SHOT_COUNT, weapon.shotCount + PRISM_SHOT_COUNT - 1);
+    // Three shots at 0.4x each: 1.2x a single shot if all of them land.
+    weapon.shotDamageMultiplier *= PRISM_TOTAL_DAMAGE * previousShotCount / weapon.shotCount;
   } else if (item.id === 'feather') {
     weapon.fireDelay = Math.max(0.11, weapon.fireDelay * 0.7);
     weapon.projectileSpeed += 70;
   } else if (rangeLensItemIds.includes(item.id)) {
     weapon.rangeMultiplier *= 1.35;
     weapon.rangeLevel += 1;
-  } else if (item.kind === 'skill') {
-    combatStyles.add(item.style);
   } else if (item.kind === 'weapon') {
     combatStyles.add('melee');
     meleeWeapons.add(item.weapon);
@@ -1242,13 +1260,106 @@ function isPlayerNearDoor(direction) {
   return aligned && nearWall;
 }
 
+// Up to five stalls share one row; the cards narrow as more are stocked.
+function shopStallSpacing(count) {
+  return count <= 3 ? 220 : count === 4 ? 190 : 164;
+}
+
+function shopStallWidth(count) {
+  return count <= 3 ? 210 : count === 4 ? 182 : 156;
+}
+
 function shopPedestalPosition(index) {
   const count = currentRoom?.shopStock?.length || 3;
-  return { x: ROOM_W / 2 + (index - (count - 1) / 2) * 220, y: 372 };
+  return { x: ROOM_W / 2 + (index - (count - 1) / 2) * shopStallSpacing(count), y: 372 };
 }
 
 function bankPadPosition(withdraw) {
   return { x: ROOM_W / 2 + (withdraw ? 200 : -200), y: 160 };
+}
+
+// The sell pad (walk-on) and the repair pad (stand on it and interact) flank the merchant.
+function sellPadPosition() {
+  return { x: ROOM_W / 2 - 170, y: ROOM_H / 2 + 20 };
+}
+
+function repairPadPosition() {
+  return { x: ROOM_W / 2 + 170, y: ROOM_H / 2 + 20 };
+}
+
+const SHOP_PAD_REACH = 48;
+
+function nearSellPad() {
+  return currentRoom?.type === 'shop' && distanceBetween(player, sellPadPosition()) < SHOP_PAD_REACH;
+}
+
+function nearRepairPad() {
+  return currentRoom?.type === 'shop' && distanceBetween(player, repairPadPosition()) < SHOP_PAD_REACH;
+}
+
+function materialCount() {
+  return Object.keys(materialCatalog).reduce((total, key) => total + materials[key], 0);
+}
+
+function materialSaleValue() {
+  return Object.keys(materialCatalog).reduce((total, key) => total + materials[key] * materialCatalog[key].price, 0);
+}
+
+function sellMaterials() {
+  const parts = Object.keys(materialCatalog).filter((key) => materials[key] > 0)
+    .map((key) => `${materials[key]} ${materialCatalog[key].name}`);
+  if (parts.length === 0) {
+    showMessage('You have no ore or crystals to sell.', 2);
+    return false;
+  }
+  const total = materialSaleValue();
+  coins += total;
+  runStats.zenyFound += total;
+  resetMaterials();
+  playPickupSound('gp', 0.25);
+  showMessage(`Sold ${parts.join(' and ')} for ${total} zeny.`, 3);
+  updateHud();
+  saveRunState();
+  return true;
+}
+
+// Armor comes only from equipped clothing and is never stored as a maximum, so it is summed here.
+function armorCapacity() {
+  return Object.values(equippedClothing).reduce((total, item) => total + (item?.armorBonus || 0), 0);
+}
+
+function armorMissing() {
+  return Math.max(0, armorCapacity() - player.armor);
+}
+
+// 2 zeny per missing point on floors 1-3, 3 on floors 4-6, 4 on floors 7-9.
+function repairCostPerPoint() {
+  return 2 + Math.floor(shopFloorSteps() / 3);
+}
+
+function repairArmor() {
+  const missing = armorMissing();
+  if (armorCapacity() <= 0) {
+    showMessage('You are not wearing any armor to repair.', 2);
+    return false;
+  }
+  if (missing <= 0) {
+    showMessage('Your armor is already in good shape.', 2);
+    return false;
+  }
+  const cost = repairCostPerPoint();
+  const points = Math.min(missing, Math.floor(coins / cost));
+  if (points <= 0) {
+    showMessage(`Repairs cost ${cost} zeny per point.`, 2);
+    return false;
+  }
+  coins -= points * cost;
+  player.armor += points;
+  playSound('system/item.ogg', 0.3);
+  showMessage(`Repaired ${points} armor for ${points * cost} zeny.`, 2.5);
+  updateHud();
+  saveRunState();
+  return true;
 }
 
 function hasVault(room) {
@@ -1279,6 +1390,7 @@ function canInteract() {
   if (nearestRiskShrineAltar()) return true;
   if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 86) return true;
   if (nearestShopSlot() >= 0) return true;
+  if (nearSellPad() || nearRepairPad()) return true;
   if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
       (distanceBetween(player, bankPadPosition(false)) < 160 ||
         distanceBetween(player, bankPadPosition(true)) < 160)) return true;
@@ -1311,6 +1423,11 @@ function updateWalkInInteractions(dt) {
     currentRoom.descendArmed = true;
   }
   if (walkInCooldown > 0) return;
+  if (nearSellPad() && materialCount() > 0) {
+    walkInCooldown = 1.5;
+    sellMaterials();
+    return;
+  }
   if (hasVault(currentRoom)) {
     if (coins > 0 && distanceBetween(player, bankPadPosition(false)) < 44) {
       walkInCooldown = 1.5;
@@ -1464,6 +1581,15 @@ function interact(withdrawFromBank = false) {
     buyShopItem(shopSlot);
     return;
   }
+  // The pads sit within reach of the bank pads, so they are checked first.
+  if (!withdrawFromBank && nearRepairPad()) {
+    repairArmor();
+    return;
+  }
+  if (!withdrawFromBank && nearSellPad()) {
+    sellMaterials();
+    return;
+  }
   if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
       (withdrawFromBank || distanceBetween(player, bankPadPosition(false)) < 160 ||
         distanceBetween(player, bankPadPosition(true)) < 160)) {
@@ -1490,7 +1616,7 @@ function interact(withdrawFromBank = false) {
     return;
   }
   if (currentRoom.type === 'shop' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 150) {
-    showMessage('Stand next to an item and press E to buy it.', 2);
+    showMessage('Stand next to an item and press E to buy it. Step on the left pad to sell ore; press E on the right pad to repair.', 3);
     return;
   }
 
@@ -1531,10 +1657,6 @@ function buyShopItem(index) {
     showMessage('Your health is already full.', 2);
     return;
   }
-  if (item.kind === 'skill' && combatStyles.has(item.style)) {
-    showMessage(`You already know how to ${item.style === 'melee' ? 'brawl' : item.style === 'bow' ? 'use a bow' : 'cast magic'}.`, 2);
-    return;
-  }
   if (item.kind !== 'consumable' && ownedItems.has(item.id)) {
     showMessage(`${item.name} is already equipped.`, 2);
     return;
@@ -1545,7 +1667,7 @@ function buyShopItem(index) {
   }
   coins -= item.cost;
   item.purchased = true;
-  const grantsUpgrade = ['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind);
+  const grantsUpgrade = ['passive', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind);
   // Upgrades already play their own cue in grantUpgrade.
   if (!grantsUpgrade) playSound('system/item.ogg', 0.3);
   if (grantsUpgrade) {
@@ -1573,7 +1695,7 @@ function buyShopItem(index) {
   }
   if (powerHatByItem[item.id]) player.powerHat = { item: item.id, hat: powerHatByItem[item.id] };
   updateHud();
-  if (!['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind)) {
+  if (!['passive', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind)) {
     showMessage(`${item.name} acquired: ${item.description}.${item.kind === 'consumable' ? ' Press Q to use it.' : ''}`, 3);
   }
 }
@@ -1660,7 +1782,8 @@ function startRiskShrineAmbush() {
     const kind = kinds[Math.floor(Math.random() * kinds.length)];
     const spawn = findEnemySpawnPosition(180 + Math.random() * (ROOM_W - 360), 120 + Math.random() * (ROOM_H - 240), 18, 140);
     if (!spawn) continue;
-    applyBossAIPromotion(applyEliteMutation(createEnemy(kind, spawn.x, spawn.y)));
+    // Extra foes the player opted into must not be a material farm.
+    applyBossAIPromotion(applyEliteMutation(createEnemy(kind, spawn.x, spawn.y))).noMaterialDrops = true;
   }
   addParticles(ROOM_W / 2 + 130, ROOM_H / 2 - 30, '#cc92e7', 24, 95);
   showMessage('The doors seal. Survive the ambush.', 2.5);
