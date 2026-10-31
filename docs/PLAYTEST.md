@@ -24,6 +24,18 @@ Some floors have a side room with two altars (shown as **R** on the map). The le
 - Do altar rooms show up too often, or not often enough?
 - Are the two altars and their labels easy to read and tell apart?
 
+## Items and shops
+
+The item numbers are in [ITEMS.md](ITEMS.md).
+
+- **Lifestone.** After a boss, is the 18-second regeneration (one heart every 6 seconds) a reward you notice? Is the extra heart container a fair swap for the old Guardian Heart?
+- **Selling.** Do Iron Ore and Dark Crystal drop often enough to notice, and too often to ignore? Is selling them at the sell pad clear without being told? Roughly how much zeny did you have per floor?
+- **Repair.** Is paying 2z to 4z a point to mend armor worth it, and is the repair pad easy to find and use?
+- **Shop room.** Does the stall, banner and counter art read well? Is any text on the item cards cut off, especially with five stalls? Do the pads crowd the bank pads?
+- **Prices.** Can you afford what you want? Do hearts and bombs feel fair against upgrades from floor 5 on?
+- **Stacked damage.** With several damage curios and a Pearl, do bosses fall too fast? Does the x2.5 curio cap feel right?
+- **Charge mods.** Does picking Wind-Up Wraps or Longbow Draw (which switch that style to charge mode) feel good?
+
 ## Screen layout
 
 Check on a computer and on a phone if you can.
