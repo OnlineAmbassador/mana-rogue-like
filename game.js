@@ -497,6 +497,7 @@ const desertSandstormImage = loadAsset('images/ambient/sandstorm.png');
 const desertObstacleTiles = loadAsset('tilesets/desert1.png');
 const desertGroundTiles = loadAsset('tilesets/desert2.png');
 const soulMenhirImage = loadAsset('soulmenhir.png', 'assets/som/graphics');
+const shopMarketSheet = loadAsset('artis-market.png', 'assets/som/graphics');
 const sandFootprintImage = loadAsset('tilesets/footprints.png');
 const sandFootprints = { room: null, marks: [], x: 0, y: 0, distance: 0 };
 const sacredRoomFloorTileIds = [65, 49, 81];

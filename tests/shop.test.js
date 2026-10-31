@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const { combat, peek } = require('./helpers/combat');
-const { readSource } = require('./helpers/load');
+const { readSource, loadFunctions } = require('./helpers/load');
 
 function shopContext(floor = 1) {
   const c = combat();
@@ -136,4 +136,38 @@ test('a saved shop keeps its whole stalls so staples and floor prices survive a 
   const source = readSource('dbmanager.js');
   assert.ok(/shopStock: room\.shopStock\?\.map\(\(stall\) => JSON\.parse\(JSON\.stringify\(stall\)\)\)/.test(source));
   assert.ok(source.includes("if (stock.kind && Number.isFinite(stock.cost)) return { ...(item || {}), ...stock };"));
+});
+
+// Scripts load in GAME_SCRIPTS order and `artwork` (needed by loadAsset) is declared in game.js, the last one.
+// A top-level loadAsset call in an earlier script throws at startup and leaves its constants uninitialised.
+test('no script that loads before game.js calls loadAsset at top level', () => {
+  const list = /const GAME_SCRIPTS = \[([^\]]*)\]/.exec(readSource('cachemanager.js'));
+  assert.ok(list, 'GAME_SCRIPTS not found');
+  const scripts = [...list[1].matchAll(/'([^']+\.js)'/g)].map((match) => match[1]);
+  const early = scripts.slice(0, scripts.indexOf('game.js'));
+  assert.ok(early.includes('shopart.js'), 'expected shopart.js to load before game.js');
+  const offenders = [];
+  for (const file of early) {
+    readSource(file).split('\n').forEach((line, index) => {
+      if (/^(?!function\b|\/\/|\s|\*)[^\n]*\bload(?:Dyed)?Asset\(/.test(line)) offenders.push(`${file}:${index + 1}`);
+    });
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test('the shop sheet helpers draw without throwing once game.js supplies the sheet', () => {
+  const calls = [];
+  const c = vm.createContext({
+    SHOP_ART: { scale: 1.5, pieces: { stall: [0, 0, 128, 96] } },
+    ctx: { save: () => {}, restore: () => {}, drawImage: (...args) => calls.push(args) },
+    shopMarketSheet: { complete: true, naturalWidth: 512 },
+  });
+  loadFunctions(c, 'shopart.js', ['shopSheetReady', 'drawShopPiece']);
+  assert.equal(c.shopSheetReady(), true);
+  c.drawShopPiece('stall', 100, 100);
+  assert.equal(calls.length, 1);
+  c.shopMarketSheet = { complete: false, naturalWidth: 0 };
+  assert.equal(c.shopSheetReady(), false);
+  c.drawShopPiece('stall', 100, 100);
+  assert.equal(calls.length, 1, 'nothing is drawn while the sheet is still loading');
 });

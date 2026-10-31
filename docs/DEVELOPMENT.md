@@ -8,7 +8,7 @@ For contributors and agents. Player-facing information is in the root `README.md
 - `controllermanager.js` owns gamepad polling, controller button actions, stick movement/aiming, and controller disconnect behavior.
 - `gameui.js` contains canvas rendering, HUD, menus, controls, and presentation.
 - `lightingmanager.js` holds sunlight, cast shadows (sprites, trunks, ground, projectiles), cave light shafts and local light sources from fire and lightning. It loads after `desertart.js`.
-- `shopart.js` draws the shop room: the merchant's stall, banners, counters, price cards and the sell and repair pads, using sub-rectangles of the Artis market sheet (`assets/som/graphics/artis-market.png`) plus canvas text and shapes. It loads after `desertart.js`.
+- `shopart.js` draws the shop room: the merchant's stall, banners, counters, price cards and the sell and repair pads, using sub-rectangles of the Artis market sheet (`assets/som/graphics/artis-market.png`) plus canvas text and shapes. It loads after `desertart.js`, before `game.js`, so it must not call `loadAsset` at load time (`artwork` does not exist yet); the sheet itself, `shopMarketSheet`, is loaded in `game.js`. `tests/shop.test.js` fails on a top-level `loadAsset` call in any script that loads before `game.js`.
 - `desertart.js` contains the Tulimshar desert room art (paved lanes, wind, banners and torches, haze, footprints, sandstone walls) and its `DESERT_ART` constants.
 - `mobmanager.js` contains enemy and boss setup, attacks, damage, and AI.
 - `playermanager.js` contains player combat, movement abilities, damage, and hit feedback.

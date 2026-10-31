@@ -18,8 +18,7 @@ function shopMerchantPosition() {
   return { x: ROOM_W / 2, y: ROOM_H / 2 + 26 };
 }
 
-const shopMarketSheet = loadAsset('artis-market.png', 'assets/som/graphics');
-
+// `shopMarketSheet` is loaded in game.js: loadAsset needs `artwork`, which only exists once game.js has run.
 function shopSheetReady() {
   return shopMarketSheet.complete && shopMarketSheet.naturalWidth > 0;
 }
