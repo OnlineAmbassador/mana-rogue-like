@@ -34,6 +34,7 @@ The item numbers are in [ITEMS.md](ITEMS.md).
 - **Shop room.** Does the stall, banner and counter art read well? Is any text on the item cards cut off, especially with five stalls? Do the pads crowd the bank pads?
 - **Prices.** Can you afford what you want? Do hearts and bombs feel fair against upgrades from floor 5 on?
 - **Stacked damage.** With several damage curios and a Pearl, do bosses fall too fast? Does the x2.5 curio cap feel right?
+- **Bonus lines.** Are the green and red lines on the shop cards, pickup toasts, pause hover and codex clear? Do the percentages match what you feel, and does `-15% Attack` on a curio look like it does nothing when you hit for 1 or 2?
 - **Charge mods.** Does picking Wind-Up Wraps or Longbow Draw (which switch that style to charge mode) feel good?
 
 ## Screen layout

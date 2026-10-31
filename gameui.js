@@ -583,16 +583,58 @@ function elementDisplayName(element) {
   return element === 'bubble' ? 'water' : element;
 }
 
+// Signed whole-percent change of a multiplier: 1.5 is '+50%' and 0.9 is '-10%'.
+function formatGain(multiplier) {
+  const percent = Math.round((multiplier - 1) * 100);
+  return `${percent < 0 ? '-' : '+'}${Math.abs(percent)}%`;
+}
+
+const bonusStatLabels = { damage: 'Attack', speed: 'Speed', fire: 'Fire rate' };
+
+// The bonus lines shown for an item on shop cards, toasts, the pause grid and the codex. Higher is always better for a
+// '+' line: rates are shown as rates, not delays. Numbers come from ITEM_TUNING, the item's own `effects` or clothing
+// multipliers and `attackMorphs`; a saved shop stall keeps an old copy of the item, so the live catalogue entry wins.
 function itemEffectTagsFor(item) {
-  if (item.effects) {
-    return Object.entries(item.effects).map(([key, value]) =>
-      `${value > 1 ? '+' : '-'}${effectKeyLabels[key] || key.toUpperCase()}`);
+  const live = shopItemCatalog.find((entry) => entry.id === item.id) || item;
+  const gain = (multiplier, label) => `${formatGain(multiplier)} ${label}`;
+  if (live.effects) {
+    return Object.entries(live.effects).map(([key, value]) => gain(value, bonusStatLabels[key] || key));
   }
-  if (item.id.startsWith('heart-vessel-')) return ['+MAX HEART'];
-  if (item.id.startsWith('luck-up-')) return ['+LUCK'];
-  if (item.id.startsWith('sanctum-blessing')) return ['+MAX HEART', '+ATTACK'];
-  if (item.chaos) return [item.chaos === 'room' ? '?RANDOM STATUS EACH ROOM' : '?RANDOM STATUS EVERY FEW SECONDS'];
-  return itemEffectTags[item.id] || [item.description || ''].filter(Boolean);
+  if (live.kind === 'clothing') {
+    return [
+      ...(live.speedMul && live.speedMul !== 1 ? [gain(live.speedMul, 'Speed')] : []),
+      ...(live.armorBonus ? [`+${live.armorBonus} Armor`] : []),
+    ];
+  }
+  if (live.id.startsWith('heart-vessel-')) return ['+1 Max heart'];
+  if (live.id.startsWith('luck-up-')) return ['+1 Luck'];
+  if (live.id.startsWith('sanctum-blessing')) return ['+1 Max heart', '+1 Attack'];
+  const tuning = ITEM_TUNING;
+  switch (live.id) {
+    case 'pearl': return [gain(tuning.pearlSize, 'Shot size'), '+1 Attack'];
+    case 'prism':
+      return [`${PRISM_SHOT_COUNT}-way fan`, `${Math.round(PRISM_TOTAL_DAMAGE / PRISM_SHOT_COUNT * 100)}% damage each`];
+    case 'feather': return [gain(tuning.featherFireRate, 'Fire rate'), gain(tuning.featherShotSpeed, 'Shot speed')];
+    case 'range-lens': case 'range-lens-ii':
+      return [gain(tuning.rangeLens, 'Range'), gain(1 + MELEE_REACH_PER_LENS, 'Melee reach')];
+    case 'range-lens-iii':
+      return [gain(tuning.rangeLens, 'Range'), gain(1 + MELEE_REACH_PER_LENS, 'Melee reach'), 'Shots pierce walls'];
+    case 'mod-windup': return [gain(tuning.chargeSpeed, 'Charge speed'), 'Melee charge mode'];
+    case 'mod-draw': return [gain(tuning.chargeSpeed, 'Charge speed'), 'Bow charge mode'];
+    case 'mod-quiver': return [gain(tuning.quiverFireRate, 'Fire rate'), gain(tuning.quiverDamage, 'Arrow damage')];
+    case 'mod-flurry': return [gain(FLURRY_SWING_RATE, 'Swing rate'), gain(1 / MELEE_BASE_SCALE, 'Hit damage')];
+    case 'swift-daggers':
+      return ['+1 Melee attack', gain(1 / DAGGER_COOLDOWN_SCALE, 'Swing rate'), '-20% Melee reach'];
+    default: break;
+  }
+  if (live.chaos) return itemEffectTags[live.id] || [];
+  const tags = [];
+  const morph = attackMorphs[live.id];
+  if (morph?.damageMul) tags.push(gain(morph.damageMul, 'Shot damage'));
+  if (morph?.speedMul) tags.push(gain(morph.speedMul, 'Shot speed'));
+  if (morph?.sizeMul) tags.push(gain(morph.sizeMul, 'Shot size'));
+  tags.push(...(itemEffectTags[live.id] || []));
+  return tags.length ? tags : [live.description || ''].filter(Boolean);
 }
 
 function popOverPlayer({ icon, color = '#ffe38a', image = null }) {
@@ -1002,7 +1044,10 @@ function drawPauseEquipment() {
       ctx.fillStyle = '#fff4d5';
       ctx.fillText(String(item.count), x + cell - 4, y + cell - 5);
     }
-    if (hovered) label = item.name + (item.count > 0 ? ` (${item.count})` : '');
+    if (hovered) {
+      const bonuses = itemEffectTagsFor(item).filter((tag) => tag !== item.description);
+      label = item.name + (item.count > 0 ? ` (${item.count})` : '') + (bonuses.length ? `:  ${bonuses.join(', ')}` : '');
+    }
   });
   ctx.textAlign = 'left';
   ctx.font = 'bold 12px Georgia';
@@ -5882,7 +5927,10 @@ function drawCodex() {
     ctx.fillText(entry.name, 116, y + 15, 390);
     ctx.fillStyle = '#c0cbbd';
     ctx.font = '11px Arial';
-    ctx.fillText(entry.description || 'A newly recorded discovery.', 116, y + 30, 620);
+    const bonuses = entry.kind === 'enemy' || entry.kind === 'lore' ? [] :
+      itemEffectTagsFor(entry).filter((tag) => tag !== entry.description);
+    ctx.fillText(`${entry.description || 'A newly recorded discovery.'}${bonuses.length ? `  |  ${bonuses.join(', ')}` : ''}`,
+      116, y + 30, 620);
     if (entry.kind !== 'enemy') {
       const found = entry.kind === 'lore'
         ? (save.loreRelics || []).includes(entry.id)

@@ -171,3 +171,29 @@ test('the shop sheet helpers draw without throwing once game.js supplies the she
   c.drawShopPiece('stall', 100, 100);
   assert.equal(calls.length, 1, 'nothing is drawn while the sheet is still loading');
 });
+
+test('shop cards pack bonus lines into two rows, coloured by sign, and keep every line inside the card', () => {
+  const widest = 156;
+  const painted = [];
+  const c = vm.createContext({
+    ctx: { measureText: (text) => ({ width: String(text).length * 5.4 }), fillText: (...args) => painted.push(args) },
+    coins: 20,
+  });
+  loadFunctions(c, 'shopart.js', ['wrapShopText', 'packShopTags', 'shopTagColor']);
+  const rows = c.packShopTags(['+40% Fire rate', '+15% Shot speed', '-10% Shot damage', 'Auto frost pulse every 12 s'], widest - 20, 2);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(rows.map((row) => row.map((entry) => entry.tag)))), [['+40% Fire rate'], ['+15% Shot speed']],
+    'on the narrowest card each wide tag takes a row and the rest are dropped');
+  assert.deepEqual([...c.packShopTags(['+50% Shot size', '+1 Attack'], widest - 20, 2).map((row) => row.length)], [2],
+    'short tags share a row');
+  for (const row of rows) {
+    const last = row.at(-1);
+    assert.ok(last.x + last.tag.length * 5.4 <= widest - 20 + 1e-9, `${last.tag} fits`);
+  }
+  assert.equal(c.packShopTags([], 100, 2).length, 0);
+  assert.equal(c.wrapShopText('Melee: lightning-fast jabs, lighter hits', widest - 20, 1).length, 1,
+    'a one-line allowance stays one line');
+  assert.ok(c.wrapShopText('Melee: lightning-fast jabs, lighter hits', widest - 20, 1)[0].endsWith('…'));
+  assert.notEqual(c.shopTagColor('+5% Speed'), c.shopTagColor('-5% Speed'));
+  assert.equal(c.shopTagColor('Blocks 3 hits'), '#d4c7ae');
+});

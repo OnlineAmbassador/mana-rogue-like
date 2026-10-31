@@ -974,8 +974,9 @@ test('pause inventory reveals hovered item names and handles an empty inventory'
   c.lastInputMode = 'keyboard';
   c.pointer = { x: 125, y: 440 };
   c.drawShopItemIcon = () => {};
+  c.itemEffectTagsFor = () => ['+10% Speed', '-5% Attack'];
   c.drawPauseEquipment();
-  assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'Mana Sigil'));
+  assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'Mana Sigil:  +10% Speed, -5% Attack'));
   c.ownedItems.clear();
   c.calls.length = 0;
   c.drawPauseEquipment();

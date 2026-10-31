@@ -41,7 +41,7 @@ function wrapShopText(text, maxWidth, maxLines) {
   let line = '';
   for (let index = 0; index < words.length; index += 1) {
     const candidate = line ? `${line} ${words[index]}` : words[index];
-    if (ctx.measureText(candidate).width <= maxWidth || !line) {
+    if (ctx.measureText(candidate).width <= maxWidth || !line || maxLines === 1) {
       line = candidate;
       continue;
     }
@@ -83,8 +83,34 @@ function drawShopPad(position, label, accent, details, lit) {
   ctx.restore();
 }
 
+// Packs bonus tags left to right into at most maxRows rows (measured in the current font); tags past the last row are
+// dropped here and stay readable in the pause inventory and the codex.
+function packShopTags(tags, maxWidth, maxRows) {
+  const gap = 8;
+  const rows = [[]];
+  let used = 0;
+  for (const tag of tags) {
+    const width = ctx.measureText(tag).width;
+    let row = rows[rows.length - 1];
+    if (row.length && used + gap + width > maxWidth) {
+      if (rows.length === maxRows) break;
+      row = [];
+      rows.push(row);
+      used = 0;
+    }
+    const x = row.length ? used + gap : 0;
+    row.push({ tag, x });
+    used = x + width;
+  }
+  return rows.filter((row) => row.length);
+}
+
+function shopTagColor(tag) {
+  return tag.startsWith('+') ? '#9fe09a' : tag.startsWith('-') ? '#e8908a' : '#d4c7ae';
+}
+
 function drawShopCard(item, spot, width, index) {
-  const height = 64;
+  const height = 70;
   const x = Math.round(spot.x - width / 2);
   const y = spot.y + 30;
   const affordable = coins >= item.cost || item.purchased;
@@ -100,9 +126,16 @@ function drawShopCard(item, spot, width, index) {
   ctx.fillText(`${item.cost}z`, x + width - 10, y + 20);
   ctx.textAlign = 'left';
   ctx.font = '10px Arial';
+  // The bonus numbers take up to two rows; the description gets what is left of the three text rows.
+  const tags = item.purchased ? [] : itemEffectTagsFor(item).filter((tag) => tag !== item.description);
+  const tagRows = packShopTags(tags, width - 20, 2);
   ctx.fillStyle = '#d4c7ae';
-  const lines = item.purchased ? ['SOLD'] : wrapShopText(item.description, width - 20, 3);
+  const lines = item.purchased ? ['SOLD'] : wrapShopText(item.description, width - 20, Math.max(1, 3 - tagRows.length));
   lines.forEach((line, lineIndex) => ctx.fillText(line, x + 10, y + 34 + lineIndex * 11, width - 20));
+  tagRows.forEach((row, rowIndex) => row.forEach(({ tag, x: offset }) => {
+    ctx.fillStyle = shopTagColor(tag);
+    ctx.fillText(tag, x + 10 + offset, y + 34 + (lines.length + rowIndex) * 11, width - 20);
+  }));
   ctx.restore();
   if (nearestShopSlot() === index) {
     ctx.save();

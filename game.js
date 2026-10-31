@@ -642,11 +642,11 @@ const shopItemCatalog = [
   { id: 'heart-vessel-ii', name: 'Heart Vessel II', description: 'Gain one heart for this descent', cost: 11, kind: 'passive' },
   { id: 'heart-vessel-iii', name: 'Heart Vessel III', description: 'Gain one heart for this descent', cost: 14, kind: 'passive' },
   { id: 'lifestone', name: 'Lifestone', description: 'A boss drop: gain one heart container (below five extra hearts) and recover three hearts over 18 seconds', cost: 0, kind: 'boss-relic' },
-  { id: 'luck-up-i', name: 'Luck Up I', description: 'Zeny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
-  { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zeny windfall', cost: 9, kind: 'passive' },
-  { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther; melee reach +10%', cost: 8, kind: 'passive' },
-  { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Another 35% projectile range; melee reach +10%', cost: 11, kind: 'passive' },
-  { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range and melee reach +10%; shots pierce solid barriers', cost: 14, kind: 'passive' },
+  { id: 'luck-up-i', name: 'Luck Up I', description: 'Better odds on zeny, drops and materials', cost: 6, kind: 'passive' },
+  { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds on drops', cost: 9, kind: 'passive' },
+  { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Shots travel farther; melee reaches farther', cost: 8, kind: 'passive' },
+  { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Shots travel farther still', cost: 11, kind: 'passive' },
+  { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range; shots pierce solid barriers', cost: 14, kind: 'passive' },
   { id: 'frost-rune', name: 'Frost Rune', description: 'Auto-elemental: freezes nearby foes, slows bosses', cost: 9, kind: 'ability' },
   { id: 'orbiting-projectiles', name: 'Betsanc', description: 'Unlock orbiting weapon familiars; room clears charge the meter', cost: 10, kind: 'ability' },
   { id: 'spore-bloom', name: 'Spore Bloom', description: 'Magic shots split into slowing spores on impact; unlocks Sporeling', cost: 10, kind: 'ability', unlockAfterEnemyAbility: 'spore-burst' },
@@ -661,10 +661,10 @@ const shopItemCatalog = [
   { id: 'curio-sole', name: 'Sole Survivor', description: 'Speed up, attack down', cost: 5, kind: 'curio', quip: 'SOLE SURVIVOR! Fleet of foot, soft of fist.', effects: { speed: 1.2, damage: 0.85 } },
   { id: 'curio-trigger', name: 'Trigger Happy', description: 'Fire rate up, attack down', cost: 5, kind: 'curio', quip: 'TRIGGER HAPPY! More swings, fewer bruises.', effects: { fire: 1.4, damage: 0.85 } },
   { id: 'curio-heavy-metal', name: 'Heavy Metal', description: 'Big attack up, fire rate down', cost: 6, kind: 'curio', quip: 'HEAVY METAL! It rocks. It is also slow.', effects: { damage: 1.6, fire: 0.75 } },
-  { id: 'curio-mana-cafe', name: 'Mana-Cafe Latte', description: 'Small speed and fire rate up', cost: 6, kind: 'curio', quip: 'MANA-CAFE LATTE! Jittery, but in a good way.', effects: { speed: 1.12, fire: 1.15 } },
+  { id: 'curio-mana-cafe', name: 'Mana-Cafe Latte', description: 'Small speed and fire rate up', cost: 6, kind: 'curio', quip: 'MANA-CAFE LATTE! Jittery, but in a good way.', effects: { speed: 1.1, fire: 1.15 } },
   { id: 'curio-shake', name: 'Protein Shake-Down', description: 'Attack up', cost: 7, kind: 'curio', quip: 'PROTEIN SHAKE-DOWN! Gains everywhere.', effects: { damage: 1.25 } },
   { id: 'curio-mana-lisa', name: 'Mana Lisa', description: 'Fire rate up', cost: 4, kind: 'curio', quip: 'MANA LISA! That smile is just a spell.', effects: { fire: 1.2 } },
-  { id: 'curio-run-on', name: 'Run-On Sentence', description: 'Big speed up, slightly less attack', cost: 6, kind: 'curio', quip: 'RUN-ON SENTENCE! Fast, but light on punctuation.', effects: { speed: 1.35, damage: 0.95 } },
+  { id: 'curio-run-on', name: 'Run-On Sentence', description: 'Much faster, slightly weaker', cost: 6, kind: 'curio', quip: 'RUN-ON SENTENCE! Fast, but light on punctuation.', effects: { speed: 1.35, damage: 0.95 } },
   { id: 'curio-dice', name: 'Roll With It', description: 'A random status change in every room', cost: 5, kind: 'curio', quip: 'ROLL WITH IT! Every room is a new gamble.', chaos: 'room' },
   { id: 'curio-wild-card', name: 'Wild Card', description: 'A random status change every few seconds', cost: 5, kind: 'curio', quip: 'WILD CARD! Fortune changes by the minute.', chaos: 'timed' },
   { id: 'mod-windup', name: 'Wind-Up Wraps', description: 'Melee: switches to charge mode, which builds faster', cost: 7, kind: 'mod', style: 'melee' },
@@ -677,9 +677,9 @@ const shopItemCatalog = [
   { id: 'mod-splash', name: 'Impact Core', description: 'Magic: shots burst on hit or on the ground', cost: 8, kind: 'mod', style: 'magic' },
   { id: 'mod-chain', name: 'Storm Conduit', description: 'Magic: shots chain lightning between foes', cost: 9, kind: 'mod', style: 'magic', unlockAfterEnemyAbility: 'lightning-shot' },
   { id: 'mod-lingering', name: 'Lingering Mana', description: 'Magic: shots leave a damaging cloud', cost: 8, kind: 'mod', style: 'magic', unlockAfterEnemyAbility: 'spore-burst' },
-  { id: 'silk-shorts', name: 'Silk Shorts', description: 'Light legs increase movement speed', cost: 6, kind: 'clothing', slot: 'legs', sprite: 'silkShorts', speedBonus: 32, armorBonus: 0 },
-  { id: 'leather-legguards', name: 'Leather Legguards', description: 'Heavy legs slow you down but absorb two hits', cost: 8, kind: 'clothing', slot: 'legs', sprite: 'leatherLegguards', speedBonus: -18, armorBonus: 2 },
-  { id: 'leather-vest', name: 'Leather Vest', description: 'A sturdy vest that absorbs one hit', cost: 7, kind: 'clothing', slot: 'chest', sprite: 'leatherVest', speedBonus: 0, armorBonus: 1 },
+  { id: 'silk-shorts', name: 'Silk Shorts', description: 'Light legs increase movement speed', cost: 6, kind: 'clothing', slot: 'legs', sprite: 'silkShorts', speedMul: 1.15, armorBonus: 0 },
+  { id: 'leather-legguards', name: 'Leather Legguards', description: 'Heavy legs slow you down but absorb two hits', cost: 8, kind: 'clothing', slot: 'legs', sprite: 'leatherLegguards', speedMul: 0.9, armorBonus: 2 },
+  { id: 'leather-vest', name: 'Leather Vest', description: 'A sturdy vest that absorbs one hit', cost: 7, kind: 'clothing', slot: 'chest', sprite: 'leatherVest', speedMul: 1, armorBonus: 1 },
   ...Object.keys(monsterSprites).map((kind) => {
     const name = monsterDisplayName(kind);
     return {
@@ -1205,22 +1205,20 @@ let chaosTimer = 0;
 const effectKeyLabels = {
   damage: 'ATTACK', speed: 'SPEED', fire: 'FIRE RATE',
 };
-// Plain-language tags for non-curio pickups so the player always sees what they just got.
+// Fixed bonus lines for pickups whose numbers are not stored on the item. `itemEffectTagsFor` (gameui.js) builds the rest
+// from ITEM_TUNING, `effects`, the clothing multipliers and `attackMorphs`, so those numbers are never typed twice.
 const itemEffectTags = {
-  pearl: ['+ATTACK', '+SHOT SIZE'],
-  prism: ['+TRIPLE SHOT', '-SHOT DAMAGE EACH'],
-  feather: ['+FIRE RATE', '+SHOT SPEED'],
-  'range-lens': ['+RANGE', '+MELEE REACH'], 'range-lens-ii': ['+RANGE', '+MELEE REACH'],
-  'range-lens-iii': ['+RANGE', '+MELEE REACH', '+SHOTS PIERCE WALLS'],
-  'wild-magic-core': ['+WILD MAGIC LINKS', '+LONGER DECAY', '+WIDER NOVA'],
-  'frost-rune': ['+AUTO FROST PULSE'], 'spore-bloom': ['+MAGIC IMPACT CLUSTERS'], 'bonded-aegis': ['+3 HIT SHIELD'],
-  'element-fire': ['+FIRE MAGIC'], 'element-lightning': ['+LIGHTNING MAGIC'], 'element-gas': ['+MIASMA MAGIC'],
-  'iron-sword': ['+SWORD REACH', '+HEAVY SWING'], 'swift-daggers': ['+TWIN STRIKES', '+SWING SPEED'],
-  'mod-windup': ['+FASTER CHARGE'],'mod-flurry': ['+JAB SPEED', '-HIT DAMAGE'],
-  'mod-cinder': ['+FIRE WALL ON SWING'], 'mod-pierce': ['+ARROWS PIERCE'], 'mod-draw': ['+FASTER DRAW'],
-  'mod-quiver': ['+RAPID ARROW RATE', '-LIGHTER ARROWS'], 'mod-storm-arrows': ['+CHAIN LIGHTNING ARROWS'],
-  'mod-splash': ['+SPLASH DAMAGE'], 'mod-chain': ['+CHAIN LIGHTNING SHOTS'], 'mod-lingering': ['+DAMAGE CLOUD'],
-  'silk-shorts': ['+SPEED'], 'leather-legguards': ['+ARMOR 2', '-SPEED'], 'leather-vest': ['+ARMOR 1'],
+  'wild-magic-core': ['Links 4 foes', '4 s decay', 'Wider nova'],
+  'frost-rune': ['Auto frost pulse every 12 s'], 'spore-bloom': ['Slowing spore clusters'], 'bonded-aegis': ['Blocks 3 hits'],
+  'orbiting-projectiles': ['Orbiting guards'],
+  'element-fire': ['Fire magic'], 'element-lightning': ['Lightning magic'], 'element-gas': ['Miasma magic'],
+  // Reach is measured against bare hands (66): the sword reaches 92; the daggers (53) are built in itemEffectTagsFor.
+  'iron-sword': ['+2 Melee attack', '+40% Melee reach'],
+  'mod-cinder': ['Fire wall on swing'], 'mod-pierce': ['Arrows pierce 9 foes'],
+  'mod-storm-arrows': ['Arrows chain lightning'], 'mod-splash': ['Shots burst on hit'],
+  'mod-chain': ['Shots chain lightning'], 'mod-lingering': ['Shots leave a damage cloud'],
+  'mana-tonic': ['+2 Hearts'], 'bomb-bundle': ['+2 Bombs'],
+  'curio-dice': ['Random status each room'], 'curio-wild-card': ['Random status every 14 s'],
 };
 
 
@@ -1636,11 +1634,11 @@ const MAX_PLAYER_PROJECTILES = 140;
 
 // The two newest morph-capable items define how shots look and behave; some trade power for flair.
 const attackMorphs = {
-  'frost-rune': { label: 'Frost Shards', shape: 'diamond', color: '#9fe7f3', slowOnHit: 0.9, speedMul: 0.88, damageMul: 0.9 },
+  'frost-rune': { label: 'Frost Shards', shape: 'diamond', color: '#9fe7f3', slowOnHit: 0.9, speedMul: 0.9, damageMul: 0.9 },
   'spore-bloom': { label: 'Spore Seeds', shape: 'seed', color: '#d78be7', drop: 'short', pulse: 0.16 },
   'element-fire': { label: 'Ember Bursts', explode: 46, sizeMul: 1.1 },
   'element-lightning': { label: 'Storm Pulses', pulse: 0.28, speedMul: 1.15, damageMul: 0.9 },
-  'element-gas': { label: 'Miasma Drops', drop: 'long', speedMul: 0.82 },
+  'element-gas': { label: 'Miasma Drops', drop: 'long', speedMul: 0.8 },
 };
 
 

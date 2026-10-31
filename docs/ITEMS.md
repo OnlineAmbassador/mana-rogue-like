@@ -2,6 +2,16 @@
 
 Reference for every item in `shopItemCatalog` (`game.js`), its base cost and effect, and what the item review of 2026-10-31 changed. Costs are base costs: a shop price is the base plus 2 zeny per floor after the first (bombs and hearts plus 1), capped at 15 (`createShopStock`, `worldmanager.js`). The review was done as a set of questions with the project owner; the outcomes are pinned by `tests/items.test.js`, so change a number here and in that test together. Credits for the artwork are in [CREDITS.md](CREDITS.md).
 
+## How bonuses are shown
+
+Every item lists its bonuses as signed, rounded lines: `+50% Attack`, `-10% Speed`, `+2 Armor`. The lines appear on shop cards (green for a gain, red for a loss, up to two rows), in a second toast on pickup, after the item name when you hover it in the pause inventory, and after the description in the codex. They are built by `itemEffectTagsFor` (`gameui.js`) from the numbers the game applies: `ITEM_TUNING` in `playermanager.js`, a curio's `effects`, clothing `speedMul` and `attackMorphs`, so the text and the effect cannot drift apart. A saved shop stall keeps an old copy of its item, and the live catalogue entry decides the numbers. One scale throughout: percent change in the useful direction, rates shown as rates (fire rate, swing rate, charge speed), never as delays. Flat bonuses stay flat and small.
+
+Known limit: damage is an integer. Each hit is rounded after the multiplier (`damageEnemy`), so `-15% Attack` changes nothing on a 1-damage hit and `+25% Attack` only shows on some hits at 1 to 3 base damage. The percentage is the multiplier, not a promise about every hit.
+
+Hidden, not shown on cards: taking an ability or element multiplies the fire delay by 0.88, but only down to a floor of 0.55 s, so it helps a slow early weapon (about +14% for the first one) and does nothing once Swift Feather has brought the delay below 0.55 s. Decide in playtest whether to keep, show or remove it.
+
+Rounding done with this change (all within about 2% DPS): Mana Pearl size x1.45 to x1.5; Swift Feather delay x0.7 to x1/1.4 (+40% fire rate) and shot speed +70 to x1.15; Mana-Cafe Latte speed x1.12 to x1.1; Silk Shorts +32 speed to x1.15; Leather Legguards -18 speed to x0.9 (clothing speed is now a multiplier); Wind-Up Wraps and Longbow Draw charge time x0.7 to x1/1.4 (+40% charge speed); Rapid Quiver delay x0.55 to x1/1.8; Flurry Gauntlets cooldown x0.35 to x1/2.8; Frost shots speed x0.88 to x0.9 and Miasma x0.82 to x0.8.
+
 ## New this review
 
 | Item | How you get it | Effect |
@@ -18,12 +28,12 @@ New shop services (see [DEVELOPMENT.md](DEVELOPMENT.md)): the **sell pad** and t
 
 | Item | Base cost | Effect | Review |
 |---|---|---|---|
-| Mana Pearl | 7 | Tear size x1.45, +1 damage | was 5; +1 doubles a damage-1 class |
+| Mana Pearl | 7 | +50% shot size, +1 damage | was 5; +1 doubles a damage-1 class |
 | Prism Shard | 8 | Three-way fan, 0.4x per shot (1.2x if all land); with a non-water element the fan fuses into one x1.6 shot | was five shots at 0.2x with a "three-way" description |
-| Swift Feather | 8 | Fire delay x0.7, +70 projectile speed | was 6 |
+| Swift Feather | 8 | +40% fire rate, +15% projectile speed | was 6 |
 | Heart Vessel I / II / III | 8 / 11 / 14 | +1 max heart and +1 heart; extra hearts capped at nine | now bought in order (II needs I, III needs II) |
 | Luck Up I / II | 6 / 9 | +1 Luck each, in order | Luck now also raises Iron Ore and Dark Crystal drops |
-| Far-Reach Lens I / II / III | 8 / 11 / 14 | Projectile range x1.35 each, III pierces solid barriers; melee reach +10% per tier | was 7 / 10 / 13 and projectile-only |
+| Far-Reach Lens I / II / III | 8 / 11 / 14 | +35% projectile range each, III pierces solid barriers; melee reach +10% per tier | was 7 / 10 / 13 and projectile-only |
 | Wild Magic Core | 9 | Wild lightning links four foes, decay lasts four seconds, wild explosions reach farther | merges Storm Spool, Ember Seed, Nova Pearl; the name is a placeholder |
 
 ## Abilities and elements
@@ -32,7 +42,7 @@ Two standard ability slots; Betsanc does not use one.
 
 | Item | Base cost | Effect | Review |
 |---|---|---|---|
-| Frost Rune | 9 | Auto pulse freezes foes within 250 px for 2.4 s every 12 s; its morph makes shots x0.9 damage and x0.88 speed | unchanged |
+| Frost Rune | 9 | Auto pulse freezes foes within 250 px for 2.4 s every 12 s; its morph makes shots -10% damage and -10% speed | unchanged |
 | Betsanc (id `orbiting-projectiles`) | 10 | Replaces Shockwave with orbiting guards: 1 charge per cleared room, 5 charge for 3 guards | renamed from Mana Familiar Sigil; mechanics unchanged |
 | Spore Bloom | 10 | Magic shots become slowing spore clusters; unlocks the Sporeling | unchanged |
 | Bonded Aegis | 11 | Blocks three hits, never refills | its shot morph (x0.65 damage, x1.25 delay) was removed |
@@ -42,14 +52,14 @@ Two standard ability slots; Betsanc does not use one.
 
 | Item | Base cost | Effect | Review |
 |---|---|---|---|
-| Iron Sword | 8 | +2 melee damage, reach 92 | was 7; no longer offered when a sword is already held (the Warrior starts with one) |
-| Swift Daggers | 7 | +1 melee damage, reach 53, swing cooldown x0.8 | the speed is new |
-| Wind-Up Wraps | 7 | Taking it puts melee in charge mode; charge builds 30% faster | it used to re-roll the style to rapid, so it almost never worked |
-| Flurry Gauntlets | 7 | Jabs at 1.0x scale with cooldown x0.35 (about +10% DPS) | was x0.4 (about -4%) |
+| Iron Sword | 8 | +2 melee damage, reach 92 (+40% against bare hands) | was 7; no longer offered when a sword is already held (the Warrior starts with one) |
+| Swift Daggers | 7 | +1 melee damage, reach 53 (-20% against bare hands), +25% swing rate | the speed is new |
+| Wind-Up Wraps | 7 | Taking it puts melee in charge mode; +40% charge speed | it used to re-roll the style to rapid, so it almost never worked |
+| Flurry Gauntlets | 7 | Jabs at 1.0x scale (-62% hit damage) with +180% swing rate (about +8% DPS) | was x0.4 (about -4%) |
 | Cinder Edge | 8 | Swings leave a fire wall | unchanged |
 | Piercing Heads | 8 | Arrows pierce 9 foes | was 7 |
-| Longbow Draw | 7 | Taking it puts the bow in charge mode; draw 30% faster | same fix as Wind-Up |
-| Rapid Quiver | 7 | Damage x0.6, delay x0.55 (about +9% DPS) | unchanged |
+| Longbow Draw | 7 | Taking it puts the bow in charge mode; +40% charge speed | same fix as Wind-Up |
+| Rapid Quiver | 7 | -40% damage, +80% fire rate (about +8% DPS) | unchanged |
 | Storm Fletching | 9 | Arrows chain lightning | unchanged |
 | Impact Core / Storm Conduit / Lingering Mana | 8 / 9 / 8 | Magic bursts / chains / leaves a cloud | unchanged |
 
@@ -67,7 +77,7 @@ Multipliers combine across all curios and the chaos status. The total **damage**
 | Trigger Happy | 5 | Fire rate x1.4, damage x0.85 | was x1.3 / x0.8 |
 | Heavy Metal | 6 | Damage x1.6, fire rate x0.75 | unchanged |
 | Protein Shake-Down | 7 | Damage x1.25 | unchanged |
-| Mana-Cafe Latte | 6 | Speed x1.12, fire rate x1.15 | unchanged |
+| Mana-Cafe Latte | 6 | +10% speed, +15% fire rate | unchanged |
 | Mana Lisa | 4 | Fire rate x1.2 | was 6 |
 | Roll With It / Wild Card | 5 / 5 | Random status each room / every 14 s | were 6 |
 | ~~Overdrawn Account~~ | | | removed: never better than Hot Take |
@@ -78,8 +88,8 @@ Sole Survivor stays 5 although Run-On Sentence is better in every stat; the extr
 
 | Item | Base cost | Effect |
 |---|---|---|
-| Silk Shorts | 6 | Speed +32 |
-| Leather Legguards | 8 | 2 armor, speed -18 |
+| Silk Shorts | 6 | +15% speed |
+| Leather Legguards | 8 | 2 armor, -10% speed |
 | Leather Vest | 7 | 1 armor |
 
 Each armor point blocks one hit. Armor is now repairable at the repair pad (2z a point on floors 1-3, 3z on floors 4-6, 4z on floors 7-9). Bonded Aegis charges are not repaired.

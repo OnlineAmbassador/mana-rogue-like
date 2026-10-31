@@ -494,8 +494,22 @@ const LIFESTONE_HEARTS = 3;
 const LIFESTONE_TICK_SECONDS = 6;
 // Each Far-Reach Lens tier also lengthens every melee weapon.
 const MELEE_REACH_PER_LENS = 0.1;
-const FLURRY_COOLDOWN_SCALE = 0.35;
+// Flurry Gauntlets swing 2.8x as often (cooldown x1/2.8), Swift Daggers 1.25x (cooldown x0.8).
+const FLURRY_SWING_RATE = 2.8;
+const FLURRY_COOLDOWN_SCALE = 1 / FLURRY_SWING_RATE;
 const DAGGER_COOLDOWN_SCALE = 0.8;
+// Item bonuses in the units players read: a multiplier above 1 is a gain (1.5 is +50%). `itemEffectTagsFor` prints
+// these same numbers, so the text on the cards and the effect cannot drift apart. Costs are in docs/ITEMS.md.
+const ITEM_TUNING = {
+  pearlSize: 1.5,
+  featherFireRate: 1.4,
+  featherShotSpeed: 1.15,
+  rangeLens: 1.35,
+  quiverFireRate: 1.8,
+  quiverDamage: 0.6,
+  // Wind-Up Wraps and Longbow Draw: charge builds this much faster (charge time x1/1.4).
+  chargeSpeed: 1.4,
+};
 // Prism Shard: a three-way fan whose shots add up to 1.2x one shot. A fused elemental shot stays at 1.6x.
 const PRISM_SHOT_COUNT = 3;
 const PRISM_TOTAL_DAMAGE = 1.2;
@@ -1028,7 +1042,7 @@ function meleeInputHeld() {
 }
 
 function meleeChargeTime() {
-  return MELEE_CHARGE_TIME * (activeWeaponMod('melee')?.id === 'mod-windup' ? 0.7 : 1);
+  return MELEE_CHARGE_TIME / (activeWeaponMod('melee')?.id === 'mod-windup' ? ITEM_TUNING.chargeSpeed : 1);
 }
 
 function updateMeleeInput(dt) {
@@ -1103,7 +1117,7 @@ function performMeleeAttack(charged) {
 }
 
 function bowChargeTime() {
-  return BOW_CHARGE_TIME * (activeWeaponMod('bow')?.id === 'mod-draw' ? 0.7 : 1);
+  return BOW_CHARGE_TIME / (activeWeaponMod('bow')?.id === 'mod-draw' ? ITEM_TUNING.chargeSpeed : 1);
 }
 
 function updateBowInput(dt) {
@@ -1275,10 +1289,10 @@ function shoot(options = null) {
   const holdSeconds = bowCharge ? BOW_TAP_WINDOW + bowCharge * bowChargeTime() : magicCharge * 0.9;
   const chargeMul = bowCharge || magicCharge ? clamp((holdSeconds + normalInterval) / normalInterval, 1, MAX_CHARGE_SHOTS) : 1;
   const chargedImpactBonus = chargeStrength > 0 ? 1 + chargeStrength * 0.75 : 1;
-  const bowDamageMul = (style === 'magic' ? (magicCharge ? chargeMul * (1 + magicCharge * 3.5) : 1) : style !== 'bow' ? 1 : bowCharge ? chargeMul : rapidQuiver ? 0.6 : 1) *
+  const bowDamageMul = (style === 'magic' ? (magicCharge ? chargeMul * (1 + magicCharge * 3.5) : 1) : style !== 'bow' ? 1 : bowCharge ? chargeMul : rapidQuiver ? ITEM_TUNING.quiverDamage : 1) *
     chargedImpactBonus * styleDamage *
     (tripleBow ? 0.6 : 1);
-  const bowDelayMul = (style !== 'bow' ? 1 : bowCharge ? 1 : rapidQuiver ? 0.55 : 1) * (tripleBow ? 1.35 : 1) /
+  const bowDelayMul = (style !== 'bow' ? 1 : bowCharge ? 1 : rapidQuiver ? 1 / ITEM_TUNING.quiverFireRate : 1) * (tripleBow ? 1.35 : 1) /
     (style === 'bow' ? profile.bowRate * (synergy ? 1.15 : 1) : 1);
   if (style === 'magic' && character?.className === 'Sporeling') {
     player.attackPulse = 0.14;

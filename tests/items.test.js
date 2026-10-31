@@ -70,7 +70,7 @@ test('curio numbers: Hot Take is a pure x1.5, Run-On Sentence is the faster big 
   assert.deepEqual(effects('curio-trigger'), { fire: 1.4, damage: 0.85 });
   assert.deepEqual(effects('curio-heavy-metal'), { damage: 1.6, fire: 0.75 });
   assert.deepEqual(effects('curio-shake'), { damage: 1.25 });
-  assert.deepEqual(effects('curio-mana-cafe'), { speed: 1.12, fire: 1.15 });
+  assert.deepEqual(effects('curio-mana-cafe'), { speed: 1.1, fire: 1.15 });
   assert.deepEqual(effects('curio-mana-lisa'), { fire: 1.2 });
   // No curio is dominated: a pure buff never costs less than a weaker pure buff.
   assert.ok(byId(items, 'curio-hot-take').cost > byId(items, 'curio-shake').cost);
@@ -139,7 +139,8 @@ test('Mana Burst scales with the floor but does not raise miniboss HP while carr
 
 test('weapon-speed and reach numbers from the review', () => {
   const c = combat();
-  assert.equal(peek(c, 'FLURRY_COOLDOWN_SCALE'), 0.35);
+  assert.equal(peek(c, 'FLURRY_SWING_RATE'), 2.8);
+  assert.ok(Math.abs(peek(c, 'FLURRY_COOLDOWN_SCALE') * 2.8 - 1) < 1e-12);
   assert.equal(peek(c, 'DAGGER_COOLDOWN_SCALE'), 0.8);
   assert.equal(peek(c, 'MELEE_REACH_PER_LENS'), 0.1);
   assert.equal(peek(c, 'LIFESTONE_HEARTS'), 3);
@@ -204,4 +205,91 @@ test('dyed icons map grey levels onto the TMW dye gradient and leave colour alon
   const lifestone = new Uint8ClampedArray([255, 255, 255, 255]);
   c.dyeGreyPixels(lifestone, ['#a0a010', '#ffffa0']);
   assert.deepEqual([...lifestone.slice(0, 3)], [255, 255, 160]);
+});
+
+// The bonus lines shown on cards, toasts and the pause grid.
+function tagContext() {
+  const c = combat();
+  const catalogue = catalogContext();
+  loadBetween(catalogue, 'game.js', 'const effectKeyLabels = {', 'const pickupBanner');
+  loadBetween(catalogue, 'game.js', 'const attackMorphs = {', '// Chain lightning');
+  Object.assign(c, {
+    shopItemCatalog: peek(catalogue, 'shopItemCatalog'),
+    itemEffectTags: peek(catalogue, 'itemEffectTags'),
+    attackMorphs: peek(catalogue, 'attackMorphs'),
+    MELEE_BASE_SCALE: 2.6,
+  });
+  vm.runInContext("const bonusStatLabels = { damage: 'Attack', speed: 'Speed', fire: 'Fire rate' };", c);
+  loadFunctions(c, 'gameui.js', ['formatGain', 'itemEffectTagsFor']);
+  return c;
+}
+
+test('bonus lines are signed, rounded percentages taken from the numbers that are applied', () => {
+  const c = tagContext();
+  const tags = (id) => [...c.itemEffectTagsFor(c.shopItemCatalog.find((item) => item.id === id))];
+  assert.deepEqual(tags('curio-hot-take'), ['+50% Attack']);
+  assert.deepEqual(tags('curio-sole'), ['+20% Speed', '-15% Attack']);
+  assert.deepEqual(tags('curio-trigger'), ['+40% Fire rate', '-15% Attack']);
+  assert.deepEqual(tags('curio-mana-cafe'), ['+10% Speed', '+15% Fire rate']);
+  assert.deepEqual(tags('pearl'), ['+50% Shot size', '+1 Attack']);
+  assert.deepEqual(tags('feather'), ['+40% Fire rate', '+15% Shot speed']);
+  assert.deepEqual(tags('silk-shorts'), ['+15% Speed']);
+  assert.deepEqual(tags('leather-legguards'), ['-10% Speed', '+2 Armor']);
+  assert.deepEqual(tags('leather-vest'), ['+1 Armor']);
+  assert.deepEqual(tags('mod-quiver'), ['+80% Fire rate', '-40% Arrow damage']);
+  assert.deepEqual(tags('mod-flurry'), ['+180% Swing rate', '-62% Hit damage']);
+  assert.deepEqual(tags('mod-windup'), ['+40% Charge speed', 'Melee charge mode']);
+  assert.deepEqual(tags('swift-daggers'), ['+1 Melee attack', '+25% Swing rate', '-20% Melee reach']);
+  assert.deepEqual(tags('range-lens-ii'), ['+35% Range', '+10% Melee reach']);
+  assert.deepEqual(tags('frost-rune').slice(0, 2), ['-10% Shot damage', '-10% Shot speed']);
+  assert.equal(tags('element-gas').includes('-20% Shot speed'), true);
+  assert.deepEqual(tags('prism').slice(0, 2), ['3-way fan', '40% damage each']);
+});
+
+test('a saved shop stall with an old copy of an item still shows the live numbers', () => {
+  const c = tagContext();
+  const stale = { id: 'curio-mana-cafe', name: 'Mana-Cafe Latte', kind: 'curio', effects: { speed: 1.12, fire: 1.15 } };
+  assert.deepEqual([...c.itemEffectTagsFor(stale)], ['+10% Speed', '+15% Fire rate']);
+});
+
+test('every real item shows bonus lines, and every curio line is a percentage', () => {
+  const c = tagContext();
+  for (const item of c.shopItemCatalog.filter((entry) => entry.kind !== 'companion' && entry.cost > 0)) {
+    const lines = [...c.itemEffectTagsFor(item)];
+    assert.ok(lines.length > 0, `${item.id} has bonus lines`);
+    assert.ok(lines.every((line) => !/undefined|NaN/.test(line)), `${item.id}: ${lines}`);
+    if (item.effects) assert.ok(lines.every((line) => /^[+-]\d+% /.test(line)), `${item.id}: ${lines}`);
+  }
+});
+
+test('clothing speed is a multiplier that unequips exactly and commutes with a speed boon', () => {
+  const c = combat();
+  const shorts = byId(catalog(), 'silk-shorts');
+  const legs = byId(catalog(), 'leather-legguards');
+  assert.equal(shorts.speedMul, 1.15);
+  assert.equal(legs.speedMul, 0.9);
+  c.equippedClothing.legs = null;
+  c.equippedClothing.chest = null;
+  c.player.speed = 235;
+  c.player.armor = 0;
+  c.equipClothing(shorts);
+  assert.ok(Math.abs(c.player.speed - 235 * 1.15) < 1e-9);
+  c.player.speed *= 1.05; // a Swift Boon taken while the shorts are worn
+  c.equipClothing(legs); // replaces the shorts in the same slot
+  assert.ok(Math.abs(c.player.speed - 235 * 1.05 * 0.9) < 1e-9);
+  assert.equal(c.player.armor, 2);
+});
+
+test('Mana Pearl and Swift Feather apply the numbers they display', () => {
+  const c = combat();
+  c.recordItemDiscovery = c.updateHud = c.showMessage = c.showPickupBanner = c.popOverPlayer = c.unlockCharacter = () => {};
+  c.shopItemIconImages = {}; c.itemQuips = {}; c.itemEffectTagsFor = () => [];
+  c.reservedUpgradeIds = new Set(); c.rangeLensItemIds = []; c.isCatalogItemUnlocked = () => true;
+  Object.assign(c.weapon, { tearSize: 1, fireDelay: 0.5, projectileSpeed: 480, damageBonus: 0 });
+  c.grantUpgrade({ id: 'pearl', name: 'Mana Pearl', kind: 'passive' });
+  assert.equal(c.weapon.tearSize, 1.5);
+  assert.equal(c.weapon.damageBonus, 1);
+  c.grantUpgrade({ id: 'feather', name: 'Swift Feather', kind: 'passive' });
+  assert.ok(Math.abs(0.5 / c.weapon.fireDelay - 1.4) < 1e-9, 'fire rate is exactly +40%');
+  assert.ok(Math.abs(c.weapon.projectileSpeed - 480 * 1.15) < 1e-9);
 });

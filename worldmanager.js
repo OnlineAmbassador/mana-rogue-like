@@ -803,7 +803,7 @@ function grantUpgrade(item, source = 'descent') {
   } else if (item.kind === 'clothing') {
     equipClothing(item);
   } else if (item.id === 'pearl') {
-    weapon.tearSize *= 1.45;
+    weapon.tearSize *= ITEM_TUNING.pearlSize;
     weapon.damageBonus += 1;
   } else if (item.id === 'prism') {
     const previousShotCount = weapon.shotCount;
@@ -811,10 +811,10 @@ function grantUpgrade(item, source = 'descent') {
     // Three shots at 0.4x each: 1.2x a single shot if all of them land.
     weapon.shotDamageMultiplier *= PRISM_TOTAL_DAMAGE * previousShotCount / weapon.shotCount;
   } else if (item.id === 'feather') {
-    weapon.fireDelay = Math.max(0.11, weapon.fireDelay * 0.7);
-    weapon.projectileSpeed += 70;
+    weapon.fireDelay = Math.max(0.11, weapon.fireDelay / ITEM_TUNING.featherFireRate);
+    weapon.projectileSpeed *= ITEM_TUNING.featherShotSpeed;
   } else if (rangeLensItemIds.includes(item.id)) {
-    weapon.rangeMultiplier *= 1.35;
+    weapon.rangeMultiplier *= ITEM_TUNING.rangeLens;
     weapon.rangeLevel += 1;
   } else if (item.kind === 'weapon') {
     combatStyles.add('melee');
@@ -842,18 +842,21 @@ function grantUpgrade(item, source = 'descent') {
   reservedUpgradeIds.delete(item.id);
   playSound('som:alteration/skillup.ogg', 0.35);
   updateHud();
+  const bonusTags = itemEffectTagsFor(item);
+  // The flavour line first, then the numbers on their own line so the toast never truncates them.
+  const flavour = item.quip || itemQuips[item.id];
   showMessage(
     item.kind === 'clothing'
-      ? `${item.name} equipped. Speed ${player.speed}; armor ${player.armor}.`
-      : item.quip || itemQuips[item.id]
-        ? `${item.quip || itemQuips[item.id]} (${item.description || attackMorphs[item.id]?.label || ''})${
-          item.kind === 'mod' && styleSynergy(item.style) ? ` CLASS SYNERGY: ${character.className} supercharges it!` : ''}`
+      ? `${item.name} equipped.`
+      : flavour
+        ? `${flavour}${item.kind === 'mod' && styleSynergy(item.style) ? ` CLASS SYNERGY: ${character.className} supercharges it!` : ''}`
         : attackMorphs[item.id]
         ? `${item.name} acquired. Your attacks change: ${attackMorphs[item.id].label}.`
         : `${item.name} acquired. Your mana answers to practice, not birthright.`,
     3,
   );
-  const effectTags = [...itemEffectTagsFor(item)];
+  if (bonusTags.length) showMessage(`${item.name}: ${bonusTags.join(', ')}`, 3.5);
+  const effectTags = [...bonusTags];
   if (sideEffectMode) effectTags.push(`${sideEffectMode.toUpperCase()} MODE`);
   showPickupBanner(item.name, effectTags);
   popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[item.id] });
@@ -862,12 +865,13 @@ function grantUpgrade(item, source = 'descent') {
 
 function equipClothing(item) {
   const previous = equippedClothing[item.slot];
+  // Speed is a multiplier (1.15 is +15%), so it undoes exactly and commutes with level-up speed boons.
   if (previous) {
-    player.speed -= previous.speedBonus;
+    player.speed /= previous.speedMul || 1;
     player.armor = Math.max(0, player.armor - previous.armorBonus);
   }
   equippedClothing[item.slot] = item;
-  player.speed += item.speedBonus;
+  player.speed *= item.speedMul || 1;
   player.armor += item.armorBonus;
 }
 
