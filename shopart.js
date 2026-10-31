@@ -1,4 +1,5 @@
-/* Shop room art: market-stall pieces from the Artis market sheet, drawn unstretched, plus plain canvas text and shapes. */
+/* Shop room art: market-stall pieces from the Artis market sheet, drawn unstretched, SoM magic circles for the pads and
+   pedestals (effectart.js), and plain canvas text. */
 
 const SHOP_ART = {
   // Pixel scale for sheet pieces; nearest-neighbour, so the pixels stay crisp.
@@ -65,14 +66,10 @@ function wrapShopText(text, maxWidth, maxLines) {
 // The detail lines sit inside the ring so they never reach the stalls below.
 function drawShopPad(position, label, accent, details, lit) {
   const pulse = prefersReducedMotion() ? 0 : Math.sin(elapsed * 3) * 2;
+  // A SoM magic circle in the pad's colour over a TMW shadow; it glows while the delver stands on it.
+  drawEffect('shadow', 0, position.x, position.y + 2, { width: 92, height: 60, alpha: 0.6, smooth: true });
+  drawEffectCircle(position.x, position.y, 40 + (lit ? pulse : 0), accent, { fill: lit ? 0.5 : 0, ring: 'castCross' });
   ctx.save();
-  ctx.fillStyle = lit ? 'rgba(244, 215, 142, 0.34)' : 'rgba(40, 34, 26, 0.5)';
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(position.x, position.y, 40 + (lit ? pulse : 0), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
   ctx.fillStyle = '#f2e5c6';
   ctx.font = 'bold 13px Arial';
   ctx.textAlign = 'center';
@@ -185,13 +182,8 @@ function drawShopRoom() {
     drawShopPiece('counter', spot.x, spot.y + 30, 1);
     ctx.save();
     ctx.globalAlpha = item.purchased ? 0.4 : 1;
-    ctx.fillStyle = 'rgba(16, 14, 19, 0.55)';
-    ctx.strokeStyle = coins >= item.cost || item.purchased ? '#d9bd83' : '#9a6666';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(spot.x, spot.y, 30, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    drawEffect('shadow', 0, spot.x, spot.y + 2, { width: 64, height: 42, alpha: 0.7, smooth: true });
+    drawEffectCircle(spot.x, spot.y, 30, coins >= item.cost || item.purchased ? '#d9bd83' : '#9a6666');
     drawShopItemIcon(item, spot.x, spot.y);
     ctx.restore();
     drawShopCard(item, spot, width, index);

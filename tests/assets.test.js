@@ -95,3 +95,18 @@ test('every new asset is credited in the docs', () => {
   assert.ok(somCredits.includes('artis-market.png') && somCredits.includes('EJlol'));
   assert.ok(fs.existsSync(path.join(SOM_GRAPHICS, 'artis-market.png')));
 });
+
+test('every effect image is credited with its source path', () => {
+  const game = fs.readFileSync(path.join(ROOT, 'game.js'), 'utf8');
+  const block = game.match(/const effectArt = \{([\s\S]*?)\n\};/)[1];
+  const credits = fs.readFileSync(path.join(ROOT, 'docs', 'CREDITS.md'), 'utf8');
+  const somCredits = fs.readFileSync(path.join(ROOT, 'assets', 'som', 'CREDITS.md'), 'utf8');
+  const missing = [];
+  for (const [, file, root] of block.matchAll(/loadAsset\('([^']+)'(?:, '([^']+)')?\)/g)) {
+    // The TMW credit list names several runestones on one line, so match each file by its own name.
+    const credited = root ? somCredits.includes(`graphics/${file}`)
+      : credits.includes(`graphics/${file}`) || credits.includes(`\`${path.basename(file)}\``);
+    if (!credited) missing.push(file);
+  }
+  assert.deepEqual(missing, []);
+});

@@ -17,19 +17,6 @@ function roomLightShafts() {
     length: Math.min(ROOM_H - band * 2, 360 + index * 80),
     width: 30 + index * 16,
   }));
-  for (const [index, shaft] of roomLightShafts.shafts.entries()) {
-    shaft.contours = [1.3, 1.05, 0.8, 0.55].map((spread) => {
-      const sides = [-1, 1].map((side) => Array.from({ length: 17 }, (_, step) => {
-        const phase = step / 16;
-        const along = phase * shaft.length;
-        const drift = Math.sin(phase * 8 + seed + index) * shaft.width * 0.12;
-        const irregularity = 0.85 + Math.sin(step * 1.7 + seed + side * 2 + index) * 0.15;
-        const across = drift + side * shaft.width * (0.35 + phase * 0.65) * spread * irregularity;
-        return [shaft.x + along + across, shaft.y + along - across];
-      }));
-      return [...sides[0], ...sides[1].reverse()];
-    });
-  }
   return roomLightShafts.shafts;
 }
 
@@ -131,16 +118,9 @@ function drawTrunkShadow(x, y, width, height, opacity = 1, anchorY = 0.34) {
   ctx.shadowBlur = 0;
   ctx.filter = 'none';
   ctx.globalAlpha *= sunlightStrength(x, rootY) * opacity;
-  ctx.fillStyle = '#101722';
-  ctx.beginPath();
-  ctx.ellipse(x, rootY, halfWidth, halfWidth * 0.45, 0, 0, Math.PI * 2);
-  ctx.moveTo(x - halfWidth, rootY);
-  ctx.lineTo(x + halfWidth, rootY);
-  ctx.lineTo(x + reach + halfWidth, rootY + reach);
-  ctx.quadraticCurveTo(x + reach, rootY + reach + halfWidth * 0.6,
-    x + reach - halfWidth, rootY + reach);
-  ctx.closePath();
-  ctx.fill();
+  // The TMW round shadow under the trunk, and the same shadow stretched down-right as the cast part.
+  drawEffect('shadow', 0, x, rootY, { width: halfWidth * 2.4, height: halfWidth * 1.1, smooth: true });
+  drawEffectBetween('shadow', 0, x, rootY, x + reach, rootY + reach, halfWidth * 2, { smooth: true });
   ctx.restore();
 }
 
@@ -152,10 +132,8 @@ function drawSunGroundShadow(x, y, radius, elevation = 0) {
   ctx.save();
   ctx.shadowBlur = 0;
   ctx.globalAlpha *= sunlightStrength(x, y);
-  ctx.fillStyle = '#101722';
-  ctx.beginPath();
-  ctx.ellipse(x + offset, y + offset, shadowRadius, shadowRadius * 0.5, Math.PI / 4, 0, Math.PI * 2);
-  ctx.fill();
+  drawEffect('shadow', 0, x + offset, y + offset, { width: shadowRadius * 2.4, height: shadowRadius * 1.2,
+    rotation: Math.PI / 4, smooth: true });
   ctx.restore();
 }
 
@@ -213,11 +191,9 @@ function drawWorldLightSources() {
       texture = document.createElement('canvas');
       texture.width = texture.height = 128;
       const target = texture.getContext('2d');
-      const gradient = target.createRadialGradient(64, 64, 0, 64, 64, 64);
-      gradient.addColorStop(0, color);
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      target.fillStyle = gradient;
-      target.fillRect(0, 0, 128, 128);
+      // The TMW glow particle in the light's colour.
+      if (!effectImageReady(effectArt.glow)) continue;
+      target.drawImage(tintedEffectImage(effectArt.glow, color), 0, 0, 128, 128);
       if (drawWorldLightSources.textures.size >= 16) {
         drawWorldLightSources.textures.delete(drawWorldLightSources.textures.keys().next().value);
       }
@@ -299,32 +275,16 @@ function drawRoomSunlight() {
     const shafts = roomLightShafts();
     for (let index = 0; index < shafts.length; index += 1) {
       const { x, y, width, length } = shafts[index];
-      const glow = ctx.createLinearGradient(x, y, x + length, y + length);
-      const pulse = 0.11 + Math.sin(time * 0.7 + index) * 0.015;
-      glow.addColorStop(0, 'rgba(255, 239, 193, 0)');
-      glow.addColorStop(0.18, `rgba(255, 239, 193, ${pulse})`);
-      glow.addColorStop(0.7, 'rgba(255, 239, 193, 0.05)');
-      glow.addColorStop(1, 'rgba(255, 239, 193, 0)');
-      ctx.fillStyle = glow;
-      ctx.save();
-      ctx.globalAlpha *= 0.25;
-      for (const contour of shafts[index].contours) {
-        ctx.beginPath();
-        contour.forEach(([px, py], point) => {
-          if (point === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        });
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-      ctx.fillStyle = 'rgba(255, 245, 216, 0.3)';
+      // TMW sunlight shaft (it falls down-right in the file, as the shafts do here), with SoM orb dust motes.
+      drawEffect('sunShaft', 0, x - width * 0.3, y - width * 0.3, { anchorX: 0, anchorY: 0, width: length * 0.8,
+        height: length, alpha: 0.55 + Math.sin(time * 0.7 + index) * 0.08, smooth: true });
       const motes = quality.low ? 2 : 6;
       for (let mote = 0; mote < motes; mote += 1) {
         const phase = (mote / motes + time * 0.025) % 1;
         const along = phase * length;
         const across = Math.sin(mote * 2.7 + index) * width * 0.45;
-        ctx.fillRect(Math.round(x + along + across), Math.round(y + along - across), 1, 1);
+        drawEffect('orb', 0, Math.round(x + along + across), Math.round(y + along - across),
+          { width: 3, alpha: 0.35, tint: '#fff5d8' });
       }
     }
   }

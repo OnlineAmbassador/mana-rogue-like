@@ -367,6 +367,13 @@ function telegraphRenderer(c) {
       arcs.push({ x, y, radius });
     },
   };
+  // Ground telegraphs are SoM magic circles drawn by effectart.js; record the radius each one is drawn at.
+  c.drawEffect = () => true;
+  c.effectFrameAt = () => 0;
+  c.drawEffectCircle = (x, y, radius) => {
+    assert.ok(Number.isFinite(radius) && radius >= 0, `invalid circle radius: ${radius}`);
+    arcs.push({ x, y, radius });
+  };
   c.monsterSprites = {
     golem: { image: { complete: false } },
     jacko: { image: { complete: false } },

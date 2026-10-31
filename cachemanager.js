@@ -1,7 +1,7 @@
 let gameAssetVersions = null;
 
 // Classic scripts in the order they must run; tests check this against the .js files in the project root.
-const GAME_SCRIPTS = ['gameui.js', 'desertart.js', 'lightingmanager.js', 'shopart.js', 'mobmanager.js', 'playermanager.js',
+const GAME_SCRIPTS = ['gameui.js', 'desertart.js', 'lightingmanager.js', 'shopart.js', 'effectart.js', 'mobmanager.js', 'playermanager.js',
   'dbmanager.js', 'worldmanager.js', 'controllermanager.js', 'game.js'];
 
 function validateAssetManifest(manifest) {

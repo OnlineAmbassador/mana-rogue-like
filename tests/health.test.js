@@ -31,7 +31,7 @@ function combat() {
   }
   vm.runInContext(`
     knockPlayerBack = vibrateController = triggerCameraShake = updateHud =
-      clearSavedRun = showMessage = addParticles = playSound = saveRunState = () => {};
+      clearSavedRun = showMessage = addParticles = addEffectBurst = playSound = saveRunState = () => {};
   `, c);
   return c;
 }

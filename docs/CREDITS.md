@@ -62,6 +62,40 @@ The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3
 - `graphics/sprites/monsters/grass.png` — HoraK-FDF; GPLv2 and CC BY-SA 4.0.
 - `graphics/sprites/monsters/plant.png` — Crush, Seradest; GPLv2.
 
+### Effect, light and icon art
+
+Drawn by `effectart.js` in place of shapes the game used to draw in code (see [ASSETS.md](ASSETS.md)). Every file is unmodified; scaling, rotation and recolouring happen at draw time. "License not recorded upstream" marks files that TMW ships without a license entry (they are listed in `assets/tmw/clientdata/license-missing`); they are used under ASSETS.md rule 6.
+
+- `graphics/particles/beam-crit.png` — Ledmitz; GPLv2, CC BY-SA 3.0. Charge-beam impact.
+- `graphics/particles/glow-medium.png` — Crush; GPLv2, CC BY-SA 3.0. Beams, glows and light pools.
+- `graphics/particles/sparkles.png` — Crush; CC BY-SA 3.0. Launch flash.
+- `graphics/particles/star-medium.png` — Crush; GPLv2, CC BY-SA 3.0. Magic marks and motes.
+- `graphics/particles/misc.png` — Cethiel; CC0 (source jesusalva). Melee swipe.
+- `graphics/particles/aniblaze-large.png` — Crush; GPLv2, CC BY-SA 3.0. Bomb blast.
+- `graphics/particles/anibubble_8px_green.png` — Crush, wushin; GPLv2, CC BY-SA 3.0. Spore shots and pods.
+- `graphics/particles/monster-rotter-vomit.png` — Ledmitz; GPLv2, CC BY-SA 3.0. Spore shards.
+- `graphics/particles/snowflake-9x9.png` — HoraK-FDF; GPLv2, CC BY-SA 4.0. Ice shots and frost icon.
+- `graphics/particles/heart.png` — Coolkid782, Reid; CC BY-SA 3.0. Overhead heart.
+- `graphics/particles/lightning1-240.png` — license not recorded upstream. Lightning chains and strikes.
+- `graphics/particles/electricity.particle.png` — license not recorded upstream. Lightning shots.
+- `graphics/particles/puff-blue.png` — license not recorded upstream. Frost nova.
+- `graphics/skills/unknown.png` — license not recorded upstream. Curio question mark.
+- `graphics/items/generic/runestone_a.png`, `runestone_l.png`, `runestone_n.png`, `runestone_t.png`, `runestone_w.png` — license not recorded upstream. Trial runes.
+- `graphics/images/ambient/spotlight.png` — Crush; GPL 3.0 or CC BY-SA 3.0 (CC BY-SA 3.0 used). Hurt vignette.
+- `graphics/sprites/npcs/sprite/soulmenhirs_x2.png` — Alige, Lien; GPLv2. Elemental Menhir.
+- `graphics/sprites/monsters/accessories/mediumcircleshadow.png` — Saulc; CC BY-SA 3.0. Ground shadows.
+- `graphics/tilesets/evol/sunlight-x1x5.png` — Reid; CC BY-SA 3.0 (source Hal9000). Cave light shafts.
+- `graphics/items/generic/key/copperkey.png` — Saulc; CC BY-SA 3.0. Key pickup and pop.
+- `graphics/items/generic/goldpieces.png` — Saulc; CC BY-SA 3.0. Zeny pickup.
+- `graphics/items/generic/gem/diamond.png` — Crush, Enchilado; CC BY-SA 3.0. Experience gem.
+- `graphics/items/generic/spell-book.png` — Salmondine, Enchilado; GPLv2. Lore relic and lore icon.
+- `graphics/items/use/others/lightning-orb.png` — Hello=), HoraK-FDF; GPLv2, CC BY-SA 4.0. Lightning icon.
+- `graphics/items/generic/feather-a.png` — HoraK-FDF; GPLv2, CC BY-SA 4.0. Feather icon.
+- `graphics/items/usable/use/timeflask.png` — Ozthokk; CC BY-SA 3.0 (source Pyndragon). Mana tonic icon.
+- `graphics/images/bow.png`, `graphics/images/sword.png` — Othello; GPLv2. Weapon icons.
+- `graphics/emotes/meow.png` — Reid, Modanung; GPLv2, CC BY-SA 3.0. Companion icon.
+- `graphics/emotes/surprise.png` — Modanung; GPLv2, CC BY-SA 3.0. Mana-bomb warning.
+
 The projectile, heart, Ratto, Croc, Wisp, loghead, shorts, leather chest, Bluepar, frog, skeleton, spider, Spider Queen, and Golem sprites use their CC BY-SA 3.0 license option, unmodified. The Nivalis floor uses the base snow tile used by TMW's Snow Field map; other regions use their corresponding desert, forest, graveyard, ruin, savannah, ice, and cave ground sheets. Player body and face colors are corrected at runtime to add warm skin tones while retaining sprite shading; hairstyles and acquired clothing are layered over the body. Browsers that restrict pixel readback for images opened directly from disk display the original TMW sprite colors instead, so character selection remains visible. Missing optional object artwork receives a procedural fallback without modifying the licensed images. Secret rooms use cool-tinted stone-floor tiles from the desert-castle interior sheet. License texts are in `assets/tmw/clientdata/GPL` and the other license files at that directory's root. Preserve each asset's applicable license and attribution when redistributing.
 
 The repository includes the license records in `assets/tmw/clientdata/LICENSE` and the unlisted-license inventory in `assets/tmw/clientdata/license-missing`. The license list notes that its credits may be incomplete or incorrect. Verify asset credits and licenses before redistributing a release, and retain this attribution and the [CC BY-SA 3.0 license terms](https://creativecommons.org/licenses/by-sa/3.0/) with the artwork.
