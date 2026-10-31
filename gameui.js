@@ -5712,7 +5712,7 @@ function tutorialPages() {
         : lastInputMode === 'touch'
           ? 'Drag the left area to move. Hold Attack to target the nearest live enemy. With no enemies in the room, drag Attack to aim freely, or hold without dragging to fire where you face.'
           : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
-      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover the Mana Familiar Sigil to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
+      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover Betsanc to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
       ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
       ['Menus', `${b('map')} map, ${b('journal')} journal, ${pad ? p.menu : 'P'} pause. Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}). Weapon upgrades may also change how that weapon fires.`],
     ] },
@@ -5732,9 +5732,9 @@ function tutorialPages() {
       ['Wild magic', 'Mage starts with random elemental magic; other classes start with water. Items no longer reroll your element; find an elemental menhir and interact to attune. Element sigils grant their named element. Magic effects share your element color. White diamond marks identify friendly effects. Mage surprises: 40% enemy, 20% object, 6% special shot; others: 10%, 5%, 1%. Bosses cannot be lifted or teleported.'],
     ] },
     { title: 'CONSUMABLES, BOMBS, MANA GUARD', sections: [
-      ['Consumables', `Break scenery to uncover stored consumables, or buy them in shops. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
+      ['Consumables', `Break scenery to uncover stored consumables. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
       ['Bombs', `Press ${b('bomb')} to drop a bomb. Shots from either side push grounded bombs; they slide and bounce off scenery without resetting the fuse. Explosions hurt nearby foes and open sealed rooms. Stay out of the blast.`],
-      ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find the Mana Familiar Sigil to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
+      ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find Betsanc to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
       ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENY AND KEYS', sections: [

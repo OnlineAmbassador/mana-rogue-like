@@ -51,7 +51,7 @@ test('rebalanced boss health targets at least 56 seconds of estimated sustained 
 test('a charge-mode unlock applies to every selectable weapon style', () => {
   const c = combat();
   c.Math.random = () => 0.01;
-  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'skill' }), 'charge');
+  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'weapon' }), 'charge');
   assert.deepEqual({ ...c.fireModes }, { melee: 'charge', bow: 'charge', magic: 'charge' });
 });
 
@@ -59,7 +59,7 @@ test('charge mode is a one-time five-percent discovery and is never rerolled aft
   const c = combat();
   const rolls = [0.05, 0.8, 0.01];
   c.Math.random = () => rolls.shift() ?? 0.8;
-  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'skill' }), 'rapid');
+  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'weapon' }), 'rapid');
   assert.deepEqual({ ...c.fireModes }, { melee: 'rapid', bow: 'rapid', magic: 'rapid' });
   assert.equal(c.applyRandomFireMode({ style: 'bow', kind: 'weapon' }), 'charge');
   assert.deepEqual({ ...c.fireModes }, { melee: 'charge', bow: 'charge', magic: 'charge' });

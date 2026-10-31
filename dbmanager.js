@@ -264,6 +264,16 @@ function captureRoomRuntime(room) {
   return room.runtime;
 }
 
+// Items merged into a newer one: a saved run that owned the old id now owns the new item.
+const retiredItemIds = { 'storm-spool': 'wild-magic-core', 'ember-seed': 'wild-magic-core', 'nova-pearl': 'wild-magic-core' };
+
+// A boss-room pickup saved before the Lifestone replaced the Guardian Heart becomes a Lifestone.
+function migrateSavedPickup(state) {
+  if (state.kind !== 'upgrade' || state.item?.id !== 'guardian-heart') return state;
+  const lifestone = shopItemCatalog.find((item) => item.id === 'lifestone');
+  return lifestone ? { ...state, item: lifestone } : state;
+}
+
 function restoreRoomRuntime(room) {
   const runtime = room.runtime;
   // A save from an older build may lack the enemy list; treat that room as fresh instead of crashing.
@@ -507,7 +517,7 @@ function restoreRun() {
   Object.assign(weapon, saved.weapon);
   ownedItems.clear();
   for (const id of saved.ownedItems || []) {
-    if (typeof id === 'string' && !id.startsWith('mode-')) ownedItems.add(id);
+    if (typeof id === 'string' && !id.startsWith('mode-')) ownedItems.add(retiredItemIds[id] || id);
   }
   fireModes.melee = 'rapid';
   fireModes.bow = 'rapid';

@@ -1,11 +1,14 @@
 /* Rooms, map generation, pickups, shops, and world objects. */
 
+// Damage curios and the chaos status multiply; boss HP never sees them, so the total is capped.
+const CURIO_DAMAGE_CAP = 2.5;
+
 function curioMultiplier(key) {
   let multiplier = chaosStatus?.[key] || 1;
   for (const item of shopItemCatalog) {
     if (item.kind === 'curio' && item.effects?.[key] && ownedItems.has(item.id)) multiplier *= item.effects[key];
   }
-  return multiplier;
+  return key === 'damage' ? Math.min(CURIO_DAMAGE_CAP, multiplier) : multiplier;
 }
 
 function rollChaosStatus(duration) {
@@ -46,7 +49,16 @@ function spawnCurioDrop(x, y, room) {
 function applyRandomFireMode(item) {
   const style = item.style;
   if (!['melee', 'bow', 'magic'].includes(style) ||
-      !['skill', 'weapon', 'mod', 'element'].includes(item.kind)) return null;
+      !['weapon', 'mod', 'element'].includes(item.kind)) return null;
+  // These two mods only speed up charging, so taking one puts its style in charge mode instead of re-rolling it.
+  if (item.id === 'mod-windup' || item.id === 'mod-draw') {
+    fireModes[style] = 'charge';
+    player.meleeCharge = 0;
+    player.bowHold = 0;
+    player.magicHold = 0;
+    player.chargeFraction = 0;
+    return 'charge';
+  }
   const chargeAlreadyFound = Object.values(fireModes).includes('charge');
   const chargedModeFound = !chargeAlreadyFound && Math.random() < 0.05;
   const choices = style === 'bow' ? ['rapid', 'triple'] : ['rapid'];
@@ -199,7 +211,6 @@ function shopItemStillValid(item) {
   if (item.kind === 'companion') return companions.length < 2 && !ownedItems.has(item.id);
   if (ownedItems.has(item.id)) return false;
   if (item.kind === 'ability' && item.id !== 'orbiting-projectiles' && ownedAbilityCount() >= 2) return false;
-  if (item.kind === 'skill' && combatStyles.has(item.style)) return false;
   return true;
 }
 
@@ -279,8 +290,8 @@ function roomAreaBonus() {
 function createUpgradeReward(idSuffix, dungeonRooms) {
   const abilityCount = ownedAbilityCount() + reservedAbilityCount();
   const upgrades = shopItemCatalog.filter((item) =>
-    ['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind) &&
-    (item.kind === 'skill' ? !combatStyles.has(item.style) : !ownedItems.has(item.id)) &&
+    ['passive', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind) &&
+    !ownedItems.has(item.id) &&
     isUpgradeAvailable(item) &&
     (!item.id.startsWith('heart-vessel-') || heartVesselAllowed()) &&
     (item.kind !== 'ability' || item.id === 'orbiting-projectiles' || abilityCount < 2) &&
@@ -763,7 +774,7 @@ function grantUpgrade(item, source = 'descent') {
     showMessage('Your two ability slots are already filled.', 2);
     return false;
   }
-  if (['ability', 'element', 'skill'].includes(item.kind)) {
+  if (['ability', 'element'].includes(item.kind)) {
     // Never slows an attack that is already faster than the 0.55 s floor.
     weapon.fireDelay = Math.max(Math.min(weapon.fireDelay, 0.55), weapon.fireDelay * 0.88);
   }
@@ -784,16 +795,15 @@ function grantUpgrade(item, source = 'descent') {
     weapon.damageBonus += 1;
   } else if (item.id === 'prism') {
     const previousShotCount = weapon.shotCount;
-    weapon.shotCount = Math.min(5, weapon.shotCount + 4);
-    weapon.shotDamageMultiplier *= previousShotCount / weapon.shotCount;
+    weapon.shotCount = Math.min(PRISM_SHOT_COUNT, weapon.shotCount + PRISM_SHOT_COUNT - 1);
+    // Three shots at 0.4x each: 1.2x a single shot if all of them land.
+    weapon.shotDamageMultiplier *= PRISM_TOTAL_DAMAGE * previousShotCount / weapon.shotCount;
   } else if (item.id === 'feather') {
     weapon.fireDelay = Math.max(0.11, weapon.fireDelay * 0.7);
     weapon.projectileSpeed += 70;
   } else if (rangeLensItemIds.includes(item.id)) {
     weapon.rangeMultiplier *= 1.35;
     weapon.rangeLevel += 1;
-  } else if (item.kind === 'skill') {
-    combatStyles.add(item.style);
   } else if (item.kind === 'weapon') {
     combatStyles.add('melee');
     meleeWeapons.add(item.weapon);
@@ -1531,10 +1541,6 @@ function buyShopItem(index) {
     showMessage('Your health is already full.', 2);
     return;
   }
-  if (item.kind === 'skill' && combatStyles.has(item.style)) {
-    showMessage(`You already know how to ${item.style === 'melee' ? 'brawl' : item.style === 'bow' ? 'use a bow' : 'cast magic'}.`, 2);
-    return;
-  }
   if (item.kind !== 'consumable' && ownedItems.has(item.id)) {
     showMessage(`${item.name} is already equipped.`, 2);
     return;
@@ -1545,7 +1551,7 @@ function buyShopItem(index) {
   }
   coins -= item.cost;
   item.purchased = true;
-  const grantsUpgrade = ['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind);
+  const grantsUpgrade = ['passive', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind);
   // Upgrades already play their own cue in grantUpgrade.
   if (!grantsUpgrade) playSound('system/item.ogg', 0.3);
   if (grantsUpgrade) {
@@ -1573,7 +1579,7 @@ function buyShopItem(index) {
   }
   if (powerHatByItem[item.id]) player.powerHat = { item: item.id, hat: powerHatByItem[item.id] };
   updateHud();
-  if (!['passive', 'skill', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind)) {
+  if (!['passive', 'weapon', 'mod', 'curio', 'clothing', 'ability', 'element'].includes(item.kind)) {
     showMessage(`${item.name} acquired: ${item.description}.${item.kind === 'consumable' ? ' Press Q to use it.' : ''}`, 3);
   }
 }

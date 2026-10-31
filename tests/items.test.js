@@ -1,0 +1,207 @@
+// Pins the outcome of the item review (docs/ITEMS.md): base costs, removed and merged items, curio numbers and the
+// rule changes behind them. A change to any of these numbers should be made in docs/ITEMS.md and here together.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const { combat, peek } = require('./helpers/combat');
+const { loadBetween, loadFunctions, sliceBetween } = require('./helpers/load');
+
+function catalogContext() {
+  const c = vm.createContext({
+    monsterSprites: { ratto: {}, golem: {}, bee: {} },
+    monsterDisplayName: (kind) => kind,
+    bossCompanionKinds: new Set(['golem']),
+  });
+  loadBetween(c, 'game.js', 'const MIN_ABILITY_COST', 'const characterRoster');
+  return c;
+}
+
+const catalog = () => peek(catalogContext(), 'shopItemCatalog');
+const byId = (items, id) => items.find((item) => item.id === id);
+
+test('base costs follow the item review', () => {
+  const items = catalog();
+  const costs = {
+    pearl: 7, prism: 8, feather: 8,
+    'heart-vessel-i': 8, 'heart-vessel-ii': 11, 'heart-vessel-iii': 14,
+    'luck-up-i': 6, 'luck-up-ii': 9,
+    'range-lens': 8, 'range-lens-ii': 11, 'range-lens-iii': 14,
+    'wild-magic-core': 9,
+    'frost-rune': 9, 'orbiting-projectiles': 10, 'spore-bloom': 10, 'bonded-aegis': 11,
+    'element-fire': 7, 'element-lightning': 7, 'element-gas': 7,
+    'iron-sword': 8, 'swift-daggers': 7,
+    'curio-hot-take': 8, 'curio-sole': 5, 'curio-run-on': 6, 'curio-trigger': 5, 'curio-heavy-metal': 6,
+    'curio-shake': 7, 'curio-mana-cafe': 6, 'curio-mana-lisa': 4, 'curio-dice': 5, 'curio-wild-card': 5,
+    'mod-windup': 7, 'mod-flurry': 7, 'mod-cinder': 8, 'mod-pierce': 8, 'mod-draw': 7, 'mod-quiver': 7,
+    'mod-storm-arrows': 9, 'mod-splash': 8, 'mod-chain': 9, 'mod-lingering': 8,
+    'silk-shorts': 6, 'leather-legguards': 8, 'leather-vest': 7,
+    'mana-tonic': 4, 'bomb-bundle': 4, 'mana-burst': 6,
+  };
+  for (const [id, cost] of Object.entries(costs)) {
+    assert.ok(byId(items, id), `${id} exists`);
+    assert.equal(byId(items, id).cost, cost, id);
+  }
+});
+
+test('retired and merged items are gone and Betsanc keeps the familiar sigil id', () => {
+  const items = catalog();
+  for (const id of ['guardian-heart', 'curio-overdraw', 'learn-magic', 'learn-brawl', 'learn-bow',
+    'storm-spool', 'ember-seed', 'nova-pearl']) {
+    assert.equal(byId(items, id), undefined, id);
+  }
+  assert.equal(byId(items, 'orbiting-projectiles').name, 'Betsanc');
+  assert.equal(byId(items, 'lifestone').kind, 'boss-relic');
+  assert.equal(byId(items, 'lifestone').cost, 0);
+  assert.equal(items.some((item) => /Familiar Sigil/.test(item.name)), false);
+});
+
+test('every dormant familiar costs the same 12z', () => {
+  const familiars = catalog().filter((item) => item.kind === 'companion');
+  assert.equal(familiars.length, 3);
+  assert.ok(familiars.every((item) => item.cost === 12));
+});
+
+test('curio numbers: Hot Take is a pure x1.5, Run-On Sentence is the faster big trade', () => {
+  const items = catalog();
+  const effects = (id) => ({ ...byId(items, id).effects });
+  assert.deepEqual(effects('curio-hot-take'), { damage: 1.5 });
+  assert.deepEqual(effects('curio-sole'), { speed: 1.2, damage: 0.85 });
+  assert.deepEqual(effects('curio-run-on'), { speed: 1.35, damage: 0.95 });
+  assert.deepEqual(effects('curio-trigger'), { fire: 1.4, damage: 0.85 });
+  assert.deepEqual(effects('curio-heavy-metal'), { damage: 1.6, fire: 0.75 });
+  assert.deepEqual(effects('curio-shake'), { damage: 1.25 });
+  assert.deepEqual(effects('curio-mana-cafe'), { speed: 1.12, fire: 1.15 });
+  assert.deepEqual(effects('curio-mana-lisa'), { fire: 1.2 });
+  // No curio is dominated: a pure buff never costs less than a weaker pure buff.
+  assert.ok(byId(items, 'curio-hot-take').cost > byId(items, 'curio-shake').cost);
+});
+
+test('Bonded Aegis no longer reshapes the player shots', () => {
+  const text = sliceBetween('game.js', 'const attackMorphs = {', '};');
+  assert.equal(text.includes('bonded-aegis'), false);
+  assert.ok(text.includes('frost-rune'), 'the other morphs are untouched');
+});
+
+test('Heart Vessels are bought in order and Iron Sword is never offered twice', () => {
+  const c = combat();
+  c.rangeLensItemIds = [];
+  c.isCatalogItemUnlocked = () => true;
+  const vessels = ['heart-vessel-i', 'heart-vessel-ii', 'heart-vessel-iii'].map((id) => ({ id, kind: 'passive' }));
+  const offered = () => vessels.filter((item) => c.isUpgradeAvailable(item)).map((item) => item.id);
+  assert.deepEqual([...offered()], ['heart-vessel-i']);
+  c.ownedItems.add('heart-vessel-i');
+  assert.deepEqual([...offered()], ['heart-vessel-ii']);
+  c.ownedItems.add('heart-vessel-ii');
+  assert.deepEqual([...offered()], ['heart-vessel-iii']);
+  c.ownedItems.add('heart-vessel-iii');
+  assert.deepEqual([...offered()], []);
+
+  const sword = { id: 'iron-sword', kind: 'weapon', weapon: 'sword' };
+  assert.equal(c.isUpgradeAvailable(sword), true);
+  c.meleeWeapons.add('sword');
+  assert.equal(c.isUpgradeAvailable(sword), false, 'the Warrior already wields one');
+  assert.equal(c.isUpgradeAvailable({ id: 'swift-daggers', kind: 'weapon', weapon: 'daggers' }), true);
+});
+
+test('Prism Shard is a real three-way fan of 0.4x shots, and an elemental fuse stays at 1.6x', () => {
+  const c = combat();
+  c.recordItemDiscovery = c.updateHud = c.showMessage = c.showPickupBanner = c.popOverPlayer = c.unlockCharacter = () => {};
+  c.shopItemIconImages = {}; c.itemQuips = {}; c.itemEffectTagsFor = () => [];
+  c.reservedUpgradeIds = new Set(); c.rangeLensItemIds = []; c.isCatalogItemUnlocked = () => true;
+  const base = c.weapon.shotDamageMultiplier;
+  assert.equal(c.grantUpgrade({ id: 'prism', name: 'Prism Shard', kind: 'passive' }), true);
+  assert.equal(c.weapon.shotCount, 3);
+  assert.ok(Math.abs(c.weapon.shotDamageMultiplier - base * 0.4) < 1e-9);
+  const fused = c.weapon.shotDamageMultiplier * c.weapon.shotCount * 1.6 / peek(c, 'PRISM_TOTAL_DAMAGE');
+  assert.ok(Math.abs(fused - base * 1.6) < 1e-9);
+});
+
+test('Wind-Up Wraps and Longbow Draw switch their style to charge mode when taken', () => {
+  const c = combat();
+  c.Math.random = () => 0.9;
+  assert.equal(c.applyRandomFireMode({ id: 'mod-windup', style: 'melee', kind: 'mod' }), 'charge');
+  assert.equal(c.fireModes.melee, 'charge');
+  assert.equal(c.fireModes.bow, 'rapid', 'only its own style changes');
+  assert.equal(c.applyRandomFireMode({ id: 'mod-draw', style: 'bow', kind: 'mod' }), 'charge');
+  assert.equal(c.fireModes.bow, 'charge');
+  assert.equal(c.applyRandomFireMode({ id: 'mod-pierce', style: 'bow', kind: 'mod' }) === 'charge', false);
+});
+
+test('Mana Burst scales with the floor but does not raise miniboss HP while carried', () => {
+  const c = combat();
+  const damageAt = (floor) => { c.currentFloor = floor; return c.manaBurstDamage(); };
+  assert.deepEqual([1, 2, 5, 9].map(damageAt), [8, 12, 24, 40]);
+  c.currentFloor = 9;
+  c.consumables.push({ id: 'mana-burst', count: 1 });
+  Object.assign(c.player, { damage: 1 });
+  assert.equal(c.strongestPlayerSingleHit(), 8);
+});
+
+test('weapon-speed and reach numbers from the review', () => {
+  const c = combat();
+  assert.equal(peek(c, 'FLURRY_COOLDOWN_SCALE'), 0.35);
+  assert.equal(peek(c, 'DAGGER_COOLDOWN_SCALE'), 0.8);
+  assert.equal(peek(c, 'MELEE_REACH_PER_LENS'), 0.1);
+  assert.equal(peek(c, 'LIFESTONE_HEARTS'), 3);
+  assert.equal(peek(c, 'LIFESTONE_TICK_SECONDS'), 6);
+});
+
+test('each Far-Reach Lens tier lengthens melee reach by 10%', () => {
+  const c = combat();
+  c.attackOriginY = () => 300;
+  c.getActiveAttackElement = () => null;
+  c.characterProfile = () => ({ melee: 1 });
+  c.styleSynergy = () => false;
+  c.triggerHitStop = c.spawnSwordHitBurst = c.damageObstacle = () => {};
+  c.activeWeaponMod = () => null;
+  c.hasLineOfSight = () => true;
+  c.player.meleeSwings = [];
+  c.player.swordParryTimer = 0;
+  const hit = (rangeLevel) => {
+    c.weapon.rangeLevel = rangeLevel;
+    c.weapon.damageBonus = 0;
+    const struck = [];
+    c.damageEnemy = (enemy) => struck.push(enemy);
+    // Bare hands reach 66; a foe 1px beyond that (centre to centre, radius 10) is out of reach without a lens.
+    c.enemies.length = 0;
+    c.enemies.push({ x: 300 + 66 + 10 + 1, y: 300, radius: 10, hp: 10 });
+    c.performMeleeSwing(0);
+    return struck.length;
+  };
+  assert.equal(hit(0), 0);
+  assert.equal(hit(1), 1);
+  c.meleeWeapons.add('sword');
+  const farFoe = (rangeLevel) => {
+    c.weapon.rangeLevel = rangeLevel;
+    const struck = [];
+    c.damageEnemy = (enemy) => struck.push(enemy);
+    c.enemies.length = 0;
+    c.enemies.push({ x: 300 + 92 * 1.2 - 2 + 10, y: 300, radius: 10, hp: 10 });
+    c.performMeleeSwing(0);
+    return struck.length;
+  };
+  assert.equal(farFoe(1), 0, 'sword reach 92 x 1.1 does not reach 108');
+  assert.equal(farFoe(2), 1, 'sword reach 92 x 1.2 does');
+});
+
+test('dyed icons map grey levels onto the TMW dye gradient and leave colour alone', () => {
+  const c = vm.createContext({});
+  loadFunctions(c, 'gameui.js', ['dyeGreyPixels']);
+  const gradient = ['#000000', '#ff0000', '#ffffff'];
+  const data = new Uint8ClampedArray([
+    255, 255, 255, 255, // white -> last stop
+    0, 0, 0, 255, // black -> first stop
+    128, 128, 128, 255, // mid grey -> about the middle stop
+    200, 40, 40, 255, // coloured pixel is untouched
+    90, 90, 90, 0, // transparent pixel is untouched
+  ]);
+  c.dyeGreyPixels(data, gradient);
+  assert.deepEqual([...data.slice(0, 3)], [255, 255, 255]);
+  assert.deepEqual([...data.slice(4, 7)], [0, 0, 0]);
+  assert.ok(data[8] > 250 && data[9] < 5, 'grey 128 is almost exactly the middle (red) stop');
+  assert.deepEqual([...data.slice(12, 15)], [200, 40, 40]);
+  assert.deepEqual([...data.slice(16, 19)], [90, 90, 90]);
+  const lifestone = new Uint8ClampedArray([255, 255, 255, 255]);
+  c.dyeGreyPixels(lifestone, ['#a0a010', '#ffffa0']);
+  assert.deepEqual([...lifestone.slice(0, 3)], [255, 255, 160]);
+});

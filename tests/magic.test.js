@@ -341,11 +341,10 @@ test('rifts do not teleport bosses and safely handle rooms without a legal desti
 
 test('new items enhance their effects without raising baseline proc probabilities', () => {
   const c = combat();
-  c.ownedItems.add('ember-seed');
+  c.ownedItems.add('wild-magic-core');
   const target = { x: 300, y: 300, hp: 20, radius: 12 };
   c.triggerWildMagicImpact(shot({ wildEffect: 'rot' }), target);
   assert.equal(target.manaRotTimer, 4);
-  c.ownedItems.add('nova-pearl');
   const adjacent = { x: 420, y: 300, hp: 20, radius: 12 };
   c.enemies.push(target, adjacent);
   c.triggerWildMagicImpact(shot({ wildEffect: 'nova' }), target);
@@ -382,9 +381,9 @@ test('non-Mages have mostly normal shots with 1 percent special, 10 percent enem
   }
 });
 
-test('Storm Spool extends lightning to four targets without recursive impacts', () => {
+test('Wild Magic Core extends lightning to four targets without recursive impacts', () => {
   const c = combat();
-  c.ownedItems.add('storm-spool');
+  c.ownedItems.add('wild-magic-core');
   const target = { x: 300, y: 300, hp: 20, radius: 12 };
   c.enemies.push(target);
   for (let i = 1; i <= 4; i += 1) c.enemies.push({ x: 300 + i * 30, y: 300, hp: 20, radius: 12 });
