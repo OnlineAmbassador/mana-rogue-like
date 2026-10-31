@@ -1,6 +1,6 @@
 # Credits
 
-Third-party artwork, sounds and references used by MANA: Hollow Sanctum. Per-file credits for Source of Mana material are in `assets/som/CREDITS.md`.
+Third-party artwork, sounds and references used by MANA: Hollow Sanctum. Per-file credits for Source of Mana material are in `assets/som/CREDITS.md`. That file also records `assets/som/graphics/artis-market.png` (EJlol, IvanMorve, Reid; CC BY-SA 3.0), the market-stall sheet used to dress the shop room.
 
 ## Third-party artwork
 
@@ -16,6 +16,12 @@ The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3
 - `graphics/tilesets/woodland_graveyard_ground.png` — Crush; GPLv2.
 - `graphics/tilesets/desert_city.png` — Modanung; CC BY-SA 3.0.
 - `graphics/tilesets/evol/artis-pavement.png` — IvanMorve, Reid; CC BY-SA 3.0. Used for the worn desert paving as well as Artis.
+- `graphics/items/generic/gemstone-a.png` — Crush, Enchilado; GPLv2 and CC BY-SA 3.0 (the CC BY-SA 3.0 option is used here). The Lifestone icon. The file is unmodified; the game recolours it at runtime with the dye values of TMW item 730 (`generic/gemstone-a.png|W:#a0a010,ffffa0`), mapping grey levels onto that gradient. The recolour is an adaptation made in the game's canvas code.
+- `graphics/items/generic/crystal.png` — Crush, Enchilado; GPLv2 and CC BY-SA 3.0 (CC BY-SA 3.0 used). The Dark Crystal icon, unmodified on disk and recoloured at runtime with the dye values of TMW item 631 (`generic/crystal.png|W:#252e6a,923eda,ba72ec,ffffff`).
+- `graphics/items/generic/ironore.png` — Crush, Enchilado; GPLv2 and CC BY-SA 3.0 (CC BY-SA 3.0 used). The Iron Ore icon, unmodified.
+- `graphics/items/equipment/chest/leathershirt.png` — EJlol; GPLv2 and CC BY-SA 3.0 (CC BY-SA 3.0 used). The Leather Vest icon, unmodified.
+- `graphics/items/equipment/legs/chaps.png` — Black Don; GPLv2. The Leather Legguards icon, unmodified.
+- `graphics/items/equipment/legs/silkpants.png` — LuH; GPLv2. The Silk Shorts icon, unmodified.
 - `graphics/images/ambient/sandstorm.png` — Crush; GPL 3.0 or CC BY-SA 3.0 (the CC BY-SA 3.0 option is used here). Used for the desert edge ambience, with canvas opacity and drift; the original image is unchanged.
 - `graphics/sprites/monsters/accessories/banditbow.png` — GPLv2; jesusalva.
 - `graphics/sprites/monsters/fluffy.png` — Crush; CC BY-SA 3.0.
