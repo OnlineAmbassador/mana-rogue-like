@@ -1,6 +1,6 @@
 # Credits
 
-Third-party artwork, sounds and references used by MANA: Hollow Sanctum. Per-file credits for Source of Mana material are in `assets/som/CREDITS.md`. That file also records `assets/som/graphics/artis-market.png` (EJlol, IvanMorve, Reid; CC BY-SA 3.0), the market-stall sheet used to dress the shop room.
+Third-party artwork, sounds and references used by MANA: Hollow Sanctum. Per-file credits for Source of Mana material are in `assets/som/CREDITS.md`. That file also records `assets/som/graphics/artis-market.png` (EJlol, IvanMorve, Reid; CC BY-SA 3.0), the market-stall sheet used to dress the shop room. Visuals drawn in code by agents, and recordings of unknown origin, are not credited here; they are listed in [ASSETS.md](ASSETS.md) for eventual replacement.
 
 ## Third-party artwork
 
