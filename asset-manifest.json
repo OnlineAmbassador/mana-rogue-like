@@ -1,0 +1,1421 @@
+{
+  "version": 1,
+  "files": {
+    "cachemanager.js": {
+      "size": 3279,
+      "hash": "cd42d999432381bab429276b8e5d2ef7c28dcd88bd1a85046a20421bfcff7346"
+    },
+    "controllermanager.js": {
+      "size": 10276,
+      "hash": "d9a724e522a5e2517dc2a1a1eea0f0bca33b7cc60d7bc87af48c1cfdb5d220dc"
+    },
+    "dbmanager.js": {
+      "size": 25908,
+      "hash": "c042d1ecfff3f4ca44db096732e18a8c3ec1b0b045581791a8eb2cd0092875e6"
+    },
+    "desertart.js": {
+      "size": 12976,
+      "hash": "bfa9d98f73e6e516282914011404e36831cb696981dc1d064f336f91829c0bee"
+    },
+    "game.js": {
+      "size": 144103,
+      "hash": "aa808316e22cb41c88661c7435d3ff48892bdb7f73c36a1229627e5bd7e5671f"
+    },
+    "gameui.js": {
+      "size": 261825,
+      "hash": "21ec8c45efa5e15168cb07021164af0f5664a72e2a675f647a12955dafde84bf"
+    },
+    "index.html": {
+      "size": 4132,
+      "hash": "0ea3033d19261bf714c040326f8215d714981be67db2b1a571997bff03e235b3"
+    },
+    "mobmanager.js": {
+      "size": 118310,
+      "hash": "a0ecd35d54504c379560a56888c8beaa8e3bdc2372723c5aae21ccafde960433"
+    },
+    "playermanager.js": {
+      "size": 88448,
+      "hash": "24922d1f50c3bc66898b6197a7e3bb0b1a73d3b327f93ff49cc64cf468ec01b1"
+    },
+    "style.css": {
+      "size": 11276,
+      "hash": "8a43e3978cd873496afa40f3e964e39a9c2f5480790d216dec50c29b8e4650ed"
+    },
+    "worldmanager.js": {
+      "size": 84465,
+      "hash": "3b0c8b672c484ff10a6c9f2d9a2b378ba753e0174cac8a4239b05d7b92ed0042"
+    },
+    "assets/audio/intro-character-arcanist.ogg": {
+      "size": 61125,
+      "hash": "1523cf0e319d50b30dec28f8a06aa826c592d2f76d585fec2c111d3008a6a13c"
+    },
+    "assets/audio/intro-character-artis-archivist.ogg": {
+      "size": 65036,
+      "hash": "c375b0610f7829811ff43d1193583ad41cafb42e73733ab3e172ea30f63feafa"
+    },
+    "assets/audio/intro-character-candor-keeper.ogg": {
+      "size": 57079,
+      "hash": "6ec514546a0cc84dcf26f04e8e1f9e026ed2a289c86608bd239a67eae977fb25"
+    },
+    "assets/audio/intro-character-candor-runner.ogg": {
+      "size": 66197,
+      "hash": "85f3ef77f52386426fcef0db5cdc54e2475b30faf5cad7c39760639429ea907c"
+    },
+    "assets/audio/intro-character-frostia-reclaimer.ogg": {
+      "size": 59368,
+      "hash": "76367575a0ea843911d5069b9047c172419f28752dc507c1159b92d5d2c30133"
+    },
+    "assets/audio/intro-character-glass-quill.ogg": {
+      "size": 61717,
+      "hash": "fea516a5408b9457d47fa613c61bf07d2c54c09a8a566fbd17b7a27de940f620"
+    },
+    "assets/audio/intro-character-graveyard-keeper.ogg": {
+      "size": 67114,
+      "hash": "e82523d771963fa82e9ccb866d0c29ac9830217ba42e7ba6922a832331dcc6cd"
+    },
+    "assets/audio/intro-character-halinarzo-ranger.ogg": {
+      "size": 59235,
+      "hash": "4b1f921ea3d75fe032ac9197af0da3b6d743d2c85b32088ff5ce5099d7e01995"
+    },
+    "assets/audio/intro-character-hurnscald-herbalist.ogg": {
+      "size": 67963,
+      "hash": "8c2857a19248a0b590f714cd637652e40b5d838712b48eea9b161a3923b30e75"
+    },
+    "assets/audio/intro-character-ironbound.ogg": {
+      "size": 62951,
+      "hash": "1c0877d0601f84e1097e6d5a7411f095546a9cc0fd4f5f26e8b0bdcb7fe1b52e"
+    },
+    "assets/audio/intro-character-nivalis-oracle.ogg": {
+      "size": 58472,
+      "hash": "22e872a810ae1864ddd4d785cf1a760df5fb5d1d9d30fec2bf200de250a7da59"
+    },
+    "assets/audio/intro-character-tulimshar-guard.ogg": {
+      "size": 63015,
+      "hash": "6f9b8fee3c1b5cabe8ab8a9fea60f0d0cace4fb6e1d7b537d50cf7c315248b17"
+    },
+    "assets/audio/intro-character-vault-delver.ogg": {
+      "size": 59362,
+      "hash": "47dd06e042d4d88a51c062511faf2f32644f10501e6ebc980cfe787871dc2202"
+    },
+    "assets/audio/intro-character-warden.ogg": {
+      "size": 60274,
+      "hash": "43473e4714af81799bee9df4e56118c10a8d76fc8a97f92967a747c6490cbff2"
+    },
+    "assets/audio/intro-character-world-edge-pilgrim.ogg": {
+      "size": 66062,
+      "hash": "bd0691a2ecf7701cb1e5233a086ae8326b3a8f2336edb22ca2ec725bf04ccf84"
+    },
+    "assets/audio/intro-character-world-edge-veteran.ogg": {
+      "size": 65121,
+      "hash": "091ce1cdeeba82f34551f4d8bfebb9526e4141af28565cc95ccd6fe423af7a69"
+    },
+    "assets/audio/intro-region-artis.ogg": {
+      "size": 73966,
+      "hash": "4f952d1d76cb9381107f1a293c28b1a9f063473606a51d71f0860f4cf685bf0b"
+    },
+    "assets/audio/intro-region-candor.ogg": {
+      "size": 70622,
+      "hash": "36204e52b8588bfc93af22113d6d1b8ffd20847c808895ca00a87b28a422753f"
+    },
+    "assets/audio/intro-region-frostia.ogg": {
+      "size": 58953,
+      "hash": "4f0df68d10e597dc350a5bfd95faf77f12c3962aec0c1229d1c2cf79b65dcf84"
+    },
+    "assets/audio/intro-region-graveyard.ogg": {
+      "size": 64086,
+      "hash": "ec2a685e72433c9d57e6d087b97c3292dc8f979997f9bff6c7c14f39944073c1"
+    },
+    "assets/audio/intro-region-halinarzo.ogg": {
+      "size": 71580,
+      "hash": "752ce5085fbef4f101c32d22b2ad83fc6ad36ec8167c0e96aaa435415b5bfa9c"
+    },
+    "assets/audio/intro-region-hurnscald.ogg": {
+      "size": 76924,
+      "hash": "09756ff320717ba2977f65ffdf577a3449479cd7c63769f0225f0363b038f4a7"
+    },
+    "assets/audio/intro-region-nivalis.ogg": {
+      "size": 64171,
+      "hash": "8a6744f94cb453a0c03cea2df62b42ee497be1a647e2b859a729315dfa0deed1"
+    },
+    "assets/audio/intro-region-tulimshar.ogg": {
+      "size": 83298,
+      "hash": "b7704a300263d25ff73b84d758f4f0fbbfc954514ea20a90bee4012e3214bc90"
+    },
+    "assets/audio/intro-region-worldedge.ogg": {
+      "size": 62825,
+      "hash": "ce8c7bff5890bae09d7e3d0dbfa3340af40a92a3c9d985994de7ced1b7ee3b0f"
+    },
+    "assets/audio/prologue-01.ogg": {
+      "size": 130324,
+      "hash": "f05b4512597812fa652f177fdd81c1da8617858455072cfdd65812999567caf9"
+    },
+    "assets/audio/prologue-02.ogg": {
+      "size": 122973,
+      "hash": "eabc41c78a0212fae7301c93456ff9d616b3ebf5d6eed436cb1bd9c38b223cbe"
+    },
+    "assets/audio/prologue-03.ogg": {
+      "size": 128663,
+      "hash": "c56262872a74cac96781c15421b46ed849d3522176b634eca3b58e4519c330bb"
+    },
+    "assets/som/graphics/soulmenhir.png": {
+      "size": 3646,
+      "hash": "4bb3cb8a139dd196e0b92d7a44f9a0be4a1985f9c90ad3b3d08f9c2b52d14767"
+    },
+    "assets/som/graphics/wall.png": {
+      "size": 99735,
+      "hash": "d2b21297c830098c6f2eff4039d8748c79b14a485b3024a387a26d687c5691ac"
+    },
+    "assets/som/sounds/alteration/dodge.ogg": {
+      "size": 22431,
+      "hash": "11e906d4904cf788fb044609ddcde2df9d1b3f54ad2d3ef316838e862d531899"
+    },
+    "assets/som/sounds/alteration/exp.ogg": {
+      "size": 31052,
+      "hash": "159e5966cf34d5eb0ed0ef8dcb514fc355bdceafcd569af0aebbc9b8bd18021e"
+    },
+    "assets/som/sounds/alteration/gp.ogg": {
+      "size": 18544,
+      "hash": "94bdcc232f778622256991114d4cb8413a21d07799ffa0baa39214f9d3fbcd0d"
+    },
+    "assets/som/sounds/alteration/heal.ogg": {
+      "size": 43517,
+      "hash": "5bbb283453753d971f310240c3a9d117bf2aa777e25ec05218463844f1697e73"
+    },
+    "assets/som/sounds/alteration/hit.ogg": {
+      "size": 16934,
+      "hash": "136037f92f8c94d9d53672b9243127fd74b98611b52b55c0216ca64b81b1ca66"
+    },
+    "assets/som/sounds/alteration/levelup.ogg": {
+      "size": 61105,
+      "hash": "9cb3c2959dc62a928345a951afcc0cb21c36830c8f4ef6cca8756f33a85fbe9d"
+    },
+    "assets/som/sounds/alteration/quest-done.ogg": {
+      "size": 66738,
+      "hash": "749e12539761e0da7963e1343c6cb220d00787990b41835f9ca9211a58513500"
+    },
+    "assets/som/sounds/alteration/quest-update.ogg": {
+      "size": 40839,
+      "hash": "18dc0d4799c627e43ac44b3b8be8b849db4cbdf6bf11c737aae2ef8cea1fba78"
+    },
+    "assets/som/sounds/alteration/skillup.ogg": {
+      "size": 54332,
+      "hash": "d589fd27155a4eefee828beb8a82ad6f4174155606a1ffc2149cfb4759d9acda"
+    },
+    "assets/som/sounds/entities/bat/attack.ogg": {
+      "size": 6328,
+      "hash": "7e8993811d207eb96c292af7c6b095e20d3f1b645dde7fec3be178f860fa52a5"
+    },
+    "assets/som/sounds/entities/bat/death.ogg": {
+      "size": 6476,
+      "hash": "4b5b692f7166c09a254c72a38e08b506240d1e0288d4091315ea71b4fca81e69"
+    },
+    "assets/som/sounds/entities/chest/open.ogg": {
+      "size": 13196,
+      "hash": "91413a552232791055b5b74ebdda98905bdf4f1d744cd38d6085926ee0b84822"
+    },
+    "assets/som/sounds/entities/croc/attack.ogg": {
+      "size": 13017,
+      "hash": "c5116ca6ffa2443db5db33bf9b63a09dddc61713d530aa2378391fc940f14f65"
+    },
+    "assets/som/sounds/entities/croc/dodge.ogg": {
+      "size": 12259,
+      "hash": "68fabb70b99436d0567406a281237bf4b043cecf53407bd568c552b63712f9d8"
+    },
+    "assets/som/sounds/entities/croc/hit.ogg": {
+      "size": 7574,
+      "hash": "c7833dbba7a223bac1f135528fae141b9dd8c30ff53a6691ffa0e34916a445bb"
+    },
+    "assets/som/sounds/entities/fluffy/attack.ogg": {
+      "size": 6541,
+      "hash": "15304eed381d2fd44e817eaad7d816b17fda6342ab6bef819870315ee923dcd4"
+    },
+    "assets/som/sounds/entities/fluffy/dodge.ogg": {
+      "size": 7083,
+      "hash": "10863a94c52b7b7ee64766b17943cd9c47c3ded3470607f22988d9f2f9e4e4f5"
+    },
+    "assets/som/sounds/entities/fluffy/hit.ogg": {
+      "size": 6328,
+      "hash": "d2cbd38eb92483bfff6920e2d60969e389907f23c9364abf6f3869f5a0772593"
+    },
+    "assets/som/sounds/entities/pinkie/attack.ogg": {
+      "size": 10428,
+      "hash": "aa60e6fd90a55bf07f695849f4dd0f9e604dea0f953ca3e1c22637831cb4d18e"
+    },
+    "assets/som/sounds/entities/pinkie/dodge.ogg": {
+      "size": 7426,
+      "hash": "da153acbb670cb20040075268ecf70e44f7b86cb28ab0e289f53b00db0ceed59"
+    },
+    "assets/som/sounds/entities/piou/attack.ogg": {
+      "size": 5992,
+      "hash": "b1d6504ba7cf1712f50ff2448ddb360322faa3dac9d486886a95fffac0105f36"
+    },
+    "assets/som/sounds/entities/piou/death.ogg": {
+      "size": 7328,
+      "hash": "4079821a96a9105c31946cf76826c16587344cf1d79042f55aaaa8c7652fdca3"
+    },
+    "assets/som/sounds/entities/piou/dodge.ogg": {
+      "size": 5221,
+      "hash": "1739ad2be8c80d50ed5d701f0819d3106f72992bce414d693d0518f76d302948"
+    },
+    "assets/som/sounds/entities/piou/hit.ogg": {
+      "size": 6162,
+      "hash": "29defd3da43ba002ef18d3b761100fefd7af58ed1e9074415a6664c508180e21"
+    },
+    "assets/som/sounds/entities/ratto/attack.ogg": {
+      "size": 10142,
+      "hash": "c73b3f37e9e8202af7b8c0ea318ada860a6d2f8a4565487a12ff832482823655"
+    },
+    "assets/som/sounds/entities/ratto/death.ogg": {
+      "size": 17984,
+      "hash": "5debf64ae0bd1b2dbe4f3d9ccf7b1d917cb6a46388ed04d67089c5932a6d5100"
+    },
+    "assets/som/sounds/entities/ratto/hit.ogg": {
+      "size": 15731,
+      "hash": "13d595049e1730bc7efa87e9f84d4a685cce307511fc2f003d7c71313cdc59f0"
+    },
+    "assets/som/sounds/entities/scorpion/attack.ogg": {
+      "size": 7410,
+      "hash": "27a30b96b525cf5d9f7ac1fe5e6ee298b9e952feb83bcf51237abf7bc333d76e"
+    },
+    "assets/som/sounds/entities/scorpion/hit.ogg": {
+      "size": 6626,
+      "hash": "85e2732318f44b935d5c0e5b66f7f88435a8a058b239b344cd46d3d4ee2e61ae"
+    },
+    "assets/som/sounds/entities/shroom/attack.ogg": {
+      "size": 6297,
+      "hash": "be1fff21d10564b65288c2bcea17412560e4d47f44bfc81c64dd91cf71a31b59"
+    },
+    "assets/som/sounds/entities/shroom/death.ogg": {
+      "size": 7866,
+      "hash": "478b3652cf215dc2c0a42c6d1a56454609d0da43cd1bfc8f0bb985c248935136"
+    },
+    "assets/som/sounds/entities/shroom/hit.ogg": {
+      "size": 5547,
+      "hash": "4937f5bb4252999a0d80566a8750fd200c4f3b62d2e1f0fe0fbb5f2f77b47497"
+    },
+    "assets/som/sounds/entities/skeleton/death.ogg": {
+      "size": 22376,
+      "hash": "195200206dff3dba51e1c98c54c6c6e26ca92dc12f95cb74c8b867585439b6ea"
+    },
+    "assets/som/sounds/entities/slime/attack.ogg": {
+      "size": 24514,
+      "hash": "126351010cc4f68c2895eb00688da476b163fa273e7bac4170af3ad93b8c49b6"
+    },
+    "assets/som/sounds/entities/slime/death.ogg": {
+      "size": 80909,
+      "hash": "dde0f37d920a23ab73dcdb062dd2610433956b9feea2a8c1fda9715bc4504b40"
+    },
+    "assets/som/sounds/entities/slime/hit.ogg": {
+      "size": 6678,
+      "hash": "a836519802542ebd81307871d9e00ddbbf9816d144ccb3b8f5dfeb6704a24f40"
+    },
+    "assets/som/sounds/entities/snake/attack.ogg": {
+      "size": 5759,
+      "hash": "dc80e67d7dc0b4b9d18d6ddd537e51b6e3db13e4a8b24840ec2d0693b41f9e1f"
+    },
+    "assets/som/sounds/entities/turtle/attack.ogg": {
+      "size": 11520,
+      "hash": "eb3172f3f122bda3c95e3c4435405655109371455e379e5bf1cde6065d5a1828"
+    },
+    "assets/som/sounds/entities/turtle/death.ogg": {
+      "size": 23069,
+      "hash": "1cc92fead6d0d3436ccd4b3a778bc751396dc5a062284a5598e9fed4597c680c"
+    },
+    "assets/som/sounds/entities/turtle/dodge.ogg": {
+      "size": 10379,
+      "hash": "2bde2bb5378dbf420ff466a60da5f3d1ed934f289970485330ce0da6832929c8"
+    },
+    "assets/som/sounds/entities/turtle/hit.ogg": {
+      "size": 16736,
+      "hash": "daadf758661aeb9897c624fd55934ebdd1eef871aafd43c999760d94fab7067b"
+    },
+    "assets/tmw/clientdata/graphics/images/ambient/sandstorm.png": {
+      "size": 380452,
+      "hash": "f161d1a591396ef8a6ef6e33c4a487a6ac533c41f13e1e15610cdfbb36656dc5"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/ammo/arrow.png": {
+      "size": 325,
+      "hash": "4dfe1bf716af0b0765ae4fa9b84e2a5903352e8075cf75e3392913472bc70030"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/ammo/cursedarrow.png": {
+      "size": 567,
+      "hash": "26765d82723f0c07ed9ce165f3d9a3d584cd13ff0b79148b83920dfe5e2cde4a"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/ammo/ironarrow.png": {
+      "size": 348,
+      "hash": "f1c33f21c86c19a04e76f0c1e6111b3998645e86420ea7cb4af8ab798ece9fc3"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/ammo/mortararrow.png": {
+      "size": 302,
+      "hash": "9ce2a7fe100da71ba73e6176f880642f4615eb84998390a634a9182467a9e024"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/ammo/roundstone.png": {
+      "size": 984,
+      "hash": "ae16e8c746b2bdcd48c779e90cbcd37e4a91833536f287823bf3dbb9006d1452"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/ammo/tolchiarrow.png": {
+      "size": 435,
+      "hash": "a4703f95b7aeb31d7b1069dce421369c8e436169a6fbf02d4d480dac748d2d4a"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/ammo/trainingarrow.png": {
+      "size": 432,
+      "hash": "551befa7213be32f212aef28d008588ab3fe60a598bac66fd5ef194a6b804d22"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/astralcube.png": {
+      "size": 280,
+      "hash": "ca6ca484c4cf536633c793c7d05718e25cb73abdb1cb740b60b4a9f0ba41a270"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/dragonstar.png": {
+      "size": 909,
+      "hash": "adc4b6ae73548e23f1801046674f9cec6fecf39900b2df4ec4073644023d5c46"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/firescroll.png": {
+      "size": 621,
+      "hash": "572038e73cc3e76fc78eb16ed7a0b1e472cb581cd5952feb013b7d16e02d098b"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/fourleafclover.png": {
+      "size": 846,
+      "hash": "e1cd026e520fc81c125839562252dae1020008b87fccedefe145f189a1398a75"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/grimoir.png": {
+      "size": 828,
+      "hash": "435d94cb2493842626c4c492f8e3a63916b6b8c8ab273c5bacd25fafe81524ba"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/heartofisis.png": {
+      "size": 915,
+      "hash": "8a9be91b37cfd34d32010cc6f6ee4a03c1b5a24baf709b6f8ea3e8e59bdbdac2"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/oldtowel.png": {
+      "size": 1715,
+      "hash": "12019cc5200285f22dab18fb263e4e9aecaa708beca6b9a85c3089afcd27c1dc"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/plushmouboo.png": {
+      "size": 950,
+      "hash": "92b8e0cf56e6d67f5b1bbd9bc5683e0f3215e8f246c9f28338990da3de0534ac"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/redstocking.png": {
+      "size": 523,
+      "hash": "bc43d0f963a9cf933421d5634ec9c9dc32d031ab850a05b4eafb14080a27330c"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/santaglobe.png": {
+      "size": 795,
+      "hash": "d9e7a34c5603559ed3ed9506259bc59f4479122bbcfeccdaa1b3da89ac3d4b79"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/snowmanglobe.png": {
+      "size": 727,
+      "hash": "fc3c5cd03d177cb296f41a5166f690a0ea75746bd8a294696d9f74702b2e835a"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/spectralorb.png": {
+      "size": 810,
+      "hash": "9adb74829782a087230684fd339c5df69bcd81a5ae686b251bf1a78c00d181ab"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/charms/treasuremap.png": {
+      "size": 1374,
+      "hash": "0adb4ca38e6aa53e56f6984d5d68f0ec5d9cc9a171b02d9fd8eaac4cd1164236"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/head/wizardhat.png": {
+      "size": 484,
+      "hash": "40bf8916a483e872361d360bc9dcc4689ef3a0f16e869f04f7e8abba08c33bdb"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/shields/steelshield.png": {
+      "size": 1715,
+      "hash": "ea829e3fc41ad1d8ea213a37f14fd9845fffd92664ceadee5a2b307e195d0b9a"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/blacksmithsaxe.png": {
+      "size": 1057,
+      "hash": "27f5859aee3b6daf56eee6bed7100af8c88f4ccce131383fd4a0f5574a79a58b"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/championshipbow.png": {
+      "size": 566,
+      "hash": "fe814392b9e11e1f28bdd476a737e571883cef014c3cd6fe3c798abaeb98da08"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/dagger.png": {
+      "size": 314,
+      "hash": "5f6aaf078b2aed3185af87a3969a077486aeb129f02cc755a33a637258615a1c"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/halberd.png": {
+      "size": 251,
+      "hash": "16e282f9d1549ef0d65e322c66e074992d955ce856a7807333732066fc25be1d"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/kanabo.png": {
+      "size": 1315,
+      "hash": "e7403289d844c86ea89504f4c6309ec15252a927a573aac7cd59bb451614f375"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/kunai.png": {
+      "size": 606,
+      "hash": "d2bbe149ea88351e4e96c5c94959ac6d704423256e0bb9e445635d2e47bb28ed"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/legendwand.png": {
+      "size": 279,
+      "hash": "422573dd6b92d1221e09b70bfa6be7c03db151d5edf0e02b16650e269dfa4f11"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/scepter.png": {
+      "size": 713,
+      "hash": "eb3e4f67f7fb06ded892a7bae49c8bff94d180f044dc0aa8028bad37b633d6ef"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/scythe.png": {
+      "size": 597,
+      "hash": "e7889c5756bd6d9df61ea5cd8d7b5a71620cfa4aded6a7cb32bc378817c95ac8"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/sword.png": {
+      "size": 763,
+      "hash": "44b4dd35e7b256b241a87098f668e17d16020b994dc11a9b2458b9ea3dd47312"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/whip.png": {
+      "size": 2626,
+      "hash": "7c77b215907e6980b15e4573ed9f15758466a57f574b0c1edbc1335aa76455b2"
+    },
+    "assets/tmw/clientdata/graphics/items/equipment/weapons/woodenbow.png": {
+      "size": 449,
+      "hash": "d7e16ff17db9d6f45b2113d077a0b2a613e283e665797998b3042b69fc304fd1"
+    },
+    "assets/tmw/clientdata/graphics/items/error.png": {
+      "size": 619,
+      "hash": "5e92a08007059dddd7fa65602154f3cf77376afb113433e3d8d68898e082a5d8"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/bandithood.png": {
+      "size": 662,
+      "hash": "6bcfdb0b48bd39226b579a36e93fff392ff87ac7af900fa8fbe9a83171426eba"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/batwing.png": {
+      "size": 283,
+      "hash": "608bcd66fa4c6c5c9dd9b694d4fc7e134ab71965b888022c5fb60ee5928448eb"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/bentneedle.png": {
+      "size": 217,
+      "hash": "27212f05e13a686ea8cf9e995dba1e29d28a22f79ceb934371b8936bf141766b"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/bloodstone.png": {
+      "size": 507,
+      "hash": "e7ab126b0d02dd52d7874426873cb358aa7c65aadbc5fde1063e124c566b91d6"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/brain.png": {
+      "size": 1014,
+      "hash": "defed292c8aea4fe2bb09998837a148363a4b05e6047fe395b8425ea1397d957"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/brokenfourleafamulet.png": {
+      "size": 356,
+      "hash": "5100ad34d87ee1dbc323cbd305d92b47076dbe74168672f3f8c070c3f165e7a6"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/butterfly.png": {
+      "size": 370,
+      "hash": "e7fefe30f4d89193345550015aa328075f477baadae104886c7ebabadf122a73"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/casinocoins.png": {
+      "size": 429,
+      "hash": "942ffb1cd6ac9f44b336953be05d5b7acba80a03b798f3441d8c377825c0aff4"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/coal.png": {
+      "size": 461,
+      "hash": "e36f40d5f16c0f19e459d3f198c3c68ce69c73410768229e2c9bbc39484e9759"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/coinbag.png": {
+      "size": 425,
+      "hash": "160362a945ee72037194cff6fe1dc846f1e057c40461946d173cd9b86877cadc"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/cottoncloth.png": {
+      "size": 520,
+      "hash": "f20f42ab26d591bf7a0d2b2947a054154a4cb84963f9552acc5126366680c542"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/crocclaw.png": {
+      "size": 577,
+      "hash": "58bf4e152e59c82d915ce182f43e4bfdc6383402a6d6928057ceb6fc95c30738"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/crystallizedmaggot.png": {
+      "size": 496,
+      "hash": "b41ca21def3a63a199aa3139a12ca570f9d0420d8e7b4982a4cca5e8958f3fda"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/darkdesertmushroom.png": {
+      "size": 556,
+      "hash": "8724aa32f3e9bb22770851abe7309f5743a8c5c9832554087bbab983cd825753"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/deserttablet.png": {
+      "size": 812,
+      "hash": "38847f521cb7cdd1b8012cfa7082c81609c6ed7224c902dded18bbb343e0851f"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/diseasedheart.png": {
+      "size": 492,
+      "hash": "9913427d888861195827025f969ffa5228128badf4389384b2a5d09a66fc445a"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/dragonscales.png": {
+      "size": 915,
+      "hash": "d41c61b4cfa54694f2d4d2a389c99ad2f541d0a3347f848f21ac9575c2349d51"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/ectoplasm.png": {
+      "size": 294,
+      "hash": "38948fd8ac0d2af9c278cc9490e527b70a9bc6692b86bca9d8dd0a00d709c702"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/elemental.png": {
+      "size": 765,
+      "hash": "d5cdd782da6b085d852fb63708651d790a0bda665e0fcc9c8c8f35bcc6cc527c"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/emptybottle.png": {
+      "size": 470,
+      "hash": "8b847ca3c795f86d24e8116f5dc113f586bcb0db1945cab79584d1534310005e"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/flawedlens.png": {
+      "size": 437,
+      "hash": "d580a3de5b2725efd571406c4b5ff7c7ad9bafce8622e83695e3def158040469"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/fluopowder.png": {
+      "size": 1145,
+      "hash": "2d5046d1e3b6a9bfef99e776e7d803c68ec54d1de5b90d37625e2bd8647da7fb"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/frozenyetitear.png": {
+      "size": 444,
+      "hash": "7635f08201acaa89fbaa516a31593d974c404afd5a532b9b5e2d23377be7c147"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/fur.png": {
+      "size": 447,
+      "hash": "6b1329be5265f93a0e4609eee1879715c9e61f35d0b9aa31352958371253f261"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/gempowder.png": {
+      "size": 981,
+      "hash": "a9286a062639cd7934c91d15aafb8270b59c22aac73ecf4fc22c3202b53fb634"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/grassseeds.png": {
+      "size": 373,
+      "hash": "50eebc4785c24b68754a0b0c718a2361c2197e58e25ede7014bc66159847f4f9"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/halfeggshell.png": {
+      "size": 945,
+      "hash": "930b8054cb683de510240321b140bb4b54d3bdc1ad6928c75d0985a441a268be"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/hardspike.png": {
+      "size": 302,
+      "hash": "6e752981b5510714d26d0d86b9578b122d186449c2b43a4c821918b030bef29e"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/icebottle.png": {
+      "size": 767,
+      "hash": "2458c4adafd9a4fccf25993b431f31e6654f82898a493212e3df7114542fd4bb"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/icecube.png": {
+      "size": 609,
+      "hash": "57f98b7fc0c645fd9180cd9745935bed64915e03b392cab02d52e328d844f4d6"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/ironingot.png": {
+      "size": 386,
+      "hash": "d7c126017b4f729c0dbb7ba6c6d6dc8674a9810304b1b72843f06a7c11079896"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/jackolantern.png": {
+      "size": 1251,
+      "hash": "284af45515f26a821611650f1dc18c67b26f4014d2b8694e986d4b8b10963116"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/leatherpatch.png": {
+      "size": 619,
+      "hash": "ac81da72a167f80f47f81c72fb74e783a3327ef78e1124ec7c3fe6b13fd01b69"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/lockpicks.png": {
+      "size": 787,
+      "hash": "c7f625790d70e825908855cac4155e2c1d641e85a96af824e057b72cc138b6af"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/maggotslime.png": {
+      "size": 272,
+      "hash": "40ff43b235a1e4b6e303ba29a909680358d5542653a7bb9e0a7ceb56fa505d14"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/mushroomspores.png": {
+      "size": 948,
+      "hash": "6db2d396eadc711daac9cc5cf52ee665af43a120fc9cd349c28d9b1439b0b669"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/mysteriousbottle.png": {
+      "size": 909,
+      "hash": "2995d2b814ed8b81bbab05d44ed6113df0d0ba74086f19a8655de145b98f2465"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/ore.png": {
+      "size": 801,
+      "hash": "dfb60ec1f39d989a81e3c26bc6449eb4c99e05f8dee44b853adc46ca2ff3e786"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/pinkantenna.png": {
+      "size": 233,
+      "hash": "fde333c533255a181e2de0582f71eace5c463ee1387440741a07abeaa3d88307"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/powder.png": {
+      "size": 452,
+      "hash": "c70fe9a5fc1ec9184bcb64bbbd936fe082f36f099ea3d9249068831a691ad54b"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/processedfur.png": {
+      "size": 964,
+      "hash": "6567631ec8dcf74395305f85074f88eaa5c42b784f51d04317c6bdcbac43fbbc"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/rattotail.png": {
+      "size": 664,
+      "hash": "efe837f2a27c44e20a536e28b25fe0f08f6df71c251986b55c0fd4d2b13a329e"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/scroll.png": {
+      "size": 546,
+      "hash": "3d19c77892da30d484b057f6954a1483c879d0d3688e22f69c07140db26d0acb"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/silkcocoon.png": {
+      "size": 570,
+      "hash": "9321f95bc2227f8c9421271eb11b25cf42817e9ebebf31df915acacdbf804275"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/silvereasteregg.png": {
+      "size": 1089,
+      "hash": "9c4a0e2fb20ab30c5b162ce79d0b70fcfab3d3c0491bc9a77f130639718022ea"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/silvermirror.png": {
+      "size": 333,
+      "hash": "50e99995c6a84df468da0c33bfa379c5d5632b11948c76d4ec1e56899356cc82"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/skull.png": {
+      "size": 537,
+      "hash": "2ff2e912b4351ff1f7b06a67a8fb6c465321d735c492d64c78468060cbac5c8a"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/snowflake.png": {
+      "size": 1582,
+      "hash": "cd292d2f930814acc5f0092df0f5c474b08cac1714995eeab009249090b5a491"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/spellbookpage.png": {
+      "size": 508,
+      "hash": "839de205eff595f9f6c16b4251899ca5ce6a4d20bfbeb273a9bebabb8ffaa071"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/squichyclaws.png": {
+      "size": 562,
+      "hash": "49bf16fc2bc0aedb5380a7ce7f7b86542cb021f7178342ee72ed980e5a44536d"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/tentacles.png": {
+      "size": 869,
+      "hash": "f4d67fc34b027e6176bd840cfd2eb568c8f111f576345c2e36c4dafbf93171c8"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/tongue.png": {
+      "size": 420,
+      "hash": "7a18485a02f169c200ffb48e155ea95b0e363a731ae46b541c86fd08a9b5fe23"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/tortugashell.png": {
+      "size": 913,
+      "hash": "6d28f9c69cb70c05c7cc09123d4157f274443d21debb11a64fbecafde8f9cff2"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/vampirebatwing.png": {
+      "size": 279,
+      "hash": "5889c973210138bd1d442425fbfc08a2cd4fb2d86826439c3db88d2b25354581"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/warpedlog.png": {
+      "size": 530,
+      "hash": "d9c3f7404d52d7b7c4f18aea885775d3f16848405480d5eea63f344ad5647438"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/whitefur.png": {
+      "size": 534,
+      "hash": "34e835dae68c277864efae4d93d82bf01fae00f8aec84a5ce785a72fc443ab70"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/wumpus-egg.png": {
+      "size": 1164,
+      "hash": "66f9f7d119687165d6f8b5f4b046b8b7c90f2b777c3dcfc65ea959da8f24a3a5"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/yeticlaw.png": {
+      "size": 327,
+      "hash": "f2c057e09018a896bda5205a2fe7b1177168771df5db01cb78d8270b73785937"
+    },
+    "assets/tmw/clientdata/graphics/items/generic/zombieear.png": {
+      "size": 440,
+      "hash": "8998e5f4ab578e3a4c526e836b5c302987748077cd55e16c0b34d7805ced895e"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/chest/leathershirt-female.png": {
+      "size": 16458,
+      "hash": "6ff96038bb5535e6385b125c41d5d97a888739502f0cd1f26188d385ee3fb609"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/chest/leathershirt-male.png": {
+      "size": 20963,
+      "hash": "432bbe512bbc4abb72bf5f31b4ba8bf04ad9a7f45f1fb89447d5ac498e01a3c7"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/alchemisthelmet.png": {
+      "size": 6483,
+      "hash": "d62e323c5e9025fbb9e72fe38923b9fa0441ba6bc98e93b55e74e834b23ea9f3"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/antlerhat.png": {
+      "size": 799,
+      "hash": "9a86ebd773fbb929674dbebe61637275a3c768c1639a6733afd630f18350e8aa"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/assassinhood.png": {
+      "size": 2162,
+      "hash": "58fd1b0b3db5ff912836a92d72a680b11d79d8ed30b27fb0da223e3455ce183c"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/bandana.png": {
+      "size": 1842,
+      "hash": "f991176181c73203b19cf356f515c99468de5abe6ea01a4d1a1e49bde1eebc79"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/bhopcap.png": {
+      "size": 3731,
+      "hash": "ffda3e0ffd371091adff5c38361cecfbe378c6a106288af6b81ad03ad365fc2d"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/bountyhunterhelmet.png": {
+      "size": 4176,
+      "hash": "1c2555ad38328defa742a611902c37c255ee4cb6a5d06d626f1ecf35ecd1e74d"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/brimmedfeatherhat.png": {
+      "size": 2628,
+      "hash": "134a0ab3e0b4d12e9ac67919c2e67467128c8d3f1c17463298d80f1977280f36"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/brimmedhat.png": {
+      "size": 1997,
+      "hash": "4eb7e2f951ed2819edf41b233b03e41c99ffad995a82375261002ed704d37173"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/browndeserthat.png": {
+      "size": 2540,
+      "hash": "059a350f6d066fb8d7783a47d656169d4d78aefa056a7a09ba4673466095b0c3"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/bucket.png": {
+      "size": 1587,
+      "hash": "2cb1884024f2052a369caf46d80d98a0d26097341c5f2089971794d87fd24bb3"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/bull.png": {
+      "size": 3051,
+      "hash": "fcf8dafd8efb6c3e44c945271b9dc8f0d639cdab4b7059850b4baebe6be88f31"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/bunnyears.png": {
+      "size": 1163,
+      "hash": "a376453a985a40fda458a33c8b63f4e048057a70374a54290c9c137546192798"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/candlehelmet.png": {
+      "size": 13252,
+      "hash": "f2c5da0c96b57f118463ec26fa167307b959e76c0eeb742caa9d0f5a51c1bcd4"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/centurionhelmet.png": {
+      "size": 3451,
+      "hash": "319d1c5d48410223890732aafc153a367c5d34190a6b09af9705cca59eb7c8b0"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/chefhat.png": {
+      "size": 1698,
+      "hash": "4f1613692a20528d8e08e31f38295ece53dd4660e848024ce35b95281b12b8cd"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/crown.png": {
+      "size": 3819,
+      "hash": "955bca932d6b453ef7c2bbd424eeb7cd571f0dba6ac61005480533fd85aabf3e"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/crusadehelmet.png": {
+      "size": 4627,
+      "hash": "3e8c3fa2ec1cee55f3b86f9ba17e017e1bb08ebb7f0670caa4e870c54919d57f"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/darkhelm.png": {
+      "size": 2743,
+      "hash": "3231d8c5451826916ba3ef17d2e76cee73e4306d1ccd5f1329282d48fa465a5c"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/earmuffs.png": {
+      "size": 1527,
+      "hash": "678e877da6aa4afb5de5fc018a352cbfee1b3e6d2daf34a58bbae1cba3472506"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/fairyhat.png": {
+      "size": 2242,
+      "hash": "6c90262370da372841b46510e8fd604327d048e443076ac8a6ad8d5d7b27b39b"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/fancyhat.png": {
+      "size": 1231,
+      "hash": "5d1dd2290c21846fc3bd5f0e10063d4550d04832ec20d77815085d6fb82490c0"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/farmerhat.png": {
+      "size": 4283,
+      "hash": "6aa242ebe1d721589d63cf51a0f1aca5d85e69b4c77136e0d6216fb8f8637def"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/forestshroomhat.png": {
+      "size": 1747,
+      "hash": "45ee96a6c41c8f6bbb6b37556899f96d440a09ea6ee9dab4a109178a6a57fb05"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/funkyhat.png": {
+      "size": 4202,
+      "hash": "edb578dbc9a3175b6c15a9189a8cc258ab13e6a0fb04e9ad577be1ad1156cda7"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/graduationcap.png": {
+      "size": 1805,
+      "hash": "9b8b54465eb0d6e80b43eeb0f3d808410efc698638f9690e5008faa04d361999"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/leprechaunhat.png": {
+      "size": 1805,
+      "hash": "3f59aef231683cbdad7f07a2a55b072297a184f0677df720aeddc03d8b46495a"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/magictophat.png": {
+      "size": 3554,
+      "hash": "303ded33478d21848cda5ab5c276585576868ccc21f8ab118c176e1687c032ed"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/minerhat.png": {
+      "size": 1430,
+      "hash": "95f106fac5df0a90f3b3d56c729938e4caf1f3e34bf5ce7a77db2c17209eedae"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/moonshroomhat.png": {
+      "size": 1468,
+      "hash": "63d0f0f555df597be67bfc80492f5e4e188fc5374ccde24a84607dc4775fd1a4"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/operamask.png": {
+      "size": 1438,
+      "hash": "14f8fe869178cf3246007af51c93f3277a043d0b736dd2609b42705ef6161f3b"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/pumpkinhat.png": {
+      "size": 2136,
+      "hash": "d6b39b23b08508a77f369d4c15607b54172b338eb11ab93516f338b472b18cff"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/samuraihelmet.png": {
+      "size": 3691,
+      "hash": "a56efe2096590836da2847208cdecdf5050741af7fc78528c6d0ae573063d786"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/shroom.png": {
+      "size": 1561,
+      "hash": "0e9ad592ac33280f91a4e65f59502b7622c8e9a606c724570e0afb88d6c91e94"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/shroomhat.png": {
+      "size": 1705,
+      "hash": "ea0e75869be7598c733a300280fa70bb20d0899227c42cab4aac88891d504a9e"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/soldierhelmet.png": {
+      "size": 1506,
+      "hash": "a4d2faec31805f0aad766acf915060bb81925618871993301fe5651d8692433f"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/standardheadband.png": {
+      "size": 1062,
+      "hash": "4b00430bbd2614c83f7d3b8c1e860e1154bd31d2ab60b1c402896ce7a83ac216"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/trapperhat.png": {
+      "size": 1994,
+      "hash": "3c7a5c7a6e10f014171be635f3d7e50657cba89206fcebb440125469d494bac6"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/vikinghelmet.png": {
+      "size": 2315,
+      "hash": "f98c0326ced22af25662c3dfc64c22365ed81c17b5028fb4f198e6105293ce59"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/warlordhelmet.png": {
+      "size": 5921,
+      "hash": "79e2c347e62a9da96e9f2799ced3a360a78dca9760da787e8ab9eb68ece06d1d"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/wickedshroomhat.png": {
+      "size": 2229,
+      "hash": "e82c9f6c7f80a901dd8cc0151843dc7e5bbcc3b4a6337d21144107621ab0320a"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/witchhat.png": {
+      "size": 1135,
+      "hash": "5882adb6dae932321ec9c8d30ff772b1791714f3a8daadfd2ebf9efa47c79c69"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/wizardhat.png": {
+      "size": 1470,
+      "hash": "9cb97619a228f9b7734542d033b79f885479bb79f6e42da71683a058a54769be"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/head/wreath.png": {
+      "size": 830,
+      "hash": "2d1a35348f480ea0e248cdc2b374baf8aae3ec433c5b5885cbc6b2ef200ea449"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/legs/assassinpants-female.png": {
+      "size": 37175,
+      "hash": "6380ba003175a3c7e89745096bbcf8581f6287c38360a5633c0eeb2ec6a7aeda"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/legs/assassinpants-male.png": {
+      "size": 37672,
+      "hash": "f38a1b4b091e2737f023d7a8a53ac72e6cfe4a169edf6cb2b862ff0a6a63481d"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/legs/shorts-female.png": {
+      "size": 11285,
+      "hash": "617dcbb72cbf75451319d632dc9e1738443600ef5a7aee13e5798c223a4bed56"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/legs/shorts-male.png": {
+      "size": 10897,
+      "hash": "22f98590bbfb06d9da1d6c2acfca568d600246d30d185177b09d110e67a1afbd"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/weapons/knife.png": {
+      "size": 4758,
+      "hash": "6a18bca576e9301051a54ebd231abc6cd664c6651d290811421b4f9ce138c025"
+    },
+    "assets/tmw/clientdata/graphics/sprites/equipment/weapons/sword-iron.png": {
+      "size": 9690,
+      "hash": "1beeab54fa40d0bca3b185caf2560ccbb926652c129f49032c9356457dba9c69"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle01.png": {
+      "size": 119,
+      "hash": "88076a2df3dbc9ade045f3f564a2ff874957b9f8ead8b320012eac546d0f8fb7"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle02.png": {
+      "size": 1643,
+      "hash": "24dac29ac1bb64e26cf1085e21fbf60ac88dbbc72c2a06f609b428b4d9ecfd1a"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle03.png": {
+      "size": 1727,
+      "hash": "825a4842f3718e97ceb1e77c999a91699797363f7646094c810bb44d572a335c"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle04.png": {
+      "size": 1917,
+      "hash": "b04d2e6c68d922b48617e31f377b7348938b4ce14d4b2a58e3927d562e53c87a"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle05.png": {
+      "size": 2873,
+      "hash": "73915692e82c6137929f82446a6e86a8945a1e8f1bcf1a8f56814bcffbef3be9"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle06.png": {
+      "size": 1634,
+      "hash": "beb8c7692a1d6f555a1cff6954a643fa90d13a8b6dbda40ae4832b39a50adde6"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle07.png": {
+      "size": 1438,
+      "hash": "05e49dbc757b5bbb2d090102bc02c37b688406a5ded5f18a7faeba903219abed"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle08.png": {
+      "size": 5045,
+      "hash": "34e33f639e28f6b6ae50a636913eab1b9573ec5c708e2584310eebff313e8dac"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle09.png": {
+      "size": 3766,
+      "hash": "ac84c54cfa53712eca859cca80b7d0d4f8f5f8ae4e7a20f2f0636b1fcd34f9e3"
+    },
+    "assets/tmw/clientdata/graphics/sprites/hairstyles/hairstyle20.png": {
+      "size": 6466,
+      "hash": "e81c3a4a880eea6f3ff55f90d1c99afbeeb9509784a0994e239a1cae53bdf050"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/accessories/banditbow.png": {
+      "size": 15983,
+      "hash": "16c5c9c9c6a8135b4d270ee8d2a57bdacbe3d111fd3fbb9602e275077b2f2b8f"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/bandit.png": {
+      "size": 83787,
+      "hash": "84070092c94d19ae01964486685c6aefda230d59a03af243ae9f02ca186b98b1"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/banditlord.png": {
+      "size": 92259,
+      "hash": "3879afcddd106ca242efa3e174f71feb5ad87bf487d413707a30182c49dc34e6"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/bat.png": {
+      "size": 15877,
+      "hash": "5ad2b76519d424e5b314acac336225a8ca0602ce375752ff40334bf1aa12682a"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/bee.png": {
+      "size": 5165,
+      "hash": "69d622076bda4cbfa4b87ff2c351497c0a7e1807f32e4f0c30d8359e563bb2bd"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/bluepar.png": {
+      "size": 7884,
+      "hash": "9b76b3e3e3b0e1b1ca978ab67da9231191fef7e12e42eb0fe1798ebf5db4b229"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/bosspinkie.png": {
+      "size": 10326,
+      "hash": "eaef89ed76bb53158595fab9a1cb2972dfbedc3ec6bb2d12b167604a76c7ebb4"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/croc.png": {
+      "size": 9856,
+      "hash": "b7bef316d7ede37993e66b1baee7f75a4301840db8eb73e4377f5f9e274ced35"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/fluffy.png": {
+      "size": 6717,
+      "hash": "9750d4f183f02a2a5947b81a172a2d4d5dfa39c3e05af5e1dcd9f87fd52b017d"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/forestdragon.png": {
+      "size": 317060,
+      "hash": "f06ff3e28a0827de71e5fcd67f2958c935f5a94a8525f4047db1197a9258ee6d"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/forestmushroom.png": {
+      "size": 17675,
+      "hash": "2be89655f9508dfed07edb381780349a9e7032aa59a84e65a4ff12d2b6345692"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/frog-small.png": {
+      "size": 44691,
+      "hash": "76a26c0960e6b1c56e383de6ff893901066c2aada75305e4749649a97b1b9a33"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/frostiana.png": {
+      "size": 1533,
+      "hash": "deb6fd9c8ba13c9217d408208f1ab80b578dac904e75798074261a0ae400183c"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/golem.png": {
+      "size": 1088605,
+      "hash": "629e52ec61b53d02c7cd5cc8a2266523400762896f80a7295f50fff6ca54f5d3"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/jacko.png": {
+      "size": 22201,
+      "hash": "5f4350eb2af6fe3a4ba8f1415b59a96a8306a43e48510751c5af18f5e8eb5a84"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/junglefowl.png": {
+      "size": 31017,
+      "hash": "b0482b14348c7f754d67a4539eb9f6300ad3227f22df0961cd6488dd2a308d53"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/loghead.png": {
+      "size": 78446,
+      "hash": "ce5da3ef842b0b0266feb6d97d21639671536b0d891fae432d3c23649f4cabf5"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/maggot.png": {
+      "size": 4541,
+      "hash": "0b72f0b05fc8d18bc258c9f65151be86797f4138f756b3e2da419ef193c4ce09"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/mouboo.png": {
+      "size": 47439,
+      "hash": "36d12a00b73b59ddd6d45b3674f88191a78df56d275ede794c038fa6e1b366f5"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/mushroom-wicked.png": {
+      "size": 15773,
+      "hash": "42a4e7f8cd8cba7b3effc4a22538f5f73ebfdc0fbbd52d5368e1dd014ee16303"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/nightdragon.png": {
+      "size": 338787,
+      "hash": "accc0903f77dae0b7e083ba856a9209822b6c0646b5adac96753d32d93e59697"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/piou.png": {
+      "size": 2236,
+      "hash": "a3230de8acfd957f6ebbf780afda172a6a785cf5ef3d8e41a002490a4637724e"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/plant.png": {
+      "size": 1618,
+      "hash": "88042540d1b8955d73b1b3df859c306cd18cbc536d48467a115b1ee61376b22f"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/ratto.png": {
+      "size": 15750,
+      "hash": "e29102cf22eb09dffc6357ab9ac5a3027b5c26412921ff0f6c3772dc381d96b1"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/reaper.png": {
+      "size": 111714,
+      "hash": "e20ba91563daa9547069e02a55b0efe00c1548ce160f9749898f15912a49e19c"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/redmushroom.png": {
+      "size": 11013,
+      "hash": "a400cb1e5b4ce163b9df58e707695528b4aa7e19f139cb7dd9126a088daec03f"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/scorpion.png": {
+      "size": 10602,
+      "hash": "eec312a30af0d3f454a2a8dc8bec8c27e090a081f0830a7c8872b71e0ed87671"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/serqet.png": {
+      "size": 11232,
+      "hash": "f7593dc7dc9543d2ee3fba4a7fdc0dde13c2dd7bb73fb22d87a5acbcfcdf5bf8"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/skeleton.png": {
+      "size": 39412,
+      "hash": "0f50aa57d97d784cf83077ffd4f134af0e33a8cd0e14f625ed94f20885236eda"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/slime-mother.png": {
+      "size": 110514,
+      "hash": "fda9d29c99d9f145ddca696293386e8827d233c21d20ecdbafacf2530a91625c"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/slime.png": {
+      "size": 13722,
+      "hash": "f34c86b35fd45dd205e1ec991dff1e10e9d960eff2f7d3f13974ec5dacc9c039"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/snail.png": {
+      "size": 13633,
+      "hash": "e4cceb4751da35bedba9c299d7f2873cfe6b4f4204883b3e9d6213cefa56bad7"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/snake.png": {
+      "size": 10539,
+      "hash": "9d125e3aae7fa5fc3beda1974d5ec50e4601483da8b8637a949ad8d53610fa46"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/snowman-boss.png": {
+      "size": 1862044,
+      "hash": "13609d4377fe246ae23b099535f3ab12d2c6ba349741b13221d9302053ccdb3e"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/snowman.png": {
+      "size": 492183,
+      "hash": "eb2b98902e5dff6c4c9fafb44e3d417e95f5edf6387d72ef0dba1e7538105443"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/spider-queen.png": {
+      "size": 664459,
+      "hash": "3560361f8567cc70d5c114d10d739e02ae3a3de4514ec40f4bf5738b959961dc"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/spider.png": {
+      "size": 12296,
+      "hash": "4f90a67c8e1cbfc5a30f85f9d612fd9817aa3318a0c0dc6b20262a226e96d57e"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/tortuga.png": {
+      "size": 12541,
+      "hash": "05b5ed09cd43406bf6121446818418d5a2a3c360ed7e50e9ed1e8cd93ca6fae1"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/troll.png": {
+      "size": 79113,
+      "hash": "0a69e1f6ca0ead64fdf6b976b478ac7f1a37bfd0463e886d6ec59dde015f2b70"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/vampirebat.png": {
+      "size": 12296,
+      "hash": "c394f8addf858c2416f439215fc602b1d2ac7937a2e5fd1943ffcaf5cc733ae7"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/wisp.png": {
+      "size": 47879,
+      "hash": "3d8887643cb8fdb8485f69503cc780a15f2c37cbbefe8b66c739a049ff7bbbd5"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/yeti.png": {
+      "size": 94076,
+      "hash": "d5f1485579cf4a6c5d34dc5098ae973e89cbbd212428e183b72fd0b7211efe80"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/yetiking.png": {
+      "size": 97642,
+      "hash": "db48b813f6830489cf9436c8357741d12218f798135e4a1331f9d2b636eca1f5"
+    },
+    "assets/tmw/clientdata/graphics/sprites/monsters/zombie.png": {
+      "size": 63529,
+      "hash": "5500583d1cb3e7c7720ab02842ef0c0a29331c62b8623090c000302b9c60147b"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/elven-female.png": {
+      "size": 64580,
+      "hash": "7a882b7d2233afd5d47827c8d5febc9a291004b692c0a2dff16904d2912871e5"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/elven-male.png": {
+      "size": 58010,
+      "hash": "4259aafa942ede9291b20c4c843075d3f144eda6b8705623f31f974d63a4b8f7"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/human-female.png": {
+      "size": 60997,
+      "hash": "fe87c3a11eadabd20592d4fbb1027b2230c1c17885ef82d8c3fca577745f3ca3"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/human-male-medium.png": {
+      "size": 57700,
+      "hash": "6f58207495b9a3e4f13e9826829afeedb07742d957fb5ad9bac7579ba83556bc"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/human-male.png": {
+      "size": 60136,
+      "hash": "4d9021c423f5f3384994f06d0eb59710ceb2e82aefd0f9c96f5d175a9b6d70e2"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/orc-male.png": {
+      "size": 63325,
+      "hash": "8a0d9b12f34f342a6c194e678587645fda4059e7612885557ca7272198a6a9be"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/raijin-female.png": {
+      "size": 66502,
+      "hash": "03d39e1a5c2606997021e5d058052c92f62b0a8e4624ab33f0d63c88f7359b2c"
+    },
+    "assets/tmw/clientdata/graphics/sprites/races/tritan-male.png": {
+      "size": 58378,
+      "hash": "883249dfb59faf37fc8ebeb2ca0da5d50939a1b4bea32fc5d01b8adcc737013b"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/castle1.png": {
+      "size": 560767,
+      "hash": "ef9a47ba3f9009f2a52eba4dd4a1a80aea68b6805c7a2b65d580f1bf67d99409"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/cave2.png": {
+      "size": 137257,
+      "hash": "487b8f591b641c59ef987ea2a393851fb04ef7238ed4161c16cce19ea88acc1c"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/desert_castle_interior.png": {
+      "size": 376305,
+      "hash": "5853c1017fdd46d11f06e1b83457bd8f4c102df3cf8a961ec21567d7ec02885f"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/desert_castle.png": {
+      "size": 436724,
+      "hash": "712aaf6a8b238f2fd2a157d6deaca98b21160a9181e8a166ec7cc884625ab7d6"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/desert1.png": {
+      "size": 339337,
+      "hash": "4fb42722200cf7eb65d5f239b639a663ca04c50a12a9f656d6ba418038167ede"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/desert2.png": {
+      "size": 242973,
+      "hash": "753b54cd83e2452a710ec2435dba27b85abd80b873e436e800062b0a3629dcde"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/evol/artis-pavement.png": {
+      "size": 76167,
+      "hash": "1b0c42b42e6ddce1c233714e6586e58cc7b8222a2da7afe950904115a39138cd"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/footprints.png": {
+      "size": 1220,
+      "hash": "23cbc902a53c5522277f4b581e70c205bde9ef981276a67a8babb18e11de3bd1"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/icecave.png": {
+      "size": 117404,
+      "hash": "342fbf8c8c1573fded531ddffc7cac4d64e07360a7aaea29ca4fb143aa53b633"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/savannah.png": {
+      "size": 328108,
+      "hash": "59c59261187c86f456e1d16bd76262c510ff34e7cd74876341fa4e80c4ac269c"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/snow.png": {
+      "size": 272220,
+      "hash": "91c560d8c1929ed4521cfc06fec57c0ef66477dab46d9faf28e31e62204047e2"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/stoneground.png": {
+      "size": 237691,
+      "hash": "5d5a8d3436f223cc44c6b593fb85fb1cf3ddfb92347e437a943d8980c59eca31"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/woodland_graveyard_ground.png": {
+      "size": 29804,
+      "hash": "fcb10d9ea9c5b716bb5835b006dff38ca871a290edbdad5aa7fc4870b29d3663"
+    },
+    "assets/tmw/clientdata/graphics/tilesets/woodland_ground.png": {
+      "size": 288568,
+      "hash": "531029d7678ce8a1110a98b6697c96b9d246e2a2fd644b63b0a8910dd1395b38"
+    },
+    "assets/tmw/clientdata/sfx/ML/Roar.ogg": {
+      "size": 19130,
+      "hash": "c5314049e87e467e5e20cbc4eb317a289219d393638180961a5cf624bff42a4c"
+    },
+    "assets/tmw/clientdata/sfx/ML/Skill00.ogg": {
+      "size": 76367,
+      "hash": "cad18a0f042c5ecc0a4150697baee3f54e7fff57b38d7aa49d0f420f80450265"
+    },
+    "assets/tmw/clientdata/sfx/monsters/bee/bee-die1.ogg": {
+      "size": 17120,
+      "hash": "ae53b1d547ce2caf5b20e7e4234b0fb632f9e9cee9b026d1190aebb9ade2b2ad"
+    },
+    "assets/tmw/clientdata/sfx/monsters/bee/bee-miss1.ogg": {
+      "size": 6295,
+      "hash": "636c2a63b0456d76d9a14eb490fcb5db83cb47fba5d8392f539691288a5179ac"
+    },
+    "assets/tmw/clientdata/sfx/monsters/bee/hurt.ogg": {
+      "size": 9856,
+      "hash": "3751e6b31121058073d18b134a2111d5e68459a80f809fd309d5f21c9392da97"
+    },
+    "assets/tmw/clientdata/sfx/monsters/crocotree/die1.ogg": {
+      "size": 13414,
+      "hash": "3d8c8bf35e8652ae031ef8d147b975aa241ce6176c23b8f7d326d9bfb5038b66"
+    },
+    "assets/tmw/clientdata/sfx/monsters/crocotree/hurt1.ogg": {
+      "size": 5395,
+      "hash": "f15dcfe65cd84619a84d371a05323e557ee5d152ac142481bc5b8b20105de11d"
+    },
+    "assets/tmw/clientdata/sfx/monsters/dragon/die.ogg": {
+      "size": 15820,
+      "hash": "2588d91edde9cfc51b4239a8bb24cecce7dab2406b47b40df9f80828153955f5"
+    },
+    "assets/tmw/clientdata/sfx/monsters/dragon/hit.ogg": {
+      "size": 13475,
+      "hash": "0582a2548ef53b08e76616aaf6ecf27b85a66eff92085af212524aa22ea73328"
+    },
+    "assets/tmw/clientdata/sfx/monsters/flower/flower-hit1.ogg": {
+      "size": 6111,
+      "hash": "bc5ae7a75d55ceecc288c635de8c967ae690e3194e4efa662b71c2ba7f168ab0"
+    },
+    "assets/tmw/clientdata/sfx/monsters/fluffy/hit1.ogg": {
+      "size": 6541,
+      "hash": "15304eed381d2fd44e817eaad7d816b17fda6342ab6bef819870315ee923dcd4"
+    },
+    "assets/tmw/clientdata/sfx/monsters/frostiana/hit1.ogg": {
+      "size": 8102,
+      "hash": "09ee7220dfff9ef112dc99117bad7c255d477b8585b9b0bb4d49456d9c28fc56"
+    },
+    "assets/tmw/clientdata/sfx/monsters/ghost/ghost-die1.ogg": {
+      "size": 45833,
+      "hash": "1ba6ac26ec17f012cc2f00ce1b3768cb1616d1a58a4760fb2f2c71c632870881"
+    },
+    "assets/tmw/clientdata/sfx/monsters/golem/die.ogg": {
+      "size": 108955,
+      "hash": "491c86ee4cff4a36849aa9b531abfd5df8725d3584547e8ef67835df2b31f370"
+    },
+    "assets/tmw/clientdata/sfx/monsters/golem/miss1.ogg": {
+      "size": 5458,
+      "hash": "f9fba66e5d3018ae6b11daed1b438da695e2c46aa919f682d880daa3145c8464"
+    },
+    "assets/tmw/clientdata/sfx/monsters/loghead/loghead-die1.ogg": {
+      "size": 8320,
+      "hash": "0e9c739c5252c9098e26871a60b19349b922fca498870012bdfac34b98b35867"
+    },
+    "assets/tmw/clientdata/sfx/monsters/loghead/loghead-hurt1.ogg": {
+      "size": 4797,
+      "hash": "ad0e171d358231e4b846120d9dadd2024b79f0f048ec5b2466323f4baf9d81f8"
+    },
+    "assets/tmw/clientdata/sfx/monsters/mushroom/spawn1.ogg": {
+      "size": 21760,
+      "hash": "0fc94ba2ba8f96236250d55a7a51014c23ac1e84b4f7129d09e84508ff1106c2"
+    },
+    "assets/tmw/clientdata/sfx/monsters/mushroom/spawn2.ogg": {
+      "size": 24117,
+      "hash": "f845b8676308c005d3b84e8a0e0597b0785332bdb5b4ef42553147de8eb12ecc"
+    },
+    "assets/tmw/clientdata/sfx/monsters/pumpkin/die1.ogg": {
+      "size": 12053,
+      "hash": "5e3be5e7898a875c8977eb7a9a7579d6872a06871a7c5271740a317cac187a7c"
+    },
+    "assets/tmw/clientdata/sfx/monsters/pumpkin/hit1.ogg": {
+      "size": 8223,
+      "hash": "3df8533d7ddca92edac33b04c49933f0ba2ec448723a189b0ee0b930f3c70c4d"
+    },
+    "assets/tmw/clientdata/sfx/monsters/reaper/reaper-die1.ogg": {
+      "size": 12689,
+      "hash": "0ecbcb7a51a11231de3a447f246724c0e6ab7f408c9a69c84f2ec764cf9fa3fd"
+    },
+    "assets/tmw/clientdata/sfx/monsters/reaper/reaper-hit1.ogg": {
+      "size": 7884,
+      "hash": "f970335d3d8c447adec1eabfb4f0cd4c24a8821e15f64d7d5d249cea65d59eca"
+    },
+    "assets/tmw/clientdata/sfx/monsters/reaper/reaper-hurt1.ogg": {
+      "size": 5372,
+      "hash": "9165908a21fcb9d32ece31b5f540e2579b3b872a7d2d5a832bd88ba438133af7"
+    },
+    "assets/tmw/clientdata/sfx/monsters/shroom/shroom-die1.ogg": {
+      "size": 7866,
+      "hash": "478b3652cf215dc2c0a42c6d1a56454609d0da43cd1bfc8f0bb985c248935136"
+    },
+    "assets/tmw/clientdata/sfx/monsters/shroom/shroom-hurt1.ogg": {
+      "size": 5547,
+      "hash": "4937f5bb4252999a0d80566a8750fd200c4f3b62d2e1f0fe0fbb5f2f77b47497"
+    },
+    "assets/tmw/clientdata/sfx/monsters/slime-super/slime-super-die1.ogg": {
+      "size": 23713,
+      "hash": "62c33c5a6a368338c6e3b6567583d395c5187d6b4226f201200d283b1b6d1222"
+    },
+    "assets/tmw/clientdata/sfx/monsters/slime-super/slime-super-hurt1.ogg": {
+      "size": 7069,
+      "hash": "c84bd405311f0561eb06df6dffedd7733350c0de17551e001a29b453b8742e55"
+    },
+    "assets/tmw/clientdata/sfx/monsters/snowman_boss/miss1.ogg": {
+      "size": 4110,
+      "hash": "3d89fd26b7bf9ec5912b95eb84df9b72d987b1c9b4c1245a0bde5249d7ebc9d4"
+    },
+    "assets/tmw/clientdata/sfx/monsters/spider/spider-die1.ogg": {
+      "size": 19013,
+      "hash": "12a151fedea62b4f577e44f61fc057020a00092f8437faf280b1eba29d65ce88"
+    },
+    "assets/tmw/clientdata/sfx/monsters/spider/spider-hit1.ogg": {
+      "size": 4807,
+      "hash": "1a1c326c0ac2fb6f4c11fc70e8924405c83635cb2fa312db526a4b157bfcd01b"
+    },
+    "assets/tmw/clientdata/sfx/monsters/yeti/yeti-die1.ogg": {
+      "size": 19944,
+      "hash": "e49cdb8e61159ee9e6093c296f1d63ceb85a25f47b8c77fd0d73644640543e1a"
+    },
+    "assets/tmw/clientdata/sfx/monsters/yeti/yeti-hurt1.ogg": {
+      "size": 6011,
+      "hash": "d52d4bba3b04c827c497e257e605cd30710250815f0c67609d65e1857c743a1d"
+    },
+    "assets/tmw/clientdata/sfx/monsters/yeti/yeti-miss1.ogg": {
+      "size": 7834,
+      "hash": "fbc5aaec6bbd07d005b20218dafd26817921c8fec644887cc9dbdeecf8719fc9"
+    },
+    "assets/tmw/clientdata/sfx/monsters/zombie/zombie-dying1.ogg": {
+      "size": 12146,
+      "hash": "8783e74a1aef85b2afc08ad4a933818adaa27efb3e932cb29355ce6af75a00b8"
+    },
+    "assets/tmw/clientdata/sfx/monsters/zombie/zombie-miss1.ogg": {
+      "size": 13633,
+      "hash": "7f5b42baf55a8e9368b5bc0c21e7dd2da62b7270904a8f47489dc21391f5c6e7"
+    },
+    "assets/tmw/clientdata/sfx/monsters/zombie/zombiedie.ogg": {
+      "size": 38148,
+      "hash": "1dcaadb14c72acb2030d13b9a1b30ae327f2fa5dd5270b4feae3c1872f640842"
+    },
+    "assets/tmw/clientdata/sfx/monsters/zombie/zombiemiss.ogg": {
+      "size": 41284,
+      "hash": "341d12b9fa469a6b24dd5c637a9d58d30eee0be2364aded107921c32ad1100f2"
+    },
+    "assets/tmw/clientdata/sfx/punch.ogg": {
+      "size": 5612,
+      "hash": "21664a4f8348e30aa59d1ce419c0cba867b616caf6519fd24abf974c8de91b2b"
+    },
+    "assets/tmw/clientdata/sfx/special/fanfare.ogg": {
+      "size": 171186,
+      "hash": "d07cdea624aa79fcce50df181818d05d631ac450e5f039197487befde33d7839"
+    },
+    "assets/tmw/clientdata/sfx/system/boom.ogg": {
+      "size": 40843,
+      "hash": "739d488d42fcdd6be172688d1f18cdf16661128d57f19e5a85356a1d9601f9ac"
+    },
+    "assets/tmw/clientdata/sfx/system/click.ogg": {
+      "size": 6504,
+      "hash": "d1e16f06933abaeaeb8988f6ce6d4c86d2e8cfe3c325ca59f24320b71c600628"
+    },
+    "assets/tmw/clientdata/sfx/system/event-fail.ogg": {
+      "size": 10423,
+      "hash": "6768c2883d996e4ef796346d3122525ca718e53b309bdeedde6c0ad750c67832"
+    },
+    "assets/tmw/clientdata/sfx/system/item.ogg": {
+      "size": 20989,
+      "hash": "955edde316f2ac230eb50c37261bc1843b53c85ab3c372fa586749200cd89dfe"
+    },
+    "assets/tmw/clientdata/sfx/system/warp.ogg": {
+      "size": 74797,
+      "hash": "a6a01c026bab5392c931e27868a345a0892c99397f9f7a2a1b3b6d977cf1f67c"
+    },
+    "assets/tmw/clientdata/sfx/weapons/axe/hit.ogg": {
+      "size": 9142,
+      "hash": "1e3fc92d7665656c0d1ac61e78835af06b53da7f310a6cdb03715dc08875f986"
+    },
+    "assets/tmw/clientdata/sfx/weapons/barehands/hit1.ogg": {
+      "size": 16934,
+      "hash": "136037f92f8c94d9d53672b9243127fd74b98611b52b55c0216ca64b81b1ca66"
+    },
+    "assets/tmw/clientdata/sfx/weapons/bow/shoot.ogg": {
+      "size": 7789,
+      "hash": "d4457c82554ece0c20cec85fc5db3f5b62fb8987c87be6a07668970f9be6a794"
+    },
+    "assets/tmw/clientdata/sfx/weapons/piouslayer/hit1.ogg": {
+      "size": 11443,
+      "hash": "fac59f589ea07971b9a3ee657fd49e3df61a9967ecd499b5c87efa3ef36ff86f"
+    },
+    "assets/tmw/clientdata/sfx/weapons/piouslayer/hit2.ogg": {
+      "size": 6153,
+      "hash": "e3920c3db4c7b990644242646de2685ca3f81b0f2b506448d44005e0dd969837"
+    }
+  }
+}

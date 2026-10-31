@@ -8,6 +8,8 @@ A browser-based, room-by-room action roguelike set in the world of [The Mana Wor
 2. Set the music and effects volume sliders on the title screen, pick a delver, and press Enter.
 3. Click **HOW TO PLAY** (or press H) on the select screen for the interactive tutorial. It shows your current keyboard or controller bindings.
 
+After editing runtime files for local HTTP preview or another static host, run `node tools\generate-asset-manifest.js` before serving. Both GitHub Pages workflows generate this manifest automatically during deployment.
+
 Works in current Chrome, Edge, Firefox and Safari with a keyboard and mouse, an Xbox or PlayStation controller, or phone touch controls.
 
 On phones, drag the left movement area with one thumb and hold the right attack area with the other. While any live enemy remains in the current room, attacks automatically target the nearest one, regardless of dragging. Once no live enemies remain, drag the attack area to aim freely at breakables; holding without dragging fires in your facing direction, so walking before attacking also lets you choose a direction. Tap the Attack button while in reach of an interactable to interact instead of attacking. Visible buttons also provide dash, bombs, explicit interaction, skills, items, mana guard (or unlocked Shockwave), weapon switching, bank withdrawal, map, journal, and pause. Touch controls hide when a controller connects or you use a mouse or keyboard; they return when the controller disconnects or you return to touch. Landscape uses the available screen height; portrait keeps the controls below the game. Both preserve the 960-by-540 game coordinates. Tap the roster's side arrows to select other delvers, and tap the upper or lower pause area to resume or save and exit.
@@ -51,6 +53,8 @@ Other regions use the dedicated **vertical edge tiles** from TMW's `desert_castl
 Reused images are unmodified in `assets/tmw/clientdata` and `assets/som/graphics`; canvas compositing, opacity and color filters provide the presentation. Source of Mana's Modanung/Reid wall artwork, Crush/Reid menhir, and Reid's TMX reference are CC BY-SA 4.0; exact source revision and adaptation details are in [the SoM credits](assets/som/CREDITS.md). Other attribution and original license terms remain below and in the bundled client-data `LICENSE`.
 
 ### Performance and artwork loading
+
+Each startup checks a small file manifest with browser caching disabled. SHA-256 hashes and byte sizes version the JavaScript, CSS, artwork and recorded audio URLs: changed files automatically bypass stale cached copies, while unchanged files stay reusable. Hashing happens during deployment, not on the phone, and updates never interrupt a running descent or erase saves, bank balance or settings. This bypasses obsolete game files rather than deleting the browser's entire HTTP cache. Failed update checks stop startup with a visible Retry button; direct `file:` play uses local contents and logs that automatic update checks require HTTP.
 
 Rendering quality adapts to measured frame times, not phone brands or model years. Fast devices retain full quality; slow devices use the existing lower-resolution, reduced-glow mode. Recovery attempts back off to avoid repeatedly switching resolution on a device that cannot sustain full quality. Background tabs do not advance gameplay.
 

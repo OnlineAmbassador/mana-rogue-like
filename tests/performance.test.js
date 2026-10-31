@@ -20,6 +20,8 @@ function assets() {
     setTimeout: (fn) => timers.push(fn),
     console: { warn: (...args) => warnings.push(args), error: (...args) => errors.push(args) },
   });
+  c.gameAssetVersions = null;
+  loadFunctions(c, 'cachemanager.js', ['versionedAssetUrl']);
   loadFunctions(c, 'gameui.js', ['loadAsset', 'retryFailedArtwork', 'updateArtworkLoading']);
   return c;
 }

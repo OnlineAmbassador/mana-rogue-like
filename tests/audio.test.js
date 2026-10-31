@@ -32,6 +32,8 @@ function audioContext({ contextState = 'running', fetchOk = true, decodeFails = 
     },
   };
   const context = vm.createContext(sandbox);
+  context.gameAssetVersions = null;
+  loadFunctions(context, 'cachemanager.js', ['versionedAssetUrl']);
   loadFunctions(context, 'gameui.js', ['soundUrl', 'loadSoundBuffer', 'preloadSounds', 'playSoundBuffer', 'playSound']);
   return { context, log, fakeContext };
 }

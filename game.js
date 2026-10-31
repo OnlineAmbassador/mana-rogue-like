@@ -353,7 +353,7 @@ const musicChords = [[45, 48, 52], [41, 45, 48], [48, 52, 55], [43, 47, 50]];
 const NARRATION_ENABLED = false;
 
 const prologueNarrations = NARRATION_ENABLED ? [1, 2, 3].map((segment) => {
-  const audio = new Audio(`assets/audio/prologue-0${segment}.ogg`);
+  const audio = new Audio(versionedAssetUrl(`assets/audio/prologue-0${segment}.ogg`));
   audio.preload = 'auto';
   audio.volume = 0.76;
   return audio;

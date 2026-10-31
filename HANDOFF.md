@@ -8,11 +8,13 @@
 
 ## Current task
 
-Push preparation completed on 2026-10-31. The user will push; do not push automatically. Changes are saved in the working tree, not staged or committed. Next task is actual-device playtesting and any user-reported regressions; do not add difficulty or redesign approved visuals without a request.
+Automatic cache updates added on 2026-10-31 at the user's request: check file hashes/sizes and refresh changed files automatically. `cachemanager.js` checks `asset-manifest.json` with `cache: 'no-store'` before loading ordered classic scripts and CSS. SHA-256/size query versions apply to artwork, SFX and narration too, preserving cache reuse for unchanged files. There is no mid-run reload or save/settings deletion; this bypasses stale HTTP entries rather than erasing the entire browser cache. Failed startup has a visible Retry; local `file:` play skips unsupported checks with a warning.
+
+Both Pages workflows run `node tools/generate-asset-manifest.js` before upload. For local HTTP preview/other hosts, regenerate after runtime changes; commit the generated manifest with the new manager, generator and tests. Tests detect stale checked-in metadata. Next task remains actual-device playtesting and user-reported regressions. The user will push; do not stage, commit or push automatically.
 
 ### Push checklist and verification
-- Review the working-tree diff before staging. Include the restored `assets/tmw/clientdata/graphics/tilesets/castle1.png` and new `tests/performance.test.js`; both were untracked during preparation and are required deliverables, not scratch files.
-- Validation: all root JavaScript files pass `node --check`; `node --test tests\*.test.js` passes **297 tests**. `git diff --check` passes. There is no package/build step.
+- Review the working-tree diff before staging. The previously untracked castle atlas and performance tests are now tracked. Include new cache-update deliverables (`cachemanager.js`, `asset-manifest.json`, `tools/generate-asset-manifest.js`, `tests/cache.test.js`).
+- Validation after cache updates: all root JavaScript files and the manifest generator pass `node --check`; `node --test tests\*.test.js` passes **305 tests**. `git diff --check` passes. Browser startup loaded 179 versioned artwork URLs with no failed artwork; a simulated deployment with changed CSS hash/size fetched and applied the new stylesheet. There is no dependency installation; deployment now generates the manifest.
 - No push, commit, dependency installation or save migration was performed. No preview server is intentionally running.
 - Git is not on PATH in this Windows environment. Executable: `C:\Users\meway\AppData\Local\GitHubDesktop\app-3.6.9\resources\app\git\cmd\git.exe`. Use `--no-pager`.
 - The user's phone is Motorola XT2617-3 running Chrome. Reliable hardware specs and real-device FPS were not established. Earlier laptop profiling showed fewer image draws (512 to 73 per frame) for the wall-cache optimization; this predates the full lighting pass and does not certify present performance or flawless phone play.

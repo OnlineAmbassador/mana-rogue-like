@@ -229,7 +229,7 @@ function drawAudioPanel() {
 }
 
 function loadAsset(path, root = assetRoot) {
-  const url = `${root}/${path}`;
+  const url = versionedAssetUrl(`${root}/${path}`);
   if (artwork.images.has(url)) return artwork.images.get(url);
   const image = new Image();
   artwork.images.set(url, image);
@@ -293,7 +293,7 @@ function updateArtworkLoading() {
 }
 
 function soundUrl(path) {
-  return path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`;
+  return versionedAssetUrl(path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`);
 }
 
 // Fetches and decodes a sound effect once. A failed fetch or decode leaves the HTMLAudio pool as the fallback.
@@ -700,7 +700,7 @@ function speakChapter(text) {
 function startChapterNarration(card) {
   stopChapterNarration();
   if (!narrationActive()) return;
-  const audio = new Audio(`assets/audio/intro-${card.key.replace(':', '-')}.ogg`);
+  const audio = new Audio(versionedAssetUrl(`assets/audio/intro-${card.key.replace(':', '-')}.ogg`));
   audio.volume = 0.76;
   chapterAudio = audio;
   const fallBack = () => {

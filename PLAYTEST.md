@@ -4,6 +4,13 @@ Play a few runs, then note what you find under each question. There are no wrong
 
 Useful to write down with each note: which character you played, which floor, and whether you used keyboard, touch or a gamepad.
 
+## Automatic cache updates
+
+- Reopen the HTTP-hosted game after a deployment. Changed scripts, CSS, artwork and narration should appear without manually clearing Chrome's cache; saves, bank balance and settings must remain intact.
+- Test a same-size file edit as well as a size change (regenerate with `node tools\generate-asset-manifest.js` for local hosting). The changed file's `?v=` URL should change; untouched files should retain theirs.
+- A failed manifest request should show Retry instead of starting with stale files. Restoring the connection and retrying should start the game normally.
+- A deployment during combat must not reload the current descent. The new version is checked at the next startup.
+
 ## Combat feel
 
 - **Charged attacks.** Hold the attack button to charge a bow or magic shot. Does a charged shot feel worth the wait? Does a fully charged magic shot make bosses too easy?
