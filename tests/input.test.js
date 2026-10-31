@@ -135,6 +135,7 @@ test('controller left stick moves without changing facing', () => {
 
 test('keyboard and mouse mode aims from the cursor even while buttons are released', () => {
   const context = vm.createContext({
+    monsterSprites: {},
     lastInputMode: 'keyboard',
     pointer: { x: 200, y: 100, down: false },
     camera: { x: 0, y: 0 },
@@ -148,6 +149,7 @@ test('keyboard and mouse mode aims from the cursor even while buttons are releas
 
 test('controller mode always aims from the right stick, not cursor or movement facing', () => {
   const context = vm.createContext({
+    monsterSprites: {},
     lastInputMode: 'controller',
     pointer: { x: 0, y: 0, down: true },
     camera: { x: 0, y: 0 },
@@ -345,6 +347,7 @@ test('mouse movement updates player facing toward the pointer before firing', ()
 
 function touchAimContext() {
   const context = vm.createContext({
+    monsterSprites: {},
     player: { x: 100, y: 134, lookX: 1, lookY: 0 },
     touchInput: { attack: true, aimActive: true, aimX: 1, aimY: 0 },
     lastInputMode: 'touch',
@@ -409,6 +412,7 @@ test('touch aim switches from enemy lock to manual aim on death and back for a n
 
 test('touch attack aim sets facing while touch movement alone does not', () => {
   const context = vm.createContext({
+    monsterSprites: {},
     player: { lookX: 0, lookY: 1 },
     touchInput: { attack: true },
     currentAimAngle: () => 0,

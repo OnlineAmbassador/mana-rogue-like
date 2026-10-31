@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const { generateAssetManifest } = require('../tools/generate-asset-manifest');
-const { loadFunctions } = require('./helpers/load');
+const { loadFunctions, loadBetween } = require('./helpers/load');
 
 const root = path.join(__dirname, '..');
 
@@ -31,8 +31,10 @@ function cacheContext() {
       getElementById: (id) => id === 'artwork-status' ? status : retry,
     },
   });
+  loadBetween(c, 'cachemanager.js', 'const GAME_SCRIPTS', 'function validateAssetManifest');
   loadFunctions(c, 'cachemanager.js', [
-    'validateAssetManifest', 'versionedAssetUrl', 'readAssetManifest', 'loadGameFile', 'startCachedGame',
+    'validateAssetManifest', 'versionedAssetUrl', 'readAssetManifest', 'loadGameFile', 'showStartupFailure',
+    'startCachedGame',
   ]);
   return { c, requests, elements, errors, status, retry, manifest };
 }
@@ -68,10 +70,8 @@ test('startup checks fresh metadata once and loads versioned CSS and managers in
   assert.equal(requests.length, 1, 'do not redownload artwork merely to hash it on the phone');
   assert.equal(requests[0].url, 'asset-manifest.json');
   assert.equal(requests[0].options.cache, 'no-store');
-  assert.deepEqual(elements.map((element) => (element.href || element.src).split('?')[0]), [
-    'style.css', 'gameui.js', 'desertart.js', 'mobmanager.js', 'playermanager.js',
-    'dbmanager.js', 'worldmanager.js', 'controllermanager.js', 'game.js',
-  ]);
+  assert.deepEqual(elements.map((element) => (element.href || element.src).split('?')[0]),
+    ['style.css', ...vm.runInContext('GAME_SCRIPTS', c)]);
   const entry = manifest.files['game.js'];
   assert.equal(elements.at(-1).src, `game.js?v=${entry.hash}-${entry.size}`);
   assert.equal(errors.length, 0);
@@ -111,7 +111,7 @@ test('failed update checks block stale startup and offer retry without touching 
 });
 
 test('script failures stop startup and offer a full reload rather than rerunning partial managers', async () => {
-  const { c, elements, retry, errors } = cacheContext();
+  const { c, elements, retry, errors, status } = cacheContext();
   c.document.head.appendChild = (element) => {
     elements.push(element);
     if (element.src?.startsWith('desertart.js')) element.onerror();
@@ -120,7 +120,16 @@ test('script failures stop startup and offer a full reload rather than rerunning
   await c.startCachedGame();
   assert.equal(elements.length, 3);
   assert.equal(errors.length, 1);
+  assert.match(status.textContent, /Could not load a game file/);
   assert.equal(retry.hidden, false);
+});
+
+test('a missing manifest on plain static hosting runs the unversioned files', async () => {
+  const { c, elements, errors } = cacheContext();
+  c.fetch = async () => ({ ok: false, status: 404 });
+  await c.startCachedGame();
+  assert.equal(elements.at(-1).src, 'game.js');
+  assert.match(errors[0][0], /No asset-manifest\.json/);
 });
 
 test('malformed or incomplete manifests are rejected explicitly', () => {
@@ -130,8 +139,13 @@ test('malformed or incomplete manifests are rejected explicitly', () => {
   for (const entry of [{ size: -1, hash: 'f'.repeat(64) }, { size: 1, hash: 'invalid' }]) {
     assert.throws(() => c.validateAssetManifest({ ...manifest, files: { ...manifest.files, 'game.js': entry } }), /Invalid/);
   }
+});
+
+test('an unlisted asset loads unversioned with a warning instead of stopping the game', () => {
+  const { c, manifest, errors } = cacheContext();
   c.gameAssetVersions = manifest.files;
-  assert.throws(() => c.versionedAssetUrl('missing.png'), /Missing/);
+  assert.equal(c.versionedAssetUrl('missing.png'), 'missing.png');
+  assert.match(errors[0][0], /No game file metadata for missing\.png/);
 });
 
 test('direct local-file play skips unsupported fetch with an explicit warning', async () => {
@@ -144,7 +158,14 @@ test('direct local-file play skips unsupported fetch with an explicit warning', 
   assert.equal(elements.at(-1).src, 'game.js');
 });
 
-test('checked-in manifest matches every current runtime file', () => {
-  const stored = JSON.parse(fs.readFileSync(path.join(root, 'asset-manifest.json'), 'utf8'));
-  assert.deepEqual(stored, generateAssetManifest(root), 'Run node tools\\generate-asset-manifest.js after runtime edits.');
+test('the loader lists every root game script exactly once, and the manifest covers them', () => {
+  const { c, manifest } = cacheContext();
+  const roots = fs.readdirSync(root).filter((name) => name.endsWith('.js') && name !== 'cachemanager.js').sort();
+  assert.deepEqual([...vm.runInContext('GAME_SCRIPTS', c)].sort(), roots, 'add new root scripts to GAME_SCRIPTS in cachemanager.js');
+  for (const file of ['style.css', ...vm.runInContext('GAME_SCRIPTS', c)]) assert.ok(manifest.files[file], file);
+  assert.equal(c.validateAssetManifest(manifest), manifest.files);
+});
+
+test('asset-manifest.json is generated, not committed', () => {
+  assert.match(fs.readFileSync(path.join(root, '.gitignore'), 'utf8'), /^asset-manifest\.json$/m);
 });

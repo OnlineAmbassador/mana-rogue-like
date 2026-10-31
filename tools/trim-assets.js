@@ -6,7 +6,7 @@
 //
 // A file under graphics/ or sfx/ is kept when a string literal in a root script names it (with or without
 // its extension) or when it matches one of the template-built paths in DYNAMIC_PREFIXES. The TMX maps cited
-// by README.md and the tests are kept together with the tilesets they load. License files are always kept.
+// by the documents in docs/ and the tests are kept together with the tilesets they load. License files are always kept.
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -59,10 +59,11 @@ function stripExtension(rel) {
   return rel.replace(/\.[^./]+$/, '');
 }
 
-// Maps cited in README.md or the tests, with the tileset files and images they pull in.
+// Maps cited in docs/*.md or the tests, with the tileset files and images they pull in.
 function documentedMapFiles() {
   const cited = new Set();
-  const sources = ['README.md', ...fs.readdirSync(path.join(ROOT, 'tests')).filter((n) => n.endsWith('.js')).map((n) => `tests/${n}`)];
+  const docs = fs.readdirSync(path.join(ROOT, 'docs')).filter((n) => n.endsWith('.md')).map((n) => `docs/${n}`);
+  const sources = ['README.md', ...docs, ...fs.readdirSync(path.join(ROOT, 'tests')).filter((n) => n.endsWith('.js')).map((n) => `tests/${n}`)];
   for (const source of sources) {
     const text = fs.readFileSync(path.join(ROOT, source), 'utf8');
     for (const match of text.matchAll(/maps\/([A-Za-z0-9_.-]+\.tmx)/g)) cited.add(path.join(DATA, 'maps', match[1]));

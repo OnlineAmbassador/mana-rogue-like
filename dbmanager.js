@@ -264,6 +264,16 @@ function captureRoomRuntime(room) {
   return room.runtime;
 }
 
+// Items merged into a newer one: a saved run that owned the old id now owns the new item.
+const retiredItemIds = { 'storm-spool': 'wild-magic-core', 'ember-seed': 'wild-magic-core', 'nova-pearl': 'wild-magic-core' };
+
+// A boss-room pickup saved before the Lifestone replaced the Guardian Heart becomes a Lifestone.
+function migrateSavedPickup(state) {
+  if (state.kind !== 'upgrade' || state.item?.id !== 'guardian-heart') return state;
+  const lifestone = shopItemCatalog.find((item) => item.id === 'lifestone');
+  return lifestone ? { ...state, item: lifestone } : state;
+}
+
 function restoreRoomRuntime(room) {
   const runtime = room.runtime;
   // A save from an older build may lack the enemy list; treat that room as fresh instead of crashing.
@@ -280,7 +290,8 @@ function restoreRoomRuntime(room) {
     });
   }
   for (const pickup of runtime.pickups || []) {
-    const { roomKey: pickupRoomKey, ...state } = pickup;
+    const { roomKey: pickupRoomKey, ...savedState } = pickup;
+    const state = migrateSavedPickup(savedState);
     pickups.push({
       ...state,
       room: pickupRoomKey ? rooms.find((candidate) => roomKey(candidate) === pickupRoomKey) : undefined,
@@ -326,7 +337,8 @@ function serializeRun() {
     coinsSpawned: room.coinsSpawned || 0,
     sizeKey: room.sizeKey,
     rewardClaimed: room.rewardClaimed,
-    shopStock: room.shopStock?.map(({ id, purchased }) => ({ id, purchased })) || null,
+    // Whole stalls are saved: the Bomb and Heart stalls are not catalogue items and prices scale with the floor.
+    shopStock: room.shopStock?.map((stall) => JSON.parse(JSON.stringify(stall))) || null,
     rewardUpgrade: room.rewardUpgrade,
     riskShrineChoice: room.riskShrineChoice,
     riskShrineDone: room.riskShrineDone,
@@ -359,6 +371,8 @@ function serializeRun() {
     },
     score,
     coins,
+    materials: { ...materials },
+    lifestoneRegen: player.lifestoneRegen ? { ...player.lifestoneRegen } : null,
     floorCoinsSpawned,
     floorCoinCeiling,
     floorOverflowRolled,
@@ -451,6 +465,8 @@ function restoreRun() {
     Object.assign(room, record);
     room.shopStock = record.shopStock?.map((stock) => {
       const item = shopItemCatalog.find((candidate) => candidate.id === stock.id);
+      if (stock.kind && Number.isFinite(stock.cost)) return { ...(item || {}), ...stock };
+      // Older saves kept only the id: such a stall has the catalogue's base price, or is gone if it was a staple.
       return item ? { ...item, purchased: stock.purchased } : null;
     }).filter(Boolean) || null;
     roomByPosition.set(`${room.x},${room.y}`, room);
@@ -492,6 +508,18 @@ function restoreRun() {
   player.hp = Math.min(player.hp, player.maxHp);
   score = saved.score || 0;
   coins = saved.coins || 0;
+  resetMaterials();
+  for (const key of Object.keys(materialCatalog)) {
+    const amount = saved.materials?.[key];
+    if (Number.isFinite(amount) && amount > 0) materials[key] = Math.floor(amount);
+  }
+  const savedRegen = saved.lifestoneRegen;
+  player.lifestoneRegen = savedRegen && Number.isFinite(savedRegen.ticks) && savedRegen.ticks > 0
+    ? {
+      ticks: Math.min(savedRegen.ticks, LIFESTONE_HEARTS * 3),
+      timer: clamp(Number.isFinite(savedRegen.timer) ? savedRegen.timer : LIFESTONE_TICK_SECONDS, 0, LIFESTONE_TICK_SECONDS),
+    }
+    : null;
   floorCoinsSpawned = saved.floorCoinsSpawned || 0;
   floorCoinCeiling = saved.floorCoinCeiling || SOFT_FLOOR_COINS;
   floorOverflowRolled = saved.floorOverflowRolled === true;
@@ -507,7 +535,7 @@ function restoreRun() {
   Object.assign(weapon, saved.weapon);
   ownedItems.clear();
   for (const id of saved.ownedItems || []) {
-    if (typeof id === 'string' && !id.startsWith('mode-')) ownedItems.add(id);
+    if (typeof id === 'string' && !id.startsWith('mode-')) ownedItems.add(retiredItemIds[id] || id);
   }
   fireModes.melee = 'rapid';
   fireModes.bow = 'rapid';

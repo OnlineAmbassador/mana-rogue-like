@@ -112,7 +112,7 @@ function handleAudioPanelPad(horizontal, confirmPressed) {
   return true;
 }
 
-// Pause-screen switch for input-adaptive enemy tactics (see BALANCE.md).
+// Pause-screen switch for input-adaptive enemy tactics (see docs/BALANCE.md).
 function adaptiveToggleBounds() {
   return { x: 24, y: ttsButtonBounds().y + (NARRATION_ENABLED ? 32 : 0), width: 190, height: 22 };
 }
@@ -260,6 +260,49 @@ function loadAsset(path, root = assetRoot) {
   return image;
 }
 
+// Maps the grey pixels of a TMW icon onto a gradient of evenly spaced colors, as the TMW client does for the
+// `|W:` dye of an item. Coloured and transparent pixels are left alone.
+function dyeGreyPixels(data, stops) {
+  const colors = stops.map((stop) => {
+    const hex = stop.replace('#', '');
+    return [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+  });
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index + 3] === 0 || data[index] !== data[index + 1] || data[index + 1] !== data[index + 2]) continue;
+    const position = (data[index] / 255) * (colors.length - 1);
+    const segment = Math.min(colors.length - 2, Math.floor(position));
+    const blend = position - segment;
+    for (let channel = 0; channel < 3; channel += 1) {
+      data[index + channel] = Math.round(colors[segment][channel] +
+        (colors[segment + 1][channel] - colors[segment][channel]) * blend);
+    }
+  }
+  return data;
+}
+
+// The PNG on disk stays unmodified; the dyed copy is made once the source has loaded. Browsers that block pixel
+// readback for local files keep the grey icon.
+function loadDyedAsset(path, stops, root = assetRoot) {
+  const dyed = new Image();
+  const source = loadAsset(path, root);
+  source.addEventListener('load', () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = source.naturalWidth;
+      canvas.height = source.naturalHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(source, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      dyeGreyPixels(pixels.data, stops);
+      context.putImageData(pixels, 0, 0);
+      dyed.src = canvas.toDataURL();
+    } catch {
+      dyed.src = source.src;
+    }
+  });
+  return dyed;
+}
+
 function retryFailedArtwork() {
   for (const url of artwork.failed) {
     const image = artwork.images.get(url);
@@ -269,8 +312,14 @@ function retryFailedArtwork() {
   artwork.failed.clear();
 }
 
+// Only startup and failed downloads block play; art that finishes loading mid-run just appears when ready.
+function artworkBlocking() {
+  return artwork.failed.size > 0 || (!artwork.started && artwork.pending.size > 0);
+}
+
 function updateArtworkLoading() {
-  const busy = artwork.pending.size > 0 || artwork.failed.size > 0;
+  if (!artwork.pending.size && !artwork.failed.size) artwork.started = true;
+  const busy = artworkBlocking();
   const panel = document.getElementById('artwork-loading');
   if (panel.hidden === busy) {
     panel.hidden = !busy;
@@ -875,344 +924,6 @@ function prefersReducedMotion() {
   return prefersReducedMotion.query?.matches === true;
 }
 
-function roomUsesCreviceLight() {
-  return currentRoom.type === 'secret' || ['candor', 'frostia', 'worldedge'].includes(currentRegionId());
-}
-
-function roomLightShafts() {
-  const band = roomWallBand();
-  const seed = currentRoom.x * 17 + currentRoom.y * 31;
-  const key = `${currentRegionId()}:${currentRoom.x}:${currentRoom.y}:${ROOM_W}:${ROOM_H}:${band}`;
-  if (roomLightShafts.key === key) return roomLightShafts.shafts;
-  roomLightShafts.key = key;
-  roomLightShafts.shafts = [0.22, 0.62].map((fraction, index) => ({
-    x: Math.round(band + (ROOM_W - band * 2) * fraction),
-    y: Math.round(band + 24 + ((seed + index * 43) % 61 + 61) % 61),
-    length: Math.min(ROOM_H - band * 2, 360 + index * 80),
-    width: 30 + index * 16,
-  }));
-  for (const [index, shaft] of roomLightShafts.shafts.entries()) {
-    shaft.contours = [1.3, 1.05, 0.8, 0.55].map((spread) => {
-      const sides = [-1, 1].map((side) => Array.from({ length: 17 }, (_, step) => {
-        const phase = step / 16;
-        const along = phase * shaft.length;
-        const drift = Math.sin(phase * 8 + seed + index) * shaft.width * 0.12;
-        const irregularity = 0.85 + Math.sin(step * 1.7 + seed + side * 2 + index) * 0.15;
-        const across = drift + side * shaft.width * (0.35 + phase * 0.65) * spread * irregularity;
-        return [shaft.x + along + across, shaft.y + along - across];
-      }));
-      return [...sides[0], ...sides[1].reverse()];
-    });
-  }
-  return roomLightShafts.shafts;
-}
-
-function sunlightStrength(x, y) {
-  const cave = roomUsesCreviceLight();
-  let strength = cave ? 0.11 : 0.26;
-  if (cave) {
-    for (const shaft of roomLightShafts()) {
-      const along = ((x - shaft.x) + (y - shaft.y)) / 2;
-      if (along < -32 || along > shaft.length + 64) continue;
-      const across = Math.abs((x - shaft.x) - (y - shaft.y));
-      strength = Math.max(strength, 0.11 + 0.16 * Math.max(0, 1 - across / (shaft.width + 80)));
-    }
-  }
-  return strength * (1 - worldLightExposure(x, y));
-}
-
-function worldLightExposure(x, y) {
-  let glow = 0;
-  for (const light of collectWorldLights.lights || []) {
-    glow = Math.max(glow, Math.max(0, 1 - Math.hypot(x - light.x, y - light.y) / light.radius) * light.strength);
-  }
-  return glow;
-}
-
-function sunlightMask(image, sx, sy, width, height) {
-  if (!sunlightMask.images) sunlightMask.images = new WeakMap();
-  let frames = sunlightMask.images.get(image);
-  if (!frames) {
-    frames = new Map();
-    sunlightMask.images.set(image, frames);
-  }
-  const key = `${sx}:${sy}:${width}:${height}`;
-  if (frames.has(key)) return frames.get(key);
-  const mask = document.createElement('canvas');
-  mask.width = width;
-  mask.height = height;
-  const target = mask.getContext('2d', { willReadFrequently: true });
-  target.imageSmoothingEnabled = false;
-  target.drawImage(image, sx, sy, width, height, 0, 0, width, height);
-  mask.footRow = height;
-  try {
-    const { data } = target.getImageData(0, 0, width, height);
-    outer: for (let row = height - 1; row >= 0; row -= 1) {
-      for (let column = 0; column < width; column += 1) {
-        if (data[(row * width + column) * 4 + 3] >= 32) {
-          mask.footRow = row + 1;
-          break outer;
-        }
-      }
-    }
-  } catch (error) {
-    if (error.name !== 'SecurityError') throw error;
-    if (!sunlightMask.readbackWarning) {
-      console.warn('Exact shadow feet are unavailable for these local-file sprites; serve the game over HTTP for alpha-aligned shadows.', error);
-      sunlightMask.readbackWarning = true;
-    }
-  }
-  target.globalCompositeOperation = 'source-in';
-  target.fillStyle = '#101722';
-  target.fillRect(0, 0, width, height);
-  if (frames.size >= 128) frames.delete(frames.keys().next().value);
-  frames.set(key, mask);
-  return mask;
-}
-
-function drawSunSpriteShadow(image, sx, sy, sw, sh, x, groundY, width, height, elevation = 0, opacity = 1, rotation = 0, anchorY = null) {
-  if (!image.complete || image.naturalWidth === 0) return;
-  const shadowScale = 1 + Math.max(0, elevation) / 160;
-  const reach = height * shadowScale * 0.55 + Math.max(0, elevation) * 0.55;
-  if (x + width * shadowScale / 2 + reach < camera.x || x - width * shadowScale / 2 > camera.x + VIEW_W ||
-      groundY + reach < camera.y || groundY - height > camera.y + VIEW_H) return;
-  const mask = sunlightMask(image, sx, sy, sw, sh);
-  const footHeight = (anchorY ?? mask.footRow / sh) * height;
-  const footY = groundY - height + footHeight;
-  ctx.save();
-  ctx.shadowBlur = 0;
-  ctx.filter = 'none';
-  ctx.beginPath();
-  ctx.rect(0, 0, ROOM_W, ROOM_H);
-  ctx.clip();
-  ctx.globalAlpha *= sunlightStrength(x, footY) * opacity;
-  const lift = Math.max(0, elevation) * 0.55;
-  ctx.translate(x + lift, footY + lift);
-  // Sprite tops project equally right and down from their ground anchor.
-  ctx.transform(1, 0, -0.55, -0.55, 0, 0);
-  ctx.scale(shadowScale, shadowScale);
-  ctx.translate(0, height / 2 - footHeight);
-  if (rotation) ctx.rotate(rotation);
-  ctx.drawImage(mask, -width / 2, -height / 2, width, height);
-  ctx.restore();
-}
-
-function drawTrunkShadow(x, y, width, height, opacity = 1, anchorY = 0.34) {
-  const rootY = y + height * anchorY;
-  const halfWidth = width * 0.22;
-  const reach = height * 0.55;
-  ctx.save();
-  ctx.shadowBlur = 0;
-  ctx.filter = 'none';
-  ctx.globalAlpha *= sunlightStrength(x, rootY) * opacity;
-  ctx.fillStyle = '#101722';
-  ctx.beginPath();
-  ctx.ellipse(x, rootY, halfWidth, halfWidth * 0.45, 0, 0, Math.PI * 2);
-  ctx.moveTo(x - halfWidth, rootY);
-  ctx.lineTo(x + halfWidth, rootY);
-  ctx.lineTo(x + reach + halfWidth, rootY + reach);
-  ctx.quadraticCurveTo(x + reach, rootY + reach + halfWidth * 0.6,
-    x + reach - halfWidth, rootY + reach);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawSunGroundShadow(x, y, radius, elevation = 0) {
-  const offset = Math.max(0, elevation) * 0.55;
-  const shadowRadius = radius * (1 + Math.max(0, elevation) / 64);
-  if (x + offset + shadowRadius < camera.x || x + offset - shadowRadius > camera.x + VIEW_W ||
-      y + offset + shadowRadius < camera.y || y + offset - shadowRadius > camera.y + VIEW_H) return;
-  ctx.save();
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha *= sunlightStrength(x, y);
-  ctx.fillStyle = '#101722';
-  ctx.beginPath();
-  ctx.ellipse(x + offset, y + offset, shadowRadius, shadowRadius * 0.5, Math.PI / 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function projectileLightingState(projectile) {
-  const ballistic = projectile.type && !['reflected', 'charge-beam'].includes(projectile.type);
-  const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
-  const flown = clamp(1 - projectile.ttl / (projectile.ttl0 || projectile.ttl || 1), 0, 1);
-  const fall = ballistic ? Math.pow(flown, projectile.dropCurve || 2.4) : 0;
-  const lift = 34 * (1 - fall);
-  const y = projectile.y + (ballistic ? 34 * Math.abs(projectile.vx) / speed * fall : 0);
-  return { x: projectile.x, y, elevation: ballistic ? lift : 24 };
-}
-
-function collectWorldLights() {
-  const lights = [];
-  const add = (x, y, color, radius, strength = 0.3) => {
-    if (x + radius < camera.x || x - radius > camera.x + VIEW_W ||
-        y + radius < camera.y || y - radius > camera.y + VIEW_H || lights.length >= 24) return;
-    lights.push({ x, y, color, radius, strength });
-  };
-  for (const hazard of groundHazards) {
-    if (hazard.kind === 'fire' || hazard.kind === 'lightning') {
-      add(hazard.x, hazard.y, hazard.color, hazard.radius + 64, Math.min(0.3, hazard.ttl * 0.15));
-    }
-  }
-  for (const group of [projectiles, enemyProjectiles]) {
-    for (const projectile of group) {
-      if (lights.length >= 24) break;
-      if (projectile.type === 'charge-beam') {
-        const x = projectile.beamEndX ?? projectile.originX + projectile.vx * projectile.beamRange;
-        const y = projectile.beamEndY ?? projectile.originY + projectile.vy * projectile.beamRange;
-        for (let step = 0; step <= 4; step += 1) {
-          add(projectile.originX + (x - projectile.originX) * step / 4,
-            projectile.originY + (y - projectile.originY) * step / 4, projectile.color, 72);
-        }
-        continue;
-      }
-      const element = projectile.glow || projectile.element || projectile.kind;
-      if (['fire', 'fire-orb', 'lightning', 'wisp', 'spore-orb', 'void-orb'].includes(element)) {
-        const { x, y } = projectileLightingState(projectile);
-        add(x, y, magicElementPalette[element] || projectile.color, 64 * (projectile.size || 1));
-      }
-    }
-  }
-  if (player.chargeFraction > 0.1 && currentAttackStyle() === 'magic') {
-    add(player.x, player.y - 32, styleGlowColor('magic') || magicElementPalette.bubble,
-      60 + player.chargeFraction * 40, player.chargeFraction * 0.3);
-  }
-  collectWorldLights.lights = lights;
-}
-
-function drawWorldLightSources() {
-  if (!drawWorldLightSources.textures) drawWorldLightSources.textures = new Map();
-  ctx.save();
-  ctx.shadowBlur = 0;
-  ctx.globalCompositeOperation = 'screen';
-  ctx.beginPath();
-  ctx.rect(0, 0, ROOM_W, ROOM_H);
-  ctx.clip();
-  for (const { x, y, color, radius, strength } of collectWorldLights.lights || []) {
-    let texture = drawWorldLightSources.textures.get(color);
-    if (!texture) {
-      texture = document.createElement('canvas');
-      texture.width = texture.height = 128;
-      const target = texture.getContext('2d');
-      const gradient = target.createRadialGradient(64, 64, 0, 64, 64, 64);
-      gradient.addColorStop(0, color);
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      target.fillStyle = gradient;
-      target.fillRect(0, 0, 128, 128);
-      if (drawWorldLightSources.textures.size >= 16) {
-        drawWorldLightSources.textures.delete(drawWorldLightSources.textures.keys().next().value);
-      }
-      drawWorldLightSources.textures.set(color, texture);
-    }
-    ctx.globalAlpha = strength;
-    ctx.drawImage(texture, x - radius, y - radius, radius * 2, radius * 2);
-  }
-  ctx.restore();
-}
-
-function drawProjectileGroundShadow(projectile) {
-  if (projectile.type === 'charge-beam') return;
-  const { x, y, elevation } = projectileLightingState(projectile);
-  const radius = projectile.type === 'arrow' || projectile.kind === 'arrow'
-    ? 6 * (projectile.size || 1) : projectile.radius || 8 * (projectile.size || 1);
-  drawSunGroundShadow(x, y + elevation, radius, elevation);
-}
-
-function drawRoomSunlight() {
-  const band = roomWallBand();
-  const cave = roomUsesCreviceLight();
-  const openings = directions.map(({ name }) => {
-    const secret = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
-    return currentRoom.cleared && !currentRoom.lockedDoors[name] && (currentRoom.links[name] || secret) ? 1 : 0;
-  }).join('');
-  const key = `${currentRegionId()}:${currentRoom.type}:${currentRoom.x}:${currentRoom.y}:${ROOM_W}:${ROOM_H}:${band}:${openings}`;
-  if (drawRoomSunlight.key !== key) {
-    const layer = document.createElement('canvas');
-    layer.width = ROOM_W;
-    layer.height = ROOM_H;
-    const target = layer.getContext('2d');
-    target.save();
-    target.beginPath();
-    target.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
-    target.clip();
-    const daylight = target.createLinearGradient(band, band, ROOM_W - band, ROOM_H - band);
-    daylight.addColorStop(0, cave ? 'rgba(15, 22, 38, 0.12)' : 'rgba(255, 235, 184, 0.07)');
-    daylight.addColorStop(1, cave ? 'rgba(15, 22, 38, 0.19)' : 'rgba(22, 31, 48, 0.08)');
-    target.fillStyle = daylight;
-    target.fillRect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
-    const reach = band === 32 ? 16 : 24;
-    target.beginPath();
-    const shadow = (x, y, width, height) => {
-      target.moveTo(x, y);
-      target.lineTo(x + width, y);
-      target.lineTo(x + width + reach, y + reach);
-      target.lineTo(x + width + reach, y + height + reach);
-      target.lineTo(x + reach, y + height + reach);
-      target.lineTo(x, y + height);
-      target.closePath();
-    };
-    for (const name of ['up', 'left']) {
-      const vertical = name === 'left';
-      const length = vertical ? ROOM_H : ROOM_W;
-      const index = directions.findIndex((direction) => direction.name === name);
-      const segments = openings[index] === '1'
-        ? [[0, length / 2 - DOOR_OPENING_HALF_WIDTH], [length / 2 + DOOR_OPENING_HALF_WIDTH, length]]
-        : [[0, length]];
-      for (const [start, end] of segments) {
-        if (vertical) shadow(0, start, band, end - start);
-        else shadow(start, 0, end - start, band);
-      }
-    }
-    target.fillStyle = cave ? 'rgba(12, 18, 28, 0.22)' : 'rgba(12, 18, 28, 0.26)';
-    target.fill();
-    target.restore();
-    drawRoomSunlight.layer = layer;
-    drawRoomSunlight.key = key;
-  }
-  ctx.save();
-  ctx.shadowBlur = 0;
-  ctx.drawImage(drawRoomSunlight.layer, 0, 0);
-  if (cave) {
-    ctx.beginPath();
-    ctx.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
-    ctx.clip();
-    const time = prefersReducedMotion() ? 0 : elapsed;
-    const shafts = roomLightShafts();
-    for (let index = 0; index < shafts.length; index += 1) {
-      const { x, y, width, length } = shafts[index];
-      const glow = ctx.createLinearGradient(x, y, x + length, y + length);
-      const pulse = 0.11 + Math.sin(time * 0.7 + index) * 0.015;
-      glow.addColorStop(0, 'rgba(255, 239, 193, 0)');
-      glow.addColorStop(0.18, `rgba(255, 239, 193, ${pulse})`);
-      glow.addColorStop(0.7, 'rgba(255, 239, 193, 0.05)');
-      glow.addColorStop(1, 'rgba(255, 239, 193, 0)');
-      ctx.fillStyle = glow;
-      ctx.save();
-      ctx.globalAlpha *= 0.25;
-      for (const contour of shafts[index].contours) {
-        ctx.beginPath();
-        contour.forEach(([px, py], point) => {
-          if (point === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        });
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-      ctx.fillStyle = 'rgba(255, 245, 216, 0.3)';
-      const motes = quality.low ? 2 : 6;
-      for (let mote = 0; mote < motes; mote += 1) {
-        const phase = (mote / motes + time * 0.025) % 1;
-        const along = phase * length;
-        const across = Math.sin(mote * 2.7 + index) * width * 0.45;
-        ctx.fillRect(Math.round(x + along + across), Math.round(y + along - across), 1, 1);
-      }
-    }
-  }
-  ctx.restore();
-}
-
 function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
   ctx.save();
   ctx.shadowBlur = 0;
@@ -1257,7 +968,9 @@ function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
 function drawPauseEquipment() {
   const equipped = shopItemCatalog.filter((item) => ownedItems.has(item.id));
   const supplies = consumables.filter((item) => item.count > 0);
-  const items = [...equipped, ...supplies];
+  const carried = Object.keys(materialCatalog).filter((key) => materials[key] > 0)
+    .map((key) => ({ id: materialCatalog[key].id, name: materialCatalog[key].name, count: materials[key] }));
+  const items = [...equipped, ...supplies, ...carried];
   const panel = { x: 104, y: 400, width: VIEW_W - 208, height: VIEW_H - 412 };
   const gridWidth = panel.width - 24;
   const gridHeight = panel.height - 38;
@@ -1270,7 +983,8 @@ function drawPauseEquipment() {
   ctx.textBaseline = 'alphabetic';
   ctx.font = 'bold 12px Georgia';
   ctx.fillStyle = '#e9d39f';
-  let label = `Inventory  /  Equipped ${equipped.length}  /  Supplies ${supplies.length}`;
+  let label = `Inventory  /  Equipped ${equipped.length}  /  Supplies ${supplies.length}` +
+    (carried.length ? `  /  Materials ${carried.reduce((total, stack) => total + stack.count, 0)}` : '');
   items.forEach((item, index) => {
     const x = panel.x + 12 + (index % columns) * cell;
     const y = panel.y + 32 + Math.floor(index / columns) * cell;
@@ -3715,58 +3429,7 @@ function drawWorld() {
     ctx.textAlign = 'center';
     ctx.fillText('DESCEND', ROOM_W * 0.72, ROOM_H / 2 - 18);
   }
-  if (currentRoom.type === 'shop') {
-    const merchant = humanoidSprites.neutral.image;
-    const columns = Math.floor(merchant.naturalWidth / 64);
-    if (columns > 0) drawSunSpriteShadow(merchant, 0, 0, 64, 64,
-      ROOM_W / 2, ROOM_H / 2 + 6, 64 * 1.35, 64 * 1.35);
-    drawHumanoid(humanoidSprites.neutral.image, 0, ROOM_W / 2, ROOM_H / 2, 1.35, 40);
-    drawHead('keeper', 'down', ROOM_W / 2, ROOM_H / 2, 1.35);
-    ctx.fillStyle = '#f2e5c6';
-    ctx.font = 'bold 13px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('MERCHANT', ROOM_W / 2, ROOM_H / 2 - 132);
-    ctx.fillStyle = '#d3c4a6';
-    ctx.font = '12px Arial';
-    ctx.fillText('Stand by an item and press E to buy', ROOM_W / 2, ROOM_H / 2 + 43);
-    ctx.fillStyle = '#ab8058';
-    ctx.fillRect(ROOM_W / 2 - 34, ROOM_H / 2 + 18, 68, 11);
-    const stock = currentRoom.shopStock || [];
-    stock.forEach((item, index) => {
-      const spot = shopPedestalPosition(index);
-      const x = spot.x - 105;
-      const y = spot.y + 30;
-      ctx.fillStyle = item.purchased ? 'rgba(63, 77, 63, 0.92)' : 'rgba(25, 22, 29, 0.94)';
-      ctx.fillRect(x, y, 210, 64);
-      ctx.strokeStyle = '#0e0868';
-      ctx.strokeRect(x, y, 210, 64);
-      ctx.save();
-      ctx.globalAlpha = item.purchased ? 0.4 : 1;
-      ctx.fillStyle = 'rgba(16, 14, 19, 0.55)';
-      ctx.strokeStyle = '#0e0868';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(spot.x, spot.y, 30, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      drawShopStockIcon(item, spot.x, spot.y);
-      ctx.restore();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = item.purchased ? '#9bb38e' : '#e4e9f2';
-      ctx.font = '14px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`${item.name} · ${item.cost}z`, x + 12, y + 24, 186);
-      ctx.fillStyle = '#d4c7ae';
-      ctx.font = '12px Arial';
-      ctx.fillText(item.purchased ? 'SOLD' : item.description, x + 12, y + 43, 186);
-      ctx.textAlign = 'center';
-      if (nearestShopSlot() === index) {
-        ctx.fillStyle = '#e4e9f2';
-        ctx.font = 'bold 13px Arial';
-        ctx.fillText('[E] BUY', spot.x, spot.y - 40);
-      }
-    });
-  }
+  if (currentRoom.type === 'shop') drawShopRoom();
   if (hasVault(currentRoom)) {
     ctx.fillStyle = '#f4d78e';
     ctx.font = 'bold 18px Georgia';
@@ -3993,6 +3656,151 @@ function drawWorld() {
       ctx.fillStyle = '#e4e9f2';
       ctx.fillText(pickup.item.name, bubbleX, bubbleY + 31, 82);
       ctx.restore();
+    } else if (pickup.kind === 'curio') {
+      const bob = Math.sin(elapsed * 4 + pickup.x) * 2;
+      const icon = shopItemIconImages[pickup.item.id];
+      ctx.save();
+      ctx.shadowColor = '#ffb35a';
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = 'rgba(30, 20, 8, 0.7)';
+      ctx.beginPath();
+      ctx.arc(pickup.x, pickup.y + bob, 17, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ffd37a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      if (icon?.complete && icon.naturalWidth > 0) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(icon, pickup.x - 12, pickup.y + bob - 12, 24, 24);
+      } else {
+        ctx.fillStyle = '#ffd37a';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', pickup.x, pickup.y + bob);
+      }
+      ctx.restore();
+    } else if (pickup.kind === 'consumable') {
+      const icon = shopItemIconImages[pickup.item.id];
+      ctx.save();
+      ctx.fillStyle = '#ffe38a';
+      if (icon?.complete && icon.naturalWidth > 0) {
+        ctx.drawImage(icon, pickup.x - 12, pickup.y - 12, 24, 24);
+      } else {
+        ctx.fillRect(pickup.x - 7, pickup.y - 9, 14, 18);
+      }
+      ctx.restore();
+    } else if (pickup.kind === 'material' && materialCatalog[pickup.material]) {
+      // A small shadow and soft glow keep a dull grey-brown ore readable on every floor tile.
+      const icon = shopItemIconImages[materialCatalog[pickup.material].id];
+      const bob = prefersReducedMotion() ? 0 : Math.sin(elapsed * 4 + pickup.x) * 1.5;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      ctx.beginPath();
+      ctx.ellipse(pickup.x, pickup.y + 11, 9, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowColor = pickup.material === 'darkCrystal' ? 'rgba(186, 114, 236, 0.8)' : 'rgba(255, 224, 160, 0.55)';
+      ctx.shadowBlur = 9;
+      ctx.imageSmoothingEnabled = false;
+      if (icon?.complete && icon.naturalWidth > 0) {
+        ctx.drawImage(icon, pickup.x - 13, pickup.y - 13 + bob, 26, 26);
+      } else {
+        ctx.fillStyle = pickup.material === 'darkCrystal' ? '#923eda' : '#a8765a';
+        ctx.fillRect(pickup.x - 6, pickup.y - 8 + bob, 12, 16);
+      }
+      ctx.restore();
+    } else if (pickup.kind === 'xp') {
+      const bob = Math.sin(elapsed * 6 + pickup.x) * 1.5;
+      ctx.save();
+      ctx.translate(pickup.x, pickup.y + bob);
+      ctx.shadowColor = 'rgba(110, 230, 255, 0.8)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#7ee8ff';
+      ctx.strokeStyle = '#1b4a66';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(5, 0);
+      ctx.lineTo(0, 6);
+      ctx.lineTo(-5, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    } else if (pickup.kind === 'heart') {
+      if (heartImage.complete && heartImage.naturalWidth > 0) {
+        ctx.drawImage(heartImage, pickup.x - 12, pickup.y - 12, 24, 24);
+      } else {
+        ctx.save();
+        ctx.translate(pickup.x, pickup.y);
+        ctx.scale(1, 1);
+        ctx.fillStyle = '#e95e72';
+        ctx.strokeStyle = '#29181b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 10);
+        ctx.bezierCurveTo(-3, 7, -11, 1, -10, -5);
+        ctx.bezierCurveTo(-9, -12, -2, -12, 0, -7);
+        ctx.bezierCurveTo(3, -12, 10, -12, 10, -5);
+        ctx.bezierCurveTo(11, 1, 3, 7, 0, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else if (pickup.kind === 'coin') {
+      const bob = Math.sin(elapsed * 5 + pickup.x) * 2;
+      ctx.save();
+      ctx.translate(pickup.x, pickup.y + bob);
+      ctx.shadowColor = 'rgba(242, 189, 70, 0.72)';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = 'rgba(242, 189, 70, 0.18)';
+      ctx.beginPath();
+      ctx.arc(0, 0, 21, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#17201b';
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f2bd46';
+      ctx.beginPath();
+      ctx.arc(0, 0, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff0ab';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 8.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#49330f';
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Z', 0, 0.5);
+      ctx.restore();
+    } else if (pickup.kind === 'bomb') {
+      ctx.fillStyle = '#25232a';
+      ctx.beginPath();
+      ctx.arc(pickup.x, pickup.y, 9, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (pickup.kind === 'key') {
+      ctx.fillStyle = '#fbd96f';
+      ctx.strokeStyle = '#fbd96f';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(pickup.x - 5, pickup.y - 2, 4, 0, Math.PI * 2);
+      ctx.moveTo(pickup.x - 1, pickup.y - 2);
+      ctx.lineTo(pickup.x + 8, pickup.y - 2);
+      ctx.lineTo(pickup.x + 8, pickup.y + 2);
+      ctx.moveTo(pickup.x + 4, pickup.y - 2);
+      ctx.lineTo(pickup.x + 4, pickup.y + 2);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#f5e6ce';
+      ctx.beginPath();
+      ctx.arc(pickup.x, pickup.y, 7, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
   for (const projectile of projectiles) {
@@ -4050,7 +3858,7 @@ function drawWorld() {
       ctx.shadowBlur = 14 * (projectile.size || 1);
     }
     ctx.lineJoin = 'round';
-    const visual = projectileLightingState(projectile);
+    const visual = projectileArcState(projectile);
     ctx.translate(0, visual.y - projectile.y);
     // Launch flash: a ring expands from the muzzle while the shot itself keeps a constant size.
     const launchAge = projectile.born === undefined ? 1 : elapsed - projectile.born;
@@ -5361,7 +5169,8 @@ function drawGameHud() {
   const rightHud = { x: -4, y: 62 };
   ctx.save();
   drawManaPanel(leftHud.x, leftHud.y + 4, Math.max(170, player.maxHp * 20 + 58), 56);
-  drawManaPanel(3, rightHud.y + 3, 54, 94);
+  const carriedMaterials = Object.keys(materialCatalog).filter((key) => materials[key] > 0);
+  drawManaPanel(3, rightHud.y + 3, 54, 94 + carriedMaterials.length * 21);
   const drawIndicatorBorder = (x, y, width, height) => {
     ctx.save();
     ctx.shadowBlur = 0;
@@ -5493,8 +5302,43 @@ function drawGameHud() {
   ctx.lineWidth = 3;
   ctx.strokeText(activeCompanions, familiarX + 18, rightHud.y + 17);
   ctx.fillText(activeCompanions, familiarX + 18, rightHud.y + 17);
+
+  // Carried ore and crystals appear beneath the other counts only while there are any.
+  ctx.shadowBlur = 0;
+  ctx.imageSmoothingEnabled = false;
+  for (const key of carriedMaterials) {
+    const icon = shopItemIconImages[materialCatalog[key].id];
+    ctx.translate(0, 21);
+    if (icon?.complete && icon.naturalWidth > 0) ctx.drawImage(icon, familiarX - 1, rightHud.y + 8, 18, 18);
+    ctx.fillStyle = '#f4e6c4';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeText(materials[key], familiarX + 20, rightHud.y + 17);
+    ctx.fillText(materials[key], familiarX + 20, rightHud.y + 17);
+  }
   ctx.textBaseline = 'alphabetic';
   ctx.restore();
+
+  const regen = player.lifestoneRegen;
+  if (regen && regen.ticks > 0) {
+    const regenIcon = shopItemIconImages.lifestone;
+    const panelRight = leftHud.x + Math.max(170, player.maxHp * 20 + 58);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffa0';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    const label = `+${regen.ticks} in ${Math.ceil(regen.timer)}s`;
+    ctx.strokeText(label, panelRight - 10, leftHud.y + 16);
+    ctx.fillText(label, panelRight - 10, leftHud.y + 16);
+    if (regenIcon?.complete && regenIcon.naturalWidth > 0) {
+      ctx.drawImage(regenIcon, panelRight - 14 - ctx.measureText(label).width - 14, leftHud.y + 8, 16, 16);
+    }
+    ctx.restore();
+  }
 
   const boss = enemies.find((enemy) => enemy.boss || enemy.miniBoss);
   if (boss) {
@@ -6328,7 +6172,7 @@ function tutorialPages() {
         : lastInputMode === 'touch'
           ? 'Drag the left area to move. Hold Attack to target the nearest live enemy. With no enemies in the room, drag Attack to aim freely, or hold without dragging to fire where you face.'
           : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
-      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover the Mana Familiar Sigil to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
+      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover Betsanc to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
       ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
       ['Menus', `${b('map')} map, ${b('journal')} journal, ${pad ? p.menu : 'P'} pause. Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}). Weapon upgrades may also change how that weapon fires.`],
     ] },
@@ -6348,13 +6192,13 @@ function tutorialPages() {
       ['Wild magic', 'Mage starts with random elemental magic; other classes start with water. Items no longer reroll your element; find an elemental menhir and interact to attune. Element sigils grant their named element. Magic effects share your element color. White diamond marks identify friendly effects. Mage surprises: 40% enemy, 20% object, 6% special shot; others: 10%, 5%, 1%. Bosses cannot be lifted or teleported.'],
     ] },
     { title: 'CONSUMABLES, BOMBS, MANA GUARD', sections: [
-      ['Consumables', `Break scenery to uncover stored consumables, or buy them in shops. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
+      ['Consumables', `Break scenery to uncover stored consumables. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
       ['Bombs', `Press ${b('bomb')} to drop a bomb. Shots from either side push grounded bombs; they slide and bounce off scenery without resetting the fuse. Explosions hurt nearby foes and open sealed rooms. Stay out of the blast.`],
-      ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find the Mana Familiar Sigil to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
+      ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find Betsanc to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
       ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENY AND KEYS', sections: [
-      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends.'],
+      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: step on the shop’s left pad to sell them for zeny.'],
       ['Shops', `Walk up to an item and press ${b('interact')} to buy it. Walking over an item never buys it. A shop is also a bank.`],
       ['Bank', `Step on the vault pad to deposit what you carry. ${pad ? p.b : 'Shift+' + b('interact')} near it withdraws your savings.`],
       ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
@@ -6371,7 +6215,7 @@ function tutorialPages() {
     { title: 'TIPS FOR A GOOD RUN', sections: [
       ['Keep moving', `Dash with ${b('dash')} to slip out of danger. Strafe around foes instead of standing still.`],
       ['Know your base weapon', 'Your class weapon hits hardest, but swapping to another weapon for range or crowds is always free.'],
-      ['Spend zeny', 'Buy potions and items. Keep a few coins in the bank so a bad run does not cost you everything.'],
+      ['Spend zeny', 'Buy items, or stand on the shop’s right pad and interact to repair armor. Keep a few coins in the bank so a bad run does not cost you everything.'],
       ['Make it yours', 'Open Controls to rebind keys and buttons. This guide updates to match. Enjoy the descent.'],
     ] },
   ];

@@ -9,6 +9,7 @@ const source = (file) => fs.readFileSync(path.join(__dirname, '..', '..', file),
 
 function combat() {
   const c = vm.createContext({
+    monsterSprites: {},
     Math: Object.assign(Object.create(Math), { random: () => 0.05 }),
     mode: 'playing', lastInputMode: 'keyboard', currentFloor: 1, elapsed: 10, performance,
     save: { unlockedCharacters: [], playtimeSeconds: 0 },
@@ -39,12 +40,14 @@ function combat() {
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
     hasLineOfSight: () => true,
     damageCalls: [], moves: [], bossExtraMoves: {},
+    coins: 0, MAX_EXTRA_HEARTS: 9, SOFT_EXTRA_HEARTS: 5, BASE_HEARTS: 4, equippedClothing: { legs: null, chest: null },
   });
   const game = source('game.js');
   vm.runInContext(sliceText(game, 'const bossPhaseAttackSets =', 'let ROOM_W =', 'game'), c);
   vm.runInContext(sliceText(game, 'const enemyUnlockAtSeconds =', 'let enemyLinkSequence =', 'game'), c);
   vm.runInContext(sliceText(game, 'const magicElementPalette =', 'let hitStopTimer =', 'game'), c);
   vm.runInContext(sliceText(game, 'const classProfiles =', '// Every weapon style', 'game'), c);
+  vm.runInContext(sliceText(game, 'const materialCatalog =', 'let keysHeld =', 'game'), c);
   for (const file of ['playermanager.js', 'mobmanager.js', 'worldmanager.js']) vm.runInContext(source(file), c);
   c.moveEnemyWithCollision = c.moveEnemy;
   vm.runInContext(`

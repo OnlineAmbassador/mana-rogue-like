@@ -40,7 +40,7 @@ function aiStyleProfile() {
 
 const styleRangedArchetypes = ['ranged', 'cluster-caster', 'web-spitter'];
 
-// Input-adaptive tactics. Every derived number and the rule behind it (R1-R10) is recorded in BALANCE.md; change a
+// Input-adaptive tactics. Every derived number and the rule behind it (R1-R10) is recorded in docs/BALANCE.md; change a
 // value there, here and in tests/tuning.test.js together. Values marked "playtest" have no stronger anchor than the
 // pacing of the surrounding fights.
 const ADAPTIVE_AI_TUNING = {
@@ -1597,7 +1597,28 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
   }
 }
 
-function dropLoot(x, y, boss = false, bossSummoned = false) {
+// Summoned, split-off, ambush and altar-ambush foes are opt-in or repeatable, so they never drop materials.
+function materialDropsAllowed(enemy) {
+  return !(enemy.boss || enemy.bossSummoned || enemy.isOffspring || enemy.surpriseSpawn || enemy.noMaterialDrops);
+}
+
+function materialDropChance(key, enemy) {
+  const strong = enemy.elite || enemy.miniBoss ? MATERIAL_DROP_TUNING.strongFoeMultiplier : 1;
+  const luck = Math.max(0, player.luck || 0);
+  return (MATERIAL_DROP_TUNING.rates[key] + luck * MATERIAL_DROP_TUNING.luckBonus[key]) * strong;
+}
+
+function rollMaterialDrops(x, y, enemy) {
+  if (!materialDropsAllowed(enemy)) return;
+  let offsetX = -12;
+  for (const key of Object.keys(materialCatalog)) {
+    if (Math.random() >= materialDropChance(key, enemy)) continue;
+    pickups.push({ x: x + offsetX, y: y + 16, kind: 'material', material: key });
+    offsetX += 24;
+  }
+}
+
+function dropLoot(x, y, boss = false, bossSummoned = false, foe = null) {
   const gems = boss ? 8 : 1 + (Math.random() < 0.35 ? 1 : 0);
   for (let gem = 0; gem < gems; gem += 1) {
     pickups.push({ x: x + (Math.random() - 0.5) * 36, y: y + (Math.random() - 0.5) * 36, kind: 'xp' });
@@ -1619,12 +1640,12 @@ function dropLoot(x, y, boss = false, bossSummoned = false) {
       spawnCoin(x + 18, y);
       spawnCoin(x - 18, y);
     }
-    const guardianHeart = shopItemCatalog.find((item) => item.id === 'guardian-heart');
-    if (guardianHeart && !ownedItems.has(guardianHeart.id)) {
-      pickups.push({ x: x + 44, y, kind: 'upgrade', item: guardianHeart, room: currentRoom });
-    }
+    // Every guardian leaves a Lifestone; it never counts as owned, so each boss drops another.
+    const lifestone = shopItemCatalog.find((item) => item.id === 'lifestone');
+    if (lifestone) pickups.push({ x: x + 44, y, kind: 'upgrade', item: lifestone, room: currentRoom });
     return;
   }
+  if (foe) rollMaterialDrops(x, y, foe);
   if (Math.random() < 0.3) spawnCoin(x + 14, y);
   if (!bossSummoned && Math.random() < 0.14) pickups.push({ x, y, kind: 'heart' });
   if (Math.random() < 0.08) pickups.push({ x: x - 12, y, kind: 'bomb' });
@@ -1746,7 +1767,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
     playSound(enemy.kind === 'jacko' ? 'monsters/pumpkin/die1.ogg'
       : enemySound(enemy, 'death') || 'monsters/zombie/zombiedie.ogg', enemy.boss ? 0.65 : 0.38);
     if (enemy.boss || enemy.miniBoss) triggerCameraShake('bomb');
-    dropLoot(enemy.x, enemy.y, enemy.boss, enemy.bossSummoned);
+    dropLoot(enemy.x, enemy.y, enemy.boss, enemy.bossSummoned, enemy);
     const linkedTwin = enemy.linkId
       ? enemies.find((candidate) => candidate !== enemy && candidate.linkId === enemy.linkId)
       : null;
@@ -2269,7 +2290,9 @@ function updateEnemyBehavior(enemy, dt) {
       const spawn = findEnemySpawnPosition(enemy.x + Math.cos(angle) * 54,
         enemy.y + Math.sin(angle) * 54, 16, 0, enemy);
       if (spawn) {
-        enemies.push(createEnemy('fluffy', spawn.x, spawn.y));
+        const summoned = createEnemy('fluffy', spawn.x, spawn.y);
+        summoned.noMaterialDrops = true;
+        enemies.push(summoned);
         addParticles(spawn.x, spawn.y, '#f5e5c8', 9, 42);
         playSound('monsters/fluffy/hit1.ogg', 0.12);
       }

@@ -239,7 +239,7 @@ function triggerWildMagicImpact(projectile, target = null) {
     addParticles(origin.x, origin.y, color, 20, 120);
   } else if (effect === 'chain') {
     const arcStart = lightningArcs.length;
-    chainLightningFrom(origin, damage, ownedItems.has('storm-spool') ? 4 : 2, true, color);
+    chainLightningFrom(origin, damage, ownedItems.has('wild-magic-core') ? 4 : 2, true, color);
     for (let index = arcStart; index < lightningArcs.length; index += 1) {
       Object.assign(lightningArcs[index], { ttl: 0.4, color, owner: 'player' });
     }
@@ -247,7 +247,7 @@ function triggerWildMagicImpact(projectile, target = null) {
   } else if (effect === 'rot') {
     const victims = target?.hp > 0 ? [target] : near.slice(0, 2);
     for (const enemy of victims) {
-      enemy.manaRotTimer = Math.max(enemy.manaRotTimer || 0, ownedItems.has('ember-seed') ? 4 : 2.4);
+      enemy.manaRotTimer = Math.max(enemy.manaRotTimer || 0, ownedItems.has('wild-magic-core') ? 4 : 2.4);
       enemy.manaRotTick = Math.min(enemy.manaRotTick || 0.1, 0.1);
       enemy.manaRotDamage = Math.max(enemy.manaRotDamage || 0, Math.min(3, damage));
       enemy.manaRotColor = color;
@@ -263,7 +263,7 @@ function triggerWildMagicImpact(projectile, target = null) {
       addParticles(target.x, target.y, color, 24, 135);
     }
   } else {
-    const radius = ownedItems.has('nova-pearl') ? 135 : 95;
+    const radius = ownedItems.has('wild-magic-core') ? 135 : 95;
     addParticles(origin.x, origin.y, color, 32, 240);
     addParticles(origin.x, origin.y, '#fff4df', 12, 180);
     for (const enemy of [...near]) {
@@ -488,12 +488,61 @@ function heartVesselAllowed() {
   return extra < MAX_EXTRA_HEARTS && (extra < SOFT_EXTRA_HEARTS || Math.random() < 0.04);
 }
 
+// The Lifestone is a boss drop: one extra heart container while extra hearts are below the soft cap, then three
+// hearts recovered one at a time. It is not added to ownedItems, so every boss can drop one.
+const LIFESTONE_HEARTS = 3;
+const LIFESTONE_TICK_SECONDS = 6;
+// Each Far-Reach Lens tier also lengthens every melee weapon.
+const MELEE_REACH_PER_LENS = 0.1;
+const FLURRY_COOLDOWN_SCALE = 0.35;
+const DAGGER_COOLDOWN_SCALE = 0.8;
+// Prism Shard: a three-way fan whose shots add up to 1.2x one shot. A fused elemental shot stays at 1.6x.
+const PRISM_SHOT_COUNT = 3;
+const PRISM_TOTAL_DAMAGE = 1.2;
+
+function lifestoneGainsHeart() {
+  return extraHearts() < Math.min(SOFT_EXTRA_HEARTS, MAX_EXTRA_HEARTS);
+}
+
+function startLifestoneRegen() {
+  const active = player.lifestoneRegen;
+  player.lifestoneRegen = { ticks: (active?.ticks || 0) + LIFESTONE_HEARTS, timer: active ? active.timer : LIFESTONE_TICK_SECONDS };
+}
+
+// Runs on game time, so it pauses with the game; damage does not interrupt it and a dead run stops it.
+function updateLifestoneRegen(dt) {
+  const regen = player.lifestoneRegen;
+  if (!regen) return;
+  if (deathTimer > 0 || player.hp <= 0) {
+    player.lifestoneRegen = null;
+    return;
+  }
+  regen.timer -= dt;
+  while (regen.timer <= 0 && regen.ticks > 0) {
+    regen.timer += LIFESTONE_TICK_SECONDS;
+    regen.ticks -= 1;
+    if (player.hp < player.maxHp) {
+      player.hp = Math.min(player.maxHp, player.hp + 1);
+      playPickupSound('heal', 0.3);
+      popOverPlayer({ icon: 'heart', color: '#ff7b8e' });
+      addParticles(player.x, player.y - 12, '#ffe7a6', 8, 70);
+      updateHud();
+    }
+  }
+  if (regen.ticks <= 0) player.lifestoneRegen = null;
+}
+
 function isUpgradeAvailable(item) {
   if (item.kind === 'boss-relic') return false;
   const rangeTier = rangeLensItemIds.indexOf(item.id);
   const luckTier = ['luck-up-i', 'luck-up-ii'].indexOf(item.id);
+  // Heart vessels are bought in order: each tier needs the one before it.
+  const vesselTier = ['heart-vessel-i', 'heart-vessel-ii', 'heart-vessel-iii'].indexOf(item.id);
+  const vesselsOwned = vesselTier < 0 ? 0
+    : ['heart-vessel-i', 'heart-vessel-ii', 'heart-vessel-iii'].filter((id) => ownedItems.has(id)).length;
+  if (item.kind === 'weapon' && item.weapon && meleeWeapons.has(item.weapon)) return false;
   return isCatalogItemUnlocked(item) && (rangeTier < 0 || rangeTier === weapon.rangeLevel) &&
-    (luckTier < 0 || luckTier === player.luck);
+    (luckTier < 0 || luckTier === player.luck) && (vesselTier < 0 || vesselTier === vesselsOwned);
 }
 
 function strongestPlayerSingleHit() {
@@ -593,7 +642,8 @@ function performMeleeSwing(baseAngle, damageScale = 1, charged = false) {
   const ownedWeapons = [...meleeWeapons];
   const reachBoost = charged ? 1.25 : 1;
   const arc = charged ? Math.PI : 0.95;
-  const reachOf = (item) => (item === 'sword' ? 92 : item === 'daggers' ? 53 : 66) * reachBoost;
+  const lensReach = 1 + MELEE_REACH_PER_LENS * (weapon.rangeLevel || 0);
+  const reachOf = (item) => (item === 'sword' ? 92 : item === 'daggers' ? 53 : 66) * reachBoost * lensReach;
   const strikeRange = Math.max(...ownedWeapons.map(reachOf));
   const meleeProfile = characterProfile().melee * (styleSynergy('melee') ? 1.2 : 1);
   const damage = Math.max(1, Math.round((player.damage + weapon.damageBonus +
@@ -883,25 +933,37 @@ function currentAttackStyle() {
   return [...combatStyles][0] || 'melee';
 }
 
+// Bats and bandits are hit where they are drawn, so their hitboxes come from `monsterSprites[kind].hitbox`.
 function enemyAttackTarget(enemy) {
-  if (!['bat', 'vampirebat', 'bandit', 'banditlord'].includes(enemy.kind)) return enemy;
   const sprite = monsterSprites[enemy.kind];
+  const hitbox = sprite?.hitbox;
+  if (!hitbox) return enemy;
   const scale = mobDrawScale(enemy, sprite);
-  const bat = enemy.kind === 'bat' || enemy.kind === 'vampirebat';
   return {
     x: enemy.x,
-    y: enemy.y + (bat ? -18 : -2) * scale,
-    radius: (bat ? 17 : 27) * scale,
-    radiusX: (bat ? 17 : 11) * scale,
-    radiusY: (bat ? 11 : 27) * scale,
+    y: enemy.y + hitbox.y * scale,
+    radius: hitbox.radius * scale,
+    radiusX: hitbox.radiusX * scale,
+    radiusY: hitbox.radiusY * scale,
   };
+}
+
+// Where a shot is drawn: ballistic shots arc from 34px up to the ground, so hit tests and shadows share this.
+function projectileArcState(projectile) {
+  const ballistic = projectile.type && !['reflected', 'charge-beam'].includes(projectile.type);
+  const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
+  const flown = clamp(1 - projectile.ttl / (projectile.ttl0 || projectile.ttl || 1), 0, 1);
+  const fall = ballistic ? Math.pow(flown, projectile.dropCurve || 2.4) : 0;
+  const lift = 34 * (1 - fall);
+  const y = projectile.y + (ballistic ? 34 * Math.abs(projectile.vx) / speed * fall : 0);
+  return { x: projectile.x, y, elevation: ballistic ? lift : 24 };
 }
 
 function projectileHitsEnemy(projectile, enemy, dt) {
   const target = enemyAttackTarget(enemy);
   if (target === enemy) return distanceBetween(projectile, enemy) < projectile.radius + enemy.radius;
-  const visual = projectileLightingState(projectile);
-  const startVisual = projectileLightingState({
+  const visual = projectileArcState(projectile);
+  const startVisual = projectileArcState({
     ...projectile, x: projectile.x - projectile.vx * dt, y: projectile.y - projectile.vy * dt,
     ttl: projectile.ttl + dt,
   });
@@ -1020,8 +1082,10 @@ function performMeleeAttack(charged) {
   player.attackAnimationStyle = 'hand';
   player.attackAnimationTimer = 0.32;
   const flurry = activeWeaponMod('melee')?.id === 'mod-flurry';
+  const flurryCooldown = flurry ? FLURRY_COOLDOWN_SCALE : 1;
+  const daggerCooldown = meleeWeapons.has('daggers') ? DAGGER_COOLDOWN_SCALE : 1;
   const normalCooldown = Math.max(0.5, (nativeStyle() === 'melee' ? character.fireDelay || 0.3 : 0.3) * FIRE_RATE_SCALE * 2.4) *
-    (flurry ? 0.4 : 1) / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
+    flurryCooldown * daggerCooldown / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
   const normalScale = flurry ? 1.0 : MELEE_BASE_SCALE;
   // A charged swing deals the damage of every normal swing it replaces (hold time plus recovery), so DPS stays equal.
   const chargedScale = normalScale * clamp((meleeChargeTime() + normalCooldown * 1.3) / normalCooldown, 1, MAX_CHARGE_SHOTS);
@@ -1033,7 +1097,7 @@ function performMeleeAttack(charged) {
   }
   // Heavy, deliberate swings (Diablo-style); only Flurry Gauntlets speed them up.
   player.fireCooldown = Math.max(0.5, (nativeStyle() === 'melee' ? character.fireDelay || 0.3 : 0.3) * FIRE_RATE_SCALE * 2.4) *
-    (charged ? 1.3 : flurry ? 0.4 : 1) / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
+    (charged ? 1.3 : flurryCooldown) * daggerCooldown / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
   recordStyleUse('melee', player.fireCooldown);
   playSound('weapons/barehands/hit1.ogg', 0.2);
 }
@@ -1163,8 +1227,9 @@ function updateChargeBeamProjectile(projectile, dt) {
 
   const beamEnd = { x: projectile.beamEndX, y: projectile.beamEndY };
   for (const enemy of [...enemies]) {
-    if (enemy.hp <= 0 || enemy.manaRift ||
-        distanceToSegment(enemyAttackTarget(enemy), start, beamEnd) > enemyAttackTarget(enemy).radius + projectile.beamWidth * 0.5) continue;
+    if (enemy.hp <= 0 || enemy.manaRift) continue;
+    const target = enemyAttackTarget(enemy);
+    if (distanceToSegment(target, start, beamEnd) > target.radius + projectile.beamWidth * 0.5) continue;
     if (projectile.beamHitTimers.has(enemy)) continue;
     const damage = Math.max(1, Math.round(projectile.damage * 0.28));
     damageEnemy(enemy, damage, start.x, start.y, false, true);
@@ -1255,7 +1320,7 @@ function shoot(options = null) {
       const vx = Math.cos(angle);
       const vy = Math.sin(angle);
       const damageMultiplier = fusedElementalShot
-        ? weapon.shotDamageMultiplier * weapon.shotCount * 1.6
+        ? weapon.shotDamageMultiplier * weapon.shotCount * 1.6 / PRISM_TOTAL_DAMAGE
         : weapon.shotDamageMultiplier;
       const arrowSize = style === 'bow' ? clamp(Math.sqrt(bowDamageMul), 0.7, 1.4) : 1;
       const shotProjectile = {
@@ -1518,10 +1583,16 @@ function createCompanion(item) {
   };
 }
 
+// Mana Burst keeps pace with enemy health: 8 on floor 1, plus 4 for every later floor (40 on floor 9).
+// strongestPlayerSingleHit() deliberately keeps its flat 8, so holding one does not raise miniboss HP.
+function manaBurstDamage() {
+  return 8 + 4 * Math.max(0, currentFloor - 1);
+}
+
 function useConsumable() {
   const available = consumables.filter((item) => item.count > 0);
   if (available.length === 0) {
-    showMessage('No consumables ready. Find one in a shop.', 1.8);
+    showMessage('No consumables ready. Smash scenery to find one.', 1.8);
     return;
   }
   for (const item of available) {
@@ -1533,7 +1604,7 @@ function useConsumable() {
       for (let i = enemies.length - 1; i >= 0; i -= 1) {
         const enemy = enemies[i];
         addParticles(enemy.x, enemy.y, '#9a7bff', 10, 130);
-        damageEnemy(enemy, 8, player.x, player.y);
+        damageEnemy(enemy, manaBurstDamage(), player.x, player.y);
       }
     } else {
       continue;
@@ -1547,7 +1618,7 @@ function useConsumable() {
 }
 
 // Invulnerability granted by a dash and by taking a hit. Enemy timings in ADAPTIVE_AI_TUNING are checked against
-// these (see BALANCE.md), so change them here only together with the tuning rules.
+// these (see docs/BALANCE.md), so change them here only together with the tuning rules.
 const DASH_INVULN_SECONDS = 0.24;
 const PLAYER_HIT_INVULN_SECONDS = 0.9;
 

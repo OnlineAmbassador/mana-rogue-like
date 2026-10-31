@@ -24,8 +24,9 @@ function literalCalls(pattern) {
 function loadAssetCalls() {
   const found = [];
   for (const { name, text } of sources) {
-    for (const match of text.matchAll(/loadAsset\('([^']+)'(?:,\s*([A-Za-z.]+))?\)/g)) {
-      found.push({ file: name, value: match[1], root: match[2] || null });
+    // The root is either an identifier or a quoted path, e.g. loadAsset('wall.png', 'assets/som/graphics').
+    for (const match of text.matchAll(/load(?:Dyed)?Asset\('([^']+)'(?:,\s*(?:\[[^\]]*\]|'([^']+)'|([A-Za-z.]+)))*\)/g)) {
+      found.push({ file: name, value: match[1], root: match[2] || match[3] || null });
     }
   }
   return found;
@@ -70,4 +71,27 @@ test('the retained TMW client data keeps its license records', () => {
   for (const name of ['LICENSE', 'license.md', 'COPYING', 'ART_LICENSE', 'CC BY-SA 3.0']) {
     assert.ok(fs.existsSync(path.join(data, name)), `${name} must be kept`);
   }
+});
+
+test('every catalogue icon path in uniqueItemIconPaths exists on disk', () => {
+  const game = fs.readFileSync(path.join(ROOT, 'game.js'), 'utf8');
+  const block = game.match(/const uniqueItemIconPaths = \{([\s\S]*?)\n\};/)[1];
+  const missing = [];
+  for (const match of block.matchAll(/'[^']+':\s*'([^']+)'|[a-z-]+:\s*'([^']+)'/g)) {
+    const value = match[1] || match[2];
+    const folder = value.startsWith('generic/') ? 'items' : path.join('items', 'equipment');
+    if (!fs.existsSync(path.join(GRAPHICS, folder, `${value}.png`))) missing.push(value);
+  }
+  assert.deepEqual(missing, []);
+});
+
+test('every new asset is credited in the docs', () => {
+  const credits = fs.readFileSync(path.join(ROOT, 'docs', 'CREDITS.md'), 'utf8');
+  const somCredits = fs.readFileSync(path.join(ROOT, 'assets', 'som', 'CREDITS.md'), 'utf8');
+  for (const file of ['gemstone-a.png', 'crystal.png', 'ironore.png']) {
+    assert.ok(credits.includes(`graphics/items/generic/${file}`), `${file} needs a credit line`);
+    assert.ok(fs.existsSync(path.join(GRAPHICS, 'items', 'generic', file)), `${file} is missing`);
+  }
+  assert.ok(somCredits.includes('artis-market.png') && somCredits.includes('EJlol'));
+  assert.ok(fs.existsSync(path.join(SOM_GRAPHICS, 'artis-market.png')));
 });

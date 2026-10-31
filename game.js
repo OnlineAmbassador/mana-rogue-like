@@ -290,7 +290,7 @@ const gameMusic = {
 };
 const SETTINGS_STORAGE_KEY = 'mana-hollow-sanctum-settings';
 const gameSettings = (() => {
-  // adaptiveEnemies: enemies adapt to the active input method and use dash-check pulses (see BALANCE.md).
+  // adaptiveEnemies: enemies adapt to the active input method and use dash-check pulses (see docs/BALANCE.md).
   const defaults = { adaptiveEnemies: true };
   try {
     const stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || '{}');
@@ -395,7 +395,7 @@ let narratorVoiceCache = null;
 const artwork = { images: new Map(), pending: new Set(), failed: new Set() };
 document.getElementById('artwork-retry').addEventListener('click', retryFailedArtwork);
 window.addEventListener('keydown', (event) => {
-  if (!artwork.pending.size && !artwork.failed.size) return;
+  if (!artworkBlocking()) return;
   if (event.ctrlKey || event.metaKey || event.altKey || event.key === 'Tab') return;
   if (event.key === 'Enter' || event.key === ' ') retryFailedArtwork();
   event.preventDefault();
@@ -421,7 +421,6 @@ const shopItemIconImages = {
   'heart-vessel-i': heartImage,
   'heart-vessel-ii': heartImage,
   'heart-vessel-iii': heartImage,
-  'guardian-heart': heartImage,
   'shop-heart': heartImage,
   'orbiting-projectiles': loadAsset('items/equipment/charms/spectralorb.png'),
   'element-fire': loadAsset('items/equipment/charms/firescroll.png'),
@@ -455,21 +454,20 @@ const uniqueItemIconPaths = {
   'luck-up-i': 'charms/fourleafclover', 'luck-up-ii': 'generic/brokenfourleafamulet',
   'range-lens': 'generic/flawedlens', 'range-lens-ii': 'generic/silvermirror', 'range-lens-iii': 'charms/treasuremap',
   'frost-rune': 'generic/snowflake', 'spore-bloom': 'generic/mushroomspores', 'bonded-aegis': 'shields/steelshield',
-  'storm-spool': 'weapons/legendwand', 'ember-seed': 'generic/coal', 'nova-pearl': 'charms/spectralorb',
+  'wild-magic-core': 'weapons/legendwand', 'iron-ore': 'generic/ironore',
   'element-fire': 'charms/firescroll', 'element-lightning': 'weapons/scepter', 'element-gas': 'generic/darkdesertmushroom',
-  'learn-magic': 'charms/grimoir', 'learn-brawl': 'generic/leatherpatch', 'learn-bow': 'weapons/woodenbow',
   'iron-sword': 'weapons/sword', 'swift-daggers': 'weapons/dagger',
   'ammo-mana': 'charms/spectralorb', 'ammo-arrows': 'ammo/arrow', 'ammo-blows': 'generic/ironingot',
   'curio-hot-take': 'weapons/kanabo', 'curio-sole': 'charms/redstocking', 'curio-trigger': 'weapons/kunai',
   'curio-heavy-metal': 'weapons/blacksmithsaxe', 'curio-mana-cafe': 'generic/emptybottle',
   'curio-sweat': 'charms/oldtowel', 'curio-brain': 'generic/brain', 'curio-quiver-me': 'ammo/cursedarrow',
-  'curio-shake': 'generic/mysteriousbottle', 'curio-overdraw': 'generic/coinbag', 'curio-mana-lisa': 'generic/spellbookpage',
+  'curio-shake': 'generic/mysteriousbottle', 'curio-mana-lisa': 'generic/spellbookpage',
   'curio-dice': 'charms/astralcube', 'curio-wild-card': 'generic/casinocoins', 'curio-run-on': 'generic/scroll',
   'mod-windup': 'weapons/halberd', 'mod-flurry': 'weapons/whip', 'mod-cinder': 'generic/coal',
   'mod-pierce': 'ammo/ironarrow', 'mod-draw': 'weapons/championshipbow', 'mod-quiver': 'ammo/trainingarrow',
   'mod-storm-arrows': 'ammo/tolchiarrow', 'mod-splash': 'ammo/mortararrow', 'mod-chain': 'weapons/legendwand',
   'mod-lingering': 'charms/snowmanglobe',
-  'silk-shorts': 'generic/cottoncloth', 'leather-legguards': 'generic/processedfur', 'leather-vest': 'generic/fur',
+  'silk-shorts': 'legs/silkpants', 'leather-legguards': 'legs/chaps', 'leather-vest': 'chest/leathershirt',
   'ratto-companion': 'generic/rattotail', 'croc-companion': 'generic/crocclaw', 'wisp-companion': 'generic/ectoplasm',
   'jacko-companion': 'generic/jackolantern', 'bosspinkie-companion': 'generic/pinkantenna', 'bat-companion': 'generic/batwing',
   'bluepar-companion': 'generic/tentacles', 'frog-companion': 'generic/tongue', 'mouboo-companion': 'charms/plushmouboo',
@@ -488,6 +486,10 @@ const uniqueItemIconPaths = {
 for (const [id, path] of Object.entries(uniqueItemIconPaths)) {
   shopItemIconImages[id] = loadAsset(`items/${path.startsWith('generic/') ? '' : 'equipment/'}${path}.png`);
 }
+// Dye values come from the TMW item XML: Lifestone (item 730) and Dark Crystal (item 631).
+shopItemIconImages.lifestone = loadDyedAsset('items/generic/gemstone-a.png', ['#a0a010', '#ffffa0']);
+shopItemIconImages['dark-crystal'] = loadDyedAsset('items/generic/crystal.png',
+  ['#252e6a', '#923eda', '#ba72ec', '#ffffff']);
 const sacredRoomTiles = loadAsset('tilesets/desert_castle_interior.png');
 const castleWallTiles = loadAsset('tilesets/desert_castle.png');
 const tulimsharCastleTiles = loadAsset('tilesets/castle1.png');
@@ -551,6 +553,7 @@ const clothingSprites = {
   ironSword: { image: loadAsset('sprites/equipment/weapons/sword-iron.png'), frameWidth: 64, frameHeight: 64 },
   daggers: { image: loadAsset('sprites/equipment/weapons/knife.png'), frameWidth: 64, frameHeight: 64 },
 };
+// `hitbox` (bats and bandits only) is where the sprite is hit: y offset and radii at scale 1.
 const monsterSprites = {
   piou: { image: loadAsset('sprites/monsters/piou.png'), frameWidth: 10, frameHeight: 9, scale: 3.2, frames: [0, 1, 2, 3] },
   maggot: { image: loadAsset('sprites/monsters/maggot.png'), frameWidth: 20, frameHeight: 15, scale: 1.5, frames: [0, 10, 20, 30] },
@@ -560,7 +563,7 @@ const monsterSprites = {
   wisp: { image: loadAsset('sprites/monsters/wisp.png'), frameWidth: 64, frameHeight: 64, scale: 1.1, frames: [0, 1, 2, 3, 4] },
   jacko: { image: loadAsset('sprites/monsters/jacko.png'), frameWidth: 60, frameHeight: 60, scale: 2, frames: [0, 1, 2, 12, 13, 14] },
   bosspinkie: { image: loadAsset('sprites/monsters/bosspinkie.png'), frameWidth: 50, frameHeight: 42, scale: 1.45, frames: [0, 10, 20, 30] },
-  bat: { image: loadAsset('sprites/monsters/bat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1.05, frames: [1, 2, 3, 4] },
+  bat: { image: loadAsset('sprites/monsters/bat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1.05, hitbox: { y: -18, radius: 17, radiusX: 17, radiusY: 11 }, frames: [1, 2, 3, 4] },
   bluepar: { image: loadAsset('sprites/monsters/bluepar.png'), frameWidth: 50, frameHeight: 42, scale: 1.1, frames: [1, 2, 3, 4] },
   frog: { image: loadAsset('sprites/monsters/frog-small.png'), frameWidth: 32, frameHeight: 32, scale: 1.35, frames: [0, 1, 2, 3] },
   mouboo: { image: loadAsset('sprites/monsters/mouboo.png'), frameWidth: 80, frameHeight: 80, scale: 0.82, frames: [1, 2, 3, 4, 5, 6] },
@@ -573,14 +576,14 @@ const monsterSprites = {
   'slime-mother': { image: loadAsset('sprites/monsters/slime-mother.png'), frameWidth: 64, frameHeight: 64, scale: 1.2, frames: [0, 18, 36, 54] },
   reaper: { image: loadAsset('sprites/monsters/reaper.png'), frameWidth: 100, frameHeight: 100, scale: 0.85, frames: [25, 29, 19, 23] },
   serqet: { image: loadAsset('sprites/monsters/serqet.png'), frameWidth: 60, frameHeight: 47, scale: 1.5, frames: [22, 11, 33, 0] },
-  banditlord: { image: loadAsset('sprites/monsters/banditlord.png'), frameWidth: 64, frameHeight: 64, scale: 1.05, frames: [0, 18, 36, 54] },
+  banditlord: { image: loadAsset('sprites/monsters/banditlord.png'), frameWidth: 64, frameHeight: 64, scale: 1.05, hitbox: { y: -2, radius: 27, radiusX: 11, radiusY: 27 }, frames: [0, 18, 36, 54] },
   'snowman-boss': { image: loadAsset('sprites/monsters/snowman-boss.png'), frameWidth: 128, frameHeight: 128, scale: 0.72, frames: [0, 1, 2, 3, 4, 5, 6, 7] },
   yetiking: { image: loadAsset('sprites/monsters/yetiking.png'), frameWidth: 160, frameHeight: 160, scale: 0.55, frames: [3, 20, 31, 20] },
   forestdragon: { image: loadAsset('sprites/monsters/forestdragon.png'), frameWidth: 256, frameHeight: 128, scale: 0.45, frames: [0, 8, 16, 24] },
   nightdragon: { image: loadAsset('sprites/monsters/nightdragon.png'), frameWidth: 256, frameHeight: 128, scale: 0.45, frames: [0, 8, 16, 24] },
   snowman: { image: loadAsset('sprites/monsters/snowman.png'), frameWidth: 128, frameHeight: 128, scale: 0.55, frames: [0, 1, 2, 3, 4, 5, 6, 7] },
   yeti: { image: loadAsset('sprites/monsters/yeti.png'), frameWidth: 80, frameHeight: 80, scale: 0.9, frames: [3, 4, 5, 6] },
-  vampirebat: { image: loadAsset('sprites/monsters/vampirebat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1, frames: [1, 2, 3, 4] },
+  vampirebat: { image: loadAsset('sprites/monsters/vampirebat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1, hitbox: { y: -18, radius: 17, radiusX: 17, radiusY: 11 }, frames: [1, 2, 3, 4] },
   frostiana: { image: loadAsset('sprites/monsters/frostiana.png'), frameWidth: 32, frameHeight: 32, scale: 1.4, frames: [4, 5, 6, 7] },
   troll: { image: loadAsset('sprites/monsters/troll.png'), frameWidth: 40, frameHeight: 40, scale: 1.3, frames: [0, 1, 2, 3, 4, 5] },
   junglefowl: { image: loadAsset('sprites/monsters/junglefowl.png'), frameWidth: 50, frameHeight: 50, scale: 1.1, frames: [0, 12, 24, 36] },
@@ -588,7 +591,7 @@ const monsterSprites = {
   snail: { image: loadAsset('sprites/monsters/snail.png'), frameWidth: 50, frameHeight: 50, scale: 0.95, frames: [0, 10, 20, 30] },
   scorpion: { image: loadAsset('sprites/monsters/scorpion.png'), frameWidth: 48, frameHeight: 45, scale: 1.15, frames: [1, 2, 3, 4] },
   bee: { image: loadAsset('sprites/monsters/bee.png'), frameWidth: 20, frameHeight: 19, scale: 1.8, frames: [8, 9, 10, 11] },
-  bandit: { image: loadAsset('sprites/monsters/bandit.png'), frameWidth: 64, frameHeight: 64, scale: 1, frames: [1, 2, 3, 4, 5, 6] },
+  bandit: { image: loadAsset('sprites/monsters/bandit.png'), frameWidth: 64, frameHeight: 64, scale: 1, hitbox: { y: -2, radius: 27, radiusX: 11, radiusY: 27 }, frames: [1, 2, 3, 4, 5, 6] },
   zombie: { image: loadAsset('sprites/monsters/zombie.png'), frameWidth: 64, frameHeight: 64, scale: 0.95, frames: [1, 2, 3, 4, 5, 6] },
   'spore-sower': { image: loadAsset('sprites/monsters/mushroom-wicked.png'), frameWidth: 42, frameHeight: 40, scale: 1.25, frames: [0, 1, 2, 3] },
 };
@@ -631,49 +634,43 @@ const bossCompanionKinds = new Set([
 ]);
 const MIN_ABILITY_COST = 3;
 const shopItemCatalog = [
-  { id: 'pearl', name: 'Mana Pearl', description: 'Larger, stronger tears', cost: 5, kind: 'passive' },
+  { id: 'pearl', name: 'Mana Pearl', description: 'Larger, stronger tears', cost: 7, kind: 'passive' },
   { id: 'prism', name: 'Prism Shard', description: 'Fire a three-way burst', cost: 8, kind: 'passive' },
-  { id: 'feather', name: 'Swift Feather', description: 'Fire tears faster', cost: 6, kind: 'passive' },
+  { id: 'feather', name: 'Swift Feather', description: 'Fire tears faster', cost: 8, kind: 'passive' },
   { id: 'heart-vessel-i', name: 'Heart Vessel I', description: 'Gain one heart for this descent', cost: 8, kind: 'passive' },
   { id: 'heart-vessel-ii', name: 'Heart Vessel II', description: 'Gain one heart for this descent', cost: 11, kind: 'passive' },
   { id: 'heart-vessel-iii', name: 'Heart Vessel III', description: 'Gain one heart for this descent', cost: 14, kind: 'passive' },
-  { id: 'guardian-heart', name: 'Guardian Heart', description: 'A boss-room relic: gain one heart container and restore up to two hearts', cost: 0, kind: 'boss-relic' },
+  { id: 'lifestone', name: 'Lifestone', description: 'A boss drop: gain one heart container (below five extra hearts) and recover three hearts over 18 seconds', cost: 0, kind: 'boss-relic' },
   { id: 'luck-up-i', name: 'Luck Up I', description: 'Zeny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
   { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zeny windfall', cost: 9, kind: 'passive' },
-  { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther', cost: 7, kind: 'passive' },
-  { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Extend projectile range another 35%', cost: 10, kind: 'passive' },
-  { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range; shots pierce solid barriers', cost: 13, kind: 'passive' },
+  { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther; melee reach +10%', cost: 8, kind: 'passive' },
+  { id: 'range-lens-ii', name: 'Far-Reach Lens II', description: 'Another 35% projectile range; melee reach +10%', cost: 11, kind: 'passive' },
+  { id: 'range-lens-iii', name: 'Far-Reach Lens III', description: 'Maximum range and melee reach +10%; shots pierce solid barriers', cost: 14, kind: 'passive' },
   { id: 'frost-rune', name: 'Frost Rune', description: 'Auto-elemental: freezes nearby foes, slows bosses', cost: 9, kind: 'ability' },
-  { id: 'orbiting-projectiles', name: 'Mana Familiar Sigil', description: 'Unlock orbiting weapon familiars; room clears charge the meter', cost: 10, kind: 'ability' },
+  { id: 'orbiting-projectiles', name: 'Betsanc', description: 'Unlock orbiting weapon familiars; room clears charge the meter', cost: 10, kind: 'ability' },
   { id: 'spore-bloom', name: 'Spore Bloom', description: 'Magic shots split into slowing spores on impact; unlocks Sporeling', cost: 10, kind: 'ability', unlockAfterEnemyAbility: 'spore-burst' },
-  { id: 'storm-spool', name: 'Storm Spool', description: 'Wild magic lightning can jump to four nearby foes', cost: 8, kind: 'passive', style: 'magic' },
-  { id: 'ember-seed', name: 'Ember Seed', description: 'Wild magic decay bursts last four seconds', cost: 7, kind: 'passive', style: 'magic' },
-  { id: 'nova-pearl', name: 'Nova Pearl', description: 'Wild magic explosions reach farther', cost: 8, kind: 'passive', style: 'magic' },
+  { id: 'wild-magic-core', name: 'Wild Magic Core', description: 'Wild magic: lightning jumps to four foes, decay lasts four seconds, explosions reach farther', cost: 9, kind: 'passive', style: 'magic' },
   { id: 'bonded-aegis', name: 'Bonded Aegis', description: 'Block three hits with a TMW steel shield', cost: 11, kind: 'ability', unlockAfterEnemyAbility: 'twin-shield' },
-  { id: 'element-fire', name: 'Ember Sigil', description: 'Fire attacks ignite gas clouds', cost: 8, kind: 'element', style: 'magic', element: 'fire', unlockAtSeconds: 300, unlockAfterEnemyAbility: 'fire-burst' },
-  { id: 'element-lightning', name: 'Storm Sigil', description: 'Lightning chains through wet foes', cost: 9, kind: 'element', style: 'magic', element: 'lightning', unlockAtSeconds: 900, unlockAfterEnemyAbility: 'lightning-shot' },
-  { id: 'element-gas', name: 'Miasma Sigil', description: 'Miasma attacks leave a harmful cloud', cost: 8, kind: 'element', style: 'magic', element: 'gas', unlockAtSeconds: 1800, unlockAfterEnemyAbility: 'spore-burst' },
-  { id: 'learn-magic', name: 'Spell-Scribe', description: 'Learn to cast magic tears', cost: 7, kind: 'skill', style: 'magic' },
-  { id: 'learn-brawl', name: 'Brawler’s Wraps', description: 'Learn a close-range strike', cost: 7, kind: 'skill', style: 'melee' },
-  { id: 'learn-bow', name: 'Trail-Worn Bow', description: 'Learn to fire arrows', cost: 7, kind: 'skill', style: 'bow', unlockAfterEnemyAbility: 'arrow-shot' },
-  { id: 'iron-sword', name: 'Iron Sword', description: 'A longer, heavier melee strike', cost: 7, kind: 'weapon', style: 'melee', weapon: 'sword' },
+  { id: 'element-fire', name: 'Ember Sigil', description: 'Fire attacks ignite gas clouds', cost: 7, kind: 'element', style: 'magic', element: 'fire', unlockAtSeconds: 300, unlockAfterEnemyAbility: 'fire-burst' },
+  { id: 'element-lightning', name: 'Storm Sigil', description: 'Lightning chains through wet foes', cost: 7, kind: 'element', style: 'magic', element: 'lightning', unlockAtSeconds: 900, unlockAfterEnemyAbility: 'lightning-shot' },
+  { id: 'element-gas', name: 'Miasma Sigil', description: 'Miasma attacks leave a harmful cloud', cost: 7, kind: 'element', style: 'magic', element: 'gas', unlockAtSeconds: 1800, unlockAfterEnemyAbility: 'spore-burst' },
+  { id: 'iron-sword', name: 'Iron Sword', description: 'A longer, heavier melee strike', cost: 8, kind: 'weapon', style: 'melee', weapon: 'sword' },
   { id: 'swift-daggers', name: 'Swift Daggers', description: 'Quick, close twin strikes', cost: 7, kind: 'weapon', style: 'melee', weapon: 'daggers' },
-  { id: 'curio-hot-take', name: 'Hot Take', description: 'Attack up, but you walk slower', cost: 5, kind: 'curio', quip: 'HOT TAKE! Your hits sting, your feet drag.', effects: { damage: 1.4, speed: 0.9 } },
+  { id: 'curio-hot-take', name: 'Hot Take', description: 'Big attack up', cost: 8, kind: 'curio', quip: 'HOT TAKE! Your hits sting.', effects: { damage: 1.5 } },
   { id: 'curio-sole', name: 'Sole Survivor', description: 'Speed up, attack down', cost: 5, kind: 'curio', quip: 'SOLE SURVIVOR! Fleet of foot, soft of fist.', effects: { speed: 1.2, damage: 0.85 } },
-  { id: 'curio-trigger', name: 'Trigger Happy', description: 'Fire rate up, attack down', cost: 5, kind: 'curio', quip: 'TRIGGER HAPPY! More swings, fewer bruises.', effects: { fire: 1.3, damage: 0.8 } },
+  { id: 'curio-trigger', name: 'Trigger Happy', description: 'Fire rate up, attack down', cost: 5, kind: 'curio', quip: 'TRIGGER HAPPY! More swings, fewer bruises.', effects: { fire: 1.4, damage: 0.85 } },
   { id: 'curio-heavy-metal', name: 'Heavy Metal', description: 'Big attack up, fire rate down', cost: 6, kind: 'curio', quip: 'HEAVY METAL! It rocks. It is also slow.', effects: { damage: 1.6, fire: 0.75 } },
   { id: 'curio-mana-cafe', name: 'Mana-Cafe Latte', description: 'Small speed and fire rate up', cost: 6, kind: 'curio', quip: 'MANA-CAFE LATTE! Jittery, but in a good way.', effects: { speed: 1.12, fire: 1.15 } },
   { id: 'curio-shake', name: 'Protein Shake-Down', description: 'Attack up', cost: 7, kind: 'curio', quip: 'PROTEIN SHAKE-DOWN! Gains everywhere.', effects: { damage: 1.25 } },
-  { id: 'curio-overdraw', name: 'Overdrawn Account', description: 'Big attack up, speed down', cost: 7, kind: 'curio', quip: 'OVERDRAWN ACCOUNT! Hits to burn, legs to spare.', effects: { damage: 1.35, speed: 0.9 } },
-  { id: 'curio-mana-lisa', name: 'Mana Lisa', description: 'Fire rate up', cost: 6, kind: 'curio', quip: 'MANA LISA! That smile is just a spell.', effects: { fire: 1.2 } },
-  { id: 'curio-run-on', name: 'Run-On Sentence', description: 'Big speed up, attack down', cost: 5, kind: 'curio', quip: 'RUN-ON SENTENCE! Fast, but light on punctuation.', effects: { speed: 1.25, damage: 0.9 } },
-  { id: 'curio-dice', name: 'Roll With It', description: 'A random status change in every room', cost: 6, kind: 'curio', quip: 'ROLL WITH IT! Every room is a new gamble.', chaos: 'room' },
-  { id: 'curio-wild-card', name: 'Wild Card', description: 'A random status change every few seconds', cost: 6, kind: 'curio', quip: 'WILD CARD! Fortune changes by the minute.', chaos: 'timed' },
-  { id: 'mod-windup', name: 'Wind-Up Wraps', description: 'Melee: charge mode builds faster and hits harder', cost: 7, kind: 'mod', style: 'melee' },
+  { id: 'curio-mana-lisa', name: 'Mana Lisa', description: 'Fire rate up', cost: 4, kind: 'curio', quip: 'MANA LISA! That smile is just a spell.', effects: { fire: 1.2 } },
+  { id: 'curio-run-on', name: 'Run-On Sentence', description: 'Big speed up, slightly less attack', cost: 6, kind: 'curio', quip: 'RUN-ON SENTENCE! Fast, but light on punctuation.', effects: { speed: 1.35, damage: 0.95 } },
+  { id: 'curio-dice', name: 'Roll With It', description: 'A random status change in every room', cost: 5, kind: 'curio', quip: 'ROLL WITH IT! Every room is a new gamble.', chaos: 'room' },
+  { id: 'curio-wild-card', name: 'Wild Card', description: 'A random status change every few seconds', cost: 5, kind: 'curio', quip: 'WILD CARD! Fortune changes by the minute.', chaos: 'timed' },
+  { id: 'mod-windup', name: 'Wind-Up Wraps', description: 'Melee: switches to charge mode, which builds faster', cost: 7, kind: 'mod', style: 'melee' },
   { id: 'mod-flurry', name: 'Flurry Gauntlets', description: 'Melee: lightning-fast jabs, lighter hits', cost: 7, kind: 'mod', style: 'melee' },
   { id: 'mod-cinder', name: 'Cinder Edge', description: 'Melee: swings leave a wall of fire', cost: 8, kind: 'mod', style: 'melee', unlockAfterEnemyAbility: 'fire-burst' },
-  { id: 'mod-pierce', name: 'Piercing Heads', description: 'Bow: arrows fly through foes', cost: 7, kind: 'mod', style: 'bow' },
-  { id: 'mod-draw', name: 'Longbow Draw', description: 'Bow: charge mode draws faster', cost: 7, kind: 'mod', style: 'bow' },
+  { id: 'mod-pierce', name: 'Piercing Heads', description: 'Bow: arrows fly through foes', cost: 8, kind: 'mod', style: 'bow' },
+  { id: 'mod-draw', name: 'Longbow Draw', description: 'Bow: switches to charge mode, which draws faster', cost: 7, kind: 'mod', style: 'bow' },
   { id: 'mod-quiver', name: 'Rapid Quiver', description: 'Bow: rapid mode fires faster, lighter arrows', cost: 7, kind: 'mod', style: 'bow', unlockAfterEnemyAbility: 'arrow-shot' },
   { id: 'mod-storm-arrows', name: 'Storm Fletching', description: 'Bow: arrows chain lightning between foes', cost: 9, kind: 'mod', style: 'bow', unlockAfterEnemyAbility: 'lightning-shot' },
   { id: 'mod-splash', name: 'Impact Core', description: 'Magic: shots burst on hit or on the ground', cost: 8, kind: 'mod', style: 'magic' },
@@ -688,14 +685,14 @@ const shopItemCatalog = [
       id: `${kind}-companion`,
       name: `${name} Familiar`,
       description: `${/^[AEIOU]/.test(name) ? 'An' : 'A'} ${name} fights beside you`,
-      cost: bossCompanionKinds.has(kind) ? 14 : 8,
+      cost: 12,
       kind: 'companion',
       companion: kind,
     };
   }),
   { id: 'mana-tonic', name: 'Mana Tonic', description: 'Restore two health with Q', cost: 4, kind: 'consumable' },
   { id: 'bomb-bundle', name: 'Bomb Bundle', description: 'Gain two bombs with Q', cost: 4, kind: 'consumable' },
-  { id: 'mana-burst', name: 'Mana Burst', description: 'Blast all foes with Q', cost: 6, kind: 'consumable' },
+  { id: 'mana-burst', name: 'Mana Burst', description: 'Blast all foes with Q (8 damage, plus 4 per later floor)', cost: 6, kind: 'consumable' },
 ];
 
 const characterRoster = [
@@ -985,6 +982,21 @@ let endScreenDelay = 0;
 let newRunConfirmTimer = 0;
 
 let coins = 0;
+// Enemy drops that are only worth zeny at a shop's sell pad. Carried amounts are lost with the run, like zeny.
+// Rates are per eligible kill: normal, elite and miniboss foes, never summoned, split-off or ambush foes.
+const materialCatalog = {
+  ironOre: { id: 'iron-ore', name: 'Iron Ore', price: 1 },
+  darkCrystal: { id: 'dark-crystal', name: 'Dark Crystal', price: 3 },
+};
+const MATERIAL_DROP_TUNING = {
+  rates: { ironOre: 0.06, darkCrystal: 0.02 },
+  luckBonus: { ironOre: 0.01, darkCrystal: 0.005 },
+  strongFoeMultiplier: 2,
+};
+const materials = { ironOre: 0, darkCrystal: 0 };
+function resetMaterials() {
+  for (const key of Object.keys(materialCatalog)) materials[key] = 0;
+}
 let keysHeld = 0;
 let bombsHeld = 3;
 let rooms = [];
@@ -1197,12 +1209,13 @@ const itemEffectTags = {
   pearl: ['+ATTACK', '+SHOT SIZE'],
   prism: ['+TRIPLE SHOT', '-SHOT DAMAGE EACH'],
   feather: ['+FIRE RATE', '+SHOT SPEED'],
-  'range-lens': ['+RANGE'], 'range-lens-ii': ['+RANGE'], 'range-lens-iii': ['+RANGE', '+SHOTS PIERCE WALLS'],
+  'range-lens': ['+RANGE', '+MELEE REACH'], 'range-lens-ii': ['+RANGE', '+MELEE REACH'],
+  'range-lens-iii': ['+RANGE', '+MELEE REACH', '+SHOTS PIERCE WALLS'],
+  'wild-magic-core': ['+WILD MAGIC LINKS', '+LONGER DECAY', '+WIDER NOVA'],
   'frost-rune': ['+AUTO FROST PULSE'], 'spore-bloom': ['+MAGIC IMPACT CLUSTERS'], 'bonded-aegis': ['+3 HIT SHIELD'],
   'element-fire': ['+FIRE MAGIC'], 'element-lightning': ['+LIGHTNING MAGIC'], 'element-gas': ['+MIASMA MAGIC'],
-  'learn-magic': ['+MAGIC SKILL'], 'learn-brawl': ['+BRAWL SKILL'], 'learn-bow': ['+BOW SKILL'],
-  'iron-sword': ['+SWORD REACH', '+HEAVY SWING'], 'swift-daggers': ['+TWIN STRIKES'],
-  'mod-windup': ['+FASTER CHARGE', '-SWING SPEED'], 'mod-flurry': ['+JAB SPEED', '-HIT DAMAGE'],
+  'iron-sword': ['+SWORD REACH', '+HEAVY SWING'], 'swift-daggers': ['+TWIN STRIKES', '+SWING SPEED'],
+  'mod-windup': ['+FASTER CHARGE'],'mod-flurry': ['+JAB SPEED', '-HIT DAMAGE'],
   'mod-cinder': ['+FIRE WALL ON SWING'], 'mod-pierce': ['+ARROWS PIERCE'], 'mod-draw': ['+FASTER DRAW'],
   'mod-quiver': ['+RAPID ARROW RATE', '-LIGHTER ARROWS'], 'mod-storm-arrows': ['+CHAIN LIGHTNING ARROWS'],
   'mod-splash': ['+SPLASH DAMAGE'], 'mod-chain': ['+CHAIN LIGHTNING SHOTS'], 'mod-lingering': ['+DAMAGE CLOUD'],
@@ -1292,7 +1305,7 @@ const bindingActions = [
   { id: 'dash', label: 'Dash', desc: 'Quick burst of speed with brief invulnerability', key: ' ', pad: 5 },
   { id: 'bomb', label: 'Bomb', desc: 'Drop a bomb (near a bank vault: withdraw on pad)', key: 'f', pad: 1 },
   { id: 'item', label: 'Use consumable', desc: 'Drink or use the next stored item', key: 'q', pad: 6 },
-  { id: 'shock', label: 'Shockwave / Mana familiars', desc: 'Use Shockwave; discover the Mana Familiar Sigil to summon orbiting guards', key: 'r', pad: 3 },
+  { id: 'shock', label: 'Shockwave / Mana familiars', desc: 'Use Shockwave; discover Betsanc to summon orbiting guards', key: 'r', pad: 3 },
   { id: 'ability', label: 'Class ability', desc: 'Your class signature (also right-click)', key: '4', pad: 15 },
   { id: 'nextWeapon', label: 'Next weapon', desc: 'Cycle melee, bow, magic (also mouse wheel)', key: 'tab', pad: 4 },
   { id: 'weapon1', label: 'Select melee', desc: 'Jump straight to melee', key: '1', keyOnly: true },
@@ -1506,6 +1519,7 @@ function beginRun() {
   player.damage = entry.damage;
   player.armor = 0;
   player.aegisCharges = 0;
+  player.lifestoneRegen = null;
   orbitGuardChargeUps = 0;
   orbitGuards.length = 0;
   nextOrbitGuardId = 1;
@@ -1587,6 +1601,7 @@ function beginRun() {
   player.classKills = 0;
   laserBeams.length = 0;
   coins = 0;
+  resetMaterials();
   resetFloorCoins();
   keysHeld = 0;
   bombsHeld = entry.startingBombs || 3;
@@ -1622,7 +1637,6 @@ const MAX_PLAYER_PROJECTILES = 140;
 const attackMorphs = {
   'frost-rune': { label: 'Frost Shards', shape: 'diamond', color: '#9fe7f3', slowOnHit: 0.9, speedMul: 0.88, damageMul: 0.9 },
   'spore-bloom': { label: 'Spore Seeds', shape: 'seed', color: '#d78be7', drop: 'short', pulse: 0.16 },
-  'bonded-aegis': { label: 'Bulwark Ring', shape: 'ring', color: '#d3e2ff', surround: true, damageMul: 0.65, delayMul: 1.25 },
   'element-fire': { label: 'Ember Bursts', explode: 46, sizeMul: 1.1 },
   'element-lightning': { label: 'Storm Pulses', pulse: 0.28, speedMul: 1.15, damageMul: 0.9 },
   'element-gas': { label: 'Miasma Drops', drop: 'long', speedMul: 0.82 },
@@ -1948,6 +1962,7 @@ function update(dt) {
   lastPlayerSample.y = player.y;
   playerStillTimer = Math.hypot(playerVelocity.x, playerVelocity.y) < 45 ? playerStillTimer + dt : 0;
   updateStyleHeat(dt);
+  updateLifestoneRegen(dt);
   updateInputAI(dt);
   updateBossStrikes(dt);
   resolveDoorCrossing();
@@ -2213,6 +2228,11 @@ function update(dt) {
       runStats.zenyFound += 1;
       playPickupSound('gp', 0.25);
     }
+    if (pickup.kind === 'material' && materialCatalog[pickup.material]) {
+      materials[pickup.material] += 1;
+      playPickupSound('gp', 0.2);
+      popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[materialCatalog[pickup.material].id] });
+    }
     if (pickup.kind === 'heart') {
       player.hp = Math.min(player.maxHp, player.hp + 1);
       playPickupSound('heal', 0.35);
@@ -2313,7 +2333,6 @@ const powerHatByItem = {
   'curio-sole': 'bunnyears', 'curio-trigger': 'bhopcap', 'curio-heavy-metal': 'bucket',
   'curio-mana-cafe': 'chefhat', 'curio-dice': 'fancyhat', 'curio-wild-card': 'operamask',
   'ammo-mana': 'moonshroomhat', 'ammo-arrows': 'farmerhat', 'ammo-blows': 'centurionhelmet',
-  'learn-magic': 'graduationcap', 'learn-brawl': 'samuraihelmet', 'learn-bow': 'brimmedhat',
 };
 const shroomHatByItem = {
   'element-gas': 'wickedshroomhat', 'mod-lingering': 'wickedshroomhat', 'ammo-mana': 'moonshroomhat',

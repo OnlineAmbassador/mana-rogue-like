@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { simContext, dps, bossSeconds } = require('./helpers/sim');
 
 // These bounds record where the charge numbers stand today. They are ceilings against drift, not design targets:
-// PLAYTEST.md lists the charged-magic ratio as the open balance question, and lowering the ceiling is the way
+// docs/PLAYTEST.md lists the charged-magic ratio as the open balance question, and lowering the ceiling is the way
 // to lock in a fix once the numbers have been played.
 const CHARGED_RATIO_CEILING = { bow: 2, magic: 10 };
 

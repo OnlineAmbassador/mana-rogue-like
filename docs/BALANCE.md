@@ -7,13 +7,13 @@ Reference for anyone changing enemy tuning, in particular the input-adaptive tac
 1. Find the number in `ADAPTIVE_AI_TUNING` (`mobmanager.js`). Values marked `playtest` have no derivation and can be tuned freely within the limits of the rules; everything else is derived or bounded by a rule below.
 2. Change it, then run `node --test tests/tuning.test.js`. Each rule is enforced by a test named after its ID (`R1:` ... `T2:`).
 3. If a rule has to change, change it here, in the test and in the code together. A test fails when this file and `tests/tuning.test.js` list different rule IDs.
-4. Record the change in `CHANGELOG.md`.
+4. Record the change in the Recent changes section of [HANDOFF.md](HANDOFF.md).
 
 Every new adaptive effect must be gated behind `adaptiveEnemiesEnabled()` (see T1).
 
 ## Anchors
 
-The rules derive from constants that already exist in the game. If one of these changes, re-check the rules that use it.
+The rules derive from constants that already exist in the game. If one of these changes, re-check the rules that use it. The code is authoritative: if this table and the code differ, fix the table.
 
 | Anchor | Value | Where |
 |---|---|---|
@@ -66,24 +66,6 @@ With the pause-menu setting off: the input profile is `neutral`, tempo is 1, the
 
 ### T2 - The setting defaults on and survives a bad store
 `gameSettings.adaptiveEnemies` is `true` unless the stored value is exactly `false`. A missing, malformed or wrongly typed entry falls back to on.
-
-## Current profile values
-
-Raw values from `ADAPTIVE_AI_TUNING.profiles`. At floor one the ramp (R5) halves everything except `warning`.
-
-| Axis | neutral | touch | keyboard/mouse | controller |
-|---|---|---|---|---|
-| `tempoFloors` (tempo) | 0 (x1.00) | 1 (x1.08) | 1.5 (x1.12) | 2 (x1.16) |
-| `attackSlots` | 0 | 0 | 0 | 1 |
-| `beatScale` | 1 | 0.85 | 0.8 | 0.7 |
-| `warning` (s) | 1.1 | 1.1 | 1.05 | 0.95 |
-| `dodgeBonus` | 0 | 0.08 | 0.12 | 0.22 |
-| `flankLead` (s) | 0 | 0.1 | 0.18 | 0.28 |
-| `strafe` (x enemy speed) | 0 | 0.48 (up to 0.72 at close range) | 0.4 | 0.75 |
-| `nearDodgeBonus` | 0 | 0.32 | 0.08 | 0.12 |
-| `shotShare` | 0 | 0.07 | 0.18 | 0.13 |
-
-Pulse radius from R1 (px), by ground speed: 235 gives 297 (touch), 284 (keyboard), 257 (controller); 180 gives 228, 217, 197.
 
 ## Playtest-tunable values
 
