@@ -50,6 +50,13 @@
 
     <div class="message" id="message" aria-live="polite">Choose a delver to begin the descent.</div>
 
+    <div id="artwork-loading" class="artwork-loading" hidden>
+      <div class="artwork-loading-panel">
+        <p id="artwork-status" role="status">Loading artwork...</p>
+        <button id="artwork-retry" type="button" hidden>Retry artwork (Enter)</button>
+      </div>
+    </div>
+
     <!-- Manager scripts define shared classic-script functions before game state starts. -->
     <script src="gameui.js"></script>
     <script src="desertart.js"></script>

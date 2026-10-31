@@ -12,14 +12,9 @@ Copied unmodified from [revision ebb0335f1ac438a883f1d70e27cdfe92f811ed28](https
 | `graphics/soulmenhir.png` | `graphics/sprites/npcs/soulmenhir.png` | Crush | Reid |
 | `maps/tulimshar.tmx` | `maps/tonori/tulimshar/tulimshar.tmx` | Reid | |
 
-The game does not load the map. It is kept unmodified as the source that `tests/presentation.test.js` checks the wall tile ids against, so a wrong id fails a test. The map is an architectural reference, not a standalone playable level: its other tilesets remain upstream. The renderer adapts its `Over` layer at zero-based (39,25) through (39,28), and its `Ground` layer at (35,0) through (38,0), into repeatable horizontal faces and vertical wall-top walkways. Four 4x4 corner adaptations join them with native handed elbows, rather than overlapping straight runs:
+The wall atlas and Tulimshar map are retained unmodified as historical architectural references. Neither is loaded during gameplay: the experimental sandstone walls and replacement island have been removed. Tulimshar now uses the upper-left wall frame from TMW/Evol's `castle1.png` (Irvkard, contributor TMW-BR, GPL 2.0), documented in the client-data `LICENSE`.
 
-- Left stepped curve: `Over` (35,54..56), IDs `1,8,24`, and `Ground` (35,57), ID `40`.
-- Right stepped curve: `Over` (47,54), (48,55..56), IDs `3,11,27`, and `Ground` (48,57), ID `43`.
-- Diagonal inner joins: `Over` (36,27..28), IDs `25,41`, and (47,56..57), IDs `26,42`.
-- Transparent corner pieces are drawn over wall-top ground, following the map's layered construction; they are not opaque standalone blocks. Repeatable straight fill is adapted to fit the room rather than importing a full source building.
-
-This adapted wall arrangement retains CC BY-SA 4.0 terms. Wall depth is compressed to the existing 64px collision boundary; the original images are not edited. The soul menhir uses its native 64x64 image. No Source of Mana UI art is copied.
+The Source of Mana soul menhir remains in gameplay at its native 64x64 size under CC BY-SA 4.0. No Source of Mana UI artwork is copied.
 
 ## Sounds
 

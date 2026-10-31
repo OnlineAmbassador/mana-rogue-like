@@ -358,7 +358,7 @@ function touchAimContext() {
     distanceBetween: (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'playermanager.js'), 'utf8');
-  vm.runInContext(sliceText(source, 'function attackOriginY()', 'function meleeInputHeld()', 'source'), context);
+  vm.runInContext(sliceText(source, 'function enemyAttackTarget(', 'function meleeInputHeld()', 'source'), context);
   return context;
 }
 

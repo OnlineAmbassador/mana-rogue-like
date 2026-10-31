@@ -8,7 +8,34 @@
 
 ## Current task
 
-Waiting for the user's feedback on the desert visuals (sandstone corners, curved paving, ambient animation) and on the new balance numbers. Do not add more enemy difficulty before the numbers have been playtested.
+Push preparation completed on 2026-10-31. The user will push; do not push automatically. Changes are saved in the working tree, not staged or committed. Next task is actual-device playtesting and any user-reported regressions; do not add difficulty or redesign approved visuals without a request.
+
+### Push checklist and verification
+- Review the working-tree diff before staging. Include the restored `assets/tmw/clientdata/graphics/tilesets/castle1.png` and new `tests/performance.test.js`; both were untracked during preparation and are required deliverables, not scratch files.
+- Validation: all root JavaScript files pass `node --check`; `node --test tests\*.test.js` passes **297 tests**. `git diff --check` passes. There is no package/build step.
+- No push, commit, dependency installation or save migration was performed. No preview server is intentionally running.
+- Git is not on PATH in this Windows environment. Executable: `C:\Users\meway\AppData\Local\GitHubDesktop\app-3.6.9\resources\app\git\cmd\git.exe`. Use `--no-pager`.
+- The user's phone is Motorola XT2617-3 running Chrome. Reliable hardware specs and real-device FPS were not established. Earlier laptop profiling showed fewer image draws (512 to 73 per frame) for the wall-cache optimization; this predates the full lighting pass and does not certify present performance or flawless phone play.
+- Remaining checks: cold/failed artwork loading and Retry on a real connection, room-entry pauses in large rooms, sustained busy cave/boss fights, battery saver/thermal throttling, and correct touch collection/aim. Use `PLAYTEST.md`. Browser renders were inspected during the visual pass, but the final feathered rays and all device conditions have not been visually revalidated.
+
+### Optimization review
+- `loadAsset` deduplicates URLs, installs handlers before requesting, waits for asynchronous decode, retries automatically once, then exposes explicit failure/Retry. Combat and quality sampling pause during loading or hidden tabs.
+- Adaptive quality retains full-quality presentation on fast devices; recovery backs off up to 120 seconds to avoid repeatedly resizing an overloaded device.
+- Floors are cached with a 12-entry limit; wall and lighting layers keep only the current room. Large floor caches can still consume meaningful memory on phones; profile real room transitions before changing detail or cache budgets.
+- Source-frame silhouette masks are WeakMap-backed, capped at 128 per image. Alpha-bound reads occur only when creating a cached frame; local-file SecurityErrors log warnings. Prefer HTTP preview for correct alpha-bound anchoring.
+- Item outline textures are WeakMap-backed, fallback shop icons capped at 128, and procedural pickup textures limited to six kinds. Light textures are capped at 16 colors and 24 visible sources. Offscreen breakables, projectile shadows and light sources are culled.
+- Cave contours are room-cached; low quality reduces shaft dust, and reduced motion freezes ambience without freezing actor shadows. Rays still draw their layered contours each frame.
+- Final review removed copying the combined projectile array every lighting frame and stops scanning a projectile group once the visible emitter cap is reached; tests cover emitter culling, the cap, texture reuse and texture-cache bounds.
+
+### Approved presentation and combat corrections
+- Tulimshar uses native 32px Evol/TMW castle walls, not the rejected island or expanded SoM sandstone renderer. Room dimensions are unchanged, the collision band is 32px and the passage is 96px; other regions/secret chambers retain 64px borders.
+- Doorway corners use `(32,640)` and `(64,640)` from `castle1.png`, rotating the approved south pair counterclockwise: south 0, north 180, east 90, west 270 degrees. Sand backs native transparency; no decorative flags or torches remain. Keep ground paving/footprints and ambient sand gusts.
+- All-region light comes from top-left at 45 degrees; shadows project lower-right and grow with elevation. Candor/Frostia/World Edge/secret rooms use crevice rays with irregular layered contours and a transparent-to-bright fade over the first 18% (no hard upper cap).
+- Bats/vampire bats crop to the upper 22px of native 37x58 frames, including companions, removing baked shadows without stretching the crop. Spiders anchor shadows at frame fraction 0.35 (abdomen); ratto at 0.5. Tree/log obstacles use a solid trunk-rooted shadow; soul menhir uses the same solid form with wider 80px shadow geometry, attached to its base. Its 64px artwork and aura are unchanged.
+- Fire/lightning, luminous orbs, charged magic and beams illuminate ground/nearby actors. All airborne shots have separated ground shadows; pure beams do not have solid-object shadows. Pools get a subtle 2px depth edge and webs use strand shadows.
+- Blue item outline is `#0e0868`, sampled only as a color from the user's reference; no reference artwork was imported. Shop pedestal icons are 87.5% of the enlarged presentation; ordinary drops/upgrade icons 80%; healing hearts and Guardian Heart icons 60%. No smoothing/antialiasing fix was added. HUD hearts are unchanged.
+- Player scale is restored to 1.45 with original attack pulse; mobs/companions use the midpoint between original and oversized integer-scale presentation. Do not reinstate the rejected 2x player or integer-only mob sizing. All world labels use door typography (bold 10px Arial/dark outline); HUD/menu fonts remain separate.
+- `enemyAttackTarget` corrects bat/vampire-bat and bandit/banditlord attack centers and scale-aware bounds; Road Captain is a bandit miniboss. Projectiles use visual ballistic positions and swept ellipse overlap for these kinds, melee/blade/beam checks use corrected centers, and touch auto-aim points to their body. Movement/contact circles remain unchanged; other creatures retain the previous ranged hit test. These are geometric approximations, not alpha-perfect hitboxes; playtest boundary hits and lifted actors.
 
 Keep these as they are:
 - the approved touch aiming: with enemies present, Attack targets the nearest live one; with none, Attack follows the drag or the player's facing;
@@ -24,12 +51,12 @@ Open questions for playtesting:
 - Sound effects now decode through Web Audio after the first input; the first play of each cue uses a plain Audio element. Check in a real browser (including Safari) that nothing is silent or doubled.
 - `assets/tmw` was trimmed to the referenced files. When the game gains a new asset, add the reference as a literal string, or extend `DYNAMIC_PREFIXES` in `tools/trim-assets.js` and re-run `tests/assets.test.js`.
 - Touch and controller use of the full map has not been tried on real devices. The final map legend change (Start shares the Room entry, hostile rooms get a red border) passes tests but was never seen on screen.
-- Room-entry cost of the desert floor on low-end mobile has not been measured. The background takes about 134 to 175 ms to build in the remote browser and is cached. Profile it before reducing detail.
+- Room-entry cost of the current desert floor on the actual phone has not been measured. Historical remote-browser builds took about 134 to 175 ms; this is not a current device benchmark. Profile before reducing detail.
 - The secret-room masonry floor is still an early composition and could get the same source-based treatment.
 
-Preview: run `.claude/serve.py` (see `.claude/launch.json`) and open `index.html`; the bare `/` URL returns 404. Do not rewrite the save or inventory to test something.
+Preview: use a local HTTP static server and open `index.html` (the existing `.claude/serve.py` setup may require that explicit URL). Python was unavailable in this session, so temporary loopback Node servers were used and stopped. Do not rewrite the save or inventory to test something.
 
-Art sources: the desert uses bundled TMW art and CC BY-SA 4.0 Source of Mana art. `assets/som/CREDITS.md` records authors, the source revision and how the walls were adapted. README covers footprints and the TMW sources and licenses. The UI is original canvas and CSS drawing. A new import needs its exact license, author and source verified; attribution alone is not permission.
+Art sources: active walls are unmodified TMW/Evol `castle1.png` (Irvkard, TMW-BR contributor, GPL 2.0); SoM soul menhir remains active under CC BY-SA 4.0. SoM wall/map files are retained as historical references, not runtime walls. `assets/som/CREDITS.md` and README cover attribution. The UI is original canvas and CSS drawing. A new import needs its exact license, author and source verified; attribution alone is not permission.
 
 ## Latest work
 
@@ -48,7 +75,9 @@ Enemies read the existing `lastInputMode`. Player controls, aim, accuracy and da
 - **Limits.** Nobody has played this enough to say it is balanced or fun. The only outside source consulted was the Guild Wars 2 combat page, which describes active dodging; it is inspiration and not evidence that any game adapts to input.
 - **Undo.** To remove the adaptive layer, isolate the input-AI functions and hooks, the steering, tactics and pressure additions, the dash labels, and their tests and docs. Keep the older weapon-style AI and the touch aiming fix.
 
-### Desert art
+### Historical desert-art pass (superseded where noted)
+
+The wall/corner/scenery/top-wall-shadow descriptions below document a rejected earlier pass, not current runtime behavior. `drawSandstoneWalls`, `drawDesertScenery` and the standalone top-wall strip were removed. Use the current approved presentation section above and README for active geometry; paving, footprints and perimeter atmosphere remain applicable.
 - **File layout.** Desert drawing is in `desertart.js` (constants in `DESERT_ART`), loaded after `gameui.js`. `clipRoomWallBand`, `drawCastleWalls`, `terrainTileAt` and `prefersReducedMotion()` stay in `gameui.js`. The Tulimshar TMX is kept unmodified as the fixture that `tests/presentation.test.js` checks wall tile ids against.
 - **Walls.** `drawSandstoneWalls` uses SoM `wall.png` (Modanung with Reid, CC BY-SA 4.0, pinned source `ebb0335f1ac438a883f1d70e27cdfe92f811ed28`). Face ids `[2,18,34,50]` come from `Over` x39,y25..28 and the side walkway `[0,6,6,4]` from `Ground` x35..38,y0. Faces stay upright. Depth is compressed into the unchanged 64 px collision band. `clipRoomWallBand` cuts exact 96 px openings only for cleared, unlocked, visible doors, including revealed secret doors.
 - **Corners.** Horizontal runs stop before the 64x64 corner areas, which use 4x4 handed patterns from `Over` (35,54..56) ids 1/8/24 plus `Ground` (35,57) id 40, `Over` (47,54),(48,55..56) ids 3/11/27 plus `Ground` (48,57) id 43, and the inner joins from `Over` (36,27..28) ids 25/41 and (47,56..57) ids 26/42. The pieces are transparent, so the wall-top walkway course `[0,6,6,4]` must be drawn under them or square holes show at the upper corners.
@@ -65,7 +94,7 @@ Enemies read the existing `lastInputMode`. Player controls, aim, accuracy and da
 - **TMX crawl.** All 491 maps and 2,555 visual layers under `assets/tmw/clientdata/maps` were scanned (3,482 layers in total, all CSV, orthogonal, none infinite) for 2x2, 3x3, 4x1 and 1x4 arrangements of the 12 atlas files the game uses. 14,963 placements outside the referenced atlas or animation range were excluded. Do not copy them as art or fix the upstream maps. Counts alone do not show meaning: cave id 20 is opaque black void, and ids 110 and 58 in the cave and ice maps are transparent. The crawl script and its output were kept outside the repository and are gone; the motifs above are the useful result. Castle face 65 above base 81 occurs in 311 places across six maps; look at the whole corner and door structure before reusing it.
 - **Graphical pass.** `drawManaPanel` (`gameui.js`) draws the beveled charcoal and gold panels used by the HUD, minimap, weapon and action slots, messages, pause panel, character-select header, codex, controls, tutorial and journal. `style.css` matches the page and touch buttons without changing hit areas, positions or handlers.
 - **Pause inventory.** `drawPauseEquipment` is in `gameui.js`. It draws a framed grid of owned items and non-empty consumable stacks, with counts, an empty-state message and hover names, and no new interactions. It is tested with 161 icons.
-- **Touch aiming.** `nearestTouchTargetAngle` (`playermanager.js`) returns `null` when no enemy is alive, and `currentAimAngle` then uses an active drag, otherwise the player's facing. Combat targeting and controller code are unchanged. README, `gameui.js` and `index.html` carry the touch instructions. To revert, change only the no-target return and the touch branch of `currentAimAngle`, with their instructions and tests.
+- **Touch aiming.** `nearestTouchTargetAngle` (`playermanager.js`) returns `null` when no enemy is alive, and `currentAimAngle` then uses an active drag, otherwise the player's facing. Bat/bandit aim centers now use `enemyAttackTarget` to match body placement. Controller code is unchanged. README, `gameui.js` and `index.html` carry the touch instructions.
 
 ### Map and weapon systems
 - **Full map and map travel.** From a cleared room, the full map (M) travels to any visited, cleared room reachable through open doors.
@@ -102,7 +131,7 @@ Enemies read the existing `lastInputMode`. Player controls, aim, accuracy and da
 
 ## Validation
 
-- `node --test tests/*.test.js` passes 223 tests, 28 of them in `presentation.test.js`. `node --check` passes on every root JavaScript file. Run both after any code edit.
+- `node --test tests\*.test.js` passes 297 tests after push preparation. `node --check` passes on every root JavaScript file. Use focused selectors for small changes, and the full suite for cross-surface integrations.
 - In tests, load game source with `tests/helpers/load.js` (`loadBetween`, `loadFunctions`, `sliceText`). It throws if a marker or function is missing, where a plain `indexOf` slice would silently load the wrong text. `tests/helpers/combat.js` builds the shared enemy-AI context.
 - Tests load the game's source files into `vm` contexts, so a new global used by game code needs a stub in each affected harness (this caused 22 test failures earlier). Top-level `let`/`const` in those files are not context properties; read and write them with `vm.runInContext`.
 - If `node` is not found in a shell, refresh `PATH` (it was installed after the shell started).

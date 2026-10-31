@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { sliceText } = require('./helpers/load');
+const { sliceText, loadFunctions } = require('./helpers/load');
 
 function combat() {
   const c = vm.createContext({
@@ -231,7 +231,7 @@ test('lift suspends a mob for one second then slams it with splash damage and re
   assert.equal(enemy.attackCooldown, 0.8);
 });
 
-test('lift visuals include a ground shadow and vertical movement, while bomb marks flash red', () => {
+test('lift moves the sprite and its directional shadow together, while bomb marks flash red', () => {
   const c = combat();
   const calls = [];
   c.elapsed = 1;
@@ -240,10 +240,11 @@ test('lift visuals include a ground shadow and vertical movement, while bomb mar
     set: (_, key, value) => { calls.push([key, value]); return true; },
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8'), c);
-  vm.runInContext('drawEnemyBody = () => {};', c);
+  c.drawEnemyBody = () => calls.push(['body-and-shadow']);
   const enemy = { x: 300, y: 300, radius: 12, manaSlam: { timer: 0.5, duration: 1 } };
   c.drawEnemy(enemy);
-  assert.ok(calls.some(([command]) => command === 'ellipse'));
+  assert.ok(calls.some(([command]) => command === 'body-and-shadow'));
+  assert.ok(!calls.some(([command]) => command === 'ellipse'), 'no duplicate centered lift shadow');
   assert.ok(calls.some(([command, x, y]) => command === 'translate' && x === 0 && y === -85));
   calls.length = 0;
   enemy.manaSlam = null;
@@ -394,7 +395,7 @@ test('Storm Spool extends lightning to four targets without recursive impacts', 
 });
 
 test('actual projectile loop triggers enemy and object wild impacts without changing base attacks', () => {
-  for (const surface of ['enemy', 'object']) {
+  for (const surface of ['enemy', 'object', 'bat', 'road-captain']) {
     const c = combat();
     const projectile = shot({ wildEffect: 'rot', type: 'elemental', owner: 'player', ttl: 1, trailTimer: 1,
       wildAge: 0, wildPhase: 0, wildAmplitude: 0.07 });
@@ -403,6 +404,17 @@ test('actual projectile loop triggers enemy and object wild impacts without chan
       dt: 0, projectiles: [projectile], breakables: [], particles: [],
       quality: { low: false }, MAX_PARTICLES: 400, MAX_PARTICLES_LOW: 120,
     });
+    if (surface === 'bat' || surface === 'road-captain') {
+      c.monsterSprites = { bat: { scale: 1.05 }, bandit: { scale: 1 } };
+      loadFunctions(c, 'gameui.js', ['mobDrawScale', 'projectileLightingState']);
+      target.kind = surface === 'bat' ? 'bat' : 'bandit';
+      if (surface === 'road-captain') target.miniBoss = true;
+      const bounds = c.enemyAttackTarget(target);
+      projectile.x = bounds.x;
+      projectile.y = surface === 'bat' ? bounds.y : bounds.y - bounds.radiusY + 4;
+      assert.ok(Math.hypot(projectile.x - target.x, projectile.y - target.y) > projectile.radius + target.radius,
+        'visible body point lies outside the old ground hitbox');
+    }
     c.enemies.push(target);
     if (surface === 'object') c.breakables.push({ x: 300, y: 300, radius: 16 });
     vm.runInContext(`
@@ -413,7 +425,7 @@ test('actual projectile loop triggers enemy and object wild impacts without chan
     const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
     vm.runInContext(sliceText(game, '  for (let i = projectiles.length - 1;', '  for (let i = enemyProjectiles.length - 1;', 'game'), c);
     assert.ok(target.manaRotTimer > 0, surface);
-    assert.equal(target.hp, surface === 'enemy' ? 16 : 20);
+    assert.equal(target.hp, surface === 'object' ? 20 : 16);
     assert.equal(c.projectiles.length, 0);
   }
 });

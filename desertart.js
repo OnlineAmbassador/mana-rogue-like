@@ -1,10 +1,10 @@
-/* Desert (Tulimshar) room art: dune ground with paved lanes, wind streaks, banners and torches, edge haze, sand
-   footprints and the sandstone wall faces. This file only defines constants and functions; game globals such as
+/* Tulimshar room art: dune ground, worn lanes, sand gusts and footprints.
+   Game globals such as
    ctx, ROOM_W and currentRoom are read when a function is called, so it can load before game.js. */
 
 const DESERT_ART = {
   tile: 32, // atlas and floor tile size
-  wallBand: ROOM_WALL_BAND, // the existing collision band (gameui.js); floor art stays inside it and the wall faces fill it
+  wallBand: 32,
   ground: {
     patch: 128, // one intact dune patch is repeated instead of shuffling unrelated transition tiles
     atlasX: 256,
@@ -35,7 +35,7 @@ const DESERT_ART = {
     size: 24,
     maxMarks: 96,
     resetDistance: 96, // a jump this far (a teleport or room change) restarts the trail
-    margin: 76, // no prints this close to a wall
+    margin: 44, // wall band plus clearance for the footprint sprite
   },
   wind: {
     color: '#f9e6b5',
@@ -57,47 +57,11 @@ const DESERT_ART = {
     minLength: 28,
     lengthVariants: 42,
   },
-  scenery: {
-    postInset: 160, // banner post distance from the left and right walls
-    topY: 10,
-    bottomInset: 54,
-    postColor: '#49382b',
-    capColor: '#c9ac68',
-    strips: 10,
-    stripHeight: 3,
-    clothWidth: 24,
-    clothOffsetX: 11,
-    clothColors: ['#974d47', '#793d3d'],
-    trimColor: '#ddc18d',
-    sway: { speed: 2.4, perStrip: 0.48, amplitude: 0.32 },
-    torchOffsetX: 34,
-    flame: { speed: 9, amplitude: 2, color: '#d77b39', core: '#ffe0a0' },
-    torchColors: { pole: '#4c3824', bracket: '#aa8352' },
-  },
   atmosphere: {
     hazeDepth: 100,
     hazeColor: '232, 199, 128',
     hazeStops: [[0, 0.38], [0.55, 0.12], [1, 0]],
     sandstorm: { inset: 86, alpha: 0.15, tileWidth: 512, tileHeight: 256, driftSpeed: 12 },
-  },
-  walls: {
-    minAtlas: 512,
-    atlasColumns: 16,
-    // Atlas tile ids read from the Tulimshar TMX: Over (39,25..28) for the face courses, Ground (35..38,0) for the
-    // side walkway. See assets/som/CREDITS.md.
-    face: [2, 18, 34, 50],
-    walkway: [0, 6, 6, 4],
-    walkwayColumnWidth: 16,
-    faceRowHeight: 16,
-    cornerCell: 16,
-    // Handed elbows for the four room corners (top-left, top-right, bottom-left, bottom-right), four rows of four
-    // atlas ids each, drawn over the walkway. A facade is never rotated.
-    corners: [
-      [[0, 6, 6, 1], [0, 6, 6, 8], [0, 6, 6, 24], [0, 6, 6, 40]],
-      [[3, 6, 6, 4], [6, 11, 6, 4], [26, 27, 6, 4], [42, 43, 6, 4]],
-      [[0, 6, 6, 1], [0, 6, 18, 18], [0, 25, 34, 34], [40, 41, 50, 50]],
-      [[3, 6, 6, 4], [18, 18, 6, 4], [34, 34, 26, 4], [50, 50, 42, 43]],
-    ],
   },
 };
 
@@ -205,20 +169,23 @@ function drawDesertGround(context, image) {
   const cells = tile / cell;
   context.save();
   context.beginPath();
-  context.rect(wallBand, wallBand, ROOM_W - wallBand * 2, ROOM_H - wallBand * 2);
+  context.rect(0, 0, ROOM_W, ROOM_H);
   context.clip();
   context.filter = filter;
-  for (let y = wallBand; y < ROOM_H - wallBand; y += patch) {
-    for (let x = wallBand; x < ROOM_W - wallBand; x += patch) {
+  for (let y = wallBand - patch; y < ROOM_H; y += patch) {
+    for (let x = wallBand - patch; x < ROOM_W; x += patch) {
       context.drawImage(image, atlasX, atlasY, patch, patch, x, y, patch, patch);
     }
   }
   if (desertPavingReady()) {
+    context.beginPath();
+    context.rect(wallBand, wallBand, ROOM_W - wallBand * 2, ROOM_H - wallBand * 2);
+    context.clip();
     const paving = terrainTiles.artis.image;
     context.filter = DESERT_ART.paving.filter;
     for (let y = wallBand; y < ROOM_H - wallBand; y += tile) {
       for (let x = wallBand; x < ROOM_W - wallBand; x += tile) {
-        const tileId = terrainTileAt(terrainTiles.artis, x / tile - 2, y / tile - 2);
+        const tileId = terrainTileAt(terrainTiles.artis, (x - wallBand) / tile, (y - wallBand) / tile);
         const columns = Math.floor(paving.naturalWidth / tile);
         const sourceX = (tileId % columns) * tile;
         const sourceY = Math.floor(tileId / columns) * tile;
@@ -289,49 +256,6 @@ function drawDesertWind() {
   ctx.restore();
 }
 
-function drawDesertScenery() {
-  if (!isDesertRegion() || currentRoom.type === 'secret') return;
-  const scenery = DESERT_ART.scenery;
-  const time = prefersReducedMotion() ? 0 : elapsed;
-  ctx.save();
-  for (const x of [scenery.postInset, ROOM_W - scenery.postInset]) {
-    for (const y of [scenery.topY, ROOM_H - scenery.bottomInset]) {
-      ctx.fillStyle = scenery.postColor;
-      ctx.fillRect(x - 16, y, 34, 4);
-      ctx.fillStyle = scenery.capColor;
-      ctx.fillRect(x - 17, y - 1, 36, 2);
-      // Cloth is drawn in short horizontal strips so only its free edge ripples.
-      for (let strip = 0; strip < scenery.strips; strip += 1) {
-        const sway = Math.sin(time * scenery.sway.speed - strip * scenery.sway.perStrip + x) *
-          strip * scenery.sway.amplitude;
-        const clothX = x - scenery.clothOffsetX + Math.round(sway);
-        const clothY = y + 4 + strip * scenery.stripHeight;
-        ctx.fillStyle = scenery.clothColors[strip % 3 === 0 ? 0 : 1];
-        ctx.fillRect(clothX, clothY, scenery.clothWidth, scenery.stripHeight);
-        ctx.fillStyle = scenery.trimColor;
-        ctx.fillRect(clothX + 3, clothY, 3, scenery.stripHeight);
-        ctx.fillRect(clothX + 19, clothY, 2, scenery.stripHeight);
-      }
-      const torchX = x + scenery.torchOffsetX;
-      const flame = Math.sin(time * scenery.flame.speed + x + y) * scenery.flame.amplitude;
-      ctx.fillStyle = scenery.torchColors.pole;
-      ctx.fillRect(torchX - 2, y + 18, 5, 18);
-      ctx.fillStyle = scenery.torchColors.bracket;
-      ctx.fillRect(torchX - 5, y + 20, 11, 4);
-      ctx.fillStyle = scenery.flame.color;
-      ctx.beginPath();
-      ctx.moveTo(torchX - 5, y + 18);
-      ctx.quadraticCurveTo(torchX - 7, y + 11, torchX + flame, y + 3);
-      ctx.quadraticCurveTo(torchX + 8, y + 15, torchX + 4, y + 19);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = scenery.flame.core;
-      ctx.fillRect(torchX - 1 + Math.round(flame / 2), y + 12, 3, 7);
-    }
-  }
-  ctx.restore();
-}
-
 function drawRegionAtmosphere() {
   if (!isDesertRegion() || currentRoom.type === 'secret') return;
   const { hazeDepth, hazeColor, hazeStops, sandstorm } = DESERT_ART.atmosphere;
@@ -366,49 +290,5 @@ function drawRegionAtmosphere() {
       }
     }
   }
-  ctx.restore();
-}
-
-function drawSandstoneWalls() {
-  const { tile: tileSize, wallBand } = DESERT_ART;
-  const walls = DESERT_ART.walls;
-  if (!sandstoneWallTiles.complete || sandstoneWallTiles.naturalWidth < walls.minAtlas ||
-      sandstoneWallTiles.naturalHeight < walls.minAtlas) return;
-  // Compress only wall depth to keep the existing 64px collision band and door positions.
-  const tile = (id, x, y, width, height) => {
-    ctx.drawImage(sandstoneWallTiles, id % walls.atlasColumns * tileSize, Math.floor(id / walls.atlasColumns) * tileSize,
-      tileSize, tileSize, x, y, width, height);
-  };
-  ctx.save();
-  clipRoomWallBand();
-  for (let y = wallBand; y < ROOM_H - wallBand; y += tileSize) {
-    for (let column = 0; column < walls.walkway.length; column += 1) {
-      tile(walls.walkway[column], column * walls.walkwayColumnWidth, y, walls.walkwayColumnWidth, tileSize);
-      tile(walls.walkway[column], ROOM_W - wallBand + column * walls.walkwayColumnWidth, y,
-        walls.walkwayColumnWidth, tileSize);
-    }
-  }
-  for (let x = wallBand; x < ROOM_W - wallBand; x += tileSize) {
-    for (let row = 0; row < walls.face.length; row += 1) {
-      const width = Math.min(tileSize, ROOM_W - wallBand - x);
-      tile(walls.face[row], x, row * walls.faceRowHeight, width, walls.faceRowHeight);
-      tile(walls.face[row], x, ROOM_H - wallBand + row * walls.faceRowHeight, width, walls.faceRowHeight);
-    }
-  }
-  const cell = walls.cornerCell;
-  const origins = [[0, 0], [ROOM_W - wallBand, 0], [0, ROOM_H - wallBand], [ROOM_W - wallBand, ROOM_H - wallBand]];
-  origins.forEach(([x, y], corner) => {
-    // The TMX places transparent corner artwork over the wall-top ground layer.
-    for (let row = 0; row < 4; row += 1) {
-      for (let column = 0; column < 4; column += 1) {
-        tile(walls.walkway[column], x + column * cell, y + row * cell, cell, cell);
-      }
-    }
-    for (let row = 0; row < 4; row += 1) {
-      for (let column = 0; column < 4; column += 1) {
-        tile(walls.corners[corner][row][column], x + column * cell, y + row * cell, cell, cell);
-      }
-    }
-  });
   ctx.restore();
 }

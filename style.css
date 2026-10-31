@@ -15,6 +15,34 @@
 
 * { box-sizing: border-box; }
 
+.artwork-loading:not([hidden]) {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 10, 9, 0.94);
+  touch-action: manipulation;
+}
+
+.artwork-loading-panel {
+  max-width: 36rem;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+#artwork-retry {
+  padding: 0.7rem 1rem;
+  color: var(--text);
+  border: 1px solid var(--line);
+  background: #30443b;
+  cursor: pointer;
+}
+
 html {
   min-height: 100%;
   overscroll-behavior: none;
