@@ -3484,7 +3484,7 @@ function drawWorld() {
     ctx.font = '14px Arial';
     ctx.fillText(`Carried: ${coins}  ·  Stored: ${save.bankedZeny}`, ROOM_W / 2, 142);
     ctx.font = '12px Arial';
-    ctx.fillText('Step on a pad  ·  Shift+E / B withdraw all', ROOM_W / 2, 164);
+    ctx.fillText('Stand on a pad and press E  ·  Shift+E / B withdraw all', ROOM_W / 2, 164);
     for (const withdraw of [false, true]) {
       const pad = bankPadPosition(withdraw);
       ctx.fillStyle = withdraw ? 'rgba(120, 170, 120, 0.35)' : 'rgba(200, 160, 80, 0.35)';
@@ -6246,9 +6246,9 @@ function tutorialPages() {
       ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENY AND KEYS', sections: [
-      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: step on the shop’s left pad to sell them for zeny.'],
+      ['Zeny', `Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: stand on the shop’s left pad and press ${b('interact')} to sell them for zeny.`],
       ['Shops', `Walk up to an item and press ${b('interact')} to buy it. Walking over an item never buys it. A shop is also a bank.`],
-      ['Bank', `Step on the vault pad to deposit what you carry. ${pad ? p.b : 'Shift+' + b('interact')} near it withdraws your savings.`],
+      ['Bank', `Stand on the vault pad and press ${b('interact')} to deposit what you carry, or on the withdraw pad to take your savings. ${pad ? p.b : 'Shift+' + b('interact')} near the vault withdraws too.`],
       ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
     ] },
     { title: 'ROOMS, MAP AND ENEMIES', sections: [

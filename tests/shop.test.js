@@ -88,7 +88,7 @@ test('the sell pad turns carried ore and crystals into zeny and counts them as f
   assert.equal(c.coins, 10);
 });
 
-test('the sell pad is walk-on while the repair pad needs the interact action', () => {
+test('the sell and repair pads exist only in shop rooms', () => {
   const c = shopContext();
   c.currentRoom = { type: 'shop' };
   c.mode = 'playing';
@@ -100,11 +100,71 @@ test('the sell pad is walk-on while the repair pad needs the interact action', (
   c.player.y = c.repairPadPosition().y;
   assert.equal(c.nearRepairPad(), true);
   c.currentRoom = { type: 'normal' };
-  assert.equal(c.nearRepairPad() || c.nearSellPad(), false, 'the pads exist only in shop rooms');
+  assert.equal(c.nearRepairPad() || c.nearSellPad(), false);
+});
+
+test('no shop pad triggers on contact: sell, repair, deposit and withdraw all need the interact action', () => {
   const source = readSource('worldmanager.js');
   const walkIn = source.slice(source.indexOf('function updateWalkInInteractions'), source.indexOf('function interact('));
-  assert.ok(walkIn.includes('sellMaterials()'));
-  assert.equal(walkIn.includes('repairArmor()'), false, 'repair must not trigger on contact');
+  for (const call of ['sellMaterials()', 'repairArmor()', 'bankPadPosition', 'nearSellPad']) {
+    assert.equal(walkIn.includes(call), false, `${call} must not run on contact`);
+  }
+
+  const c = shopContext();
+  c.currentRoom = { type: 'shop', shopStock: [], cleared: true, links: {}, lockedDoors: {} };
+  c.mode = 'playing';
+  c.player.x = c.sellPadPosition().x;
+  c.player.y = c.sellPadPosition().y;
+  vm.runInContext('materials.ironOre = 4;', c);
+  c.directions = [];
+  c.walkInCooldown = 0;
+  c.updateWalkInInteractions(0.016);
+  assert.equal(c.materialCount(), 4, 'standing on the sell pad sells nothing');
+  c.player.x = c.bankPadPosition(false).x;
+  c.player.y = c.bankPadPosition(false).y;
+  c.coins = 12;
+  c.walkInCooldown = 0;
+  c.updateWalkInInteractions(0.016);
+  assert.equal(c.coins, 12, 'standing on the deposit pad deposits nothing');
+});
+
+test('interact on a pad runs that pad, a nearer stall wins over a pad, and the withdraw pad withdraws', () => {
+  const c = shopContext();
+  const calls = [];
+  c.buyShopItem = (slot) => calls.push(`buy ${slot}`);
+  c.sellMaterials = () => calls.push('sell');
+  c.repairArmor = () => calls.push('repair');
+  c.persistRunAfterBankTransaction = () => {};
+  c.persistBankedZeny = (amount) => { vm.runInContext(`save.bankedZeny = ${amount};`, c); return true; };
+  c.currentRoom = { type: 'shop', shopStock: new Array(5).fill({ purchased: false }), cleared: true, links: {}, lockedDoors: {} };
+  c.mode = 'playing';
+  const stand = ({ x, y }) => { c.player.x = x; c.player.y = y; };
+
+  stand(c.sellPadPosition());
+  c.interact();
+  assert.deepEqual(calls.splice(0), ['sell']);
+  stand(c.repairPadPosition());
+  c.interact();
+  assert.deepEqual(calls.splice(0), ['repair']);
+
+  // With five stalls the outer stalls sit just below the pads; the nearer of the two takes the press.
+  const stall = c.shopPedestalPosition(1);
+  const pad = c.sellPadPosition();
+  stand({ x: pad.x, y: pad.y + 44 });
+  assert.ok(c.distanceBetween(c.player, stall) < c.distanceBetween(c.player, pad));
+  c.interact();
+  assert.deepEqual(calls.splice(0), ['buy 1']);
+
+  vm.runInContext('save.bankedZeny = 30;', c);
+  c.coins = 7;
+  stand(c.bankPadPosition(true));
+  c.interact();
+  assert.equal(c.coins, 37, 'the withdraw pad pays out the vault');
+  assert.equal(peek(c, 'save.bankedZeny'), 0);
+  stand(c.bankPadPosition(false));
+  c.interact();
+  assert.equal(c.coins, 0, 'the deposit pad stores what is carried');
+  assert.equal(peek(c, 'save.bankedZeny'), 37);
 });
 
 test('armor repair costs 2z a point, plus 1z every three floors, and only mends worn armor', () => {

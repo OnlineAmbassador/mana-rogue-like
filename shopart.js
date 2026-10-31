@@ -167,13 +167,13 @@ function drawShopRoom() {
   ctx.fillText('MERCHANT', merchant.x, merchant.y + 62);
   ctx.restore();
 
-  // Sell pad (walk on) and repair pad (stand on, then interact) beside the stall.
+  // Sell and repair pads beside the stall: stand on one, then interact.
   const sellPad = sellPadPosition();
   const repairPad = repairPadPosition();
   drawShopPiece('gems', sellPad.x, sellPad.y - 46, 0.9);
   const carried = materialCount();
   drawShopPad(sellPad, 'SELL', '#d7b66e',
-    carried > 0 ? [`${carried} for`, `${materialSaleValue()}z`] : ['ore and', 'crystals'], carried > 0);
+    carried > 0 ? [`[E] ${carried} for`, `${materialSaleValue()}z`] : ['ore and', 'crystals'], carried > 0);
   const missing = armorMissing();
   drawShopPad(repairPad, 'REPAIR', '#9fd39a',
     armorCapacity() > 0 ? [`[E] ${repairCostPerPoint()}z each`, `${missing} missing`] : ['needs', 'armor'], missing > 0);
