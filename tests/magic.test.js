@@ -242,6 +242,7 @@ test('lift moves the sprite and its directional shadow together, while bomb mark
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8'), c);
   c.drawEnemyBody = () => calls.push(['body-and-shadow']);
+  c.drawEffect = (name, frame, x, y, options) => calls.push(['effect', name, options]);
   const enemy = { x: 300, y: 300, radius: 12, manaSlam: { timer: 0.5, duration: 1 } };
   c.drawEnemy(enemy);
   assert.ok(calls.some(([command]) => command === 'body-and-shadow'));
@@ -251,7 +252,8 @@ test('lift moves the sprite and its directional shadow together, while bomb mark
   enemy.manaSlam = null;
   enemy.manaBomb = { timer: 0.6, duration: 1.2 };
   c.drawEnemy(enemy);
-  assert.ok(calls.some(([command, value]) => command === 'fillStyle' && value.startsWith('rgba(255, 35, 25')));
+  assert.ok(calls.some(([command, name, options]) => command === 'effect' && name === 'glow' && options.tint === '#ff2319'),
+    'the bomb mark is a red-tinted TMW glow');
 });
 
 test('normal magic curves subtly without changing speed or losing its general heading', () => {

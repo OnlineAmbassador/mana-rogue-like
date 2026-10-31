@@ -1,4 +1,5 @@
-/* Shop room art: market-stall pieces from the Artis market sheet, drawn unstretched, plus plain canvas text and shapes. */
+/* Shop room art: market-stall pieces from the Artis market sheet, drawn unstretched, SoM magic circles for the pads and
+   pedestals (effectart.js), and plain canvas text. */
 
 const SHOP_ART = {
   // Pixel scale for sheet pieces; nearest-neighbour, so the pixels stay crisp.
@@ -18,8 +19,7 @@ function shopMerchantPosition() {
   return { x: ROOM_W / 2, y: ROOM_H / 2 + 26 };
 }
 
-const shopMarketSheet = loadAsset('artis-market.png', 'assets/som/graphics');
-
+// `shopMarketSheet` is loaded in game.js: loadAsset needs `artwork`, which only exists once game.js has run.
 function shopSheetReady() {
   return shopMarketSheet.complete && shopMarketSheet.naturalWidth > 0;
 }
@@ -42,7 +42,7 @@ function wrapShopText(text, maxWidth, maxLines) {
   let line = '';
   for (let index = 0; index < words.length; index += 1) {
     const candidate = line ? `${line} ${words[index]}` : words[index];
-    if (ctx.measureText(candidate).width <= maxWidth || !line) {
+    if (ctx.measureText(candidate).width <= maxWidth || !line || maxLines === 1) {
       line = candidate;
       continue;
     }
@@ -66,14 +66,10 @@ function wrapShopText(text, maxWidth, maxLines) {
 // The detail lines sit inside the ring so they never reach the stalls below.
 function drawShopPad(position, label, accent, details, lit) {
   const pulse = prefersReducedMotion() ? 0 : Math.sin(elapsed * 3) * 2;
+  // A SoM magic circle in the pad's colour over a TMW shadow; it glows while the delver stands on it.
+  drawEffect('shadow', 0, position.x, position.y + 2, { width: 92, height: 60, alpha: 0.6, smooth: true });
+  drawEffectCircle(position.x, position.y, 40 + (lit ? pulse : 0), accent, { fill: lit ? 0.5 : 0, ring: 'castCross' });
   ctx.save();
-  ctx.fillStyle = lit ? 'rgba(244, 215, 142, 0.34)' : 'rgba(40, 34, 26, 0.5)';
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(position.x, position.y, 40 + (lit ? pulse : 0), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
   ctx.fillStyle = '#f2e5c6';
   ctx.font = 'bold 13px Arial';
   ctx.textAlign = 'center';
@@ -84,8 +80,34 @@ function drawShopPad(position, label, accent, details, lit) {
   ctx.restore();
 }
 
+// Packs bonus tags left to right into at most maxRows rows (measured in the current font); tags past the last row are
+// dropped here and stay readable in the pause inventory and the codex.
+function packShopTags(tags, maxWidth, maxRows) {
+  const gap = 8;
+  const rows = [[]];
+  let used = 0;
+  for (const tag of tags) {
+    const width = ctx.measureText(tag).width;
+    let row = rows[rows.length - 1];
+    if (row.length && used + gap + width > maxWidth) {
+      if (rows.length === maxRows) break;
+      row = [];
+      rows.push(row);
+      used = 0;
+    }
+    const x = row.length ? used + gap : 0;
+    row.push({ tag, x });
+    used = x + width;
+  }
+  return rows.filter((row) => row.length);
+}
+
+function shopTagColor(tag) {
+  return tag.startsWith('+') ? '#9fe09a' : tag.startsWith('-') ? '#e8908a' : '#d4c7ae';
+}
+
 function drawShopCard(item, spot, width, index) {
-  const height = 64;
+  const height = 70;
   const x = Math.round(spot.x - width / 2);
   const y = spot.y + 30;
   const affordable = coins >= item.cost || item.purchased;
@@ -101,9 +123,16 @@ function drawShopCard(item, spot, width, index) {
   ctx.fillText(`${item.cost}z`, x + width - 10, y + 20);
   ctx.textAlign = 'left';
   ctx.font = '10px Arial';
+  // The bonus numbers take up to two rows; the description gets what is left of the three text rows.
+  const tags = item.purchased ? [] : itemEffectTagsFor(item).filter((tag) => tag !== item.description);
+  const tagRows = packShopTags(tags, width - 20, 2);
   ctx.fillStyle = '#d4c7ae';
-  const lines = item.purchased ? ['SOLD'] : wrapShopText(item.description, width - 20, 3);
+  const lines = item.purchased ? ['SOLD'] : wrapShopText(item.description, width - 20, Math.max(1, 3 - tagRows.length));
   lines.forEach((line, lineIndex) => ctx.fillText(line, x + 10, y + 34 + lineIndex * 11, width - 20));
+  tagRows.forEach((row, rowIndex) => row.forEach(({ tag, x: offset }) => {
+    ctx.fillStyle = shopTagColor(tag);
+    ctx.fillText(tag, x + 10 + offset, y + 34 + (lines.length + rowIndex) * 11, width - 20);
+  }));
   ctx.restore();
   if (nearestShopSlot() === index) {
     ctx.save();
@@ -135,13 +164,13 @@ function drawShopRoom() {
   ctx.fillText('MERCHANT', merchant.x, merchant.y + 62);
   ctx.restore();
 
-  // Sell pad (walk on) and repair pad (stand on, then interact) beside the stall.
+  // Sell and repair pads beside the stall: stand on one, then interact.
   const sellPad = sellPadPosition();
   const repairPad = repairPadPosition();
   drawShopPiece('gems', sellPad.x, sellPad.y - 46, 0.9);
   const carried = materialCount();
   drawShopPad(sellPad, 'SELL', '#d7b66e',
-    carried > 0 ? [`${carried} for`, `${materialSaleValue()}z`] : ['ore and', 'crystals'], carried > 0);
+    carried > 0 ? [`[E] ${carried} for`, `${materialSaleValue()}z`] : ['ore and', 'crystals'], carried > 0);
   const missing = armorMissing();
   drawShopPad(repairPad, 'REPAIR', '#9fd39a',
     armorCapacity() > 0 ? [`[E] ${repairCostPerPoint()}z each`, `${missing} missing`] : ['needs', 'armor'], missing > 0);
@@ -153,13 +182,8 @@ function drawShopRoom() {
     drawShopPiece('counter', spot.x, spot.y + 30, 1);
     ctx.save();
     ctx.globalAlpha = item.purchased ? 0.4 : 1;
-    ctx.fillStyle = 'rgba(16, 14, 19, 0.55)';
-    ctx.strokeStyle = coins >= item.cost || item.purchased ? '#d9bd83' : '#9a6666';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(spot.x, spot.y, 30, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    drawEffect('shadow', 0, spot.x, spot.y + 2, { width: 64, height: 42, alpha: 0.7, smooth: true });
+    drawEffectCircle(spot.x, spot.y, 30, coins >= item.cost || item.purchased ? '#d9bd83' : '#9a6666');
     drawShopItemIcon(item, spot.x, spot.y);
     ctx.restore();
     drawShopCard(item, spot, width, index);

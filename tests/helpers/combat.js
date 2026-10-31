@@ -51,7 +51,7 @@ function combat() {
   for (const file of ['playermanager.js', 'mobmanager.js', 'worldmanager.js']) vm.runInContext(source(file), c);
   c.moveEnemyWithCollision = c.moveEnemy;
   vm.runInContext(`
-    recordEnemyDiscovery = recordEnemyAbilityDiscovery = addParticles = playSound = showMessage = updateHud = () => {};
+    recordEnemyDiscovery = recordEnemyAbilityDiscovery = addParticles = addEffectBurst = playSound = showMessage = updateHud = () => {};
     curioMultiplier = () => 1;
     damagePlayer = (amount) => damageCalls.push(amount);
     moveEnemy = (enemy, vx, vy) => moves.push({vx, vy});

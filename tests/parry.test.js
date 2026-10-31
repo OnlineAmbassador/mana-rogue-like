@@ -368,6 +368,9 @@ test('returned shots use the identical renderer as hostile shots and never draw 
   });
   const ui = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
   vm.runInContext(ui, c);
+  // Shots are effect sprites (effectart.js); record each sprite draw like a canvas call.
+  c.drawEffect = (...args) => { calls.push(['effect', ...args]); return true; };
+  c.effectFrameAt = () => 0;
   const loop = sliceText(ui, '  for (const projectile of projectiles) {', '  for (const particle of particles) {', 'ui');
   const hostileLoop = 'for (const projectile of enemyProjectiles) drawEnemyProjectile(projectile);';
   for (const kind of ['arrow', 'venom', 'spore-orb', 'spore-shard', 'ice-orb']) {

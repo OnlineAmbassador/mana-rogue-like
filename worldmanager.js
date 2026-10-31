@@ -803,7 +803,7 @@ function grantUpgrade(item, source = 'descent') {
   } else if (item.kind === 'clothing') {
     equipClothing(item);
   } else if (item.id === 'pearl') {
-    weapon.tearSize *= 1.45;
+    weapon.tearSize *= ITEM_TUNING.pearlSize;
     weapon.damageBonus += 1;
   } else if (item.id === 'prism') {
     const previousShotCount = weapon.shotCount;
@@ -811,10 +811,10 @@ function grantUpgrade(item, source = 'descent') {
     // Three shots at 0.4x each: 1.2x a single shot if all of them land.
     weapon.shotDamageMultiplier *= PRISM_TOTAL_DAMAGE * previousShotCount / weapon.shotCount;
   } else if (item.id === 'feather') {
-    weapon.fireDelay = Math.max(0.11, weapon.fireDelay * 0.7);
-    weapon.projectileSpeed += 70;
+    weapon.fireDelay = Math.max(0.11, weapon.fireDelay / ITEM_TUNING.featherFireRate);
+    weapon.projectileSpeed *= ITEM_TUNING.featherShotSpeed;
   } else if (rangeLensItemIds.includes(item.id)) {
-    weapon.rangeMultiplier *= 1.35;
+    weapon.rangeMultiplier *= ITEM_TUNING.rangeLens;
     weapon.rangeLevel += 1;
   } else if (item.kind === 'weapon') {
     combatStyles.add('melee');
@@ -842,18 +842,21 @@ function grantUpgrade(item, source = 'descent') {
   reservedUpgradeIds.delete(item.id);
   playSound('som:alteration/skillup.ogg', 0.35);
   updateHud();
+  const bonusTags = itemEffectTagsFor(item);
+  // The flavour line first, then the numbers on their own line so the toast never truncates them.
+  const flavour = item.quip || itemQuips[item.id];
   showMessage(
     item.kind === 'clothing'
-      ? `${item.name} equipped. Speed ${player.speed}; armor ${player.armor}.`
-      : item.quip || itemQuips[item.id]
-        ? `${item.quip || itemQuips[item.id]} (${item.description || attackMorphs[item.id]?.label || ''})${
-          item.kind === 'mod' && styleSynergy(item.style) ? ` CLASS SYNERGY: ${character.className} supercharges it!` : ''}`
+      ? `${item.name} equipped.`
+      : flavour
+        ? `${flavour}${item.kind === 'mod' && styleSynergy(item.style) ? ` CLASS SYNERGY: ${character.className} supercharges it!` : ''}`
         : attackMorphs[item.id]
         ? `${item.name} acquired. Your attacks change: ${attackMorphs[item.id].label}.`
         : `${item.name} acquired. Your mana answers to practice, not birthright.`,
     3,
   );
-  const effectTags = [...itemEffectTagsFor(item)];
+  if (bonusTags.length) showMessage(`${item.name}: ${bonusTags.join(', ')}`, 3.5);
+  const effectTags = [...bonusTags];
   if (sideEffectMode) effectTags.push(`${sideEffectMode.toUpperCase()} MODE`);
   showPickupBanner(item.name, effectTags);
   popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[item.id] });
@@ -862,12 +865,13 @@ function grantUpgrade(item, source = 'descent') {
 
 function equipClothing(item) {
   const previous = equippedClothing[item.slot];
+  // Speed is a multiplier (1.15 is +15%), so it undoes exactly and commutes with level-up speed boons.
   if (previous) {
-    player.speed -= previous.speedBonus;
+    player.speed /= previous.speedMul || 1;
     player.armor = Math.max(0, player.armor - previous.armorBonus);
   }
   equippedClothing[item.slot] = item;
-  player.speed += item.speedBonus;
+  player.speed *= item.speedMul || 1;
   player.armor += item.armorBonus;
 }
 
@@ -1282,7 +1286,7 @@ function bankPadPosition(withdraw) {
   return { x: ROOM_W / 2 + (withdraw ? 200 : -200), y: 160 };
 }
 
-// The sell pad (walk-on) and the repair pad (stand on it and interact) flank the merchant.
+// The sell and repair pads flank the merchant; like the bank pads they are used by standing on them and interacting.
 function sellPadPosition() {
   return { x: ROOM_W / 2 - 170, y: ROOM_H / 2 + 20 };
 }
@@ -1300,6 +1304,16 @@ function nearSellPad() {
 function nearRepairPad() {
   return currentRoom?.type === 'shop' && distanceBetween(player, repairPadPosition()) < SHOP_PAD_REACH;
 }
+
+// The pad the player is standing on, if any, with its distance; a stall nearer than that wins the interact press.
+function nearestShopPad() {
+  const pads = [];
+  if (nearRepairPad()) pads.push({ kind: 'repair', distance: distanceBetween(player, repairPadPosition()) });
+  if (nearSellPad()) pads.push({ kind: 'sell', distance: distanceBetween(player, sellPadPosition()) });
+  return pads.sort((a, b) => a.distance - b.distance)[0] || null;
+}
+
+const BANK_PAD_REACH = 44;
 
 function materialCount() {
   return Object.keys(materialCatalog).reduce((total, key) => total + materials[key], 0);
@@ -1427,23 +1441,6 @@ function updateWalkInInteractions(dt) {
     currentRoom.descendArmed = true;
   }
   if (walkInCooldown > 0) return;
-  if (nearSellPad() && materialCount() > 0) {
-    walkInCooldown = 1.5;
-    sellMaterials();
-    return;
-  }
-  if (hasVault(currentRoom)) {
-    if (coins > 0 && distanceBetween(player, bankPadPosition(false)) < 44) {
-      walkInCooldown = 1.5;
-      interact();
-      return;
-    }
-    if (save.bankedZeny > 0 && distanceBetween(player, bankPadPosition(true)) < 44) {
-      walkInCooldown = 1.5;
-      interact(true);
-      return;
-    }
-  }
   if (currentRoom.type === 'boss' && currentRoom.cleared && currentRoom.descendArmed &&
       distanceBetween(player, { x: ROOM_W * 0.72, y: ROOM_H / 2 }) < 40) {
     walkInCooldown = 1;
@@ -1581,23 +1578,28 @@ function interact(withdrawFromBank = false) {
     return;
   }
   const shopSlot = withdrawFromBank ? -1 : nearestShopSlot();
-  if (shopSlot >= 0) {
+  const shopPad = withdrawFromBank ? null : nearestShopPad();
+  if (shopSlot >= 0 && !(shopPad && shopPad.distance < distanceBetween(player, shopPedestalPosition(shopSlot)))) {
     buyShopItem(shopSlot);
     return;
   }
   // The pads sit within reach of the bank pads, so they are checked first.
-  if (!withdrawFromBank && nearRepairPad()) {
+  if (shopPad?.kind === 'repair') {
     repairArmor();
     return;
   }
-  if (!withdrawFromBank && nearSellPad()) {
+  if (shopPad?.kind === 'sell') {
     sellMaterials();
     return;
   }
-  if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
+  const onVaultPad = hasVault(currentRoom) && !withdrawFromBank &&
+    (distanceBetween(player, bankPadPosition(false)) < BANK_PAD_REACH || distanceBetween(player, bankPadPosition(true)) < BANK_PAD_REACH);
+  // Interact on the withdraw pad withdraws; anywhere else near the vault it deposits, as before.
+  const withdrawing = withdrawFromBank || (onVaultPad && distanceBetween(player, bankPadPosition(true)) < BANK_PAD_REACH);
+  if (hasVault(currentRoom) && (onVaultPad || (distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
       (withdrawFromBank || distanceBetween(player, bankPadPosition(false)) < 160 ||
-        distanceBetween(player, bankPadPosition(true)) < 160)) {
-    if (withdrawFromBank) {
+        distanceBetween(player, bankPadPosition(true)) < 160)))) {
+    if (withdrawing) {
       const amount = save.bankedZeny;
       if (amount <= 0) showMessage('Your vault is empty.', 2);
       else if (persistBankedZeny(0)) {
@@ -1620,7 +1622,7 @@ function interact(withdrawFromBank = false) {
     return;
   }
   if (currentRoom.type === 'shop' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 150) {
-    showMessage('Stand next to an item and press E to buy it. Step on the left pad to sell ore; press E on the right pad to repair.', 3);
+    showMessage('Stand next to an item and press E to buy it. Stand on the left pad and press E to sell ore, or on the right pad to repair.', 3);
     return;
   }
 

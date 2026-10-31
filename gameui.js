@@ -233,6 +233,8 @@ function loadAsset(path, root = assetRoot) {
   if (artwork.images.has(url)) return artwork.images.get(url);
   const image = new Image();
   artwork.images.set(url, image);
+  // Deferred art (see loadDeferredAsset) waits in a queue and never holds the loading screen.
+  const deferred = Boolean(artwork.deferNext) && !artwork.started;
   image.decoding = 'async';
   let retries = 0;
   const fail = (error) => {
@@ -247,7 +249,7 @@ function loadAsset(path, root = assetRoot) {
   };
   const start = () => {
     artwork.failed.delete(url);
-    artwork.pending.add(url);
+    if (!deferred) artwork.pending.add(url);
     image.src = url;
   };
   image.onload = () => {
@@ -256,8 +258,25 @@ function loadAsset(path, root = assetRoot) {
     else ready();
   };
   image.onerror = fail;
-  start();
+  if (deferred) {
+    artwork.deferred.add(url);
+    artwork.queue.push(start);
+  } else {
+    start();
+  }
   return image;
+}
+
+// For art first needed after startup (boss sheets, effect sprites): the download starts only once the startup art
+// has loaded, so it neither competes with it for connections nor holds up the loading screen. Until it arrives the
+// drawing code skips it or draws its fallback, as it does for any art still loading.
+function loadDeferredAsset(path, root = assetRoot) {
+  artwork.deferNext = true;
+  try {
+    return loadAsset(path, root);
+  } finally {
+    artwork.deferNext = false;
+  }
 }
 
 // Maps the grey pixels of a TMW icon onto a gradient of evenly spaced colors, as the TMW client does for the
@@ -319,6 +338,7 @@ function artworkBlocking() {
 
 function updateArtworkLoading() {
   if (!artwork.pending.size && !artwork.failed.size) artwork.started = true;
+  if (artwork.started && artwork.queue.length) for (const start of artwork.queue.splice(0)) start();
   const busy = artworkBlocking();
   const panel = document.getElementById('artwork-loading');
   if (panel.hidden === busy) {
@@ -333,7 +353,7 @@ function updateArtworkLoading() {
     const failed = artwork.failed.size;
     const text = failed
       ? `Could not load ${failed} artwork file(s). Check your connection and retry. ${artwork.failed.values().next().value}`
-      : `Loading artwork: ${artwork.images.size - artwork.pending.size} / ${artwork.images.size}`;
+      : `Loading artwork: ${artwork.images.size - artwork.deferred.size - artwork.pending.size} / ${artwork.images.size - artwork.deferred.size}`;
     const status = document.getElementById('artwork-status');
     if (status.textContent !== text) status.textContent = text;
     document.getElementById('artwork-retry').hidden = !failed;
@@ -583,16 +603,58 @@ function elementDisplayName(element) {
   return element === 'bubble' ? 'water' : element;
 }
 
+// Signed whole-percent change of a multiplier: 1.5 is '+50%' and 0.9 is '-10%'.
+function formatGain(multiplier) {
+  const percent = Math.round((multiplier - 1) * 100);
+  return `${percent < 0 ? '-' : '+'}${Math.abs(percent)}%`;
+}
+
+const bonusStatLabels = { damage: 'Attack', speed: 'Speed', fire: 'Fire rate' };
+
+// The bonus lines shown for an item on shop cards, toasts, the pause grid and the codex. Higher is always better for a
+// '+' line: rates are shown as rates, not delays. Numbers come from ITEM_TUNING, the item's own `effects` or clothing
+// multipliers and `attackMorphs`; a saved shop stall keeps an old copy of the item, so the live catalogue entry wins.
 function itemEffectTagsFor(item) {
-  if (item.effects) {
-    return Object.entries(item.effects).map(([key, value]) =>
-      `${value > 1 ? '+' : '-'}${effectKeyLabels[key] || key.toUpperCase()}`);
+  const live = shopItemCatalog.find((entry) => entry.id === item.id) || item;
+  const gain = (multiplier, label) => `${formatGain(multiplier)} ${label}`;
+  if (live.effects) {
+    return Object.entries(live.effects).map(([key, value]) => gain(value, bonusStatLabels[key] || key));
   }
-  if (item.id.startsWith('heart-vessel-')) return ['+MAX HEART'];
-  if (item.id.startsWith('luck-up-')) return ['+LUCK'];
-  if (item.id.startsWith('sanctum-blessing')) return ['+MAX HEART', '+ATTACK'];
-  if (item.chaos) return [item.chaos === 'room' ? '?RANDOM STATUS EACH ROOM' : '?RANDOM STATUS EVERY FEW SECONDS'];
-  return itemEffectTags[item.id] || [item.description || ''].filter(Boolean);
+  if (live.kind === 'clothing') {
+    return [
+      ...(live.speedMul && live.speedMul !== 1 ? [gain(live.speedMul, 'Speed')] : []),
+      ...(live.armorBonus ? [`+${live.armorBonus} Armor`] : []),
+    ];
+  }
+  if (live.id.startsWith('heart-vessel-')) return ['+1 Max heart'];
+  if (live.id.startsWith('luck-up-')) return ['+1 Luck'];
+  if (live.id.startsWith('sanctum-blessing')) return ['+1 Max heart', '+1 Attack'];
+  const tuning = ITEM_TUNING;
+  switch (live.id) {
+    case 'pearl': return [gain(tuning.pearlSize, 'Shot size'), '+1 Attack'];
+    case 'prism':
+      return [`${PRISM_SHOT_COUNT}-way fan`, `${Math.round(PRISM_TOTAL_DAMAGE / PRISM_SHOT_COUNT * 100)}% damage each`];
+    case 'feather': return [gain(tuning.featherFireRate, 'Fire rate'), gain(tuning.featherShotSpeed, 'Shot speed')];
+    case 'range-lens': case 'range-lens-ii':
+      return [gain(tuning.rangeLens, 'Range'), gain(1 + MELEE_REACH_PER_LENS, 'Melee reach')];
+    case 'range-lens-iii':
+      return [gain(tuning.rangeLens, 'Range'), gain(1 + MELEE_REACH_PER_LENS, 'Melee reach'), 'Shots pierce walls'];
+    case 'mod-windup': return [gain(tuning.chargeSpeed, 'Charge speed'), 'Melee charge mode'];
+    case 'mod-draw': return [gain(tuning.chargeSpeed, 'Charge speed'), 'Bow charge mode'];
+    case 'mod-quiver': return [gain(tuning.quiverFireRate, 'Fire rate'), gain(tuning.quiverDamage, 'Arrow damage')];
+    case 'mod-flurry': return [gain(FLURRY_SWING_RATE, 'Swing rate'), gain(1 / MELEE_BASE_SCALE, 'Hit damage')];
+    case 'swift-daggers':
+      return ['+1 Melee attack', gain(1 / DAGGER_COOLDOWN_SCALE, 'Swing rate'), '-20% Melee reach'];
+    default: break;
+  }
+  if (live.chaos) return itemEffectTags[live.id] || [];
+  const tags = [];
+  const morph = attackMorphs[live.id];
+  if (morph?.damageMul) tags.push(gain(morph.damageMul, 'Shot damage'));
+  if (morph?.speedMul) tags.push(gain(morph.speedMul, 'Shot speed'));
+  if (morph?.sizeMul) tags.push(gain(morph.sizeMul, 'Shot size'));
+  tags.push(...(itemEffectTags[live.id] || []));
+  return tags.length ? tags : [live.description || ''].filter(Boolean);
 }
 
 function popOverPlayer({ icon, color = '#ffe38a', image = null }) {
@@ -694,20 +756,10 @@ function drawOverheadPops() {
         ctx.rect(cx - 9, cy - 8, 9, 14);
         ctx.clip();
       }
-      ctx.beginPath();
-      ctx.moveTo(cx, cy + 6);
-      ctx.bezierCurveTo(cx - 9, cy, cx - 6, cy - 8, cx, cy - 3);
-      ctx.bezierCurveTo(cx + 6, cy - 8, cx + 9, cy, cx, cy + 6);
-      ctx.fill();
+      drawEffect('heart', 0, cx, cy, { width: 15 });
       ctx.restore();
     } else if (pop.icon === 'key') {
-      ctx.beginPath();
-      ctx.arc(cx - 3, cy, 3, 0, Math.PI * 2);
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + 7, cy);
-      ctx.moveTo(cx + 5, cy);
-      ctx.lineTo(cx + 5, cy + 3);
-      ctx.stroke();
+      drawEffect('key', 0, cx, cy, { width: 20 });
     } else if (pop.icon === 'bomb') {
       ctx.beginPath();
       ctx.arc(cx, cy + 2, 6, 0, Math.PI * 2);
@@ -717,9 +769,7 @@ function drawOverheadPops() {
       ctx.lineTo(cx + 6, cy - 7);
       ctx.stroke();
     } else {
-      ctx.beginPath();
-      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-      ctx.fill();
+      drawEffect('star', 0, cx, cy, { width: 14, tint: pop.color });
     }
     ctx.restore();
   });
@@ -1002,7 +1052,10 @@ function drawPauseEquipment() {
       ctx.fillStyle = '#fff4d5';
       ctx.fillText(String(item.count), x + cell - 4, y + cell - 5);
     }
-    if (hovered) label = item.name + (item.count > 0 ? ` (${item.count})` : '');
+    if (hovered) {
+      const bonuses = itemEffectTagsFor(item).filter((tag) => tag !== item.description);
+      label = item.name + (item.count > 0 ? ` (${item.count})` : '') + (bonuses.length ? `:  ${bonuses.join(', ')}` : '');
+    }
   });
   ctx.textAlign = 'left';
   ctx.font = 'bold 12px Georgia';
@@ -1335,22 +1388,9 @@ function drawRoomFloor() {
   }
 }
 
+// TMW star particle in the spell's colour.
 function drawPlayerMagicMark(x, y, color) {
-  ctx.save();
-  ctx.globalAlpha = 0.95;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(x, y - 7);
-  ctx.lineTo(x + 6, y);
-  ctx.lineTo(x, y + 7);
-  ctx.lineTo(x - 6, y);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
-  ctx.restore();
+  drawEffect('star', 0, x, y, { width: 18, tint: color, alpha: 0.95, rotation: elapsed * 2 });
 }
 
 function drawEnemy(enemy) {
@@ -1381,14 +1421,9 @@ function drawEnemy(enemy) {
     ctx.save();
     drawEnemyBody(enemy);
     const pulse = 0.5 + Math.sin(elapsed * (18 + (1 - enemy.manaBomb.timer / enemy.manaBomb.duration) * 22)) * 0.5;
-    ctx.fillStyle = `rgba(255, 35, 25, ${0.2 + pulse * 0.55})`;
-    ctx.beginPath();
-    ctx.ellipse(enemy.x, enemy.y - enemy.radius * 0.7, enemy.radius, enemy.radius * 1.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#fff3da';
-    ctx.font = 'bold 14px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('!', enemy.x, enemy.y - enemy.radius * 2 - 8);
+    drawEffect('glow', 0, enemy.x, enemy.y - enemy.radius * 0.7, { width: enemy.radius * 3, height: enemy.radius * 3.6,
+      tint: '#ff2319', alpha: 0.35 + pulse * 0.6, smooth: true });
+    drawEffect('surprise', 0, enemy.x, enemy.y - enemy.radius * 2 - 14, { width: 20 });
     ctx.restore();
     return;
   }
@@ -1486,28 +1521,13 @@ function drawEnemyBody(enemy) {
   if (enemy.gustVisualTimer > 0) {
     const angle = enemy.gustVisualAngle;
     const strength = enemy.gustVisualTimer / 1.1;
-    ctx.save();
-    ctx.strokeStyle = `rgba(218, 243, 255, ${0.35 + strength * 0.5})`;
-    ctx.fillStyle = '#e8f7ff';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    for (let index = -1; index <= 1; index += 1) {
-      const offset = index * 0.36;
-      const startX = enemy.x + Math.cos(angle + offset) * (enemy.radius + 9);
-      const startY = enemy.y + Math.sin(angle + offset) * (enemy.radius + 9);
-      const endX = startX + Math.cos(angle + offset) * (44 + (1 - strength) * 28);
-      const endY = startY + Math.sin(angle + offset) * (44 + (1 - strength) * 28);
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(endX, endY);
-      ctx.lineTo(endX - Math.cos(angle + offset - 0.55) * 10,
-        endY - Math.sin(angle + offset - 0.55) * 10);
-      ctx.moveTo(endX, endY);
-      ctx.lineTo(endX - Math.cos(angle + offset + 0.55) * 10,
-        endY - Math.sin(angle + offset + 0.55) * 10);
-      ctx.stroke();
+    // SoM sonic wave arcs travelling out along the gust.
+    for (let index = 0; index < 3; index += 1) {
+      const distance = enemy.radius + 14 + index * 18 + (1 - strength) * 28;
+      drawEffect('sonicWave', index + (strength < 0.5 ? 1 : 0), enemy.x + Math.cos(angle) * distance,
+        enemy.y + Math.sin(angle) * distance, { height: 34 + index * 8, rotation: angle,
+          tint: '#daf3ff', alpha: 0.35 + strength * 0.6 });
     }
-    ctx.restore();
   }
   const sprite = monsterSprites[enemy.kind];
   if (!sprite.image.complete || sprite.image.naturalWidth === 0) {
@@ -1701,31 +1721,16 @@ function drawEnemyBody(enemy) {
     ctx.restore();
   }
   if (enemy.burnTimer > 0) {
-    ctx.save();
-    if (Math.floor(elapsed * 14) % 2 === 0) {
-      ctx.fillStyle = 'rgba(255, 111, 52, 0.85)';
-      ctx.beginPath();
-      ctx.moveTo(enemy.x - 5, enemy.y - enemy.radius + 8);
-      ctx.lineTo(enemy.x - 2, enemy.y - enemy.radius - 4 - Math.sin(elapsed * 19) * 3);
-      ctx.lineTo(enemy.x + 1, enemy.y - enemy.radius + 5);
-      ctx.lineTo(enemy.x + 5, enemy.y - enemy.radius - 2 - Math.cos(elapsed * 17) * 3);
-      ctx.lineTo(enemy.x + 7, enemy.y - enemy.radius + 9);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.restore();
+    drawEffect('fire', effectFrameAt('fire', elapsed + enemy.x * 0.01, 12), enemy.x, enemy.y - enemy.radius + 8,
+      { anchorY: 0.9, width: 22, alpha: 0.9 });
   }
   if (enemy.kind === 'spider-queen' && enemy.behavior === 'spider-pounce-windup' &&
     enemy.spiderPounceTarget) {
+    drawEffectCircle(enemy.spiderPounceTarget.x, enemy.spiderPounceTarget.y, 24 + Math.sin(elapsed * 14) * 4,
+      '#e78fc6', { fill: 0.4, alpha: 0.85 });
     ctx.save();
     ctx.strokeStyle = 'rgba(231, 143, 198, 0.85)';
-    ctx.fillStyle = 'rgba(231, 143, 198, 0.16)';
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(enemy.spiderPounceTarget.x, enemy.spiderPounceTarget.y,
-      24 + Math.sin(elapsed * 14) * 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(enemy.x, enemy.y);
     ctx.lineTo(enemy.spiderPounceTarget.x, enemy.spiderPounceTarget.y);
@@ -1733,27 +1738,14 @@ function drawEnemyBody(enemy) {
     ctx.restore();
   }
   if (enemy.kind === 'jacko' && enemy.behavior === 'jacko-ground-pound-windup' && enemy.groundPoundTarget) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(255, 78, 40, 0.22)';
-    ctx.strokeStyle = 'rgba(255, 174, 66, 0.9)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(enemy.groundPoundTarget.x, enemy.groundPoundTarget.y,
-      38 + clamp(1 - enemy.stateTimer / 0.35, 0, 1) * 34, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawEffectCircle(enemy.groundPoundTarget.x, enemy.groundPoundTarget.y,
+      38 + clamp(1 - enemy.stateTimer / 0.35, 0, 1) * 34, '#ffae42', { fill: 0.45, alpha: 0.9, ring: 'castCross' });
   }
   if (enemy.kind === 'golem' && enemy.behavior === 'golem-slam-windup' && enemy.slamTarget) {
+    drawEffectCircle(enemy.slamTarget.x, enemy.slamTarget.y,
+      (enemy.phase >= 2 ? 112 : 74) * clamp(1 - enemy.stateTimer * 0.12, 0, 1), '#ffbf6f',
+      { fill: 0.4, alpha: 0.92, ring: 'castCross' });
     ctx.save();
-    ctx.fillStyle = 'rgba(235, 133, 79, 0.18)';
-    ctx.strokeStyle = 'rgba(255, 191, 111, 0.92)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(enemy.slamTarget.x, enemy.slamTarget.y,
-      (enemy.phase >= 2 ? 112 : 74) * clamp(1 - enemy.stateTimer * 0.12, 0, 1), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
     if (enemy.boss) {
       ctx.fillStyle = '#fff0d1';
       ctx.font = 'bold 12px Arial';
@@ -1782,22 +1774,14 @@ function drawEnemyBody(enemy) {
         : enemy.signature === 'arrow-barrage' ? '#e9bd79'
           : enemy.signature === 'ice-burst' || enemy.signature === 'yeti-slam' ? '#9fe7f3'
             : '#b79be7';
-    ctx.save();
-    ctx.globalAlpha = 0.72;
-    ctx.strokeStyle = signatureColor;
-    ctx.lineWidth = 3;
-    ctx.shadowColor = signatureColor;
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, enemy.radius + 8 + Math.sin(elapsed * 15) * 3, 0, Math.PI * 2);
-    ctx.stroke();
+    drawEffectCircle(enemy.x, enemy.y, enemy.radius + 8 + Math.sin(elapsed * 15) * 3, signatureColor,
+      { alpha: 0.8, ring: 'castStar', rotation: elapsed * 2 });
     if (enemy.signatureTarget && ['yeti-slam', 'reaper-charge', 'slime-trail'].includes(enemy.signature)) {
-      ctx.globalAlpha = 0.34;
-      ctx.beginPath();
-      ctx.arc(enemy.signatureTarget.x, enemy.signatureTarget.y,
-        enemy.signature === 'yeti-slam' ? 72 : 24, 0, Math.PI * 2);
-      ctx.stroke();
+      drawEffectCircle(enemy.signatureTarget.x, enemy.signatureTarget.y, enemy.signature === 'yeti-slam' ? 72 : 24,
+        signatureColor, { alpha: 0.45 });
     }
+    ctx.save();
+    ctx.strokeStyle = signatureColor;
     if (enemy.signatureTarget && ['slime-charge', 'bandit-charge'].includes(enemy.signature)) {
       ctx.globalAlpha = 0.28;
       ctx.lineWidth = 16;
@@ -1850,15 +1834,8 @@ function drawEnemyBody(enemy) {
     ctx.restore();
   }
   if (enemy.behavior === 'bomb-windup' && enemy.bombTarget) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(255, 116, 54, 0.16)';
-    ctx.strokeStyle = 'rgba(255, 178, 90, 0.9)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(enemy.bombTarget.x, enemy.bombTarget.y, 16 + Math.sin(elapsed * 14) * 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawEffectCircle(enemy.bombTarget.x, enemy.bombTarget.y, 16 + Math.sin(elapsed * 14) * 3, '#ffb25a',
+      { fill: 0.4, alpha: 0.9 });
   }
   if (enemy.behavior === 'windup' || enemy.behavior === 'leap-windup' ||
     enemy.behavior === 'stalker-windup' || enemy.behavior === 'shoot-windup' ||
@@ -1866,12 +1843,9 @@ function drawEnemyBody(enemy) {
     enemy.behavior === 'golem-slam-windup' ||
     enemy.behavior === 'jacko-roll-windup' ||
     enemy.behavior === 'jacko-jump-windup' || enemy.behavior === 'jacko-shot-windup' || enemy.spitFlash > 0) {
-    ctx.strokeStyle = enemy.archetype === 'charger' || enemy.kind === 'jacko' || enemy.kind === 'golem'
-      ? 'rgba(255, 191, 95, 0.8)' : 'rgba(202, 164, 255, 0.8)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, enemy.radius + 6 + Math.sin(elapsed * 18) * 2, 0, Math.PI * 2);
-    ctx.stroke();
+    drawEffectCircle(enemy.x, enemy.y, enemy.radius + 6 + Math.sin(elapsed * 18) * 2,
+      enemy.archetype === 'charger' || enemy.kind === 'jacko' || enemy.kind === 'golem' ? '#ffbf5f' : '#caa4ff',
+      { alpha: 0.85 });
   }
   if (enemy.behavior === 'shoot-windup' && enemy.shotTarget) {
     ctx.save();
@@ -1924,16 +1898,7 @@ function drawEnemyBody(enemy) {
     ctx.restore();
   }
   if (enemy.linkEnraged) {
-    ctx.save();
-    ctx.globalAlpha = 0.6;
-    ctx.strokeStyle = '#f4d474';
-    ctx.shadowColor = '#f4d474';
-    ctx.shadowBlur = 9;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, enemy.radius + 7, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    drawEffectCircle(enemy.x, enemy.y, enemy.radius + 7, '#f4d474', { alpha: 0.7, ring: 'castRunes', rotation: -elapsed });
   }
   const labelTop = enemy.y - Math.max(enemy.radius, sprite.frameHeight * mobDrawScale(enemy, sprite) / 2);
   if (enemy.hp < enemy.maxHp) {
@@ -2021,16 +1986,16 @@ function drawPlayer() {
     Math.floor(bodyFrameIndex / bodyColumns) * 64, 64, 64,
     player.x, player.y + 6 * pulseY, 64 * 1.45 * pulseX, 64 * 1.45 * pulseY);
   if (player.chargeFraction > 0.02) {
+    // A dark SoM magic circle, revealed in colour clockwise from the top as the charge builds.
+    const chargeColor = player.chargeFraction >= 1 ? '#fff2a0' : '#7fd8ff';
+    drawEffectCircle(player.x, player.y - 34, 34, '#202020', { alpha: 0.5 });
     ctx.save();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.beginPath();
-    ctx.arc(player.x, player.y - 34, 34, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = player.chargeFraction >= 1 ? '#fff2a0' : '#7fd8ff';
-    ctx.beginPath();
-    ctx.arc(player.x, player.y - 34, 34, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.chargeFraction);
-    ctx.stroke();
+    ctx.moveTo(player.x, player.y - 34);
+    ctx.arc(player.x, player.y - 34, 48, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * player.chargeFraction);
+    ctx.closePath();
+    ctx.clip();
+    drawEffectCircle(player.x, player.y - 34, 34, chargeColor);
     ctx.restore();
   }
   ctx.save();
@@ -2130,37 +2095,15 @@ function drawCastingHands(direction, color) {
   if (direction === 'left' || direction === 'right') {
     // Side view: only a faint sliver of the chest glow peeks past the torso.
     const sx = direction === 'left' ? -6 : 6;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.5 + Math.sin(elapsed * 8) * 0.12;
-    ctx.strokeStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 8;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(sx, -41.5);
-    ctx.lineTo(sx, -38.5);
-    ctx.stroke();
-    ctx.restore();
+    drawEffect('orbGlow', 0, sx, -40, { width: 3, height: 7, tint: color, composite: 'lighter',
+      alpha: 0.5 + Math.sin(elapsed * 8) * 0.12, smooth: true });
     return;
   }
   if (direction !== 'down') return;
+  // SoM glow orb on the chest, brighter while attacking.
   const flare = 1 + (player.attackPulse > 0 ? 0.8 : 0);
-  const hands = [[0, -40]];
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const [hx, hy] of hands) {
-    const radius = (2.6 + Math.sin(elapsed * 8) * 0.4) * flare;
-    const glow = ctx.createRadialGradient(hx, hy, 0, hx, hy, radius);
-    glow.addColorStop(0, '#ffffff');
-    glow.addColorStop(0.5, color);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(hx, hy, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
+  const radius = (2.6 + Math.sin(elapsed * 8) * 0.4) * flare;
+  drawEffect('orbGlow', 0, 0, -40, { width: radius * 3, tint: color, composite: 'lighter', smooth: true });
 }
 
 function drawClothing(clothing, frameIndex, x, y, scale) {
@@ -2470,6 +2413,9 @@ function drawSoulMenhir() {
   ctx.restore();
 }
 
+// TMW lettered runestones for the trial nodes, one per node.
+const TRIAL_RUNESTONES = ['runeA', 'runeL', 'runeN', 'runeT', 'runeW'];
+
 function drawRewardTrial() {
   if (currentRoom.type !== 'trial' || currentRoom.trialCompleted) return;
   const mode = currentRoom.trialMode;
@@ -2486,19 +2432,15 @@ function drawRewardTrial() {
         ? node.index === expectedIndex
         : node.index === expectedIndex;
       const near = mode === 'memory' && distanceBetween(player, node) < 70;
-      ctx.fillStyle = active ? (mode === 'memory' ? '#83dfcf' : '#f0d98a') : '#514e67';
-      ctx.strokeStyle = near ? '#fff1c4' : active ? '#fff1c4' : '#292837';
-      ctx.lineWidth = near ? 4 : 2;
-      ctx.shadowColor = ctx.fillStyle;
-      ctx.shadowBlur = active ? 16 : 3;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, active ? 20 : 16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+      // A TMW runestone on a SoM magic circle; the circle lights up on the rune to trace.
+      const glowColor = active ? (mode === 'memory' ? '#83dfcf' : '#f0d98a') : '#514e67';
+      drawEffectCircle(node.x, node.y, active ? 24 : 20, glowColor,
+        { fill: active ? 0.7 : 0.2, alpha: near || active ? 1 : 0.6, ring: 'castRunes' });
+      drawEffect(TRIAL_RUNESTONES[node.index % TRIAL_RUNESTONES.length], 0, node.x, node.y,
+        { width: active ? 36 : 30, alpha: active || near ? 1 : 0.75 });
       ctx.fillStyle = '#fff6db';
       ctx.font = 'bold 12px Arial';
-      ctx.fillText(String(node.index + 1), node.x, node.y + 4);
+      ctx.fillText(String(node.index + 1), node.x + 14, node.y + 16);
       if (near && active) {
         ctx.fillStyle = '#fff1c4';
         ctx.fillText('[E] TRACE', node.x, node.y - 28);
@@ -2589,157 +2531,44 @@ function drawRewardTrial() {
   ctx.restore();
 }
 
+// One TMW menhir per element (soulmenhirs_x2.png has nine stones; the ninth is a gem, not used).
+const ELEMENTAL_MENHIR_FRAMES = { wind: 0, lightning: 1, ice: 2, fire: 3, bubble: 4, gas: 5, spore: 6, earth: 7 };
+
+// The element's own effect sprite, drawn as the glyph on the stone.
+function drawElementGlyph(element, x, y, size, alpha = 1) {
+  const tint = magicElementPalette[element];
+  if (element === 'fire') drawEffect('fire', effectFrameAt('fire', elapsed, 10), x, y, { width: size, alpha });
+  else if (element === 'lightning') drawEffect('sparks', effectFrameAt('sparks', elapsed, 16), x, y, { width: size, tint, alpha });
+  else if (element === 'bubble') drawEffect('bubble', effectFrameAt('bubble', elapsed, 6), x, y, { width: size * 0.8, alpha });
+  else if (element === 'gas') drawEffect('smoke', 0, x, y, { width: size, tint, alpha, smooth: true });
+  else if (element === 'spore') drawEffect('sporeBubble', effectFrameAt('sporeBubble', elapsed, 8), x, y, { width: size * 0.8, alpha });
+  else if (element === 'ice') drawEffect('snowflake', 0, x, y, { width: size * 0.8, alpha });
+  else if (element === 'wind') drawEffect('sonicWave', 2, x, y, { height: size, tint, alpha });
+  else drawEffect('star', 0, x, y, { width: size, tint: tint || '#d8d0bc', alpha });
+}
+
 function drawElementalMenhir() {
   const { x, y } = elementalShrinePosition();
   const element = currentRoom.shrineElement;
   const color = magicElementPalette[element] || '#d8d0bc';
   const t = performance.now() / 1000;
   const active = !currentRoom.shrineUsed;
+  const frame = ELEMENTAL_MENHIR_FRAMES[element] ?? 7;
+  const [sx, sy] = effectFrameRect(EFFECT_SHEETS.menhirs, frame);
+  const size = 112;
+  drawSunSpriteShadow(effectArt.menhirs, sx, sy, 64, 64, x, y + 36, size, size);
   ctx.save();
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha *= sunlightStrength(x, y + 36);
-  ctx.fillStyle = '#101722';
-  ctx.translate(x, y + 36);
-  ctx.transform(1, 0, -0.55, -0.55, 0, 0);
-  ctx.beginPath();
-  for (const [index, point] of [[-34, 0], [-29, -74], [-12, -105], [13, -111], [31, -79], [35, 0]].entries()) {
-    if (index === 0) ctx.moveTo(...point);
-    else ctx.lineTo(...point);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-  ctx.save();
-  const glow = ctx.createRadialGradient(x, y - 28, 8, x, y - 28, 100);
-  glow.addColorStop(0, `${color}${active ? '66' : '33'}`);
-  glow.addColorStop(1, `${color}00`);
-  ctx.fillStyle = glow;
-  ctx.fillRect(x - 110, y - 140, 220, 220);
-
-  ctx.fillStyle = '#494943';
-  ctx.strokeStyle = '#bdb7a5';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(x - 34, y + 36);
-  ctx.lineTo(x - 29, y - 38);
-  ctx.lineTo(x - 12, y - 69);
-  ctx.lineTo(x + 13, y - 75);
-  ctx.lineTo(x + 31, y - 43);
-  ctx.lineTo(x + 35, y + 36);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.strokeStyle = active ? color : '#77746e';
-  ctx.fillStyle = active ? `${color}44` : 'rgba(80, 80, 76, 0.35)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(x, y - 23, 21, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.save();
-  ctx.translate(x, y - 23);
-  ctx.strokeStyle = active ? '#fff4dc' : '#aaa69c';
-  ctx.fillStyle = active ? '#fff4dc' : '#aaa69c';
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  if (element === 'bubble') {
-    for (const [bx, by, radius] of [[-7, 5, 5], [5, 0, 7], [9, -10, 3]]) {
-      ctx.beginPath();
-      ctx.arc(bx, by, radius, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  } else if (element === 'fire') {
-    ctx.beginPath();
-    ctx.moveTo(-11, 10);
-    ctx.lineTo(-8, -1);
-    ctx.lineTo(-2, -13);
-    ctx.lineTo(1, -3);
-    ctx.lineTo(8, -12);
-    ctx.lineTo(11, 2);
-    ctx.lineTo(7, 11);
-    ctx.closePath();
-    ctx.fill();
-  } else if (element === 'lightning') {
-    ctx.beginPath();
-    ctx.moveTo(3, -14);
-    ctx.lineTo(-9, 2);
-    ctx.lineTo(-1, 2);
-    ctx.lineTo(-4, 14);
-    ctx.lineTo(10, -4);
-    ctx.lineTo(2, -4);
-    ctx.closePath();
-    ctx.fill();
-  } else if (element === 'gas') {
-    for (const [bx, by, radius] of [[-7, 3, 6], [0, -4, 8], [8, 3, 6]]) {
-      ctx.beginPath();
-      ctx.arc(bx, by, radius, Math.PI, 0);
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.moveTo(-12, 4);
-    ctx.lineTo(12, 4);
-    ctx.stroke();
-  } else if (element === 'spore') {
-    ctx.beginPath();
-    ctx.arc(0, -3, 10, Math.PI, 0);
-    ctx.lineTo(8, 1);
-    ctx.lineTo(-8, 1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillRect(-2, 1, 4, 10);
-    for (const dot of [[-5, -4], [1, -8], [6, -2]]) {
-      ctx.beginPath();
-      ctx.arc(dot[0], dot[1], 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
-  } else if (element === 'ice') {
-    for (let arm = 0; arm < 3; arm += 1) {
-      ctx.save();
-      ctx.rotate(arm * Math.PI / 3);
-      ctx.beginPath();
-      ctx.moveTo(0, -13);
-      ctx.lineTo(0, 13);
-      ctx.moveTo(-4, -7);
-      ctx.lineTo(0, -3);
-      ctx.lineTo(4, -7);
-      ctx.moveTo(-4, 7);
-      ctx.lineTo(0, 3);
-      ctx.lineTo(4, 7);
-      ctx.stroke();
-      ctx.restore();
-    }
-  } else if (element === 'wind') {
-    for (let row = -5; row <= 5; row += 5) {
-      ctx.beginPath();
-      ctx.moveTo(-12, row);
-      ctx.quadraticCurveTo(0, row - 5, 11, row);
-      ctx.stroke();
-    }
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(-12, 8);
-    ctx.lineTo(-3, -8);
-    ctx.lineTo(2, 0);
-    ctx.lineTo(7, -12);
-    ctx.lineTo(13, 8);
-    ctx.closePath();
-    ctx.stroke();
-  }
-  ctx.restore();
+  drawEffect('glow', 0, x, y - 28, { width: 220, tint: color, alpha: active ? 0.55 : 0.25, smooth: true });
+  drawEffect('menhirs', frame, x, y + 36, { width: size, anchorY: 1, alpha: active ? 1 : 0.8 });
+  drawElementGlyph(element, x, y - 18, 26, active ? 1 : 0.4);
 
   if (active) {
     for (let index = 0; index < 10; index += 1) {
       const phase = (t * 0.28 + index / 10) % 1;
       const angle = t * 0.55 + index * 2.4;
       const radius = 30 + (index % 3) * 7;
-      ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.85;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x + Math.cos(angle) * radius, y - 20 - phase * 80 + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
-      ctx.fill();
+      drawEffect('star', 0, x + Math.cos(angle) * radius, y - 20 - phase * 80 + Math.sin(angle) * 8,
+        { width: 9, tint: color, alpha: Math.sin(phase * Math.PI) * 0.85 });
     }
   }
   ctx.globalAlpha = 1;
@@ -2852,6 +2681,27 @@ function drawShopItemIconArt(item, centerX, centerY, ctx) {
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(itemImage, centerX - 14, centerY - 14, 28, 28);
+    ctx.restore();
+    return;
+  }
+  // Items without their own icon borrow a TMW or SoM icon for their kind; the drawn glyphs below are left only
+  // for kinds no icon covers (prism, clothing, bombs, the generic mark).
+  const borrowed = item.kind === 'lore' ? ['spellBook']
+    : item.kind === 'element' && item.element === 'fire' ? ['fireIcon']
+      : item.kind === 'element' && item.element === 'lightning' ? ['lightningOrb']
+        : item.kind === 'element' && item.element === 'gas' ? ['smoke', magicElementPalette.gas]
+          : item.id === 'frost-rune' ? ['snowflake']
+            : item.kind === 'passive' && item.id === 'feather' ? ['feather']
+              : item.kind === 'passive' && item.id !== 'prism' ? ['manaBall']
+                : (item.kind === 'weapon' || item.kind === 'skill') && (item.style === 'bow' || item.weapon === 'daggers') ? ['bowIcon']
+                  : (item.kind === 'weapon' || item.kind === 'skill') && item.style === 'magic' ? ['spellIcon']
+                    : item.kind === 'weapon' || item.kind === 'skill' ? ['swordIcon']
+                      : item.kind === 'companion' ? ['meow']
+                        : item.id === 'mana-tonic' ? ['flask'] : null;
+  if (borrowed && effectImageReady(effectArt[borrowed[0]])) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tintedEffectImage(effectArt[borrowed[0]], borrowed[1]), centerX - 14, centerY - 14, 28, 28);
     ctx.restore();
     return;
   }
@@ -3089,6 +2939,13 @@ function drawPickupItem(pickup) {
   }
   if (!drawPickupItem.cache) drawPickupItem.cache = new Map();
   const kind = ['key', 'bomb', 'coin', 'xp', 'heart'].includes(pickup.kind) ? pickup.kind : 'item';
+  // TMW icons for keys, zeny and gems; the drawn textures below stay as the fallback and for bombs.
+  const icon = { key: effectArt.key, coin: effectArt.coins, xp: effectArt.diamond, item: effectArt.diamond }[kind];
+  if (effectImageReady(icon)) {
+    const size = kind === 'xp' ? 24 : 32;
+    drawOutlinedItemImage(icon, Math.round(pickup.x - size / 2), Math.round(pickup.y + bob - size / 2), size, size);
+    return true;
+  }
   let texture = drawPickupItem.cache.get(kind);
   if (!texture) {
     const icon = document.createElement('canvas');
@@ -3148,53 +3005,15 @@ function drawPickupItem(pickup) {
   return true;
 }
 
-function drawMorphShape(shape, color) {
-  ctx.fillStyle = color;
-  ctx.strokeStyle = '#101612';
-  ctx.lineWidth = 2.2;
-  if (shape === 'ring') {
-    ctx.beginPath();
-    ctx.arc(0, 0, 9, 0, Math.PI * 2);
-    ctx.lineWidth = 6;
-    ctx.stroke();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    return;
-  }
-  ctx.beginPath();
-  if (shape === 'diamond') {
-    ctx.moveTo(13, 0);
-    ctx.lineTo(0, -8);
-    ctx.lineTo(-9, 0);
-    ctx.lineTo(0, 8);
-    ctx.closePath();
-  } else {
-    ctx.ellipse(0, 0, 10, 6, 0, 0, Math.PI * 2);
-  }
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-  ctx.beginPath();
-  ctx.arc(2, -2, 2, 0, Math.PI * 2);
-  ctx.fill();
-}
-
 function drawGroundHazards() {
   for (const strike of bossStrikes) {
     const progress = 1 - strike.timer / strike.duration;
+    // A red SoM magic circle marks the edge; a tinted TMW glow fills in from the centre as the strike charges.
+    drawEffect('glow', 0, strike.x, strike.y, { width: strike.radius * 2.6 * progress, tint: '#ff4630',
+      alpha: 0.5 + progress * 0.4, smooth: true });
+    drawEffectCircle(strike.x, strike.y, strike.radius, '#ff5a46',
+      { fill: 0.35 + progress * 0.3, alpha: 0.6 + progress * 0.4, ring: 'castRunes', rotation: elapsed * 0.6 });
     ctx.save();
-    ctx.fillStyle = `rgba(255, 40, 40, ${0.12 + progress * 0.22})`;
-    ctx.strokeStyle = `rgba(255, 90, 70, ${0.55 + progress * 0.45})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(strike.x, strike.y, strike.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = `rgba(255, 70, 50, ${0.3 + progress * 0.4})`;
-    ctx.beginPath();
-    ctx.arc(strike.x, strike.y, strike.radius * progress, 0, Math.PI * 2);
-    ctx.fill();
     if (strike.dashCheck) {
       ctx.fillStyle = '#fff0d1';
       ctx.font = 'bold 16px Arial';
@@ -3218,95 +3037,41 @@ function drawGroundHazards() {
       drawPlayerMagicMark(hazard.x, hazard.y - hazard.radius * 0.6 - 10, hazard.color);
     }
     const alpha = Math.min(0.68, hazard.ttl / 2.5);
-    ctx.save();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = alpha * 0.24;
-    ctx.fillStyle = '#101722';
-    ctx.strokeStyle = '#101722';
-    ctx.lineWidth = 3;
-    ctx.translate(2, 2);
-    ctx.beginPath();
+    const wobble = Math.sin(elapsed + hazard.x) * 0.08;
+    // TMW shadow under every hazard; a SoM web, or a TMW glow flattened into a pool and tinted to the hazard colour.
+    drawEffect('shadow', 0, hazard.x + 2, hazard.y + 2, { width: hazard.radius * 2.1, height: hazard.radius * 1.25,
+      alpha: alpha * 0.5, smooth: true });
     if (hazard.kind === 'web') {
-      ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
-      for (let spoke = 0; spoke < 8; spoke += 1) {
-        const angle = spoke * Math.PI / 4;
-        ctx.moveTo(hazard.x, hazard.y);
-        ctx.lineTo(hazard.x + Math.cos(angle) * hazard.radius,
-          hazard.y + Math.sin(angle) * hazard.radius);
-      }
-      ctx.stroke();
-    } else {
-      ctx.ellipse(hazard.x, hazard.y, hazard.radius, hazard.radius * 0.58,
-        Math.sin(elapsed + hazard.x) * 0.08, 0, Math.PI * 2);
-      ctx.fill();
+      drawEffect('web', 0, hazard.x, hazard.y, { width: hazard.radius * 3.2, alpha: Math.min(1, alpha * 1.4),
+        tint: hazard.owner === 'player' ? hazard.color : null });
+      continue;
     }
-    ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = hazard.color;
-    ctx.strokeStyle = hazard.color;
-    ctx.lineWidth = 3;
-    if (hazard.kind === 'web') {
-      ctx.beginPath();
-      ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      for (let spoke = 0; spoke < 8; spoke += 1) {
-        const angle = spoke * Math.PI / 4;
-        ctx.beginPath();
-        ctx.moveTo(hazard.x, hazard.y);
-        ctx.lineTo(hazard.x + Math.cos(angle) * hazard.radius,
-          hazard.y + Math.sin(angle) * hazard.radius);
-        ctx.stroke();
+    drawEffect('glow', 0, hazard.x, hazard.y, { width: hazard.radius * 2.8, height: hazard.radius * 1.6,
+      rotation: wobble, tint: hazard.color, alpha: Math.min(1, alpha * 1.4), smooth: true });
+    if (hazard.kind === 'miasma') {
+      for (let puff = 0; puff < 3; puff += 1) {
+        const angle = elapsed * 1.8 + puff * Math.PI * 2 / 3;
+        const rise = (elapsed * 0.7 + puff / 3) % 1;
+        drawEffect('smoke', 0, hazard.x + Math.cos(angle) * hazard.radius * 0.4,
+          hazard.y + Math.sin(angle) * hazard.radius * 0.22 - rise * 28,
+          { width: 30 + Math.sin(elapsed * 5 + puff) * 6, alpha: alpha * (1 - rise * 0.6), smooth: true,
+            tint: hazard.owner === 'player' ? hazard.color : '#b6de62' });
       }
-    } else {
-      ctx.beginPath();
-      ctx.ellipse(hazard.x, hazard.y, hazard.radius, hazard.radius * 0.58,
-        Math.sin(elapsed + hazard.x) * 0.08, 0, Math.PI * 2);
-      ctx.fill();
-      if (hazard.kind === 'miasma') {
-        ctx.strokeStyle = hazard.owner === 'player' ? hazard.color : 'rgba(228, 255, 152, 0.9)';
-        ctx.lineWidth = 2;
-        for (let puff = 0; puff < 3; puff += 1) {
-          const angle = elapsed * 1.8 + puff * Math.PI * 2 / 3;
-          const x = hazard.x + Math.cos(angle) * hazard.radius * 0.4;
-          const y = hazard.y + Math.sin(angle) * hazard.radius * 0.22 -
-            ((elapsed * 0.7 + puff / 3) % 1) * 28;
-          ctx.fillStyle = hazard.owner === 'player' ? hazard.color : 'rgba(182, 222, 98, 0.4)';
-          ctx.beginPath();
-          ctx.arc(x, y, 12 + Math.sin(elapsed * 5 + puff) * 3, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        }
-      } else if (hazard.kind === 'lightning') {
-        ctx.strokeStyle = hazard.color;
-        ctx.lineWidth = hazard.damageCooldown <= 0 ? 5 : 1.5;
-        ctx.globalAlpha = 1;
-        ctx.beginPath();
-        ctx.moveTo(hazard.x, hazard.y - 220);
-        ctx.lineTo(hazard.x + 14, hazard.y - 150);
-        ctx.lineTo(hazard.x - 12, hazard.y - 80);
-        ctx.lineTo(hazard.x + 8, hazard.y);
-        ctx.stroke();
-      } else if (hazard.kind === 'fire') {
-        ctx.fillStyle = hazard.owner === 'player' ? hazard.color : '#ffd36a';
-        for (let flame = 0; flame < 3; flame += 1) {
-          const x = hazard.x + (flame - 1) * hazard.radius * 0.45;
-          const height = 26 + Math.sin(elapsed * 12 + flame + hazard.x) * 9;
-          ctx.beginPath();
-          ctx.moveTo(x - 9, hazard.y);
-          ctx.quadraticCurveTo(x - 12, hazard.y - 12, x + 3, hazard.y - height);
-          ctx.quadraticCurveTo(x, hazard.y - 12, x + 9, hazard.y);
-          ctx.closePath();
-          ctx.fill();
-        }
-      } else if (hazard.kind === 'acid') {
-        ctx.beginPath();
-        ctx.arc(hazard.x - 12, hazard.y - 4, 4, 0, Math.PI * 2);
-        ctx.arc(hazard.x + 13, hazard.y + 6, 3, 0, Math.PI * 2);
-        ctx.fill();
+    } else if (hazard.kind === 'lightning') {
+      drawEffect('lightning', 0, hazard.x, hazard.y, { anchorY: 1, height: 230, tint: hazard.color,
+        alpha: hazard.damageCooldown <= 0 ? 1 : 0.45, composite: 'lighter' });
+    } else if (hazard.kind === 'fire') {
+      for (let flame = 0; flame < 3; flame += 1) {
+        drawEffect('flames', effectFrameAt('flames', elapsed + flame * 0.31, 12),
+          hazard.x + (flame - 1) * hazard.radius * 0.45, hazard.y + 4,
+          { anchorY: 0.85, width: 40, tint: hazard.owner === 'player' ? hazard.color : null });
       }
+    } else if (hazard.kind === 'acid') {
+      drawEffect('bubble', effectFrameAt('bubble', elapsed, 8), hazard.x - 12, hazard.y - 4,
+        { width: 14, tint: hazard.color });
+      drawEffect('bubble', effectFrameAt('bubble', elapsed + 0.4, 8), hazard.x + 13, hazard.y + 4,
+        { width: 11, tint: hazard.color });
     }
-    ctx.restore();
   }
 }
 
@@ -3333,76 +3098,29 @@ function withTextOutline(fn, color = 'rgba(8, 6, 10, 0.92)', width = 3.5, font =
 }
 
 function drawEnemyProjectile(projectile) {
-  ctx.save();
-  ctx.shadowColor = projectile.color;
+  const angle = Math.atan2(projectile.vy, projectile.vx);
   if (projectile.kind === 'arrow') {
-    ctx.translate(projectile.x, projectile.y);
-    ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
-    ctx.shadowBlur = 8;
-    ctx.strokeStyle = '#704526';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(-12, 0);
-    ctx.lineTo(10, 0);
-    ctx.stroke();
-    ctx.fillStyle = '#d5c18b';
-    ctx.beginPath();
-    ctx.moveTo(13, 0);
-    ctx.lineTo(6, -3.5);
-    ctx.lineTo(6, 3.5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#d5c18b';
-    ctx.beginPath();
-    ctx.moveTo(-9, 0);
-    ctx.lineTo(-14, -4);
-    ctx.moveTo(-9, 0);
-    ctx.lineTo(-14, 4);
-    ctx.stroke();
+    drawEffect('arrow', 0, projectile.x, projectile.y, { width: 28, rotation: angle });
   } else if (projectile.kind === 'spore-orb') {
+    // TMW spore bubble inside a SoM glow, with four SoM sparkle seeds circling it.
     const pulse = 1 + Math.sin(elapsed * 14) * 0.12;
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = projectile.color;
-    ctx.beginPath();
-    ctx.arc(projectile.x, projectile.y, projectile.radius * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(245, 211, 255, 0.9)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(projectile.x, projectile.y, projectile.radius + 6 + Math.sin(elapsed * 12) * 2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = '#f5d8fb';
+    drawEffect('orbGlow', 0, projectile.x, projectile.y, { width: (projectile.radius + 8) * 2.4 * pulse,
+      tint: projectile.color, smooth: true });
+    drawEffect('sporeBubble', effectFrameAt('sporeBubble', elapsed, 12), projectile.x, projectile.y,
+      { width: projectile.radius * 2.4 * pulse });
     for (let seed = 0; seed < 4; seed += 1) {
-      const angle = elapsed * 2 + seed * Math.PI / 2;
-      ctx.beginPath();
-      ctx.arc(projectile.x + Math.cos(angle) * 8, projectile.y + Math.sin(angle) * 8, 2, 0, Math.PI * 2);
-      ctx.fill();
+      const seedAngle = elapsed * 2 + seed * Math.PI / 2;
+      drawEffect('star', 0, projectile.x + Math.cos(seedAngle) * 9, projectile.y + Math.sin(seedAngle) * 9,
+        { width: 8, tint: '#f5d8fb' });
     }
   } else if (projectile.kind === 'spore-shard') {
-    ctx.translate(projectile.x, projectile.y);
-    ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = projectile.color;
-    ctx.beginPath();
-    ctx.moveTo(8, 0);
-    ctx.lineTo(-4, -3);
-    ctx.lineTo(-8, 0);
-    ctx.lineTo(-4, 3);
-    ctx.closePath();
-    ctx.fill();
+    drawEffect('sporeSplash', effectFrameAt('sporeSplash', elapsed, 12), projectile.x, projectile.y,
+      { width: 20, tint: projectile.color, rotation: angle });
   } else {
-    ctx.shadowBlur = 13;
-    ctx.fillStyle = projectile.color;
-    ctx.beginPath();
-    ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.beginPath();
-    ctx.arc(projectile.x - projectile.radius * 0.25, projectile.y - projectile.radius * 0.25,
-      projectile.radius * 0.34, 0, Math.PI * 2);
-    ctx.fill();
+    drawEffect('orbGlow', 0, projectile.x, projectile.y, { width: projectile.radius * 3.2, tint: projectile.color,
+      smooth: true });
+    drawEffect('manaBall', 0, projectile.x, projectile.y, { width: projectile.radius * 2, tint: projectile.color });
   }
-  ctx.restore();
 }
 
 function drawWorld() {
@@ -3419,11 +3137,8 @@ function drawWorld() {
   if (currentRoom.type === 'start') drawSoulMenhir();
   if (currentRoom.type === 'elemental-shrine') drawElementalMenhir();
   if (currentRoom.type === 'boss' && currentRoom.cleared) {
-    ctx.fillStyle = '#a8d7b4';
-    ctx.fillRect(ROOM_W * 0.72 - 30, ROOM_H / 2 - 8, 60, 16);
-    ctx.strokeStyle = '#e1f4d1';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(ROOM_W * 0.72 - 30, ROOM_H / 2 - 8, 60, 16);
+    // The descent pad is the 40 px circle the walk-on check uses: a turning SoM magic circle.
+    drawEffectCircle(ROOM_W * 0.72, ROOM_H / 2, 40, '#a8d7b4', { fill: 0.5, ring: 'castStar', rotation: elapsed * 0.8 });
     ctx.fillStyle = '#f2e5c6';
     ctx.font = 'bold 13px Arial';
     ctx.textAlign = 'center';
@@ -3439,16 +3154,10 @@ function drawWorld() {
     ctx.font = '14px Arial';
     ctx.fillText(`Carried: ${coins}  ·  Stored: ${save.bankedZeny}`, ROOM_W / 2, 142);
     ctx.font = '12px Arial';
-    ctx.fillText('Step on a pad  ·  Shift+E / B withdraw all', ROOM_W / 2, 164);
+    ctx.fillText('Stand on a pad and press E  ·  Shift+E / B withdraw all', ROOM_W / 2, 164);
     for (const withdraw of [false, true]) {
       const pad = bankPadPosition(withdraw);
-      ctx.fillStyle = withdraw ? 'rgba(120, 170, 120, 0.35)' : 'rgba(200, 160, 80, 0.35)';
-      ctx.strokeStyle = withdraw ? '#9fd39a' : '#d7b66e';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(pad.x, pad.y, 40, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      drawEffectCircle(pad.x, pad.y, 40, withdraw ? '#9fd39a' : '#d7b66e', { fill: 0.35, ring: 'castCross' });
       ctx.fillStyle = '#f2e5c6';
       ctx.font = 'bold 13px Arial';
       ctx.fillText(withdraw ? 'WITHDRAW' : 'DEPOSIT', pad.x, pad.y + 5);
@@ -3527,14 +3236,8 @@ function drawWorld() {
       }
     }
     if (rock.guaranteedDrop) {
-      ctx.fillStyle = '#ffe08b';
-      ctx.beginPath();
-      ctx.moveTo(rock.x, rock.y - rock.radius - 13);
-      ctx.lineTo(rock.x + 4, rock.y - rock.radius - 9);
-      ctx.lineTo(rock.x, rock.y - rock.radius - 5);
-      ctx.lineTo(rock.x - 4, rock.y - rock.radius - 9);
-      ctx.closePath();
-      ctx.fill();
+      drawEffect('twinkle', 0, rock.x, rock.y - rock.radius - 9, { width: 18, tint: '#ffe08b',
+        rotation: elapsed * 1.5, smooth: true });
     }
     ctx.restore();
   }
@@ -3544,15 +3247,7 @@ function drawWorld() {
     const renderY = bomb.y - (inFlight ? Math.sin(progress * Math.PI) * 36 : 0);
     drawSunGroundShadow(bomb.x, bomb.y, 11, bomb.y - renderY);
     if (bomb.owner === 'enemy') {
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 108, 54, 0.18)';
-      ctx.strokeStyle = 'rgba(255, 157, 73, 0.85)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(bomb.targetX, bomb.targetY, 15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
+      drawEffectCircle(bomb.targetX, bomb.targetY, 15, '#ff9d49', { fill: 0.4, alpha: 0.85 });
     }
     ctx.fillStyle = bomb.fuse < 0.45 ? '#f1785e'
       : bomb.owner === 'enemy' ? '#573027' : '#26252a';
@@ -3569,13 +3264,8 @@ function drawWorld() {
     drawSunGroundShadow(pickup.x, pickup.y, 9.6);
     if (drawDropIcon(pickup.x, pickup.y, () => drawPickupItem(pickup), pickup.kind === 'heart' ? 0.6 : 0.8)) {
       if (pickup.guaranteedTreasure) {
-        ctx.save();
-        ctx.strokeStyle = '#0e0868';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(pickup.x, pickup.y, 22 + Math.sin(elapsed * 4) * 2, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
+        drawEffect('twinkle', 0, pickup.x, pickup.y, { width: (22 + Math.sin(elapsed * 4) * 2) * 2.2,
+          tint: '#ffe08b', rotation: elapsed, alpha: 0.8, smooth: true });
       }
       continue;
     }
@@ -3583,24 +3273,9 @@ function drawWorld() {
       const bob = Math.sin(elapsed * 3 + pickup.x) * 3;
       ctx.save();
       ctx.translate(pickup.x, pickup.y + bob);
-      ctx.shadowColor = '#a8f0d7';
-      ctx.shadowBlur = 16;
-      ctx.fillStyle = 'rgba(27, 68, 61, 0.88)';
-      ctx.strokeStyle = '#0e0868';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 18, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#d7fff0';
-      ctx.beginPath();
-      ctx.moveTo(0, -11);
-      ctx.lineTo(7, 0);
-      ctx.lineTo(0, 11);
-      ctx.lineTo(-7, 0);
-      ctx.closePath();
-      ctx.fill();
+      // TMW spell book in a teal TMW glow.
+      drawEffect('glow', 0, 0, 0, { width: 64, tint: '#a8f0d7', alpha: 0.8, smooth: true });
+      if (effectImageReady(effectArt.spellBook)) drawOutlinedItemImage(effectArt.spellBook, -16, -16, 32, 32);
       ctx.fillStyle = '#effff7';
       ctx.font = 'bold 10px Arial';
       ctx.textAlign = 'center';
@@ -3609,11 +3284,8 @@ function drawWorld() {
       continue;
     }
     if (pickup.guaranteedTreasure) {
-      ctx.strokeStyle = 'rgba(255, 224, 139, 0.88)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(pickup.x, pickup.y, 15 + Math.sin(elapsed * 4) * 2, 0, Math.PI * 2);
-      ctx.stroke();
+      drawEffect('twinkle', 0, pickup.x, pickup.y, { width: (15 + Math.sin(elapsed * 4) * 2) * 2.2,
+        tint: '#ffe08b', rotation: elapsed, alpha: 0.88, smooth: true });
     }
     if (pickup.kind === 'upgrade') {
       const bob = Math.sin(elapsed * 4 + pickup.x) * 2;
@@ -3673,7 +3345,7 @@ function drawWorld() {
       if (icon?.complete && icon.naturalWidth > 0) {
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(icon, pickup.x - 12, pickup.y + bob - 12, 24, 24);
-      } else {
+      } else if (!drawEffect('question', 0, pickup.x, pickup.y + bob, { width: 26 })) {
         ctx.fillStyle = '#ffd37a';
         ctx.font = 'bold 18px Arial';
         ctx.textAlign = 'center';
@@ -3814,44 +3486,24 @@ function drawWorld() {
       const endX = projectile.beamEndX ?? startX + projectile.vx * projectile.beamRange;
       const endY = projectile.beamEndY ?? startY + projectile.vy * projectile.beamRange;
       const pulse = 0.85 + Math.sin(elapsed * 32) * 0.15;
-      ctx.save();
-      ctx.globalAlpha = pulse;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = projectile.color;
-      ctx.shadowColor = projectile.color;
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = projectile.beamWidth;
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(endX, endY);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#fff4d8';
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(endX, endY);
-      ctx.stroke();
+      // TMW glow stretched along the beam (tinted), a narrower untinted core, and the beam-crit burst on impact.
+      drawEffectBetween('glow', 0, startX, startY, endX, endY, projectile.beamWidth * 2.4,
+        { tint: projectile.color, alpha: pulse, composite: 'lighter', smooth: true });
+      drawEffectBetween('glow', 0, startX, startY, endX, endY, projectile.beamWidth * 0.7,
+        { alpha: pulse, composite: 'lighter', smooth: true });
       if (projectile.beamExplosionTimer > 0) {
-        ctx.fillStyle = '#fff3ce';
-        ctx.beginPath();
-        ctx.arc(projectile.beamExplosionX, projectile.beamExplosionY,
-          projectile.beamWidth * 0.75, 0, Math.PI * 2);
-        ctx.fill();
+        drawEffect('beamCrit', effectFrameAt('beamCrit', elapsed, 16), projectile.beamExplosionX, projectile.beamExplosionY,
+          { width: projectile.beamWidth * 2.4, tint: projectile.color });
       }
-      ctx.restore();
       continue;
     }
     const size = 18 * (projectile.size || 1);
     ctx.save();
     if (projectile.wildEffect) {
-      ctx.save();
-      ctx.strokeStyle = projectile.color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(projectile.x, projectile.y, projectile.radius + 3 + Math.sin(elapsed * 18) * 2, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+      drawEffect('castStar', 0, projectile.x, projectile.y, {
+        width: (projectile.radius + 3 + Math.sin(elapsed * 18) * 2) * 2.4,
+        rotation: elapsed * 4, tint: projectile.color, smooth: true,
+      });
     }
     if (projectiles.length <= 24) {
       ctx.shadowColor = projectile.color;
@@ -3864,190 +3516,60 @@ function drawWorld() {
     const launchAge = projectile.born === undefined ? 1 : elapsed - projectile.born;
     if (launchAge >= 0 && launchAge < 0.22) {
       const t = launchAge / 0.22;
-      ctx.save();
-      ctx.globalAlpha = 0.6 * (1 - t);
-      ctx.strokeStyle = projectile.color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(projectile.x, projectile.y, size * (0.5 + t * 0.9), 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+      drawEffect('sparkles', t * 4, projectile.x, projectile.y,
+        { width: size * (1 + t * 1.8), tint: projectile.color, alpha: 0.85 * (1 - t) });
     }
     if (projectile.type === 'arrow') {
       const angle = Math.atan2(projectile.vy, projectile.vx);
-      ctx.translate(projectile.x, projectile.y);
-      ctx.rotate(angle);
+      const s = projectile.size || 1;
       const arrowElement = projectile.glow || projectile.element;
       if (arrowElement) {
-        const tint = magicElementPalette[arrowElement];
-        const s = projectile.size || 1;
-        ctx.shadowColor = tint;
-        ctx.shadowBlur = 18;
-        ctx.fillStyle = tint;
-        ctx.globalAlpha = 0.85;
-        ctx.beginPath();
+        // The element trails behind the arrow: SoM flames, TMW sparks, or a tinted TMW glow.
+        const backX = projectile.x - Math.cos(angle) * 12 * s;
+        const backY = projectile.y - Math.sin(angle) * 12 * s;
         if (arrowElement === 'fire') {
-          // Flickering flame trailing off the arrow.
-          const flick = Math.sin(elapsed * 40 + projectile.x) * 3;
-          ctx.moveTo(8 * s, 0);
-          ctx.quadraticCurveTo(-4 * s, -8 * s - flick, -26 * s, flick * 0.5);
-          ctx.quadraticCurveTo(-4 * s, 8 * s + flick, 8 * s, 0);
+          drawEffect('fire', effectFrameAt('fire', elapsed, 14), backX, backY,
+            { width: 30 * s, rotation: angle - Math.PI / 2, alpha: 0.9 });
         } else if (arrowElement === 'lightning') {
-          ctx.moveTo(10 * s, 0);
-          ctx.lineTo(-2 * s, -6 * s);
-          ctx.lineTo(-6 * s, 2 * s);
-          ctx.lineTo(-22 * s, -3 * s);
-          ctx.lineTo(-8 * s, 4 * s);
-          ctx.lineTo(-2 * s, 0);
+          drawEffect('sparks', effectFrameAt('sparks', elapsed, 24), backX, backY,
+            { width: 30 * s, tint: magicElementPalette.lightning, rotation: angle });
         } else {
-          ctx.ellipse(-6 * s, 0, 18 * s, 6 * s, 0, 0, Math.PI * 2);
+          drawEffect('glow', 0, backX, backY, { width: 44 * s, height: 18 * s, rotation: angle,
+            tint: magicElementPalette[arrowElement], composite: 'lighter', smooth: true });
         }
-        ctx.fill();
-        ctx.globalAlpha = 1;
       }
-      ctx.strokeStyle = '#101612';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.moveTo(-10 * (projectile.size || 1), 0);
-      ctx.lineTo(10 * (projectile.size || 1), 0);
-      ctx.stroke();
-      ctx.strokeStyle = '#c59a58';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-10 * (projectile.size || 1), 0);
-      ctx.lineTo(10 * (projectile.size || 1), 0);
-      ctx.stroke();
-      ctx.fillStyle = '#f0d8a0';
-      ctx.strokeStyle = '#101612';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(12 * (projectile.size || 1), 0);
-      ctx.lineTo(5 * (projectile.size || 1), -4 * (projectile.size || 1));
-      ctx.lineTo(5 * (projectile.size || 1), 4 * (projectile.size || 1));
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#c59a58';
-      ctx.beginPath();
-      ctx.moveTo(-10 * (projectile.size || 1), 0);
-      ctx.lineTo(-15 * (projectile.size || 1), -4 * (projectile.size || 1));
-      ctx.lineTo(-13 * (projectile.size || 1), 0);
-      ctx.lineTo(-15 * (projectile.size || 1), 4 * (projectile.size || 1));
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      drawEffect('arrow', 0, projectile.x, projectile.y, { width: 30 * s, rotation: angle });
     } else if (projectile.type === 'elemental' && projectile.shape) {
-      const pulseScale = projectile.size || 1;
-      ctx.translate(projectile.x, projectile.y);
-      ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
-      ctx.scale(pulseScale, pulseScale);
-      drawMorphShape(projectile.shape, projectile.color);
+      const sprite = projectile.shape === 'ring' ? 'orbGlow' : projectile.shape === 'diamond' ? 'manaBall' : 'orbOval';
+      drawEffect(sprite, 0, projectile.x, projectile.y, { width: 24 * (projectile.size || 1),
+        rotation: Math.atan2(projectile.vy, projectile.vx), tint: projectile.color });
     } else if (projectile.type === 'elemental') {
       const angle = Math.atan2(projectile.vy, projectile.vx);
       const element = projectile.element || 'bubble';
-      ctx.translate(projectile.x, projectile.y);
-      ctx.rotate(angle);
-      ctx.fillStyle = magicElementPalette[element] || magicElementPalette.bubble;
-      ctx.strokeStyle = '#101612';
-      ctx.lineWidth = 2.5;
+      const tint = magicElementPalette[element] || magicElementPalette.bubble;
+      const { x, y } = projectile;
       if (element === 'bubble') {
-        ctx.beginPath();
-        ctx.arc(0, 0, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(245, 255, 255, 0.9)';
-        ctx.beginPath();
-        ctx.arc(-3, -4, 3, 0, Math.PI * 2);
-        ctx.fill();
+        drawEffect('bubble', effectFrameAt('bubble', elapsed, 8), x, y, { width: 24 });
       } else if (element === 'fire') {
-        ctx.beginPath();
-        ctx.moveTo(12, 0);
-        ctx.quadraticCurveTo(2, -5, 0, -11);
-        ctx.quadraticCurveTo(-3, -3, -10, -3);
-        ctx.quadraticCurveTo(-8, 7, 0, 10);
-        ctx.quadraticCurveTo(7, 8, 12, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#ffe68c';
-        ctx.beginPath();
-        ctx.moveTo(6, 0);
-        ctx.quadraticCurveTo(0, -2, 0, -6);
-        ctx.quadraticCurveTo(-4, 1, -1, 6);
-        ctx.quadraticCurveTo(4, 5, 6, 0);
-        ctx.fill();
+        drawEffect('fire', effectFrameAt('fire', elapsed, 14), x, y, { width: 30, rotation: angle - Math.PI / 2 });
       } else if (element === 'lightning') {
-        ctx.beginPath();
-        ctx.moveTo(4, -13);
-        ctx.lineTo(-8, 1);
-        ctx.lineTo(-1, 1);
-        ctx.lineTo(-5, 13);
-        ctx.lineTo(9, -4);
-        ctx.lineTo(2, -4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      } else if (element === 'ice' || element === 'earth') {
-        ctx.beginPath();
-        ctx.moveTo(13, 0);
-        ctx.lineTo(1, -9);
-        ctx.lineTo(-9, -5);
-        ctx.lineTo(-11, 5);
-        ctx.lineTo(1, 9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(-6, -3);
-        ctx.lineTo(7, 0);
-        ctx.lineTo(-5, 5);
-        ctx.stroke();
+        drawEffect('sparks', effectFrameAt('sparks', elapsed, 24), x, y, { width: 30, tint });
+      } else if (element === 'ice') {
+        drawEffect('snowflake', 0, x, y, { width: 22, rotation: elapsed * 6 });
+      } else if (element === 'earth') {
+        drawEffect('glow', 0, x, y, { width: 30, tint, smooth: true });
+        if (stoneImage.complete && stoneImage.naturalWidth > 0) ctx.drawImage(stoneImage, x - 10, y - 10, 20, 20);
       } else if (element === 'wind') {
-        ctx.strokeStyle = magicElementPalette.wind;
-        ctx.lineWidth = 3;
-        for (let gust = -1; gust <= 1; gust += 1) {
-          ctx.beginPath();
-          ctx.moveTo(-12, gust * 6);
-          ctx.quadraticCurveTo(14, gust * 10, 8, gust * 3);
-          ctx.stroke();
-        }
+        drawEffect('sonicWave', effectFrameAt('sonicWave', elapsed, 12), x, y, { height: 30, rotation: angle, tint });
       } else if (element === 'spore') {
-        ctx.beginPath();
-        ctx.arc(0, -2, 10, Math.PI, Math.PI * 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillRect(-3, -2, 6, 12);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(-5, -7, 2, 2);
-        ctx.fillRect(3, -6, 2, 2);
+        drawEffect('orbGlow', 0, x, y, { width: 30, tint, smooth: true });
+        drawEffect('sporeBubble', effectFrameAt('sporeBubble', elapsed, 12), x, y, { width: 22 });
       } else {
-        ctx.beginPath();
-        ctx.arc(-5, 3, 6, 0, Math.PI * 2);
-        ctx.arc(2, 0, 8, 0, Math.PI * 2);
-        ctx.arc(8, 4, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(234, 255, 184, 0.85)';
-        ctx.beginPath();
-        ctx.arc(-3, 2, 2, 0, Math.PI * 2);
-        ctx.fill();
+        drawEffect('smoke', 0, x, y, { width: 34, rotation: elapsed * 2, tint, smooth: true });
       }
     } else if (projectile.type === 'spore-shard') {
-      const angle = Math.atan2(projectile.vy, projectile.vx);
-      ctx.translate(projectile.x, projectile.y);
-      ctx.rotate(angle);
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = projectile.color;
-      ctx.beginPath();
-      ctx.moveTo(8, 0);
-      ctx.lineTo(-4, -3);
-      ctx.lineTo(-8, 0);
-      ctx.lineTo(-4, 3);
-      ctx.closePath();
-      ctx.fill();
+      drawEffect('sporeSplash', effectFrameAt('sporeSplash', elapsed, 12), projectile.x, projectile.y,
+        { width: 20, tint: projectile.color, rotation: Math.atan2(projectile.vy, projectile.vx) });
     } else if (stoneImage.complete && stoneImage.naturalWidth > 0) {
       ctx.strokeStyle = '#101612';
       ctx.lineWidth = 2;
@@ -4067,97 +3589,51 @@ function drawWorld() {
     ctx.restore();
   }
   for (const particle of particles) {
-    ctx.globalAlpha = clamp(particle.ttl / particle.maxTtl, 0, 1);
-    ctx.fillStyle = particle.color;
-    ctx.beginPath();
-    if (particle.streak) {
-      ctx.ellipse(particle.x, particle.y, particle.radius * 0.65, particle.radius * 1.8,
-        Math.atan2(particle.vy, particle.vx), 0, Math.PI * 2);
+    // SoM soft orb for sparks and dust, the SoM arc streak (drawn diagonally in its file) for hit streaks.
+    const fade = clamp(particle.ttl / particle.maxTtl, 0, 1);
+    if (particle.effect) {
+      // A burst plays its sheet once over its lifetime; a single-frame sheet (the shockwave circle) grows instead.
+      const frames = EFFECT_SHEETS[particle.effect].frames || 1;
+      const grow = frames === 1 ? 0.3 + (1 - fade) * 0.7 : 1;
+      drawEffect(particle.effect, Math.min(frames - 1, Math.floor((1 - fade) * frames)), particle.x, particle.y,
+        { width: particle.size * grow, tint: particle.color, alpha: frames === 1 ? fade : Math.min(1, fade * 2),
+          smooth: frames === 1 });
+    } else if (particle.streak) {
+      drawEffect('arc', 0, particle.x, particle.y, { width: particle.radius * 3, alpha: fade,
+        tint: particle.color, rotation: Math.atan2(particle.vy, particle.vx) - Math.PI / 4 });
     } else {
-      ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+      drawEffect('orbGlow', 0, particle.x, particle.y, { width: particle.radius * 3, alpha: fade,
+        tint: particle.color, smooth: true });
     }
-    ctx.fill();
   }
-  ctx.globalAlpha = 1;
   const markedAngles = new Set();
   for (const swing of player.meleeSwings) {
     const progress = 1 - swing.timer / swing.maxTimer;
+    const frame = Math.min(5, Math.floor(progress * 6));
+    const centerY = player.y - 34;
     if (!markedAngles.has(swing.angle)) {
       markedAngles.add(swing.angle);
-      // Full hit marker: the whole area the swing can strike, with a sweeping leading edge.
+      // Hit marker: a faint TMW swipe the size of the area the swing can strike, and a star where it deflects.
       const fade = 1 - progress;
-      const arc = swing.arc || 0.95;
-      const sweep = swing.angle - arc + progress * arc * 2;
-      const markerColor = swing.charged ? '255, 242, 160' : '255, 255, 255';
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(player.x, player.y - 34);
-      ctx.arc(player.x, player.y - 34, swing.hitReach, swing.angle - arc, swing.angle + arc);
-      ctx.closePath();
-      ctx.fillStyle = `rgba(${markerColor}, ${0.16 * fade})`;
-      ctx.fill();
-      ctx.strokeStyle = `rgba(${markerColor}, ${0.5 * fade})`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(player.x, player.y - 34);
-      ctx.lineTo(player.x + Math.cos(sweep) * swing.hitReach, player.y - 34 + Math.sin(sweep) * swing.hitReach);
-      ctx.strokeStyle = `rgba(${markerColor}, ${0.9 * fade})`;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      const deflectX = player.x + Math.cos(swing.angle) * swing.reach * 0.68;
-      const deflectY = player.y - 34 + Math.sin(swing.angle) * swing.reach * 0.68;
-      ctx.globalAlpha = 0.55 * fade;
-      ctx.strokeStyle = '#ffffff';
-      ctx.fillStyle = '#ffffff';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(deflectX, deflectY, 2, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(deflectX, deflectY, 1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      drawEffect('swipe', frame, player.x + Math.cos(swing.angle) * swing.hitReach * 0.5,
+        centerY + Math.sin(swing.angle) * swing.hitReach * 0.5,
+        { height: swing.hitReach * 2, rotation: swing.angle, alpha: 0.45 * fade, tint: swing.charged ? '#fff2a0' : null });
+      drawEffect('star', 0, player.x + Math.cos(swing.angle) * swing.reach * 0.68,
+        centerY + Math.sin(swing.angle) * swing.reach * 0.68, { width: 12, alpha: 0.7 * fade });
     }
     const swingColor = swing.element ? magicElementPalette[swing.element]
       : swing.weapon === 'sword' ? combatPalette.sword
         : swing.weapon === 'daggers' ? combatPalette.daggers : combatPalette.melee;
-    ctx.save();
-    ctx.globalAlpha = 0.8 * (1 - progress);
-    ctx.strokeStyle = '#101612';
-    ctx.lineWidth = (swing.weapon === 'sword' ? 7 : swing.weapon === 'daggers' ? 5 : 8) + 3;
-    ctx.lineCap = 'round';
-    ctx.shadowColor = swing.weapon === 'sword' ? combatPalette.arcane : combatPalette.melee;
-    ctx.shadowBlur = 18;
-    ctx.beginPath();
-    const ribbonCenter = swing.spin ? swing.angle + progress * Math.PI * 2 - 0.9 : swing.angle;
-    const ribbonSpan = swing.spin ? 1.1 : 0.85;
-    ctx.arc(player.x, player.y - 34, swing.reach + progress * 12,
-      ribbonCenter - ribbonSpan, ribbonCenter + ribbonSpan);
-    ctx.stroke();
-    ctx.strokeStyle = swingColor;
-    ctx.lineWidth -= 3;
-    ctx.stroke();
-    ctx.restore();
+    const ribbonAngle = swing.spin ? swing.angle + progress * Math.PI * 2 - 0.9 : swing.angle;
+    const reach = swing.reach + progress * 12;
+    drawEffect('swipe', frame, player.x + Math.cos(ribbonAngle) * reach * 0.55, centerY + Math.sin(ribbonAngle) * reach * 0.55,
+      { height: reach * 1.8, rotation: ribbonAngle, tint: swingColor, alpha: 0.9 * (1 - progress) });
   }
   for (const arc of lightningArcs) {
-    ctx.save();
-    ctx.globalAlpha = clamp(arc.ttl / 0.18, 0, 1);
-    ctx.strokeStyle = arc.color || '#ffe45c';
-    ctx.lineWidth = arc.castTrail ? 2 : 5;
-    ctx.shadowColor = arc.color || '#ffe45c';
-    ctx.shadowBlur = 14;
-    ctx.beginPath();
-    ctx.moveTo(arc.x1, arc.y1);
-    const midX = (arc.x1 + arc.x2) / 2;
-    const midY = (arc.y1 + arc.y2) / 2;
-    ctx.lineTo(midX + Math.sin(elapsed * 95 + arc.y1) * 9, midY + Math.cos(elapsed * 83 + arc.x2) * 9);
-    ctx.lineTo(arc.x2, arc.y2);
-    ctx.stroke();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
+    // TMW bolt image stretched between the two points; its length runs down the file.
+    drawEffectBetween('lightning', 0, arc.x1, arc.y1, arc.x2, arc.y2, arc.castTrail ? 14 : 34, {
+      along: 'y', tint: arc.color || '#ffe45c', alpha: clamp(arc.ttl / 0.18, 0, 1), composite: 'lighter',
+    });
   }
   for (const enemy of enemies) drawEnemy(enemy);
   for (const companion of companions) drawCompanion(companion);
@@ -5882,7 +5358,10 @@ function drawCodex() {
     ctx.fillText(entry.name, 116, y + 15, 390);
     ctx.fillStyle = '#c0cbbd';
     ctx.font = '11px Arial';
-    ctx.fillText(entry.description || 'A newly recorded discovery.', 116, y + 30, 620);
+    const bonuses = entry.kind === 'enemy' || entry.kind === 'lore' ? [] :
+      itemEffectTagsFor(entry).filter((tag) => tag !== entry.description);
+    ctx.fillText(`${entry.description || 'A newly recorded discovery.'}${bonuses.length ? `  |  ${bonuses.join(', ')}` : ''}`,
+      116, y + 30, 620);
     if (entry.kind !== 'enemy') {
       const found = entry.kind === 'lore'
         ? (save.loreRelics || []).includes(entry.id)
@@ -6198,9 +5677,9 @@ function tutorialPages() {
       ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENY AND KEYS', sections: [
-      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: step on the shop’s left pad to sell them for zeny.'],
+      ['Zeny', `Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: stand on the shop’s left pad and press ${b('interact')} to sell them for zeny.`],
       ['Shops', `Walk up to an item and press ${b('interact')} to buy it. Walking over an item never buys it. A shop is also a bank.`],
-      ['Bank', `Step on the vault pad to deposit what you carry. ${pad ? p.b : 'Shift+' + b('interact')} near it withdraws your savings.`],
+      ['Bank', `Stand on the vault pad and press ${b('interact')} to deposit what you carry, or on the withdraw pad to take your savings. ${pad ? p.b : 'Shift+' + b('interact')} near the vault withdraws too.`],
       ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
     ] },
     { title: 'ROOMS, MAP AND ENEMIES', sections: [

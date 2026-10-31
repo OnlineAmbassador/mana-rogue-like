@@ -4,13 +4,32 @@ Source of Mana is developed by [Manasource / Reid and contributors](https://gith
 
 ## Graphics and map reference
 
-Copied unmodified from [revision ebb0335f1ac438a883f1d70e27cdfe92f811ed28](https://github.com/sourceofmana/sourceofmana/tree/ebb0335f1ac438a883f1d70e27cdfe92f811ed28). Authors and license were verified against that revision's [LICENSE.md](https://github.com/sourceofmana/sourceofmana/blob/ebb0335f1ac438a883f1d70e27cdfe92f811ed28/LICENSE.md) and the map's license property.
+Copied from [revision ebb0335f1ac438a883f1d70e27cdfe92f811ed28](https://github.com/sourceofmana/sourceofmana/tree/ebb0335f1ac438a883f1d70e27cdfe92f811ed28). Authors and license were verified against that revision's [LICENSE.md](https://github.com/sourceofmana/sourceofmana/blob/ebb0335f1ac438a883f1d70e27cdfe92f811ed28/LICENSE.md) and the map's license property. The images were later losslessly recompressed by `tools/optimize-pngs.js` (2026-10-31): every decoded pixel is identical to the upstream file, colour-management chunks were kept and text and other metadata chunks were dropped, so the bytes differ from upstream but the pictures do not.
 
 | Local file | Original path under `data/` | Artist / author | Contributor |
 |---|---|---|---|
 | `graphics/wall.png` | `graphics/tilesets/tonori/wall.png` | Modanung | Reid |
 | `graphics/soulmenhir.png` | `graphics/sprites/npcs/soulmenhir.png` | Crush | Reid |
 | `maps/tulimshar.tmx` | `maps/tonori/tulimshar/tulimshar.tmx` | Reid | |
+| `graphics/effect-arrow.png` | `graphics/effects/arrow.png` | Alige |  |
+| `graphics/effect-cast.png` | `graphics/effects/particles/cast.png` | Reid |  |
+| `graphics/effect-cast1.png` | `graphics/effects/particles/cast1.png` | Reid |  |
+| `graphics/effect-cast5.png` | `graphics/effects/particles/cast5.png` | Reid |  |
+| `graphics/effect-cast10.png` | `graphics/effects/particles/cast10.png` | Reid |  |
+| `graphics/effect-fire.png` | `graphics/effects/particles/fire.png` | Neorice |  |
+| `graphics/effect-orb.png` | `graphics/effects/particles/orb.png` | Reid |  |
+| `graphics/effect-orb-oval.png` | `graphics/effects/particles/orb-oval.png` | Reid |  |
+| `graphics/effect-orb-glow.png` | `graphics/effects/particles/orb-glow.png` | Reid |  |
+| `graphics/effect-mana-ball.png` | `graphics/effects/particles/mana-ball.png` | Reid |  |
+| `graphics/effect-smoke.png` | `graphics/effects/particles/smoke.png` | Reid |  |
+| `graphics/effect-twinkle.png` | `graphics/effects/particles/twinkle.png` | Reid |  |
+| `graphics/effect-arc.png` | `graphics/effects/particles/arc.png` | Reid |  |
+| `graphics/effect-bubble-16.png` | `graphics/effects/particles/bubble-16.png` | Fate |  |
+| `graphics/effect-sonic-wave.png` | `graphics/effects/sonic-wave.png` | Pateame | Reid |
+| `graphics/accessory-fire.png` | `graphics/sprites/accessories/fire.png` | Sharm | Reid |
+| `graphics/spiderweb-x4x3.png` | `graphics/tilesets/generic/cave/spiderweb-x4x3.png` | Reid |  |
+| `graphics/skill-spitfire.png` | `graphics/items/skill/spitfire.png` | Reid |  |
+| `graphics/skill-spell.png` | `graphics/items/skill/spell.png` | Reid |  |
 
 ### Artis market sheet (CC BY-SA 3.0)
 
@@ -30,6 +49,8 @@ The game does not load the map. It is kept unmodified as the source that `tests/
 - Transparent corner pieces are drawn over wall-top ground, following the map's layered construction; they are not opaque standalone blocks. Repeatable straight fill is adapted to fit the room rather than importing a full source building.
 
 This adapted wall arrangement retains CC BY-SA 4.0 terms. Wall depth is compressed to the existing 64px collision boundary; the original images are not edited. The soul menhir uses its native 64x64 image. No Source of Mana UI art is copied.
+
+The `effect-*`, `accessory-fire`, `spiderweb` and `skill-*` files are drawn by `effectart.js` (effects, ground circles, pads, webs and item icons). They are scaled, rotated and recoloured only at draw time; the files are unchanged.
 
 ## Sounds
 

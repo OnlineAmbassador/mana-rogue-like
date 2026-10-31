@@ -31,9 +31,11 @@ The item numbers are in [ITEMS.md](ITEMS.md).
 - **Lifestone.** After a boss, is the 18-second regeneration (one heart every 6 seconds) a reward you notice? Is the extra heart container a fair swap for the old Guardian Heart?
 - **Selling.** Do Iron Ore and Dark Crystal drop often enough to notice, and too often to ignore? Is selling them at the sell pad clear without being told? Roughly how much zeny did you have per floor?
 - **Repair.** Is paying 2z to 4z a point to mend armor worth it, and is the repair pad easy to find and use?
+- **Pads.** The sell, repair, deposit and withdraw pads all need E while you stand on them. Is that obvious from the captions, and does pressing E near a pad and a stall ever act on the wrong one?
 - **Shop room.** Does the stall, banner and counter art read well? Is any text on the item cards cut off, especially with five stalls? Do the pads crowd the bank pads?
 - **Prices.** Can you afford what you want? Do hearts and bombs feel fair against upgrades from floor 5 on?
 - **Stacked damage.** With several damage curios and a Pearl, do bosses fall too fast? Does the x2.5 curio cap feel right?
+- **Bonus lines.** Are the green and red lines on the shop cards, pickup toasts, pause hover and codex clear? Do the percentages match what you feel, and does `-15% Attack` on a curio look like it does nothing when you hit for 1 or 2?
 - **Charge mods.** Does picking Wind-Up Wraps or Longbow Draw (which switch that style to charge mode) feel good?
 
 ## Screen layout

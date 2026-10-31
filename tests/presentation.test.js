@@ -73,6 +73,18 @@ function presentation() {
     soulMenhirPosition: () => ({ x: 480, y: 166 }),
     keysHeld: 0,
   });
+  // Every effect sprite is a loaded image named after its effectArt key, so drawImage calls show which one was drawn.
+  const effectImages = {};
+  c.effectArt = new Proxy(effectImages, { get: (target, name) => (target[name] ??= image(String(name))) });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'effectart.js'), 'utf8'), c);
+  // Record each sprite draw (name, position, options) before it reaches the canvas; the helpers in effectart.js
+  // call drawEffect through the global, so they are recorded too.
+  c.effects = [];
+  const drawEffect = c.drawEffect;
+  c.drawEffect = (name, frame, x, y, options = {}) => {
+    c.effects.push({ name, frame, x, y, ...options });
+    return drawEffect(name, frame, x, y, options);
+  };
   const source = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
   vm.runInContext(sliceText(source, 'function drawManaPanel(', 'function drawPlayerMagicMark(', 'source'), c);
   vm.runInContext(sliceText(source, 'function drawSoulMenhir(', 'function drawRewardTrial(', 'source'), c);
@@ -283,6 +295,7 @@ test('bat and Road Captain attacks match visible bodies rather than ground circl
 test('spider shadows project from the abdomen for mobs and companions', () => {
   const c = presentation();
   c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 245, naturalHeight: 140 });
+  c.loadDeferredAsset = c.loadAsset;
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.monsterSprites = vm.runInContext(`(() => {
     ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
@@ -307,6 +320,7 @@ test('spider shadows project from the abdomen for mobs and companions', () => {
 test('mouse mobs and companions anchor their shadows beneath the abdomen', () => {
   const c = presentation();
   c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 224, naturalHeight: 320 });
+  c.loadDeferredAsset = c.loadAsset;
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.monsterSprites = vm.runInContext(`(() => {
     ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
@@ -332,9 +346,10 @@ test('every airborne projectile has a separated shadow that converges on landing
   const c = presentation();
   const shot = { type: 'arrow', x: 200, y: 180, vx: 200, vy: 0, ttl: 1, ttl0: 1, radius: 6 };
   const render = (projectile) => {
-    c.calls.length = 0;
+    c.effects.length = 0;
     c.drawProjectileGroundShadow(projectile);
-    return c.calls.find(({ method }) => method === 'ellipse').args;
+    const { x, y, width, height, rotation } = c.effects.find(({ name }) => name === 'shadow');
+    return [x, y, width, height, rotation];
   };
   const airborne = render(shot);
   const landing = render({ ...shot, ttl: 0 });
@@ -362,10 +377,11 @@ test('soul menhir uses a solid base-connected shadow with artwork and fallback',
   for (const complete of [true, false]) {
     c.soulMenhirImage.complete = complete;
     c.calls.length = 0;
+    c.effects.length = 0;
     c.drawSoulMenhir();
-    const base = c.calls.find(({ method }) => method === 'ellipse');
-    assert.deepEqual(base.args.slice(0, 2), [480, 170]);
-    assert.equal(base.args[2], 80 * 0.22, 'menhir contact and cast silhouette are wider than the tree shadow');
+    const base = c.effects.find(({ name }) => name === 'shadow');
+    assert.deepEqual([base.x, base.y], [480, 170]);
+    assert.equal(base.width, 80 * 0.22 * 2.4, 'menhir contact and cast silhouette are wider than the tree shadow');
     assert.ok(!c.calls.some(({ method }) => method === 'transform'),
       'menhir does not project gaps from its sprite alpha');
     assert.ok(c.calls.some(({ method }) => method === 'createRadialGradient'),
@@ -379,12 +395,10 @@ test('tree shadows form one solid trunk-rooted shape projected down and right', 
   c.drawTrunkShadow(200, 240, 70, 66);
   const rootY = 240 + 66 * 0.34;
   const reach = 66 * 0.55;
-  assert.deepEqual(c.calls.find(({ method }) => method === 'ellipse').args.slice(0, 2), [200, rootY]);
-  assert.ok(c.calls.some(({ method, args }) => method === 'lineTo' &&
-    args[0] === 200 + reach + 70 * 0.22 && args[1] === rootY + reach));
-  assert.equal(c.calls.filter(({ method }) => method === 'fill').length, 1,
-    'root contact and cast shadow fill together without doubled opacity or light gaps');
-  assert.ok(!c.calls.some(({ method }) => method === 'drawImage'));
+  const [contact, cast] = c.effects.filter(({ name }) => name === 'shadow');
+  assert.deepEqual([contact.x, contact.y], [200, rootY], 'the TMW shadow sits under the trunk');
+  assert.ok(Math.abs(cast.x - (200 + reach / 2)) < 1e-9 && Math.abs(cast.y - (rootY + reach / 2)) < 1e-9);
+  assert.equal(cast.rotation, Math.PI / 4, 'the cast part runs down and right from the root');
   assert.equal(c.calls.filter(({ method }) => method === 'save').length,
     c.calls.filter(({ method }) => method === 'restore').length);
 });
@@ -394,18 +408,18 @@ test('grounded shadows start under objects and grow monotonically with elevation
   const image = { complete: true, naturalWidth: 32, naturalHeight: 64 };
   const sizes = [];
   for (const elevation of [0, 16, 40, 85]) {
-    c.calls.length = 0;
+    c.effects.length = 0;
     c.drawSunGroundShadow(200, 240, 12, elevation);
-    const ellipse = c.calls.find(({ method }) => method === 'ellipse').args;
-    assert.equal(ellipse[0], 200 + elevation * 0.55);
-    assert.equal(ellipse[1], 240 + elevation * 0.55);
+    const shadow = c.effects.find(({ name }) => name === 'shadow');
+    assert.equal(shadow.x, 200 + elevation * 0.55);
+    assert.equal(shadow.y, 240 + elevation * 0.55);
     c.calls.length = 0;
     c.drawSunSpriteShadow(image, 0, 0, 32, 64, 200, 240, 32, 64, elevation);
     const scale = c.calls.find(({ method }) => method === 'scale').args;
     assert.equal(scale[0], scale[1]);
-    sizes.push([ellipse[2], ellipse[3], scale[0]]);
+    sizes.push([shadow.width, shadow.height, scale[0]]);
   }
-  assert.deepEqual(sizes[0], [12, 6, 1]);
+  assert.deepEqual(sizes[0], [12 * 2.4, 12 * 1.2, 1]);
   for (let index = 1; index < sizes.length; index += 1) {
     assert.ok(sizes[index].every((value, axis) => value > sizes[index - 1][axis]));
   }
@@ -591,6 +605,7 @@ test('ordinary mobs, bosses and offspring draw halfway between original and enla
 test('both bat atlases crop baked shadows for mobs and companions without shifting their bodies', () => {
   const c = presentation();
   c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 370, naturalHeight: 232 });
+  c.loadDeferredAsset = c.loadAsset;
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.monsterSprites = vm.runInContext(`(() => {
     ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
@@ -650,21 +665,26 @@ test('fire and lightning illuminate nearby ground and actors; acid and webs do n
   assert.equal(c.worldLightExposure(200, 180), 0, 'expired effects leave no stale illumination');
 });
 
-test('ground pools and webs gain only a thin down-right depth shadow', () => {
+test('ground pools and webs sit on a thin down-right TMW shadow and use Manasource art', () => {
   const c = presentation();
   c.bossStrikes = [];
   for (const kind of ['acid', 'slime', 'web', 'fire', 'miasma']) {
     c.groundHazards = [{ kind, x: 200, y: 180, radius: 24, color: '#9af264', ttl: 4 }];
-    c.calls.length = 0;
+    c.effects.length = 0;
     c.drawGroundHazards();
-    assert.deepEqual(c.calls.find(({ method }) => method === 'translate').args, [2, 2]);
-    const ellipses = c.calls.filter(({ method }) => method === 'ellipse');
+    const [shadow, surface] = c.effects;
+    assert.equal(shadow.name, 'shadow');
+    assert.deepEqual([shadow.x, shadow.y], [202, 182]);
+    assert.deepEqual([surface.x, surface.y], [200, 180]);
     if (kind === 'web') {
-      assert.equal(ellipses.length, 0, 'web shadow follows strands, not a dark filled disc');
+      assert.equal(surface.name, 'web', 'webs are the SoM spiderweb, not a tinted pool');
+      assert.equal(c.effects.length, 2);
     } else {
-      assert.equal(ellipses.length, 2);
-      assert.deepEqual(ellipses[0].args, ellipses[1].args);
+      assert.equal(surface.name, 'glow');
+      assert.equal(surface.tint, '#9af264', 'the TMW glow is tinted to the hazard colour at draw time');
     }
+    if (kind === 'fire') assert.equal(c.effects.filter(({ name }) => name === 'flames').length, 3);
+    if (kind === 'miasma') assert.equal(c.effects.filter(({ name }) => name === 'smoke').length, 3);
   }
 });
 
@@ -706,17 +726,15 @@ test('all regions receive directional lighting; cave crevices use stable 45-degr
     'nivalis', 'frostia', 'candor', 'worldedge']) {
     c.region = region;
     c.calls.length = 0;
+    c.effects.length = 0;
     c.drawRoomSunlight();
     assert.ok(c.drawRoomSunlight.layer);
     const cave = ['frostia', 'candor', 'worldedge'].includes(region);
     assert.equal(c.roomUsesCreviceLight(), cave);
-    const screenGradients = c.calls.filter(({ layer, method }) =>
-      layer === 'screen' && method === 'createLinearGradient');
-    assert.equal(screenGradients.length, cave ? 2 : 0);
-    for (const { args: [x, y, endX, endY] } of screenGradients) {
-      assert.ok(endX > x);
-      assert.equal(endX - x, endY - y, 'ceiling rays shine down and right');
-    }
+    // The TMW sunlight shaft already falls down and right in its file, so it is drawn unrotated.
+    const rays = c.effects.filter(({ name }) => name === 'sunShaft');
+    assert.equal(rays.length, cave ? 2 : 0);
+    for (const ray of rays) assert.ok(!ray.rotation, 'ceiling rays shine down and right');
   }
   c.region = 'tulimshar';
   c.currentRoom.type = 'secret';
@@ -729,29 +747,19 @@ test('all regions receive directional lighting; cave crevices use stable 45-degr
   assert.deepEqual(c.roomLightShafts(), shafts, 'crevice positions do not drift with animation time');
 });
 
-test('cave crevice rays have cached irregular feathered edges rather than straight wedges', () => {
+test('cave crevice rays draw the TMW sunlight shaft at stable, cached shaft positions', () => {
   const c = presentation();
   c.region = 'candor';
   const shafts = c.roomLightShafts();
-  for (const shaft of shafts) {
-    assert.equal(shaft.contours.length, 4);
-    for (const contour of shaft.contours) {
-      assert.equal(contour.length, 34);
-      const offsets = contour.slice(0, 17).map(([x, y]) => (x - shaft.x - y + shaft.y) / 2);
-      const changes = offsets.slice(1).map((offset, index) => offset - offsets[index]);
-      assert.ok(Math.max(...changes) - Math.min(...changes) > 1,
-        'edge widths vary along the shaft rather than tracing a perfect straight line');
-    }
-  }
   c.drawRoomSunlight();
-  assert.equal(c.roomLightShafts(), shafts, 'contours are reused rather than regenerated per frame');
-  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'fill').length, 8);
-  const stops = [];
-  c.ctx.createLinearGradient = () => ({ addColorStop: (...args) => stops.push(args) });
-  c.drawRoomSunlight();
-  assert.deepEqual(stops[0], [0, 'rgba(255, 239, 193, 0)']);
-  assert.equal(stops[1][0], 0.18, 'light fades in instead of exposing a hard upper cap');
-  assert.deepEqual(stops[3], [1, 'rgba(255, 239, 193, 0)']);
+  assert.equal(c.roomLightShafts(), shafts, 'shafts are reused rather than regenerated per frame');
+  const rays = c.effects.filter(({ name }) => name === 'sunShaft');
+  assert.equal(rays.length, shafts.length);
+  rays.forEach((ray, index) => {
+    const { x, y, width, length } = shafts[index];
+    assert.ok(Math.abs(ray.x - (x - width * 0.3)) < 1e-9 && Math.abs(ray.y - (y - width * 0.3)) < 1e-9);
+    assert.equal(ray.height, length);
+  });
 });
 
 test('room light cache invalidates for doors and room geometry, not moving actors or quality', () => {
@@ -797,13 +805,15 @@ test('crevice rays respect reduced motion and low quality without changing light
   const animated = render();
   c.elapsed += 10;
   assert.notEqual(render(), animated);
-  const rays = () => c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'createLinearGradient')
-    .map(({ args }) => args);
+  const rays = () => c.effects.filter(({ name }) => name === 'sunShaft').map(({ x, y, width, height }) => [x, y, width, height]);
+  c.effects.length = 0;
+  render();
   const full = rays();
   c.quality.low = true;
+  c.effects.length = 0;
   render();
   assert.deepEqual(rays(), full);
-  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'fillRect').length, 4);
+  assert.equal(c.effects.filter(({ name }) => name === 'orb').length, 4, 'low quality keeps two dust motes per shaft');
 });
 
 test('sand ambience stays at world edges, outside the central combat area', () => {
@@ -974,8 +984,9 @@ test('pause inventory reveals hovered item names and handles an empty inventory'
   c.lastInputMode = 'keyboard';
   c.pointer = { x: 125, y: 440 };
   c.drawShopItemIcon = () => {};
+  c.itemEffectTagsFor = () => ['+10% Speed', '-5% Attack'];
   c.drawPauseEquipment();
-  assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'Mana Sigil'));
+  assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'Mana Sigil:  +10% Speed, -5% Attack'));
   c.ownedItems.clear();
   c.calls.length = 0;
   c.drawPauseEquipment();
