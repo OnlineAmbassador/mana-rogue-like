@@ -77,12 +77,14 @@ function presentation() {
   vm.runInContext(sliceText(source, 'function drawManaPanel(', 'function drawPlayerMagicMark(', 'source'), c);
   vm.runInContext(sliceText(source, 'function drawSoulMenhir(', 'function drawRewardTrial(', 'source'), c);
   loadFunctions(c, 'gameui.js', ['prefersReducedMotion']);
-  loadFunctions(c, 'gameui.js', ['roomUsesCreviceLight', 'roomLightShafts', 'sunlightStrength',
+  loadFunctions(c, 'lightingmanager.js', ['roomUsesCreviceLight', 'roomLightShafts', 'sunlightStrength',
     'sunlightMask', 'drawSunSpriteShadow', 'drawSunGroundShadow', 'drawRoomSunlight',
-    'worldLightExposure', 'projectileLightingState', 'collectWorldLights', 'drawWorldLightSources',
-    'drawProjectileGroundShadow', 'drawTrunkShadow', 'drawGroundHazards', 'outlinedItemTexture', 'drawOutlinedItemImage',
+    'worldLightExposure', 'collectWorldLights', 'drawWorldLightSources',
+    'drawProjectileGroundShadow', 'drawTrunkShadow']);
+  loadFunctions(c, 'gameui.js', ['drawGroundHazards', 'outlinedItemTexture', 'drawOutlinedItemImage',
     'drawShopItemIcon', 'drawShopItemIconArt', 'drawPickupItem', 'withTextOutline']);
   loadFunctions(c, 'gameui.js', ['mobDrawScale']);
+  loadFunctions(c, 'playermanager.js', ['projectileArcState']);
   loadBetween(c, 'desertart.js', 'const DESERT_ART');
   return c;
 }
@@ -241,11 +243,14 @@ test('transparent frame padding never separates a shadow from the rendered feet'
 
 test('bat and Road Captain attacks match visible bodies rather than ground circles', () => {
   const c = presentation();
+  const bat = { y: -18, radius: 17, radiusX: 17, radiusY: 11 };
+  const bandit = { y: -2, radius: 27, radiusX: 11, radiusY: 27 };
   c.monsterSprites = {
-    bat: { scale: 1.05 }, vampirebat: { scale: 1 }, bandit: { scale: 1 }, banditlord: { scale: 1.05 },
+    bat: { scale: 1.05, hitbox: bat }, vampirebat: { scale: 1, hitbox: bat },
+    bandit: { scale: 1, hitbox: bandit }, banditlord: { scale: 1.05, hitbox: bandit },
   };
   c.distanceBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  loadFunctions(c, 'playermanager.js', ['enemyAttackTarget', 'projectileHitsEnemy',
+  loadFunctions(c, 'playermanager.js', ['enemyAttackTarget', 'projectileArcState', 'projectileHitsEnemy',
     'attackOriginY', 'nearestTouchTargetAngle']);
   for (const kind of ['bat', 'vampirebat', 'bandit', 'banditlord']) {
     for (const variant of [{}, { miniBoss: true }, { boss: true }]) {
@@ -291,7 +296,7 @@ test('spider shadows project from the abdomen for mobs and companions', () => {
   c.drawCompanion({ kind: 'spider', x: 200, y: 240, hp: 4 });
   assert.equal(shadows.length, 2);
   assert.ok(shadows.every((args) => args[12] === 0.35));
-  loadFunctions(c, 'gameui.js', ['drawSunSpriteShadow']);
+  loadFunctions(c, 'lightingmanager.js', ['drawSunSpriteShadow']);
   c.calls.length = 0;
   c.drawSunSpriteShadow(c.monsterSprites.spider.image, 0, 0, 35, 35,
     200, 240, 70, 70, 0, 1, 0, 0.35);
@@ -315,7 +320,7 @@ test('mouse mobs and companions anchor their shadows beneath the abdomen', () =>
   c.drawCompanion({ kind: 'ratto', x: 200, y: 240, hp: 4 });
   assert.equal(shadows.length, 2);
   assert.ok(shadows.every((args) => args[12] === 0.5));
-  loadFunctions(c, 'gameui.js', ['drawSunSpriteShadow']);
+  loadFunctions(c, 'lightingmanager.js', ['drawSunSpriteShadow']);
   c.calls.length = 0;
   c.drawSunSpriteShadow(c.monsterSprites.ratto.image, 0, 0, 32, 32,
     200, 272, 64, 64, 0, 1, 0, 0.5);
@@ -338,9 +343,9 @@ test('every airborne projectile has a separated shadow that converges on landing
   assert.equal(landing[0], 200);
   assert.equal(landing[1], 214);
   assert.ok(airborne[2] > landing[2] && airborne[3] > landing[3]);
-  assert.equal(c.projectileLightingState(shot).y, 180);
-  assert.equal(c.projectileLightingState({ ...shot, ttl: 0 }).y, 214);
-  assert.equal(c.projectileLightingState({ ...shot, vx: 0, vy: 200, ttl: 0 }).y, 180,
+  assert.equal(c.projectileArcState(shot).y, 180);
+  assert.equal(c.projectileArcState({ ...shot, ttl: 0 }).y, 214);
+  assert.equal(c.projectileArcState({ ...shot, vx: 0, vy: 200, ttl: 0 }).y, 180,
     'vertical shots retain the existing visual flight path');
   for (const kind of ['arrow', 'fire', 'spore-orb', 'spore-shard']) {
     const shadow = render({ kind, x: 200, y: 180, vx: 200, vy: 0, radius: 7 });
@@ -370,7 +375,7 @@ test('soul menhir uses a solid base-connected shadow with artwork and fallback',
 
 test('tree shadows form one solid trunk-rooted shape projected down and right', () => {
   const c = presentation();
-  loadFunctions(c, 'gameui.js', ['drawTrunkShadow']);
+  loadFunctions(c, 'lightingmanager.js', ['drawTrunkShadow']);
   c.drawTrunkShadow(200, 240, 70, 66);
   const rootY = 240 + 66 * 0.34;
   const reach = 66 * 0.55;
@@ -683,6 +688,16 @@ test('visible local lighting stays capped during busy fights and culls offscreen
     c.drawWorldLightSources();
   }
   assert.equal(c.drawWorldLightSources.textures.size, 16);
+});
+
+test('low quality caps visible light sources at eight', () => {
+  const c = presentation();
+  c.quality.low = true;
+  c.projectiles = Array.from({ length: 30 }, () => ({
+    type: 'elemental', element: 'fire', color: '#ff8042', x: 400, y: 200, vx: 100, vy: 0, ttl: 1,
+  }));
+  c.collectWorldLights();
+  assert.equal(c.collectWorldLights.lights.length, 8);
 });
 
 test('all regions receive directional lighting; cave crevices use stable 45-degree shafts', () => {

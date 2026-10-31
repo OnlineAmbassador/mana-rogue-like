@@ -395,7 +395,7 @@ let narratorVoiceCache = null;
 const artwork = { images: new Map(), pending: new Set(), failed: new Set() };
 document.getElementById('artwork-retry').addEventListener('click', retryFailedArtwork);
 window.addEventListener('keydown', (event) => {
-  if (!artwork.pending.size && !artwork.failed.size) return;
+  if (!artworkBlocking()) return;
   if (event.ctrlKey || event.metaKey || event.altKey || event.key === 'Tab') return;
   if (event.key === 'Enter' || event.key === ' ') retryFailedArtwork();
   event.preventDefault();
@@ -553,6 +553,7 @@ const clothingSprites = {
   ironSword: { image: loadAsset('sprites/equipment/weapons/sword-iron.png'), frameWidth: 64, frameHeight: 64 },
   daggers: { image: loadAsset('sprites/equipment/weapons/knife.png'), frameWidth: 64, frameHeight: 64 },
 };
+// `hitbox` (bats and bandits only) is where the sprite is hit: y offset and radii at scale 1.
 const monsterSprites = {
   piou: { image: loadAsset('sprites/monsters/piou.png'), frameWidth: 10, frameHeight: 9, scale: 3.2, frames: [0, 1, 2, 3] },
   maggot: { image: loadAsset('sprites/monsters/maggot.png'), frameWidth: 20, frameHeight: 15, scale: 1.5, frames: [0, 10, 20, 30] },
@@ -562,7 +563,7 @@ const monsterSprites = {
   wisp: { image: loadAsset('sprites/monsters/wisp.png'), frameWidth: 64, frameHeight: 64, scale: 1.1, frames: [0, 1, 2, 3, 4] },
   jacko: { image: loadAsset('sprites/monsters/jacko.png'), frameWidth: 60, frameHeight: 60, scale: 2, frames: [0, 1, 2, 12, 13, 14] },
   bosspinkie: { image: loadAsset('sprites/monsters/bosspinkie.png'), frameWidth: 50, frameHeight: 42, scale: 1.45, frames: [0, 10, 20, 30] },
-  bat: { image: loadAsset('sprites/monsters/bat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1.05, frames: [1, 2, 3, 4] },
+  bat: { image: loadAsset('sprites/monsters/bat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1.05, hitbox: { y: -18, radius: 17, radiusX: 17, radiusY: 11 }, frames: [1, 2, 3, 4] },
   bluepar: { image: loadAsset('sprites/monsters/bluepar.png'), frameWidth: 50, frameHeight: 42, scale: 1.1, frames: [1, 2, 3, 4] },
   frog: { image: loadAsset('sprites/monsters/frog-small.png'), frameWidth: 32, frameHeight: 32, scale: 1.35, frames: [0, 1, 2, 3] },
   mouboo: { image: loadAsset('sprites/monsters/mouboo.png'), frameWidth: 80, frameHeight: 80, scale: 0.82, frames: [1, 2, 3, 4, 5, 6] },
@@ -575,14 +576,14 @@ const monsterSprites = {
   'slime-mother': { image: loadAsset('sprites/monsters/slime-mother.png'), frameWidth: 64, frameHeight: 64, scale: 1.2, frames: [0, 18, 36, 54] },
   reaper: { image: loadAsset('sprites/monsters/reaper.png'), frameWidth: 100, frameHeight: 100, scale: 0.85, frames: [25, 29, 19, 23] },
   serqet: { image: loadAsset('sprites/monsters/serqet.png'), frameWidth: 60, frameHeight: 47, scale: 1.5, frames: [22, 11, 33, 0] },
-  banditlord: { image: loadAsset('sprites/monsters/banditlord.png'), frameWidth: 64, frameHeight: 64, scale: 1.05, frames: [0, 18, 36, 54] },
+  banditlord: { image: loadAsset('sprites/monsters/banditlord.png'), frameWidth: 64, frameHeight: 64, scale: 1.05, hitbox: { y: -2, radius: 27, radiusX: 11, radiusY: 27 }, frames: [0, 18, 36, 54] },
   'snowman-boss': { image: loadAsset('sprites/monsters/snowman-boss.png'), frameWidth: 128, frameHeight: 128, scale: 0.72, frames: [0, 1, 2, 3, 4, 5, 6, 7] },
   yetiking: { image: loadAsset('sprites/monsters/yetiking.png'), frameWidth: 160, frameHeight: 160, scale: 0.55, frames: [3, 20, 31, 20] },
   forestdragon: { image: loadAsset('sprites/monsters/forestdragon.png'), frameWidth: 256, frameHeight: 128, scale: 0.45, frames: [0, 8, 16, 24] },
   nightdragon: { image: loadAsset('sprites/monsters/nightdragon.png'), frameWidth: 256, frameHeight: 128, scale: 0.45, frames: [0, 8, 16, 24] },
   snowman: { image: loadAsset('sprites/monsters/snowman.png'), frameWidth: 128, frameHeight: 128, scale: 0.55, frames: [0, 1, 2, 3, 4, 5, 6, 7] },
   yeti: { image: loadAsset('sprites/monsters/yeti.png'), frameWidth: 80, frameHeight: 80, scale: 0.9, frames: [3, 4, 5, 6] },
-  vampirebat: { image: loadAsset('sprites/monsters/vampirebat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1, frames: [1, 2, 3, 4] },
+  vampirebat: { image: loadAsset('sprites/monsters/vampirebat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1, hitbox: { y: -18, radius: 17, radiusX: 17, radiusY: 11 }, frames: [1, 2, 3, 4] },
   frostiana: { image: loadAsset('sprites/monsters/frostiana.png'), frameWidth: 32, frameHeight: 32, scale: 1.4, frames: [4, 5, 6, 7] },
   troll: { image: loadAsset('sprites/monsters/troll.png'), frameWidth: 40, frameHeight: 40, scale: 1.3, frames: [0, 1, 2, 3, 4, 5] },
   junglefowl: { image: loadAsset('sprites/monsters/junglefowl.png'), frameWidth: 50, frameHeight: 50, scale: 1.1, frames: [0, 12, 24, 36] },
@@ -590,7 +591,7 @@ const monsterSprites = {
   snail: { image: loadAsset('sprites/monsters/snail.png'), frameWidth: 50, frameHeight: 50, scale: 0.95, frames: [0, 10, 20, 30] },
   scorpion: { image: loadAsset('sprites/monsters/scorpion.png'), frameWidth: 48, frameHeight: 45, scale: 1.15, frames: [1, 2, 3, 4] },
   bee: { image: loadAsset('sprites/monsters/bee.png'), frameWidth: 20, frameHeight: 19, scale: 1.8, frames: [8, 9, 10, 11] },
-  bandit: { image: loadAsset('sprites/monsters/bandit.png'), frameWidth: 64, frameHeight: 64, scale: 1, frames: [1, 2, 3, 4, 5, 6] },
+  bandit: { image: loadAsset('sprites/monsters/bandit.png'), frameWidth: 64, frameHeight: 64, scale: 1, hitbox: { y: -2, radius: 27, radiusX: 11, radiusY: 27 }, frames: [1, 2, 3, 4, 5, 6] },
   zombie: { image: loadAsset('sprites/monsters/zombie.png'), frameWidth: 64, frameHeight: 64, scale: 0.95, frames: [1, 2, 3, 4, 5, 6] },
   'spore-sower': { image: loadAsset('sprites/monsters/mushroom-wicked.png'), frameWidth: 42, frameHeight: 40, scale: 1.25, frames: [0, 1, 2, 3] },
 };

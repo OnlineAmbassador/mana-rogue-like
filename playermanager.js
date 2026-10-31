@@ -933,25 +933,37 @@ function currentAttackStyle() {
   return [...combatStyles][0] || 'melee';
 }
 
+// Bats and bandits are hit where they are drawn, so their hitboxes come from `monsterSprites[kind].hitbox`.
 function enemyAttackTarget(enemy) {
-  if (!['bat', 'vampirebat', 'bandit', 'banditlord'].includes(enemy.kind)) return enemy;
   const sprite = monsterSprites[enemy.kind];
+  const hitbox = sprite?.hitbox;
+  if (!hitbox) return enemy;
   const scale = mobDrawScale(enemy, sprite);
-  const bat = enemy.kind === 'bat' || enemy.kind === 'vampirebat';
   return {
     x: enemy.x,
-    y: enemy.y + (bat ? -18 : -2) * scale,
-    radius: (bat ? 17 : 27) * scale,
-    radiusX: (bat ? 17 : 11) * scale,
-    radiusY: (bat ? 11 : 27) * scale,
+    y: enemy.y + hitbox.y * scale,
+    radius: hitbox.radius * scale,
+    radiusX: hitbox.radiusX * scale,
+    radiusY: hitbox.radiusY * scale,
   };
+}
+
+// Where a shot is drawn: ballistic shots arc from 34px up to the ground, so hit tests and shadows share this.
+function projectileArcState(projectile) {
+  const ballistic = projectile.type && !['reflected', 'charge-beam'].includes(projectile.type);
+  const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
+  const flown = clamp(1 - projectile.ttl / (projectile.ttl0 || projectile.ttl || 1), 0, 1);
+  const fall = ballistic ? Math.pow(flown, projectile.dropCurve || 2.4) : 0;
+  const lift = 34 * (1 - fall);
+  const y = projectile.y + (ballistic ? 34 * Math.abs(projectile.vx) / speed * fall : 0);
+  return { x: projectile.x, y, elevation: ballistic ? lift : 24 };
 }
 
 function projectileHitsEnemy(projectile, enemy, dt) {
   const target = enemyAttackTarget(enemy);
   if (target === enemy) return distanceBetween(projectile, enemy) < projectile.radius + enemy.radius;
-  const visual = projectileLightingState(projectile);
-  const startVisual = projectileLightingState({
+  const visual = projectileArcState(projectile);
+  const startVisual = projectileArcState({
     ...projectile, x: projectile.x - projectile.vx * dt, y: projectile.y - projectile.vy * dt,
     ttl: projectile.ttl + dt,
   });
@@ -1215,8 +1227,9 @@ function updateChargeBeamProjectile(projectile, dt) {
 
   const beamEnd = { x: projectile.beamEndX, y: projectile.beamEndY };
   for (const enemy of [...enemies]) {
-    if (enemy.hp <= 0 || enemy.manaRift ||
-        distanceToSegment(enemyAttackTarget(enemy), start, beamEnd) > enemyAttackTarget(enemy).radius + projectile.beamWidth * 0.5) continue;
+    if (enemy.hp <= 0 || enemy.manaRift) continue;
+    const target = enemyAttackTarget(enemy);
+    if (distanceToSegment(target, start, beamEnd) > target.radius + projectile.beamWidth * 0.5) continue;
     if (projectile.beamHitTimers.has(enemy)) continue;
     const damage = Math.max(1, Math.round(projectile.damage * 0.28));
     damageEnemy(enemy, damage, start.x, start.y, false, true);

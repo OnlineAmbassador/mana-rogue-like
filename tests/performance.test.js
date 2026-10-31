@@ -22,7 +22,7 @@ function assets() {
   });
   c.gameAssetVersions = null;
   loadFunctions(c, 'cachemanager.js', ['versionedAssetUrl']);
-  loadFunctions(c, 'gameui.js', ['loadAsset', 'retryFailedArtwork', 'updateArtworkLoading']);
+  loadFunctions(c, 'gameui.js', ['loadAsset', 'retryFailedArtwork', 'artworkBlocking', 'updateArtworkLoading']);
   return c;
 }
 
@@ -150,6 +150,31 @@ test('quality recovery backs off to avoid repeatedly resizing an overloaded devi
   Object.assign(c.quality, { low: true, fastFor: 11 });
   c.updateQuality(1 / 60);
   assert.equal(c.quality.low, true);
+});
+
+test('artwork that finishes loading mid-run never blocks play, but a failed download still does', () => {
+  const c = assets();
+  const elements = {
+    'artwork-loading': { hidden: true },
+    'artwork-status': { textContent: '' },
+    'artwork-retry': { hidden: true },
+  };
+  c.document = { getElementById: (id) => elements[id] };
+  c.keys = {};
+  c.pointer = { down: false };
+  c.resetTouchInput = () => {};
+  const first = c.loadAsset('first.png');
+  assert.equal(c.artworkBlocking(), true, 'startup waits for the initial artwork');
+  first.onload();
+  assert.equal(c.updateArtworkLoading(), false);
+  const late = c.loadAsset('late.png');
+  assert.equal(c.artwork.pending.size, 1);
+  assert.equal(c.artworkBlocking(), false, 'a late image just appears when ready');
+  assert.equal(c.updateArtworkLoading(), false);
+  late.onerror('offline');
+  c.timers[0]();
+  late.onerror('offline');
+  assert.equal(c.artworkBlocking(), true, 'a failed download offers Retry');
 });
 
 test('the game loop does not advance combat while artwork is pending or the tab is hidden', () => {

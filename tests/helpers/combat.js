@@ -9,6 +9,7 @@ const source = (file) => fs.readFileSync(path.join(__dirname, '..', '..', file),
 
 function combat() {
   const c = vm.createContext({
+    monsterSprites: {},
     Math: Object.assign(Object.create(Math), { random: () => 0.05 }),
     mode: 'playing', lastInputMode: 'keyboard', currentFloor: 1, elapsed: 10, performance,
     save: { unlockedCharacters: [], playtimeSeconds: 0 },

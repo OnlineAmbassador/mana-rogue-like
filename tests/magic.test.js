@@ -7,6 +7,7 @@ const { sliceText, loadFunctions } = require('./helpers/load');
 
 function combat() {
   const c = vm.createContext({
+    monsterSprites: {},
     Math: Object.assign(Object.create(Math), { random: () => 0.5 }),
     enemies: [], ownedItems: new Set(), lightningArcs: [], bursts: [], hits: [],
     runOfferedAbilityIds: new Set(),
@@ -404,8 +405,11 @@ test('actual projectile loop triggers enemy and object wild impacts without chan
       quality: { low: false }, MAX_PARTICLES: 400, MAX_PARTICLES_LOW: 120,
     });
     if (surface === 'bat' || surface === 'road-captain') {
-      c.monsterSprites = { bat: { scale: 1.05 }, bandit: { scale: 1 } };
-      loadFunctions(c, 'gameui.js', ['mobDrawScale', 'projectileLightingState']);
+      c.monsterSprites = {
+        bat: { scale: 1.05, hitbox: { y: -18, radius: 17, radiusX: 17, radiusY: 11 } },
+        bandit: { scale: 1, hitbox: { y: -2, radius: 27, radiusX: 11, radiusY: 27 } },
+      };
+      loadFunctions(c, 'gameui.js', ['mobDrawScale']);
       target.kind = surface === 'bat' ? 'bat' : 'bandit';
       if (surface === 'road-captain') target.miniBoss = true;
       const bounds = c.enemyAttackTarget(target);

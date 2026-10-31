@@ -8,7 +8,7 @@ const { sliceText } = require('./helpers/load');
 const source = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
 function combat(className = 'Mage', style = 'magic') {
-  const c = vm.createContext({
+  const c = vm.createContext({ monsterSprites: {},
     Math: Object.assign(Object.create(Math), { random: () => 0.5 }),
     mode: 'playing', ownedItems: new Set(), shopItemCatalog: [], attackMorphs: {},
     player: { x: 300, y: 300, lookX: 1, lookY: 0, damage: 1, fireCooldown: 0, meleeSwings: [] },

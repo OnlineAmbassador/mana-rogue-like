@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const { sliceText } = require('./helpers/load');
 
 function combat() {
-  const context = vm.createContext({
+  const context = vm.createContext({ monsterSprites: {},
     Math: Object.assign(Object.create(Math), { random: () => 0.3 }), Infinity,
     player: {
       x: 300, y: 300, radius: 12, hp: 2, maxHp: 4, lookX: 1, lookY: 0,

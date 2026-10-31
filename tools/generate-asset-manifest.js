@@ -8,7 +8,7 @@ function generateAssetManifest(root) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const absolute = path.join(directory, entry.name);
       if (entry.isDirectory()) visit(absolute);
-      else if (entry.isFile() && /\.(png|ogg)$/i.test(entry.name)) add(absolute);
+      else if (entry.isFile() && /\.(png|jpe?g|gif|svg|ogg|mp3|wav|json)$/i.test(entry.name)) add(absolute);
     }
   }
   function add(absolute) {
