@@ -20,7 +20,7 @@ function link(a, b, direction) {
 function world(rooms, currentRoom) {
   const c = vm.createContext({
     player: { x: 0, y: 0, radius: 12 },
-    mode: 'playing', deathTimer: 0, rooms, currentRoom, currentFloor: 1,
+    mode: 'playing', deathTimer: 0, rooms, currentRoom, currentFloor: 1, mapOrder: ['hurnscald'],
     directions: [
       { name: 'up', dx: 0, dy: -1 },
       { name: 'right', dx: 1, dy: 0 },
@@ -33,7 +33,7 @@ function world(rooms, currentRoom) {
     VIEW_W: 960, VIEW_H: 540,
     clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
   });
-  for (const file of ['worldmanager.js', 'gameui.js']) {
+  for (const file of ['worldmanager.js', 'gameui.js', 'desertart.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), c);
   }
   c.calls = [];
@@ -45,6 +45,63 @@ function world(rooms, currentRoom) {
   `, c);
   return c;
 }
+
+test('Tulimshar uses native 32px walls without resizing rooms; other regions and sanctums stay unchanged', () => {
+  const normal = room(0, 0);
+  const c = world([normal], normal);
+  c.mapOrder = ['tulimshar'];
+  c.applyRoomSize(normal);
+  assert.equal(c.ROOM_W, 960);
+  assert.equal(c.ROOM_H, 540);
+  assert.equal(c.ROOM_WALL_THICKNESS, 32);
+  assert.equal(c.DOORWAY_HALF_WIDTH, 48);
+  c.placePlayerAtEntry('right');
+  assert.equal(c.player.x, 32 + 24 + 8);
+  c.placePlayerAtEntry('down');
+  assert.equal(c.player.y, 32 + 80 + 8);
+  c.applyRoomSize(room(0, 1, { type: 'secret' }));
+  assert.equal(c.ROOM_WALL_THICKNESS, 64);
+  c.mapOrder = ['hurnscald'];
+  c.applyRoomSize(normal);
+  assert.equal(c.ROOM_WALL_THICKNESS, 64);
+  assert.equal(c.DOORWAY_HALF_WIDTH, 64);
+});
+
+test('thin castle walls block movement except through cleared, unlocked, aligned openings', () => {
+  const normal = room(0, 0, { links: { up: true } });
+  const c = world([normal], normal);
+  c.mapOrder = ['tulimshar'];
+  c.applyRoomSize(normal);
+  const entered = [];
+  c.enterDoor = (direction) => entered.push(direction);
+  Object.assign(c.player, { x: 200, y: 30 });
+  c.resolveDoorCrossing();
+  assert.equal(c.player.y, 52);
+  Object.assign(c.player, { x: 480, y: 20 });
+  c.resolveDoorCrossing();
+  assert.deepEqual(entered, ['up']);
+  normal.lockedDoors.up = true;
+  Object.assign(c.player, { x: 480, y: 20 });
+  c.resolveDoorCrossing();
+  assert.deepEqual(entered, ['up']);
+  assert.equal(c.player.y, 52);
+});
+
+test('preferred enemy spawns inside thin walls are rejected and generated positions stay on the floor', () => {
+  const normal = room(0, 0);
+  const c = world([normal], normal);
+  c.mapOrder = ['tulimshar'];
+  c.applyRoomSize(normal);
+  c.enemies = [];
+  c.breakables = [];
+  c.distanceBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  for (let index = 0; index < 40; index++) {
+    const position = c.findEnemySpawnPosition(40, 40, 18, 0);
+    assert.ok(position);
+    assert.ok(position.x >= 50 && position.x <= 910);
+    assert.ok(position.y >= 50 && position.y <= 490);
+  }
+});
 
 // start(0,3) — a(1,3) — b(2,3), with c(1,2) above a.
 function corridor() {

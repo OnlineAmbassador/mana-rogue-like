@@ -662,8 +662,9 @@ function performMeleeSwing(baseAngle, damageScale = 1, charged = false) {
   let hitHeavyTarget = false;
   for (const enemy of [...enemies]) {
     if (enemy.manaRift) continue;
-    const distance = Math.hypot(enemy.x - player.x, enemy.y - originY);
-    if (distance <= strikeRange + enemy.radius && Math.abs(angleTo(enemy)) < arc &&
+    const target = enemyAttackTarget(enemy);
+    const distance = Math.hypot(target.x - player.x, target.y - originY);
+    if (distance <= strikeRange + target.radius && Math.abs(angleTo(target)) < arc &&
       hasLineOfSight(player, enemy)) {
       hitCount += 1;
       if (enemy.boss || enemy.miniBoss) hitHeavyTarget = true;
@@ -732,8 +733,9 @@ function updateMeleeBladeContacts() {
     const hitEnemies = swing.hitEnemies || (swing.hitEnemies = new Set());
     for (const enemy of enemies) {
       if (enemy.hp <= 0 || enemy.manaRift || hitEnemies.has(enemy) || !hasLineOfSight(player, enemy)) continue;
-      const dx = enemy.x - player.x;
-      const dy = enemy.y - originY;
+      const target = enemyAttackTarget(enemy);
+      const dx = target.x - player.x;
+      const dy = target.y - originY;
       const distance = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx);
       const angleDiff = Math.atan2(Math.sin(angle - ribbonCenter), Math.cos(angle - ribbonCenter));
@@ -747,7 +749,7 @@ function updateMeleeBladeContacts() {
           dy - Math.sin(endpointAngle) * bladeRadius,
         );
       }
-      if (bladeDistance > enemy.radius + 4) continue;
+      if (bladeDistance > target.radius + 4) continue;
 
       hitEnemies.add(enemy);
       const element = swing.element;
@@ -931,6 +933,38 @@ function currentAttackStyle() {
   return [...combatStyles][0] || 'melee';
 }
 
+function enemyAttackTarget(enemy) {
+  if (!['bat', 'vampirebat', 'bandit', 'banditlord'].includes(enemy.kind)) return enemy;
+  const sprite = monsterSprites[enemy.kind];
+  const scale = mobDrawScale(enemy, sprite);
+  const bat = enemy.kind === 'bat' || enemy.kind === 'vampirebat';
+  return {
+    x: enemy.x,
+    y: enemy.y + (bat ? -18 : -2) * scale,
+    radius: (bat ? 17 : 27) * scale,
+    radiusX: (bat ? 17 : 11) * scale,
+    radiusY: (bat ? 11 : 27) * scale,
+  };
+}
+
+function projectileHitsEnemy(projectile, enemy, dt) {
+  const target = enemyAttackTarget(enemy);
+  if (target === enemy) return distanceBetween(projectile, enemy) < projectile.radius + enemy.radius;
+  const visual = projectileLightingState(projectile);
+  const startVisual = projectileLightingState({
+    ...projectile, x: projectile.x - projectile.vx * dt, y: projectile.y - projectile.vy * dt,
+    ttl: projectile.ttl + dt,
+  });
+  const radiusX = (target.radiusX || target.radius) + projectile.radius;
+  const radiusY = (target.radiusY || target.radius) + projectile.radius;
+  const start = { x: (startVisual.x - target.x) / radiusX, y: (startVisual.y - target.y) / radiusY };
+  const end = { x: (visual.x - target.x) / radiusX, y: (visual.y - target.y) / radiusY };
+  const dx = end.x - start.x, dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const along = lengthSquared ? clamp(-(start.x * dx + start.y * dy) / lengthSquared, 0, 1) : 0;
+  return Math.hypot(start.x + along * dx, start.y + along * dy) <= 1;
+}
+
 function attackOriginY() {
   return player.y - 34;
 }
@@ -946,7 +980,8 @@ function nearestTouchTargetAngle() {
       targetDistance = distance;
     }
   }
-  return target ? Math.atan2(target.y - attackOriginY(), target.x - player.x) : null;
+  const aim = target && enemyAttackTarget(target);
+  return aim ? Math.atan2(aim.y - attackOriginY(), aim.x - player.x) : null;
 }
 
 function currentAimAngle() {
@@ -1151,10 +1186,11 @@ function updateChargeBeamProjectile(projectile, dt) {
   projectile.beamImpact = null;
   for (const enemy of enemies) {
     if (enemy.hp <= 0 || enemy.manaRift) continue;
-    const along = (enemy.x - start.x) * dx + (enemy.y - start.y) * dy;
+    const target = enemyAttackTarget(enemy);
+    const along = (target.x - start.x) * dx + (target.y - start.y) * dy;
     if (along <= 0 || along > obstacleDistance) continue;
     const nearest = { x: start.x + dx * along, y: start.y + dy * along };
-    if (distanceBetween(enemy, nearest) > enemy.radius + projectile.beamWidth * 0.5) continue;
+    if (distanceBetween(target, nearest) > target.radius + projectile.beamWidth * 0.5) continue;
     if (!projectile.beamImpact || along < projectile.beamImpact.distance) {
       projectile.beamImpact = { enemy, distance: along };
     }
@@ -1180,7 +1216,7 @@ function updateChargeBeamProjectile(projectile, dt) {
   const beamEnd = { x: projectile.beamEndX, y: projectile.beamEndY };
   for (const enemy of [...enemies]) {
     if (enemy.hp <= 0 || enemy.manaRift ||
-        distanceToSegment(enemy, start, beamEnd) > enemy.radius + projectile.beamWidth * 0.5) continue;
+        distanceToSegment(enemyAttackTarget(enemy), start, beamEnd) > enemyAttackTarget(enemy).radius + projectile.beamWidth * 0.5) continue;
     if (projectile.beamHitTimers.has(enemy)) continue;
     const damage = Math.max(1, Math.round(projectile.damage * 0.28));
     damageEnemy(enemy, damage, start.x, start.y, false, true);

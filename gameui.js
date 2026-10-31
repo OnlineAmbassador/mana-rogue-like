@@ -229,11 +229,34 @@ function drawAudioPanel() {
 }
 
 function loadAsset(path, root = assetRoot) {
+  const url = versionedAssetUrl(`${root}/${path}`);
+  if (artwork.images.has(url)) return artwork.images.get(url);
   const image = new Image();
-  image.src = `${root}/${path}`;
-  image.onerror = () => {
-    messageEl.textContent = `Could not load artwork: ${root}/${path}`;
+  artwork.images.set(url, image);
+  image.decoding = 'async';
+  let retries = 0;
+  const fail = (error) => {
+    if (retries++ === 0) {
+      console.warn(`Retrying artwork: ${url}`, error);
+      setTimeout(start, 500);
+      return;
+    }
+    artwork.pending.delete(url);
+    artwork.failed.add(url);
+    console.error(`Could not load artwork: ${url}`, error);
   };
+  const start = () => {
+    artwork.failed.delete(url);
+    artwork.pending.add(url);
+    image.src = url;
+  };
+  image.onload = () => {
+    const ready = () => artwork.pending.delete(url);
+    if (typeof image.decode === 'function') image.decode().then(ready, fail);
+    else ready();
+  };
+  image.onerror = fail;
+  start();
   return image;
 }
 
@@ -280,8 +303,40 @@ function loadDyedAsset(path, stops, root = assetRoot) {
   return dyed;
 }
 
+function retryFailedArtwork() {
+  for (const url of artwork.failed) {
+    const image = artwork.images.get(url);
+    artwork.pending.add(url);
+    image.src = url;
+  }
+  artwork.failed.clear();
+}
+
+function updateArtworkLoading() {
+  const busy = artwork.pending.size > 0 || artwork.failed.size > 0;
+  const panel = document.getElementById('artwork-loading');
+  if (panel.hidden === busy) {
+    panel.hidden = !busy;
+    if (busy) {
+      resetTouchInput();
+      pointer.down = false;
+      for (const key of Object.keys(keys)) keys[key] = false;
+    }
+  }
+  if (busy) {
+    const failed = artwork.failed.size;
+    const text = failed
+      ? `Could not load ${failed} artwork file(s). Check your connection and retry. ${artwork.failed.values().next().value}`
+      : `Loading artwork: ${artwork.images.size - artwork.pending.size} / ${artwork.images.size}`;
+    const status = document.getElementById('artwork-status');
+    if (status.textContent !== text) status.textContent = text;
+    document.getElementById('artwork-retry').hidden = !failed;
+  }
+  return busy;
+}
+
 function soundUrl(path) {
-  return path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`;
+  return versionedAssetUrl(path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`);
 }
 
 // Fetches and decodes a sound effect once. A failed fetch or decode leaves the HTMLAudio pool as the fallback.
@@ -688,7 +743,7 @@ function speakChapter(text) {
 function startChapterNarration(card) {
   stopChapterNarration();
   if (!narrationActive()) return;
-  const audio = new Audio(`assets/audio/intro-${card.key.replace(':', '-')}.ogg`);
+  const audio = new Audio(versionedAssetUrl(`assets/audio/intro-${card.key.replace(':', '-')}.ogg`));
   audio.volume = 0.76;
   chapterAudio = audio;
   const fallBack = () => {
@@ -863,6 +918,344 @@ function prefersReducedMotion() {
   return prefersReducedMotion.query?.matches === true;
 }
 
+function roomUsesCreviceLight() {
+  return currentRoom.type === 'secret' || ['candor', 'frostia', 'worldedge'].includes(currentRegionId());
+}
+
+function roomLightShafts() {
+  const band = roomWallBand();
+  const seed = currentRoom.x * 17 + currentRoom.y * 31;
+  const key = `${currentRegionId()}:${currentRoom.x}:${currentRoom.y}:${ROOM_W}:${ROOM_H}:${band}`;
+  if (roomLightShafts.key === key) return roomLightShafts.shafts;
+  roomLightShafts.key = key;
+  roomLightShafts.shafts = [0.22, 0.62].map((fraction, index) => ({
+    x: Math.round(band + (ROOM_W - band * 2) * fraction),
+    y: Math.round(band + 24 + ((seed + index * 43) % 61 + 61) % 61),
+    length: Math.min(ROOM_H - band * 2, 360 + index * 80),
+    width: 30 + index * 16,
+  }));
+  for (const [index, shaft] of roomLightShafts.shafts.entries()) {
+    shaft.contours = [1.3, 1.05, 0.8, 0.55].map((spread) => {
+      const sides = [-1, 1].map((side) => Array.from({ length: 17 }, (_, step) => {
+        const phase = step / 16;
+        const along = phase * shaft.length;
+        const drift = Math.sin(phase * 8 + seed + index) * shaft.width * 0.12;
+        const irregularity = 0.85 + Math.sin(step * 1.7 + seed + side * 2 + index) * 0.15;
+        const across = drift + side * shaft.width * (0.35 + phase * 0.65) * spread * irregularity;
+        return [shaft.x + along + across, shaft.y + along - across];
+      }));
+      return [...sides[0], ...sides[1].reverse()];
+    });
+  }
+  return roomLightShafts.shafts;
+}
+
+function sunlightStrength(x, y) {
+  const cave = roomUsesCreviceLight();
+  let strength = cave ? 0.11 : 0.26;
+  if (cave) {
+    for (const shaft of roomLightShafts()) {
+      const along = ((x - shaft.x) + (y - shaft.y)) / 2;
+      if (along < -32 || along > shaft.length + 64) continue;
+      const across = Math.abs((x - shaft.x) - (y - shaft.y));
+      strength = Math.max(strength, 0.11 + 0.16 * Math.max(0, 1 - across / (shaft.width + 80)));
+    }
+  }
+  return strength * (1 - worldLightExposure(x, y));
+}
+
+function worldLightExposure(x, y) {
+  let glow = 0;
+  for (const light of collectWorldLights.lights || []) {
+    glow = Math.max(glow, Math.max(0, 1 - Math.hypot(x - light.x, y - light.y) / light.radius) * light.strength);
+  }
+  return glow;
+}
+
+function sunlightMask(image, sx, sy, width, height) {
+  if (!sunlightMask.images) sunlightMask.images = new WeakMap();
+  let frames = sunlightMask.images.get(image);
+  if (!frames) {
+    frames = new Map();
+    sunlightMask.images.set(image, frames);
+  }
+  const key = `${sx}:${sy}:${width}:${height}`;
+  if (frames.has(key)) return frames.get(key);
+  const mask = document.createElement('canvas');
+  mask.width = width;
+  mask.height = height;
+  const target = mask.getContext('2d', { willReadFrequently: true });
+  target.imageSmoothingEnabled = false;
+  target.drawImage(image, sx, sy, width, height, 0, 0, width, height);
+  mask.footRow = height;
+  try {
+    const { data } = target.getImageData(0, 0, width, height);
+    outer: for (let row = height - 1; row >= 0; row -= 1) {
+      for (let column = 0; column < width; column += 1) {
+        if (data[(row * width + column) * 4 + 3] >= 32) {
+          mask.footRow = row + 1;
+          break outer;
+        }
+      }
+    }
+  } catch (error) {
+    if (error.name !== 'SecurityError') throw error;
+    if (!sunlightMask.readbackWarning) {
+      console.warn('Exact shadow feet are unavailable for these local-file sprites; serve the game over HTTP for alpha-aligned shadows.', error);
+      sunlightMask.readbackWarning = true;
+    }
+  }
+  target.globalCompositeOperation = 'source-in';
+  target.fillStyle = '#101722';
+  target.fillRect(0, 0, width, height);
+  if (frames.size >= 128) frames.delete(frames.keys().next().value);
+  frames.set(key, mask);
+  return mask;
+}
+
+function drawSunSpriteShadow(image, sx, sy, sw, sh, x, groundY, width, height, elevation = 0, opacity = 1, rotation = 0, anchorY = null) {
+  if (!image.complete || image.naturalWidth === 0) return;
+  const shadowScale = 1 + Math.max(0, elevation) / 160;
+  const reach = height * shadowScale * 0.55 + Math.max(0, elevation) * 0.55;
+  if (x + width * shadowScale / 2 + reach < camera.x || x - width * shadowScale / 2 > camera.x + VIEW_W ||
+      groundY + reach < camera.y || groundY - height > camera.y + VIEW_H) return;
+  const mask = sunlightMask(image, sx, sy, sw, sh);
+  const footHeight = (anchorY ?? mask.footRow / sh) * height;
+  const footY = groundY - height + footHeight;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.filter = 'none';
+  ctx.beginPath();
+  ctx.rect(0, 0, ROOM_W, ROOM_H);
+  ctx.clip();
+  ctx.globalAlpha *= sunlightStrength(x, footY) * opacity;
+  const lift = Math.max(0, elevation) * 0.55;
+  ctx.translate(x + lift, footY + lift);
+  // Sprite tops project equally right and down from their ground anchor.
+  ctx.transform(1, 0, -0.55, -0.55, 0, 0);
+  ctx.scale(shadowScale, shadowScale);
+  ctx.translate(0, height / 2 - footHeight);
+  if (rotation) ctx.rotate(rotation);
+  ctx.drawImage(mask, -width / 2, -height / 2, width, height);
+  ctx.restore();
+}
+
+function drawTrunkShadow(x, y, width, height, opacity = 1, anchorY = 0.34) {
+  const rootY = y + height * anchorY;
+  const halfWidth = width * 0.22;
+  const reach = height * 0.55;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.filter = 'none';
+  ctx.globalAlpha *= sunlightStrength(x, rootY) * opacity;
+  ctx.fillStyle = '#101722';
+  ctx.beginPath();
+  ctx.ellipse(x, rootY, halfWidth, halfWidth * 0.45, 0, 0, Math.PI * 2);
+  ctx.moveTo(x - halfWidth, rootY);
+  ctx.lineTo(x + halfWidth, rootY);
+  ctx.lineTo(x + reach + halfWidth, rootY + reach);
+  ctx.quadraticCurveTo(x + reach, rootY + reach + halfWidth * 0.6,
+    x + reach - halfWidth, rootY + reach);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSunGroundShadow(x, y, radius, elevation = 0) {
+  const offset = Math.max(0, elevation) * 0.55;
+  const shadowRadius = radius * (1 + Math.max(0, elevation) / 64);
+  if (x + offset + shadowRadius < camera.x || x + offset - shadowRadius > camera.x + VIEW_W ||
+      y + offset + shadowRadius < camera.y || y + offset - shadowRadius > camera.y + VIEW_H) return;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha *= sunlightStrength(x, y);
+  ctx.fillStyle = '#101722';
+  ctx.beginPath();
+  ctx.ellipse(x + offset, y + offset, shadowRadius, shadowRadius * 0.5, Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function projectileLightingState(projectile) {
+  const ballistic = projectile.type && !['reflected', 'charge-beam'].includes(projectile.type);
+  const speed = Math.hypot(projectile.vx, projectile.vy) || 1;
+  const flown = clamp(1 - projectile.ttl / (projectile.ttl0 || projectile.ttl || 1), 0, 1);
+  const fall = ballistic ? Math.pow(flown, projectile.dropCurve || 2.4) : 0;
+  const lift = 34 * (1 - fall);
+  const y = projectile.y + (ballistic ? 34 * Math.abs(projectile.vx) / speed * fall : 0);
+  return { x: projectile.x, y, elevation: ballistic ? lift : 24 };
+}
+
+function collectWorldLights() {
+  const lights = [];
+  const add = (x, y, color, radius, strength = 0.3) => {
+    if (x + radius < camera.x || x - radius > camera.x + VIEW_W ||
+        y + radius < camera.y || y - radius > camera.y + VIEW_H || lights.length >= 24) return;
+    lights.push({ x, y, color, radius, strength });
+  };
+  for (const hazard of groundHazards) {
+    if (hazard.kind === 'fire' || hazard.kind === 'lightning') {
+      add(hazard.x, hazard.y, hazard.color, hazard.radius + 64, Math.min(0.3, hazard.ttl * 0.15));
+    }
+  }
+  for (const group of [projectiles, enemyProjectiles]) {
+    for (const projectile of group) {
+      if (lights.length >= 24) break;
+      if (projectile.type === 'charge-beam') {
+        const x = projectile.beamEndX ?? projectile.originX + projectile.vx * projectile.beamRange;
+        const y = projectile.beamEndY ?? projectile.originY + projectile.vy * projectile.beamRange;
+        for (let step = 0; step <= 4; step += 1) {
+          add(projectile.originX + (x - projectile.originX) * step / 4,
+            projectile.originY + (y - projectile.originY) * step / 4, projectile.color, 72);
+        }
+        continue;
+      }
+      const element = projectile.glow || projectile.element || projectile.kind;
+      if (['fire', 'fire-orb', 'lightning', 'wisp', 'spore-orb', 'void-orb'].includes(element)) {
+        const { x, y } = projectileLightingState(projectile);
+        add(x, y, magicElementPalette[element] || projectile.color, 64 * (projectile.size || 1));
+      }
+    }
+  }
+  if (player.chargeFraction > 0.1 && currentAttackStyle() === 'magic') {
+    add(player.x, player.y - 32, styleGlowColor('magic') || magicElementPalette.bubble,
+      60 + player.chargeFraction * 40, player.chargeFraction * 0.3);
+  }
+  collectWorldLights.lights = lights;
+}
+
+function drawWorldLightSources() {
+  if (!drawWorldLightSources.textures) drawWorldLightSources.textures = new Map();
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalCompositeOperation = 'screen';
+  ctx.beginPath();
+  ctx.rect(0, 0, ROOM_W, ROOM_H);
+  ctx.clip();
+  for (const { x, y, color, radius, strength } of collectWorldLights.lights || []) {
+    let texture = drawWorldLightSources.textures.get(color);
+    if (!texture) {
+      texture = document.createElement('canvas');
+      texture.width = texture.height = 128;
+      const target = texture.getContext('2d');
+      const gradient = target.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gradient.addColorStop(0, color);
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      target.fillStyle = gradient;
+      target.fillRect(0, 0, 128, 128);
+      if (drawWorldLightSources.textures.size >= 16) {
+        drawWorldLightSources.textures.delete(drawWorldLightSources.textures.keys().next().value);
+      }
+      drawWorldLightSources.textures.set(color, texture);
+    }
+    ctx.globalAlpha = strength;
+    ctx.drawImage(texture, x - radius, y - radius, radius * 2, radius * 2);
+  }
+  ctx.restore();
+}
+
+function drawProjectileGroundShadow(projectile) {
+  if (projectile.type === 'charge-beam') return;
+  const { x, y, elevation } = projectileLightingState(projectile);
+  const radius = projectile.type === 'arrow' || projectile.kind === 'arrow'
+    ? 6 * (projectile.size || 1) : projectile.radius || 8 * (projectile.size || 1);
+  drawSunGroundShadow(x, y + elevation, radius, elevation);
+}
+
+function drawRoomSunlight() {
+  const band = roomWallBand();
+  const cave = roomUsesCreviceLight();
+  const openings = directions.map(({ name }) => {
+    const secret = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
+    return currentRoom.cleared && !currentRoom.lockedDoors[name] && (currentRoom.links[name] || secret) ? 1 : 0;
+  }).join('');
+  const key = `${currentRegionId()}:${currentRoom.type}:${currentRoom.x}:${currentRoom.y}:${ROOM_W}:${ROOM_H}:${band}:${openings}`;
+  if (drawRoomSunlight.key !== key) {
+    const layer = document.createElement('canvas');
+    layer.width = ROOM_W;
+    layer.height = ROOM_H;
+    const target = layer.getContext('2d');
+    target.save();
+    target.beginPath();
+    target.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
+    target.clip();
+    const daylight = target.createLinearGradient(band, band, ROOM_W - band, ROOM_H - band);
+    daylight.addColorStop(0, cave ? 'rgba(15, 22, 38, 0.12)' : 'rgba(255, 235, 184, 0.07)');
+    daylight.addColorStop(1, cave ? 'rgba(15, 22, 38, 0.19)' : 'rgba(22, 31, 48, 0.08)');
+    target.fillStyle = daylight;
+    target.fillRect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
+    const reach = band === 32 ? 16 : 24;
+    target.beginPath();
+    const shadow = (x, y, width, height) => {
+      target.moveTo(x, y);
+      target.lineTo(x + width, y);
+      target.lineTo(x + width + reach, y + reach);
+      target.lineTo(x + width + reach, y + height + reach);
+      target.lineTo(x + reach, y + height + reach);
+      target.lineTo(x, y + height);
+      target.closePath();
+    };
+    for (const name of ['up', 'left']) {
+      const vertical = name === 'left';
+      const length = vertical ? ROOM_H : ROOM_W;
+      const index = directions.findIndex((direction) => direction.name === name);
+      const segments = openings[index] === '1'
+        ? [[0, length / 2 - DOOR_OPENING_HALF_WIDTH], [length / 2 + DOOR_OPENING_HALF_WIDTH, length]]
+        : [[0, length]];
+      for (const [start, end] of segments) {
+        if (vertical) shadow(0, start, band, end - start);
+        else shadow(start, 0, end - start, band);
+      }
+    }
+    target.fillStyle = cave ? 'rgba(12, 18, 28, 0.22)' : 'rgba(12, 18, 28, 0.26)';
+    target.fill();
+    target.restore();
+    drawRoomSunlight.layer = layer;
+    drawRoomSunlight.key = key;
+  }
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.drawImage(drawRoomSunlight.layer, 0, 0);
+  if (cave) {
+    ctx.beginPath();
+    ctx.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
+    ctx.clip();
+    const time = prefersReducedMotion() ? 0 : elapsed;
+    const shafts = roomLightShafts();
+    for (let index = 0; index < shafts.length; index += 1) {
+      const { x, y, width, length } = shafts[index];
+      const glow = ctx.createLinearGradient(x, y, x + length, y + length);
+      const pulse = 0.11 + Math.sin(time * 0.7 + index) * 0.015;
+      glow.addColorStop(0, 'rgba(255, 239, 193, 0)');
+      glow.addColorStop(0.18, `rgba(255, 239, 193, ${pulse})`);
+      glow.addColorStop(0.7, 'rgba(255, 239, 193, 0.05)');
+      glow.addColorStop(1, 'rgba(255, 239, 193, 0)');
+      ctx.fillStyle = glow;
+      ctx.save();
+      ctx.globalAlpha *= 0.25;
+      for (const contour of shafts[index].contours) {
+        ctx.beginPath();
+        contour.forEach(([px, py], point) => {
+          if (point === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255, 245, 216, 0.3)';
+      const motes = quality.low ? 2 : 6;
+      for (let mote = 0; mote < motes; mote += 1) {
+        const phase = (mote / motes + time * 0.025) % 1;
+        const along = phase * length;
+        const across = Math.sin(mote * 2.7 + index) * width * 0.45;
+        ctx.fillRect(Math.round(x + along + across), Math.round(y + along - across), 1, 1);
+      }
+    }
+  }
+  ctx.restore();
+}
+
 function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
   ctx.save();
   ctx.shadowBlur = 0;
@@ -963,38 +1356,42 @@ function terrainTileAt(terrain, column, row) {
   return terrain.tileIds[(column * 7 + row * 13) % terrain.tileIds.length];
 }
 
-// The wall band is the existing 64px collision boundary; open doorways cut a 96px gap through it.
+// Tulimshar reserves extra room for a wall-top path behind its facade.
 const ROOM_WALL_BAND = 64;
 const DOOR_OPENING_HALF_WIDTH = 48;
 
-function clipRoomWallBand() {
-  const band = ROOM_WALL_BAND;
+function roomWallBand(room = currentRoom) {
+  return currentRegionId() === 'tulimshar' && room?.type !== 'secret' ? DESERT_ART.wallBand : ROOM_WALL_BAND;
+}
+
+function clipRoomWallBand(target = ctx) {
+  const band = roomWallBand();
   const half = DOOR_OPENING_HALF_WIDTH;
-  ctx.beginPath();
-  ctx.rect(0, 0, ROOM_W, ROOM_H);
-  ctx.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
+  target.beginPath();
+  target.rect(0, 0, ROOM_W, ROOM_H);
+  target.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
   for (const { name } of directions) {
     const secretDoor = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
     if (!currentRoom.cleared || currentRoom.lockedDoors[name] ||
         !(currentRoom.links[name] || secretDoor)) continue;
     if (name === 'up' || name === 'down') {
-      ctx.rect(ROOM_W / 2 - half, name === 'up' ? 0 : ROOM_H - band, half * 2, band);
+      target.rect(ROOM_W / 2 - half, name === 'up' ? 0 : ROOM_H - band, half * 2, band);
     } else {
-      ctx.rect(name === 'left' ? 0 : ROOM_W - band, ROOM_H / 2 - half, band, half * 2);
+      target.rect(name === 'left' ? 0 : ROOM_W - band, ROOM_H / 2 - half, band, half * 2);
     }
   }
-  ctx.clip('evenodd');
+  target.clip('evenodd');
 }
 
-function drawCastleWalls() {
+function drawCastleWalls(target = ctx) {
   if (!castleWallTiles.complete || castleWallTiles.naturalWidth < 512 ||
       castleWallTiles.naturalHeight < 192) return;
   const tile = (id, x, y, width, height) => {
-    ctx.drawImage(castleWallTiles, id % 16 * 32, Math.floor(id / 16) * 32, 32, 32,
+    target.drawImage(castleWallTiles, id % 16 * 32, Math.floor(id / 16) * 32, 32, 32,
       x, y, width, height);
   };
-  ctx.save();
-  clipRoomWallBand();
+  target.save();
+  clipRoomWallBand(target);
   // 001-3 / Over 2 (102,100)..(105,104): vertical edges 32/34, not facade 65/81.
   for (let y = 64; y < ROOM_H - 64; y += 32) {
     const height = Math.min(32, ROOM_H - 64 - y);
@@ -1014,11 +1411,93 @@ function drawCastleWalls() {
   course(48, 49, 50, ROOM_H - 64, 64 / 3);
   course(64, 65, 66, ROOM_H - 64 + 64 / 3, 64 / 3);
   course(80, 81, 82, ROOM_H - 64 / 3, 64 / 3);
-  ctx.restore();
+  target.restore();
+}
+
+function drawCachedRoomWalls(desert) {
+  const image = desert ? tulimsharCastleTiles : castleWallTiles;
+  if (!image.complete || image.naturalWidth === 0) return;
+  const openings = directions.map(({ name }) => {
+    const secret = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
+    return currentRoom.cleared && !currentRoom.lockedDoors[name] && (currentRoom.links[name] || secret) ? 1 : 0;
+  }).join('');
+  const jambs = desert ? directions.map(({ name }) => {
+    const secret = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
+    return currentRoom.links[name] || secret ? 1 : 0;
+  }).join('') : '';
+  const key = `${desert}:${ROOM_W}:${ROOM_H}:${roomWallBand()}:${openings}:${jambs}:${image.naturalWidth}:${image.naturalHeight}`;
+  if (drawCachedRoomWalls.key !== key) {
+    const layer = document.createElement('canvas');
+    layer.width = ROOM_W;
+    layer.height = ROOM_H;
+    const target = layer.getContext('2d');
+    target.imageSmoothingEnabled = false;
+    if (desert) drawTulimsharCastleWalls(target);
+    else drawCastleWalls(target);
+    // Keep only the current wall layer, not a second full room cache.
+    drawCachedRoomWalls.layer = layer;
+    drawCachedRoomWalls.key = key;
+  }
+  ctx.drawImage(drawCachedRoomWalls.layer, 0, 0);
+}
+
+function drawTulimsharCastleWalls(target = ctx) {
+  if (!tulimsharCastleTiles.complete || tulimsharCastleTiles.naturalWidth < 96 ||
+      tulimsharCastleTiles.naturalHeight < 128) return;
+  const columns = Math.floor(tulimsharCastleTiles.naturalWidth / 32);
+  const tile = (column, row, x, y, width = 32, height = 32) => {
+    const id = row * columns + column;
+    target.drawImage(tulimsharCastleTiles, id % columns * 32, Math.floor(id / columns) * 32,
+      width, height, x, y, width, height);
+  };
+  target.save();
+  clipRoomWallBand(target);
+  for (let y = 32; y < ROOM_H - 32; y += 32) {
+    const height = Math.min(32, ROOM_H - 32 - y);
+    tile(0, 2, 0, y, 32, height);
+    tile(2, 2, ROOM_W - 32, y, 32, height);
+  }
+  for (const [row, y] of [[0, 0], [3, ROOM_H - 32]]) {
+    tile(0, row, 0, y);
+    for (let x = 32; x < ROOM_W - 32; x += 32) {
+      tile(1, row, x, y, Math.min(32, ROOM_W - 32 - x));
+    }
+    tile(2, row, ROOM_W - 32, y);
+  }
+  target.restore();
+  drawTulimsharDoorJambs(target);
+}
+
+function drawTulimsharDoorJambs(target = ctx) {
+  if (!tulimsharCastleTiles.complete || tulimsharCastleTiles.naturalWidth < 96 ||
+      tulimsharCastleTiles.naturalHeight < 704) return;
+  const size = 32;
+  const half = DOOR_OPENING_HALF_WIDTH;
+  target.save();
+  for (const { name } of directions) {
+    const secret = currentRoom.secretExit?.direction === name && !currentRoom.secretExit.room.hidden;
+    if (!(currentRoom.links[name] || secret)) continue;
+    const vertical = name === 'up' || name === 'down';
+    const x = vertical ? ROOM_W / 2 : name === 'left' ? size / 2 : ROOM_W - size / 2;
+    const y = vertical ? name === 'up' ? size / 2 : ROOM_H - size / 2 : ROOM_H / 2;
+    const degrees = { down: 0, up: 180, right: 90, left: 270 }[name];
+    target.save();
+    target.translate(x, y);
+    // Canvas angles run clockwise; the approved south-facing pair turns counterclockwise.
+    target.rotate(-degrees * Math.PI / 180);
+    for (const [sx, offset] of [[32, -half - size], [64, half]]) {
+      target.clearRect(offset, -size / 2, size, size);
+      target.drawImage(tulimsharCastleTiles, sx, 640, size, size,
+        offset, -size / 2, size, size);
+    }
+    target.restore();
+  }
+  target.restore();
 }
 
 function drawRoomFloor() {
   const theme = currentFloorTheme();
+  const band = roomWallBand();
   if (currentRoom.type === 'secret' && sacredRoomTiles.complete && sacredRoomTiles.naturalWidth > 0) {
     ctx.fillStyle = '#16131b';
     ctx.fillRect(0, 0, ROOM_W, ROOM_H);
@@ -1031,8 +1510,6 @@ function drawRoomFloor() {
         ctx.drawImage(sacredRoomTiles, sourceX, sourceY, 32, 32, x, y, 32, 32);
       }
     }
-    ctx.fillStyle = 'rgba(22, 18, 25, 0.74)';
-    ctx.fillRect(64, 64, ROOM_W - 128, 32);
     ctx.fillStyle = '#ead8ac';
     ctx.font = 'bold 12px Arial';
     ctx.textAlign = 'center';
@@ -1060,9 +1537,9 @@ function drawRoomFloor() {
           terrainContext.filter = 'hue-rotate(205deg) saturate(0.75) brightness(0.72)';
         }
         const tileColumns = Math.floor(image.naturalWidth / 32);
-        for (let row = 2; row * 32 < ROOM_H - 64; row += 1) {
-          for (let column = 2; column * 32 < ROOM_W - 64; column += 1) {
-            const tileId = terrainTileAt(terrain, column - 2, row - 2);
+        for (let row = band / 32; row * 32 < ROOM_H - band; row += 1) {
+          for (let column = band / 32; column * 32 < ROOM_W - band; column += 1) {
+            const tileId = terrainTileAt(terrain, column - band / 32, row - band / 32);
             const sourceX = (tileId % tileColumns) * 32;
             const sourceY = Math.floor(tileId / tileColumns) * 32;
             terrainContext.drawImage(image, sourceX, sourceY, 32, 32, column * 32, row * 32, 32, 32);
@@ -1076,27 +1553,16 @@ function drawRoomFloor() {
         terrainBackgroundCache.set(terrainKey, terrainBackground);
       }
       ctx.drawImage(terrainBackground, 0, 0);
-      if (desert) {
-        drawSandstoneWalls();
-      } else {
-        drawCastleWalls();
-      }
-      ctx.save();
-      const shade = ctx.createLinearGradient(0, 64, 0, 112);
-      shade.addColorStop(0, 'rgba(62, 43, 24, 0.24)');
-      shade.addColorStop(1, 'rgba(62, 43, 24, 0)');
-      ctx.fillStyle = shade;
-      ctx.fillRect(64, 64, ROOM_W - 128, 48);
-      ctx.restore();
+      drawCachedRoomWalls(desert);
     } else {
       ctx.fillStyle = theme.wall;
       ctx.fillRect(0, 0, ROOM_W, ROOM_H);
     }
   }
 
-  ctx.strokeStyle = 'rgba(113, 86, 45, 0.36)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(63, 63, ROOM_W - 126, ROOM_H - 126);
+    ctx.strokeStyle = 'rgba(113, 86, 45, 0.36)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(band - 1, band - 1, ROOM_W - band * 2 + 2, ROOM_H - band * 2 + 2);
 
   for (const direction of directions) {
     const secretDoor = currentRoom.secretExit?.direction === direction.name &&
@@ -1106,24 +1572,25 @@ function drawRoomFloor() {
     const locked = currentRoom.lockedDoors[direction.name] === true;
     const sealed = !currentRoom.cleared;
     const vertical = direction.name === 'up' || direction.name === 'down';
-    const centerX = vertical ? ROOM_W / 2 : direction.name === 'left' ? 32 : ROOM_W - 32;
-    const centerY = vertical ? (direction.name === 'up' ? 32 : ROOM_H - 32) : ROOM_H / 2;
+    const centerX = vertical ? ROOM_W / 2 : direction.name === 'left' ? band / 2 : ROOM_W - band / 2;
+    const centerY = vertical ? (direction.name === 'up' ? band / 2 : ROOM_H - band / 2) : ROOM_H / 2;
     ctx.save();
     ctx.translate(centerX, centerY);
     if (!vertical) ctx.rotate(Math.PI / 2);
-    // Door is drawn as a 96x56 panel facing "up"; sealed and locked doors are solid, open doors are a green archway.
+    // Doors keep their width while their depth follows the surrounding wall.
+    const doorHalfDepth = band / 2 - 4;
     if (sealed || locked) {
       ctx.fillStyle = sealed ? '#4a2a2a' : '#6b4a26';
-      ctx.fillRect(-48, -28, 96, 56);
+      ctx.fillRect(-48, -doorHalfDepth, 96, doorHalfDepth * 2);
       ctx.strokeStyle = sealed ? '#b55a5a' : '#e0b45e';
       ctx.lineWidth = 3;
-      ctx.strokeRect(-47, -27, 94, 54);
+      ctx.strokeRect(-47, -doorHalfDepth + 1, 94, doorHalfDepth * 2 - 2);
       ctx.strokeStyle = sealed ? '#2a1515' : '#3d2a14';
       ctx.lineWidth = 2;
       for (let bar = -30; bar <= 30; bar += 20) {
         ctx.beginPath();
-        ctx.moveTo(bar, -26);
-        ctx.lineTo(bar, 26);
+        ctx.moveTo(bar, -doorHalfDepth + 2);
+        ctx.lineTo(bar, doorHalfDepth - 2);
         ctx.stroke();
       }
       ctx.fillStyle = sealed ? '#d98a8a' : '#f1cf7a';
@@ -1137,10 +1604,10 @@ function drawRoomFloor() {
       ctx.fillRect(-1.5, 1, 3, 6);
     } else {
       ctx.fillStyle = 'rgba(14, 18, 12, 0.85)';
-      ctx.fillRect(-42, -28, 84, 56);
+      ctx.fillRect(-42, -doorHalfDepth, 84, doorHalfDepth * 2);
       ctx.strokeStyle = '#8cae7a';
       ctx.lineWidth = 3;
-      ctx.strokeRect(-42, -28, 84, 56);
+      ctx.strokeRect(-42, -doorHalfDepth, 84, doorHalfDepth * 2);
     }
     const bossDoor = currentRoom.type !== 'boss' && rooms.some((candidate) => candidate.type === 'boss' &&
       candidate.x === currentRoom.x + direction.dx && candidate.y === currentRoom.y + direction.dy);
@@ -1151,10 +1618,10 @@ function drawRoomFloor() {
       ctx.shadowBlur = 22;
       ctx.strokeStyle = `rgba(255, 70, 70, ${0.6 + pulse * 0.4})`;
       ctx.lineWidth = 5;
-      ctx.strokeRect(-52, -32, 104, 64);
+      ctx.strokeRect(-52, -doorHalfDepth - 4, 104, doorHalfDepth * 2 + 8);
       ctx.shadowBlur = 0;
       ctx.fillStyle = 'rgba(120, 10, 20, 0.45)';
-      ctx.fillRect(-48, -28, 96, 56);
+      ctx.fillRect(-48, -doorHalfDepth, 96, doorHalfDepth * 2);
       ctx.fillStyle = '#f4ecec';
       ctx.beginPath();
       ctx.arc(0, -2, 10, 0, Math.PI * 2);
@@ -1173,8 +1640,8 @@ function drawRoomFloor() {
     ctx.textAlign = 'center';
     const doorLabel = bossDoor ? (sealed ? 'BOSS · SEALED' : locked ? 'BOSS · KEY' : 'BOSS')
       : sealed ? 'SEALED' : locked ? (keysHeld > 0 ? 'KEY' : 'LOCKED') : 'OPEN';
-    const labelX = vertical ? ROOM_W / 2 : direction.name === 'left' ? 78 : ROOM_W - 78;
-    const labelY = vertical ? (direction.name === 'up' ? 78 : ROOM_H - 70) : ROOM_H / 2 + 4;
+    const labelX = vertical ? ROOM_W / 2 : direction.name === 'left' ? band + 14 : ROOM_W - band - 14;
+    const labelY = vertical ? (direction.name === 'up' ? band + 14 : ROOM_H - band - 6) : ROOM_H / 2 + 4;
     ctx.fillText(doorLabel, labelX, labelY);
   }
 
@@ -1184,13 +1651,13 @@ function drawRoomFloor() {
     ctx.lineWidth = 3;
     ctx.beginPath();
     if (direction === 'up' || direction === 'down') {
-      const y = direction === 'up' ? 38 : ROOM_H - 38;
+      const y = direction === 'up' ? band / 2 + 6 : ROOM_H - band / 2 - 6;
       ctx.moveTo(ROOM_W / 2 - 26, y - 8);
       ctx.lineTo(ROOM_W / 2 + 26, y + 8);
       ctx.moveTo(ROOM_W / 2 + 18, y - 8);
       ctx.lineTo(ROOM_W / 2 - 18, y + 8);
     } else {
-      const x = direction === 'left' ? 38 : ROOM_W - 38;
+      const x = direction === 'left' ? band / 2 + 6 : ROOM_W - band / 2 - 6;
       ctx.moveTo(x - 8, ROOM_H / 2 - 24);
       ctx.lineTo(x + 8, ROOM_H / 2 + 24);
       ctx.moveTo(x - 8, ROOM_H / 2 + 18);
@@ -1229,11 +1696,6 @@ function drawEnemy(enemy) {
     const height = progress < 0.35 ? progress / 0.35 * 85 : progress < 0.7 ? 85
       : (1 - progress) / 0.3 * 85;
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.beginPath();
-    ctx.ellipse(enemy.x, enemy.y + 3, enemy.radius * (1 + height / 150), enemy.radius * 0.4,
-      0, 0, Math.PI * 2);
-    ctx.fill();
     ctx.strokeStyle = enemy.manaSlam.color || '#adceff';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1279,6 +1741,12 @@ function drawEnemy(enemy) {
   ctx.globalAlpha *= visible;
   drawEnemyBody(enemy);
   ctx.restore();
+}
+
+function mobDrawScale(enemy, sprite) {
+  const original = sprite.scale * (enemy.boss && enemy.kind !== 'jacko' ? 1.4 : 1) *
+    (enemy.miniBoss && !enemy.boss ? 1.5 : 1) * (enemy.isOffspring ? 0.58 : 1);
+  return (original + Math.max(1, Math.ceil(original * 1.15))) / 2;
 }
 
 function drawEnemyBody(enemy) {
@@ -1492,11 +1960,12 @@ function drawEnemyBody(enemy) {
     const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
     const sourceX = (frame % columns) * sprite.frameWidth;
     const sourceY = Math.floor(frame / columns) * sprite.frameHeight;
-    const scale = sprite.scale * (enemy.boss && enemy.kind !== 'jacko' ? 1.4 : 1) *
-      (enemy.miniBoss && !enemy.boss ? 1.5 : 1) *
-      (enemy.isOffspring ? 0.58 : 1);
+    const scale = mobDrawScale(enemy, sprite);
     const width = sprite.frameWidth * scale;
     const height = sprite.frameHeight * scale;
+    const sourceHeight = sprite.cropHeight || sprite.frameHeight;
+    const visibleHeight = sourceHeight * scale;
+    const flightHeight = sprite.cropHeight ? Math.max(0, height / 2 - visibleHeight) : 0;
     const hop = enemy.linkDash && enemy.linkDash.windup <= 0
       ? Math.sin(Math.min(1, enemy.linkDash.t) * Math.PI) * 38
       : enemy.archetype === 'leaper' && enemy.behavior === 'leap'
@@ -1508,11 +1977,22 @@ function drawEnemyBody(enemy) {
         ? Math.sin(((enemy.phase >= 2 ? 0.7 : 0.85) - enemy.stateTimer) /
           (enemy.phase >= 2 ? 0.7 : 0.85) * Math.PI) * (enemy.phase >= 2 ? 86 : 56)
         : enemy.kind === 'wisp' ? Math.sin(elapsed * 5 + enemy.x) * 5 : 0;
+    const slam = enemy.manaSlam;
+    const progress = slam ? 1 - slam.timer / slam.duration : 0;
+    const lift = slam ? progress < 0.35 ? progress / 0.35 * 85 : progress < 0.7 ? 85
+      : (1 - progress) / 0.3 * 85 : 0;
+    const rolling = enemy.archetype === 'charger' && enemy.behavior === 'roll' ||
+      enemy.linkDash && enemy.linkDash.windup <= 0 && enemy.linkDash.kind === 'roll' ||
+      enemy.kind === 'jacko' && enemy.behavior === 'jacko-roll';
+    ctx.save();
+    if (lift) ctx.translate(0, lift);
+    drawSunSpriteShadow(sprite.image, sourceX, sourceY, sprite.frameWidth, sourceHeight,
+      enemy.x, enemy.y - height / 2 + visibleHeight + flightHeight, width, visibleHeight,
+      flightHeight + Math.max(0, hop) + lift, 1, rolling ? elapsed * 18 : 0, sprite.shadowAnchorY ?? null);
+    ctx.restore();
     ctx.save();
     ctx.translate(enemy.x, enemy.y - hop);
-    if (enemy.archetype === 'charger' && enemy.behavior === 'roll' ||
-      enemy.linkDash && enemy.linkDash.windup <= 0 && enemy.linkDash.kind === 'roll' ||
-      enemy.kind === 'jacko' && enemy.behavior === 'jacko-roll') {
+    if (rolling) {
       ctx.rotate(elapsed * 18);
     }
     const frostAffected = enemy.freezeTimer > 0 || enemy.slowTimer > 0;
@@ -1532,8 +2012,10 @@ function drawEnemyBody(enemy) {
     }
     // A brief bright flash confirms the hit without fading the sprite out.
     if (enemy.hitFlash > 0) ctx.filter = 'brightness(2.6) saturate(0.3)';
-    ctx.drawImage(sprite.image, sourceX, sourceY, sprite.frameWidth, sprite.frameHeight,
-      -width / 2, -height / 2, width, height);
+    const lightExposure = worldLightExposure(enemy.x, enemy.y);
+    if (lightExposure > 0) ctx.filter = `${ctx.filter === 'none' ? '' : ctx.filter} brightness(${1 + lightExposure})`;
+    ctx.drawImage(sprite.image, sourceX, sourceY, sprite.frameWidth, sourceHeight,
+      -width / 2, -height / 2, width, visibleHeight);
     if ((enemy.kind === 'bandit' || enemy.kind === 'banditlord') &&
       banditBowImage.complete && banditBowImage.naturalWidth >= 128) {
       const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
@@ -1785,11 +2267,12 @@ function drawEnemyBody(enemy) {
     ctx.stroke();
     ctx.restore();
   }
+  const labelTop = enemy.y - Math.max(enemy.radius, sprite.frameHeight * mobDrawScale(enemy, sprite) / 2);
   if (enemy.hp < enemy.maxHp) {
     ctx.fillStyle = '#160f13';
-    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11, enemy.radius * 2, 5);
+    ctx.fillRect(enemy.x - enemy.radius, labelTop - 11, enemy.radius * 2, 5);
     ctx.fillStyle = enemy.boss ? '#e376bd' : '#9be08d';
-    ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 11,
+    ctx.fillRect(enemy.x - enemy.radius, labelTop - 11,
       (enemy.hp / enemy.maxHp) * enemy.radius * 2, 5);
   }
   if (enemy.boss || enemy.miniBoss) {
@@ -1799,7 +2282,7 @@ function drawEnemyBody(enemy) {
     ctx.fillText(enemy.boss
       ? `${enemy.title}${enemy.phase >= 3 ? ' - PHASE III' : enemy.phase >= 2 ? ' - PHASE II' : ''}`
       : 'MINI-BOSS',
-      enemy.x, enemy.y - enemy.radius - 18);
+      enemy.x, labelTop - 18);
   }
 }
 
@@ -1807,12 +2290,21 @@ function drawCompanion(companion) {
   if (companion.hp <= 0) return;
   const sprite = monsterSprites[companion.kind];
   if (!sprite.image.complete || sprite.image.naturalWidth === 0) return;
-  const scale = Math.min(sprite.scale || 1, 42 / Math.max(sprite.frameWidth, sprite.frameHeight));
+  const originalScale = Math.min(sprite.scale || 1, 42 / Math.max(sprite.frameWidth, sprite.frameHeight));
+  const enlargedScale = Math.max(1, Math.ceil(Math.min((sprite.scale || 1) * 1.15, 48 / Math.max(sprite.frameWidth, sprite.frameHeight))));
+  const scale = (originalScale + enlargedScale) / 2;
   const width = sprite.frameWidth * scale;
   const height = sprite.frameHeight * scale;
+  const sourceHeight = sprite.cropHeight || sprite.frameHeight;
+  const visibleHeight = sourceHeight * scale;
+  const flightHeight = sprite.cropHeight ? Math.max(0, height / 2 - visibleHeight) : 0;
   const frame = companion.kind === 'wisp' ? Math.floor(elapsed * 5) % 5 : 0;
   const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
   const glow = companion.kind === 'wisp' ? '#c8a6ff' : companion.color || '#a8e39c';
+  drawSunSpriteShadow(sprite.image, (frame % columns) * sprite.frameWidth,
+    Math.floor(frame / columns) * sprite.frameHeight, sprite.frameWidth, sourceHeight,
+    companion.x, companion.y - height / 2 + visibleHeight + flightHeight, width, visibleHeight,
+    flightHeight + (companion.kind === 'wisp' ? 10 : 0), 1, 0, sprite.shadowAnchorY ?? null);
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.strokeStyle = glow;
@@ -1823,16 +2315,17 @@ function drawCompanion(companion) {
   ctx.arc(companion.x, companion.y, Math.max(width, height) * 0.42, 0, Math.PI * 2);
   ctx.stroke();
   ctx.globalAlpha = 1;
+  ctx.filter = `brightness(${1 + worldLightExposure(companion.x, companion.y)})`;
   ctx.drawImage(
     sprite.image,
     (frame % columns) * sprite.frameWidth,
     Math.floor(frame / columns) * sprite.frameHeight,
     sprite.frameWidth,
-    sprite.frameHeight,
+    sourceHeight,
     companion.x - width / 2,
     companion.y - height / 2,
     width,
-    height,
+    visibleHeight,
   );
   ctx.restore();
 }
@@ -1851,15 +2344,14 @@ function drawPlayer() {
     frame = isBowAttack ? 11 + Math.floor(progress * 5) : 7 + Math.floor(progress * 4);
   }
   const bodyFrameIndex = directionRow * sprite.framesPerDirection + frame;
+  const pulse = player.attackPulse / 0.14;
+  const pulseX = 1 + pulse * 0.08;
+  const pulseY = 1 - pulse * 0.045;
   drawOrbitGuard();
-  ctx.fillStyle = 'rgba(14, 16, 20, 0.28)';
-  ctx.beginPath();
-  ctx.ellipse(player.x, player.y - 1, 24, 9.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(14, 16, 20, 0.34)';
-  ctx.beginPath();
-  ctx.ellipse(player.x, player.y - 1, 16, 6.5, 0, 0, Math.PI * 2);
-  ctx.fill();
+  const bodyColumns = Math.floor(sprite.image.naturalWidth / 64);
+  drawSunSpriteShadow(sprite.image, bodyFrameIndex % bodyColumns * 64,
+    Math.floor(bodyFrameIndex / bodyColumns) * 64, 64, 64,
+    player.x, player.y + 6 * pulseY, 64 * 1.45 * pulseX, 64 * 1.45 * pulseY);
   if (player.chargeFraction > 0.02) {
     ctx.save();
     ctx.lineWidth = 4;
@@ -1885,9 +2377,11 @@ function drawPlayer() {
     ctx.shadowBlur = 18;
   }
   if (player.invuln > 0 && Math.floor(player.invuln * 14) % 2 === 0) ctx.globalAlpha = 0.4;
-  const pulse = player.attackPulse / 0.14;
+  const lightExposure = worldLightExposure(player.x, player.y);
+  if (lightExposure > 0) ctx.filter = `${ctx.filter === 'none' ? '' : ctx.filter} brightness(${1 + lightExposure})`;
   ctx.translate(player.x, player.y);
-  ctx.scale(1 + pulse * 0.08, 1 - pulse * 0.045);
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(pulseX, pulseY);
   if (player.swordParryFlash > 0) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -2235,6 +2729,33 @@ function drawFallbackBreakable(rock, width, height) {
   ctx.restore();
 }
 
+function getBreakableFrame(sprite, frame, type) {
+  const cache = getBreakableFrame.cache || (getBreakableFrame.cache = new WeakMap());
+  let frames = cache.get(sprite.image);
+  if (!frames) {
+    frames = new Map();
+    cache.set(sprite.image, frames);
+  }
+  const key = `${sprite.frameWidth}:${sprite.frameHeight}:${frame}:${type}`;
+  if (frames.has(key)) return frames.get(key);
+  const layer = document.createElement('canvas');
+  layer.width = sprite.frameWidth;
+  layer.height = sprite.frameHeight;
+  const target = layer.getContext('2d');
+  const filters = {
+    solid: 'grayscale(0.85) brightness(0.7) saturate(0.65)',
+    'bomb-only': 'sepia(0.45) saturate(1.5)',
+    regenerating: 'hue-rotate(45deg) saturate(1.2)',
+  };
+  target.filter = filters[type] || 'none';
+  const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
+  target.drawImage(sprite.image, frame % columns * sprite.frameWidth,
+    Math.floor(frame / columns) * sprite.frameHeight, sprite.frameWidth, sprite.frameHeight,
+    0, 0, sprite.frameWidth, sprite.frameHeight);
+  frames.set(key, layer);
+  return layer;
+}
+
 function drawSoulMenhir() {
   const position = soulMenhirPosition();
   const t = prefersReducedMotion() ? 0 : elapsed;
@@ -2245,6 +2766,7 @@ function drawSoulMenhir() {
   ctx.fillStyle = glow;
   ctx.fillRect(position.x - 80, position.y - 110, 160, 160);
   ctx.restore();
+  drawTrunkShadow(position.x, position.y - 28, 80, 64, 1, 0.5);
   if (soulMenhirImage.complete && soulMenhirImage.naturalWidth >= 64 && soulMenhirImage.naturalHeight >= 64) {
     ctx.drawImage(soulMenhirImage, 0, 0, 64, 64, position.x - 32, position.y - 60, 64, 64);
   } else {
@@ -2406,6 +2928,20 @@ function drawElementalMenhir() {
   const t = performance.now() / 1000;
   const active = !currentRoom.shrineUsed;
   ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha *= sunlightStrength(x, y + 36);
+  ctx.fillStyle = '#101722';
+  ctx.translate(x, y + 36);
+  ctx.transform(1, 0, -0.55, -0.55, 0, 0);
+  ctx.beginPath();
+  for (const [index, point] of [[-34, 0], [-29, -74], [-12, -105], [13, -111], [31, -79], [35, 0]].entries()) {
+    if (index === 0) ctx.moveTo(...point);
+    else ctx.lineTo(...point);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
   const glow = ctx.createRadialGradient(x, y - 28, 8, x, y - 28, 100);
   glow.addColorStop(0, `${color}${active ? '66' : '33'}`);
   glow.addColorStop(1, `${color}00`);
@@ -2551,7 +3087,98 @@ function drawElementalMenhir() {
   ctx.restore();
 }
 
+function outlinedItemTexture(image) {
+  if (!outlinedItemTexture.images) outlinedItemTexture.images = new WeakMap();
+  if (outlinedItemTexture.images.has(image)) return outlinedItemTexture.images.get(image);
+  const layer = document.createElement('canvas');
+  layer.width = image.naturalWidth || image.width;
+  layer.height = image.naturalHeight || image.height;
+  const tint = layer.getContext('2d');
+  tint.drawImage(image, 0, 0);
+  let bounds = { x: 0, y: 0, width: layer.width, height: layer.height };
+  try {
+    const { data } = tint.getImageData(0, 0, layer.width, layer.height);
+    let left = layer.width, right = -1, top = layer.height, bottom = -1;
+    for (let y = 0; y < layer.height; y += 1) {
+      for (let x = 0; x < layer.width; x += 1) {
+        if (data[(y * layer.width + x) * 4 + 3] < 32) continue;
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+    if (right >= left) bounds = { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
+  } catch (error) {
+    if (error.name !== 'SecurityError') throw error;
+    if (!outlinedItemTexture.readbackWarning) {
+      console.warn('Item padding cannot be cropped for local-file artwork; serving over HTTP enables tight item outlines.', error);
+      outlinedItemTexture.readbackWarning = true;
+    }
+  }
+  tint.globalCompositeOperation = 'source-in';
+  tint.fillStyle = '#0e0868';
+  tint.fillRect(0, 0, layer.width, layer.height);
+  const outline = document.createElement('canvas');
+  outline.width = bounds.width + 2;
+  outline.height = bounds.height + 2;
+  const target = outline.getContext('2d');
+  target.imageSmoothingEnabled = false;
+  for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
+    target.drawImage(layer, bounds.x, bounds.y, bounds.width, bounds.height,
+      1 + dx, 1 + dy, bounds.width, bounds.height);
+  }
+  target.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height,
+    1, 1, bounds.width, bounds.height);
+  outlinedItemTexture.images.set(image, outline);
+  return outline;
+}
+
+function drawOutlinedItemImage(image, x, y, width, height) {
+  if (!image?.complete || image.naturalWidth === 0) return;
+  const texture = outlinedItemTexture(image);
+  const scale = Math.max(1, Math.round(Math.min(width / (texture.width - 2), height / (texture.height - 2))));
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.shadowBlur = 0;
+  ctx.drawImage(texture, Math.round(x + width / 2 - texture.width * scale / 2),
+    Math.round(y + height / 2 - texture.height * scale / 2), texture.width * scale, texture.height * scale);
+  ctx.restore();
+}
+
+function drawShopStockIcon(item, centerX, centerY) {
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.scale(0.875, 0.875);
+  drawShopItemIcon(item, 0, 0);
+  ctx.restore();
+}
+
 function drawShopItemIcon(item, centerX, centerY) {
+  const image = shopItemIconImages[item.id];
+  if (image?.complete && image.naturalWidth > 0) {
+    drawOutlinedItemImage(image, centerX - 16, centerY - 16, 32, 32);
+    return;
+  }
+  if (!drawShopItemIcon.cache) drawShopItemIcon.cache = new Map();
+  const key = [item.id, item.kind, item.element, item.style, item.weapon].join(':');
+  let texture = drawShopItemIcon.cache.get(key);
+  if (!texture) {
+    texture = document.createElement('canvas');
+    texture.width = texture.height = 40;
+    drawShopItemIconArt(item, 20, 20, texture.getContext('2d'));
+    texture = outlinedItemTexture(texture);
+    if (drawShopItemIcon.cache.size >= 128) drawShopItemIcon.cache.delete(drawShopItemIcon.cache.keys().next().value);
+    drawShopItemIcon.cache.set(key, texture);
+  }
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(texture, Math.round(centerX - texture.width / 2), Math.round(centerY - texture.height / 2));
+  ctx.restore();
+}
+
+function drawShopItemIconArt(item, centerX, centerY, ctx) {
   const itemImage = shopItemIconImages[item.id];
   if (itemImage?.complete && itemImage.naturalWidth > 0) {
     ctx.save();
@@ -2769,6 +3396,90 @@ function drawShopItemIcon(item, centerX, centerY) {
   ctx.restore();
 }
 
+function drawDropIcon(x, y, drawIcon, scale = 0.8) {
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.translate(-x, -y);
+  const result = drawIcon();
+  ctx.restore();
+  return result;
+}
+
+function drawPickupItem(pickup) {
+  if (['upgrade', 'lore-relic'].includes(pickup.kind)) return false;
+  const bob = prefersReducedMotion() ? 0 : pickup.kind === 'xp' ? Math.sin(elapsed * 6 + pickup.x) * 1.5
+    : ['coin', 'curio'].includes(pickup.kind) ? Math.sin(elapsed * (pickup.kind === 'coin' ? 5 : 4) + pickup.x) * 2 : 0;
+  if (pickup.item) {
+    drawShopItemIcon(pickup.item, Math.round(pickup.x), Math.round(pickup.y + bob));
+    return true;
+  }
+  if (pickup.kind === 'heart' && heartImage.complete && heartImage.naturalWidth > 0) {
+    drawOutlinedItemImage(heartImage, pickup.x - 16, pickup.y - 16, 32, 32);
+    return true;
+  }
+  if (!drawPickupItem.cache) drawPickupItem.cache = new Map();
+  const kind = ['key', 'bomb', 'coin', 'xp', 'heart'].includes(pickup.kind) ? pickup.kind : 'item';
+  let texture = drawPickupItem.cache.get(kind);
+  if (!texture) {
+    const icon = document.createElement('canvas');
+    icon.width = icon.height = 16;
+    const target = icon.getContext('2d');
+    target.lineWidth = 1;
+    target.lineJoin = 'round';
+    target.strokeStyle = '#0e0868';
+    target.fillStyle = kind === 'xp' ? '#7ee8ff' : '#f2bd46';
+    target.beginPath();
+    if (kind === 'key') {
+      target.arc(4, 6, 3, 0, Math.PI * 2);
+      target.fill();
+      target.fillRect(6, 5, 8, 2);
+      target.fillRect(10, 6, 2, 3);
+      target.fillRect(13, 6, 2, 4);
+      target.fillStyle = '#0e0868';
+      target.fillRect(3, 5, 2, 2);
+    } else if (kind === 'bomb') {
+      target.fillStyle = '#333341';
+      target.arc(7, 9, 5, 0, Math.PI * 2);
+      target.fill();
+      target.fillStyle = '#ffce67';
+      target.fillRect(9, 2, 2, 3);
+    } else if (kind === 'heart') {
+      target.fillStyle = '#e95e72';
+      target.moveTo(8, 14);
+      target.bezierCurveTo(0, 9, 0, 1, 5, 3);
+      target.lineTo(8, 5);
+      target.bezierCurveTo(16, -2, 17, 9, 8, 14);
+      target.fill();
+    } else if (kind === 'coin') {
+      target.arc(8, 8, 6, 0, Math.PI * 2);
+      target.fill();
+      target.stroke();
+      target.fillStyle = '#665128';
+      target.font = 'bold 10px Arial';
+      target.textAlign = 'center';
+      target.fillText('Z', 8, 12);
+    } else {
+      target.moveTo(8, 2);
+      target.lineTo(14, 8);
+      target.lineTo(8, 14);
+      target.lineTo(2, 8);
+      target.closePath();
+      target.fill();
+    }
+    texture = outlinedItemTexture(icon);
+    drawPickupItem.cache.set(kind, texture);
+  }
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.shadowBlur = 0;
+  ctx.drawImage(texture, Math.round(pickup.x - texture.width), Math.round(pickup.y + bob - texture.height),
+    texture.width * 2, texture.height * 2);
+  ctx.restore();
+  return true;
+}
+
 function drawMorphShape(shape, color) {
   ctx.fillStyle = color;
   ctx.strokeStyle = '#101612';
@@ -2840,6 +3551,29 @@ function drawGroundHazards() {
     }
     const alpha = Math.min(0.68, hazard.ttl / 2.5);
     ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = alpha * 0.24;
+    ctx.fillStyle = '#101722';
+    ctx.strokeStyle = '#101722';
+    ctx.lineWidth = 3;
+    ctx.translate(2, 2);
+    ctx.beginPath();
+    if (hazard.kind === 'web') {
+      ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
+      for (let spoke = 0; spoke < 8; spoke += 1) {
+        const angle = spoke * Math.PI / 4;
+        ctx.moveTo(hazard.x, hazard.y);
+        ctx.lineTo(hazard.x + Math.cos(angle) * hazard.radius,
+          hazard.y + Math.sin(angle) * hazard.radius);
+      }
+      ctx.stroke();
+    } else {
+      ctx.ellipse(hazard.x, hazard.y, hazard.radius, hazard.radius * 0.58,
+        Math.sin(elapsed + hazard.x) * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.save();
     ctx.globalAlpha = alpha;
     ctx.fillStyle = hazard.color;
     ctx.strokeStyle = hazard.color;
@@ -2908,18 +3642,21 @@ function drawGroundHazards() {
   }
 }
 
-function withTextOutline(fn) {
+function withTextOutline(fn, color = 'rgba(8, 6, 10, 0.92)', width = 3.5, font = null) {
   const plainFillText = ctx.fillText;
+  const originalFillText = plainFillText.originalFillText || plainFillText;
   ctx.fillText = function outlinedFillText(text, x, y, maxWidth) {
     const args = maxWidth === undefined ? [text, x, y] : [text, x, y, maxWidth];
     this.save();
-    this.strokeStyle = 'rgba(8, 6, 10, 0.92)';
-    this.lineWidth = 3.5;
+    if (font) this.font = font;
+    this.strokeStyle = color;
+    this.lineWidth = width;
     this.lineJoin = 'round';
     this.strokeText(...args);
+    originalFillText.apply(this, args);
     this.restore();
-    plainFillText.apply(this, args);
   };
+  ctx.fillText.originalFillText = originalFillText;
   try {
     fn();
   } finally {
@@ -3002,9 +3739,13 @@ function drawEnemyProjectile(projectile) {
 
 function drawWorld() {
   drawRoomFloor();
+  collectWorldLights();
+  drawRoomSunlight();
+  drawWorldLightSources();
+  for (const projectile of projectiles) drawProjectileGroundShadow(projectile);
+  for (const projectile of enemyProjectiles) drawProjectileGroundShadow(projectile);
   drawSandFootprints();
   drawDesertWind();
-  drawDesertScenery();
   drawGroundHazards();
   drawRewardTrial();
   if (currentRoom.type === 'start') drawSoulMenhir();
@@ -3071,25 +3812,27 @@ function drawWorld() {
     if (rock.broken) continue;
     const sprite = rock.sprite;
     const hasImage = sprite.image.complete && sprite.image.naturalWidth > 0;
-    const columns = hasImage ? Math.floor(sprite.image.naturalWidth / sprite.frameWidth) : 1;
-    const sourceX = (rock.frame % columns) * sprite.frameWidth;
-    const sourceY = Math.floor(rock.frame / columns) * sprite.frameHeight;
     const width = sprite.frameWidth * sprite.scale;
     const height = sprite.frameHeight * sprite.scale;
+    if (rock.x + width / 2 < camera.x - 64 || rock.x - width / 2 > camera.x + VIEW_W + 64 ||
+        rock.y + height / 2 < camera.y - 64 || rock.y - height / 2 > camera.y + VIEW_H + 64) continue;
     if (hasImage) {
+      const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
+      const shadowOpacity = rock.regenerating && rock.regenStage < rock.regenSteps
+        ? 0.62 + rock.regenStage * 0.12 : 1;
+      if (sprite.trunkShadow) {
+        drawTrunkShadow(rock.x, rock.y, width, height, shadowOpacity);
+      } else {
+        drawSunSpriteShadow(sprite.image, rock.frame % columns * sprite.frameWidth,
+          Math.floor(rock.frame / columns) * sprite.frameHeight, sprite.frameWidth, sprite.frameHeight,
+          rock.x, rock.y + height / 2, width, height, 0, shadowOpacity);
+      }
       ctx.save();
-      if (rock.type === 'solid') ctx.filter = 'grayscale(0.85) brightness(0.7) saturate(0.65)';
-      else if (rock.type === 'bomb-only') ctx.filter = 'sepia(0.45) saturate(1.5)';
-      else if (rock.type === 'regenerating') ctx.filter = 'hue-rotate(45deg) saturate(1.2)';
       if (rock.regenerating && rock.regenStage < rock.regenSteps) {
         ctx.globalAlpha = 0.62 + rock.regenStage * 0.12;
       }
       ctx.drawImage(
-        sprite.image,
-        sourceX,
-        sourceY,
-        sprite.frameWidth,
-        sprite.frameHeight,
+        getBreakableFrame(sprite, rock.frame, rock.type),
         rock.x - width / 2,
         rock.y - height / 2,
         width,
@@ -3131,6 +3874,7 @@ function drawWorld() {
     const inFlight = bomb.flightTimer > 0;
     const progress = inFlight ? 1 - bomb.flightTimer / bomb.flightDuration : 1;
     const renderY = bomb.y - (inFlight ? Math.sin(progress * Math.PI) * 36 : 0);
+    drawSunGroundShadow(bomb.x, bomb.y, 11, bomb.y - renderY);
     if (bomb.owner === 'enemy') {
       ctx.save();
       ctx.fillStyle = 'rgba(255, 108, 54, 0.18)';
@@ -3140,10 +3884,6 @@ function drawWorld() {
       ctx.arc(bomb.targetX, bomb.targetY, 15, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-      ctx.beginPath();
-      ctx.ellipse(bomb.x, bomb.y, 9, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
       ctx.restore();
     }
     ctx.fillStyle = bomb.fuse < 0.45 ? '#f1785e'
@@ -3151,10 +3891,26 @@ function drawWorld() {
     ctx.beginPath();
     ctx.arc(bomb.x, renderY, 11, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = '#0e0868';
+    ctx.lineWidth = 2;
+    ctx.stroke();
     ctx.fillStyle = '#ffce67';
     ctx.fillRect(bomb.x + 4, renderY - 14, 3, 5);
   }
   for (const pickup of pickups) {
+    drawSunGroundShadow(pickup.x, pickup.y, 9.6);
+    if (drawDropIcon(pickup.x, pickup.y, () => drawPickupItem(pickup), pickup.kind === 'heart' ? 0.6 : 0.8)) {
+      if (pickup.guaranteedTreasure) {
+        ctx.save();
+        ctx.strokeStyle = '#0e0868';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pickup.x, pickup.y, 22 + Math.sin(elapsed * 4) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      continue;
+    }
     if (pickup.kind === 'lore-relic') {
       const bob = Math.sin(elapsed * 3 + pickup.x) * 3;
       ctx.save();
@@ -3162,7 +3918,7 @@ function drawWorld() {
       ctx.shadowColor = '#a8f0d7';
       ctx.shadowBlur = 16;
       ctx.fillStyle = 'rgba(27, 68, 61, 0.88)';
-      ctx.strokeStyle = '#b7f4df';
+      ctx.strokeStyle = '#0e0868';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(0, 0, 18, 0, Math.PI * 2);
@@ -3213,25 +3969,23 @@ function drawWorld() {
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.globalAlpha = 0.68;
-      ctx.strokeStyle = auraColor;
+      ctx.strokeStyle = '#0e0868';
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(16, 14, 19, 0.48)';
       if (itemIcon?.complete && itemIcon.naturalWidth > 0) {
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(itemIcon, bubbleX - 16, bubbleY - 29, 32, 32);
+        drawDropIcon(bubbleX, bubbleY - 13, () =>
+          drawOutlinedItemImage(itemIcon, bubbleX - 16, bubbleY - 29, 32, 32),
+          pickup.item.id === 'guardian-heart' ? 0.6 : 0.8);
       } else {
-        ctx.translate(bubbleX, bubbleY - 8);
-        ctx.scale(1, 1);
-        drawShopItemIcon(pickup.item, 0, 0);
+        drawDropIcon(bubbleX, bubbleY - 8, () => drawShopItemIcon(pickup.item, bubbleX, bubbleY - 8),
+          pickup.item.id === 'guardian-heart' ? 0.6 : 0.8);
       }
       ctx.textAlign = 'center';
-      ctx.font = 'bold 12px Arial';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(16, 14, 19, 0.9)';
-      ctx.strokeText(pickup.item.name, bubbleX, bubbleY + 31, 82);
-      ctx.fillStyle = '#fff4d5';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#e4e9f2';
       ctx.fillText(pickup.item.name, bubbleX, bubbleY + 31, 82);
       ctx.restore();
     } else if (pickup.kind === 'curio') {
@@ -3436,24 +4190,8 @@ function drawWorld() {
       ctx.shadowBlur = 14 * (projectile.size || 1);
     }
     ctx.lineJoin = 'round';
-    // Ballistic drop: the shot sinks toward its ground shadow and lands where its range ends.
-    // Level shots fall straight down the screen toward the feet line; vertical shots instead
-    // pull their shadow in until it matches the shot. Charged arrows fly flatter.
-    const flown = clamp(1 - projectile.ttl / (projectile.ttl0 || projectile.ttl || 1), 0, 1);
-    const fall = Math.pow(flown, projectile.dropCurve || 2.4);
-    const flightAngle = Math.atan2(projectile.vy, projectile.vx);
-    const sideways = Math.abs(Math.cos(flightAngle));
-    const vertical = 1 - sideways;
-    const bodyHeight = 34;
-    const shadowRadius = size * 0.5 * ((0.45 + 0.55 * fall) * sideways + (1.7 - 0.7 * fall) * vertical);
-    ctx.save();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = `rgba(0, 0, 0, ${0.18 + 0.2 * fall})`;
-    ctx.beginPath();
-    ctx.ellipse(projectile.x, projectile.y + bodyHeight * (1 - vertical * fall), shadowRadius * 1.25, shadowRadius * 0.6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.translate(0, bodyHeight * sideways * fall);
+    const visual = projectileLightingState(projectile);
+    ctx.translate(0, visual.y - projectile.y);
     // Launch flash: a ring expands from the muzzle while the shot itself keeps a constant size.
     const launchAge = projectile.born === undefined ? 1 : elapsed - projectile.born;
     if (launchAge >= 0 && launchAge < 0.22) {
@@ -4484,7 +5222,7 @@ function drawActionBar() {
     ctx.lineCap = 'round';
     if (slot.icon?.complete && slot.icon.naturalWidth > 0) {
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(slot.icon, cx - 13, cy - 13, 26, 26);
+      drawOutlinedItemImage(slot.icon, cx - 13, cy - 13, 26, 26);
     } else if (slot.id === 'dash') {
       for (const offset of [-7, 3]) {
         ctx.beginPath();

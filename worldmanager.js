@@ -291,6 +291,8 @@ function applyRoomSize(room) {
   const size = ROOM_SIZES[room.sizeKey] || ROOM_SIZES.small;
   ROOM_W = size.w;
   ROOM_H = size.h;
+  ROOM_WALL_THICKNESS = roomWallBand(room);
+  DOORWAY_HALF_WIDTH = currentRegionId() === 'tulimshar' && room.type !== 'secret' ? DOOR_OPENING_HALF_WIDTH : 64;
 }
 
 function roomAreaBonus() {
@@ -542,7 +544,9 @@ function findEnemySpawnPosition(preferredX, preferredY, radius = 18, minimumPlay
         x: ROOM_WALL_THICKNESS + radius + Math.random() * (ROOM_W - 2 * (ROOM_WALL_THICKNESS + radius)),
         y: ROOM_WALL_THICKNESS + radius + Math.random() * (ROOM_H - 2 * (ROOM_WALL_THICKNESS + radius)),
       };
-    if (isDoorEntrancePosition(candidate.x, candidate.y, radius) ||
+    if (candidate.x < ROOM_WALL_THICKNESS + radius || candidate.x > ROOM_W - ROOM_WALL_THICKNESS - radius ||
+      candidate.y < ROOM_WALL_THICKNESS + radius || candidate.y > ROOM_H - ROOM_WALL_THICKNESS - radius ||
+      isDoorEntrancePosition(candidate.x, candidate.y, radius) ||
       distanceBetween(candidate, player) < minimumPlayerDistance ||
       enemies.some((enemy) => distanceBetween(candidate, enemy) < radius + enemy.radius + 18) ||
       breakables.some((obstacle) => obstacle !== ignoredObstacle && !obstacle.broken &&

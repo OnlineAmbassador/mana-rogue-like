@@ -7,7 +7,21 @@ const { sliceText, loadBetween, loadFunctions } = require('./helpers/load');
 
 function presentation() {
   const calls = [];
+  const styles = [];
   const makeContext = (layer) => new Proxy({
+    globalAlpha: 1, filter: 'none',
+    getImageData(x, y, width, height) {
+      calls.push({ layer, method: 'getImageData', args: [x, y, width, height] });
+      const data = new Uint8ClampedArray(width * height * 4);
+      for (let row = 0; row < (c.maskFootRow ?? height); row += 1) {
+        for (let column = 0; column < (c.maskWidth ?? width); column += 1) data[(row * width + column) * 4 + 3] = 255;
+      }
+      return { data };
+    },
+    createRadialGradient(...args) {
+      calls.push({ layer, method: 'createRadialGradient', args });
+      return { addColorStop() {} };
+    },
     createLinearGradient(...args) {
       calls.push({ layer, method: 'createLinearGradient', args });
       return { addColorStop() {} };
@@ -18,12 +32,13 @@ function presentation() {
     },
     set(target, property, value) {
       target[property] = value;
+      styles.push({ layer, property, value });
       return true;
     },
   });
   const image = (name) => ({ name, complete: true, naturalWidth: 512, naturalHeight: 512 });
   const c = vm.createContext({
-    ctx: makeContext('screen'), calls,
+    ctx: makeContext('screen'), calls, styles,
     materialCatalog: { ironOre: { id: 'iron-ore', name: 'Iron Ore', price: 1 }, darkCrystal: { id: 'dark-crystal', name: 'Dark Crystal', price: 3 } },
     materials: { ironOre: 0, darkCrystal: 0 },
     document: { createElement: () => ({ getContext: () => makeContext('cache') }) },
@@ -45,10 +60,16 @@ function presentation() {
     terrainBackgroundCache: new Map(),
     sacredRoomTiles: image('sanctum'), sacredRoomFloorTileIds: [65, 49, 81],
     castleWallTiles: image('walls'), desertSandstormImage: image('sandstorm'),
-    sandstoneWallTiles: image('som-walls'), soulMenhirImage: image('som-menhir'),
+    soulMenhirImage: image('som-menhir'),
+    tulimsharCastleTiles: { name: 'evol-castle', complete: true, naturalWidth: 544, naturalHeight: 704 },
     sandFootprintImage: image('footprints'),
     sandFootprints: { room: null, marks: [], x: 0, y: 0, distance: 0 },
     player: { x: 100, y: 140, moving: false },
+    projectiles: [], enemyProjectiles: [], groundHazards: [],
+    magicElementPalette: { fire: '#ff8042', lightning: '#cfeaff', bubble: '#8bdfff' },
+    shopItemIconImages: {}, heartImage: image('heart'),
+    currentAttackStyle: () => 'magic', styleGlowColor: () => null,
+    clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
     soulMenhirPosition: () => ({ x: 480, y: 166 }),
     keysHeld: 0,
   });
@@ -56,6 +77,12 @@ function presentation() {
   vm.runInContext(sliceText(source, 'function drawManaPanel(', 'function drawPlayerMagicMark(', 'source'), c);
   vm.runInContext(sliceText(source, 'function drawSoulMenhir(', 'function drawRewardTrial(', 'source'), c);
   loadFunctions(c, 'gameui.js', ['prefersReducedMotion']);
+  loadFunctions(c, 'gameui.js', ['roomUsesCreviceLight', 'roomLightShafts', 'sunlightStrength',
+    'sunlightMask', 'drawSunSpriteShadow', 'drawSunGroundShadow', 'drawRoomSunlight',
+    'worldLightExposure', 'projectileLightingState', 'collectWorldLights', 'drawWorldLightSources',
+    'drawProjectileGroundShadow', 'drawTrunkShadow', 'drawGroundHazards', 'outlinedItemTexture', 'drawOutlinedItemImage',
+    'drawShopItemIcon', 'drawShopItemIconArt', 'drawPickupItem', 'withTextOutline']);
+  loadFunctions(c, 'gameui.js', ['mobDrawScale']);
   loadBetween(c, 'desertart.js', 'const DESERT_ART');
   return c;
 }
@@ -112,11 +139,32 @@ test('desert floor uses intact dune patches and translucent paving within atlas 
   assert.ok(images.some(({ args }) => args[0].name === 'dunes' && args[3] === 128));
   assert.ok(images.some(({ args }) => args[0].name === 'paving'));
   for (const { args: [image, x, y, width, height] } of images) {
+    if (width === undefined) continue;
     assert.ok(x >= 0 && y >= 0);
-    assert.ok(x + width <= image.naturalWidth && y + height <= image.naturalHeight);
+    assert.ok(x + width <= (image.naturalWidth || image.width) && y + height <= (image.naturalHeight || image.height));
   }
   const shades = c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'createLinearGradient');
-  assert.equal(shades.length, 1, 'wall shadow must not accumulate once per wall tile');
+  assert.equal(shades.length, 0, 'directional lighting replaces the old vertical wall-shadow strip');
+});
+
+test('sand continues beneath walls and transparent doorway corners while paving stays inside the collision border', () => {
+  const c = presentation();
+  for (const [width, height] of [[960, 540], [1504, 804], [997, 573]]) {
+    c.ROOM_W = width;
+    c.ROOM_H = height;
+    c.calls.length = 0;
+    c.drawDesertGround(c.ctx, c.terrainTiles.tulimshar.image);
+    const clips = c.calls.filter(({ method }) => method === 'rect').map(({ args }) => args);
+    assert.deepEqual(clips, [[0, 0, width, height], [32, 32, width - 64, height - 64]]);
+    const dunes = c.calls.filter(({ method, args }) => method === 'drawImage' && args[0].name === 'dunes');
+    assert.ok(dunes.some(({ args }) => args[5] < 0 && args[5] + args[7] >= 32),
+      'sand extends beneath the west wall without shifting the interior dune pattern');
+    assert.ok(dunes.some(({ args }) => args[5] <= width - 32 && args[5] + args[7] >= width),
+      'sand extends beneath the east wall');
+    assert.ok(dunes.some(({ args }) => args[6] < 0 && args[6] + args[8] >= 32));
+    assert.ok(dunes.some(({ args }) => args[6] < height && args[6] + args[8] >= height));
+    assert.equal(c.roomWallBand(), 32, 'visual overlap does not change collision');
+  }
 });
 
 test('desert backdrop is cached, with distinct entries for room layouts and late artwork loads', () => {
@@ -137,6 +185,610 @@ test('desert backdrop is cached, with distinct entries for room layouts and late
   c.ROOM_H = 804;
   c.drawRoomFloor();
   assert.equal(c.terrainBackgroundCache.size, 4);
+});
+
+test('sunlight projects sprite silhouettes equally down and right and reuses bounded native-frame masks', () => {
+  const c = presentation();
+  const image = { complete: true, naturalWidth: 512, naturalHeight: 512 };
+  const render = (x = 200, y = 200, lift = 0) =>
+    c.drawSunSpriteShadow(image, 0, 0, 32, 64, x, y, 32, 64, lift);
+  render();
+  const frames = c.sunlightMask.images.get(image);
+  assert.equal(frames.size, 1);
+  const mask = frames.values().next().value;
+  assert.deepEqual([mask.width, mask.height], [32, 64]);
+  assert.ok(c.calls.some(({ method, args }) => method === 'transform' &&
+    JSON.stringify(args) === JSON.stringify([1, 0, -0.55, -0.55, 0, 0])));
+  const before = c.calls.filter(({ layer }) => layer === 'cache').length;
+  render(240, 260);
+  assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, before);
+  assert.equal(frames.values().next().value, mask, 'moving does not rebuild a sprite shadow');
+  c.calls.length = 0;
+  render(200, 200, 40);
+  assert.deepEqual(c.calls.find(({ method }) => method === 'translate').args, [222, 222]);
+  c.calls.length = 0;
+  c.drawSunSpriteShadow(image, 0, 0, 32, 64, 200, 200, 32, 64, 0, 1, 0.8);
+  assert.equal(c.calls.find(({ method }) => method === 'rotate').args[0], 0.8,
+    'rolling sprites rotate their projected silhouettes around the same center');
+  const transform = [1, 0, -0.55, -0.55];
+  const topX = transform[2] * -64;
+  const topY = transform[3] * -64;
+  assert.ok(topX > 0);
+  assert.equal(topX, topY, '45-degree light produces equal bottom-right projection');
+  for (let frame = 0; frame < 150; frame += 1) c.sunlightMask(image, frame, 0, 1, 1);
+  assert.equal(frames.size, 128);
+  c.calls.length = 0;
+  render(-1000, -1000);
+  assert.equal(c.calls.length, 0, 'offscreen shadows add no drawing or cache work');
+});
+
+test('transparent frame padding never separates a shadow from the rendered feet', () => {
+  const c = presentation();
+  c.maskFootRow = 48;
+  const image = { complete: true, naturalWidth: 64, naturalHeight: 64 };
+  c.drawSunSpriteShadow(image, 0, 0, 64, 64, 200, 200, 96, 96);
+  const mask = c.sunlightMask.images.get(image).values().next().value;
+  assert.equal(mask.footRow, 48);
+  const translations = c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'translate');
+  assert.deepEqual(translations.map(({ args }) => args), [[200, 176], [0, -24]]);
+  const destination = c.calls.find(({ layer, method }) => layer === 'screen' && method === 'drawImage').args;
+  const footLocalY = translations[1].args[1] + destination[2] + mask.footRow / 64 * destination[4];
+  assert.equal(footLocalY, 0, 'last opaque foot row projects exactly from its on-screen feet');
+  c.drawSunSpriteShadow(image, 0, 0, 64, 64, 250, 240, 96, 96);
+  assert.equal(c.calls.filter(({ method }) => method === 'getImageData').length, 1,
+    'alpha bounds are sampled once per cached frame, not per draw');
+});
+
+test('bat and Road Captain attacks match visible bodies rather than ground circles', () => {
+  const c = presentation();
+  c.monsterSprites = {
+    bat: { scale: 1.05 }, vampirebat: { scale: 1 }, bandit: { scale: 1 }, banditlord: { scale: 1.05 },
+  };
+  c.distanceBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  loadFunctions(c, 'playermanager.js', ['enemyAttackTarget', 'projectileHitsEnemy',
+    'attackOriginY', 'nearestTouchTargetAngle']);
+  for (const kind of ['bat', 'vampirebat', 'bandit', 'banditlord']) {
+    for (const variant of [{}, { miniBoss: true }, { boss: true }]) {
+      const enemy = { kind, x: 400, y: 300, radius: 14, hp: 10, ...variant };
+      const original = JSON.stringify(enemy);
+      const target = c.enemyAttackTarget(enemy);
+      const scale = c.mobDrawScale(enemy, c.monsterSprites[kind]);
+      const bat = kind === 'bat' || kind === 'vampirebat';
+      assert.equal(target.y, 300 - (bat ? 18 : 2) * scale);
+      const shot = { type: 'arrow', x: target.x, y: target.y, vx: 0, vy: 0, ttl: 1, ttl0: 1, radius: 2 };
+      assert.equal(c.projectileHitsEnemy(shot, enemy, 0), true);
+      assert.equal(c.projectileHitsEnemy({ ...shot, x: target.x + target.radiusX + 5 }, enemy, 0), false);
+      assert.equal(c.projectileHitsEnemy({ ...shot, x: target.x + 100, vx: 1000 }, enemy, 0.2), true,
+        'a fast projectile crossing the body cannot tunnel through between frames');
+      if (bat) {
+        assert.equal(c.projectileHitsEnemy({ ...shot, y: enemy.y + 15 }, enemy, 0), false,
+          'empty space below the cropped bat is not its body');
+      }
+      c.enemies = [enemy];
+      assert.equal(c.nearestTouchTargetAngle(),
+        Math.atan2(target.y - c.attackOriginY(), target.x - c.player.x));
+      assert.equal(JSON.stringify(enemy), original, 'movement and contact radius are untouched');
+    }
+  }
+  const ordinary = { kind: 'slime', x: 300, y: 300, radius: 12 };
+  assert.equal(c.enemyAttackTarget(ordinary), ordinary);
+  assert.equal(c.projectileHitsEnemy({ x: 300, y: 300, radius: 2 }, ordinary, 0), true);
+});
+
+test('spider shadows project from the abdomen for mobs and companions', () => {
+  const c = presentation();
+  c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 245, naturalHeight: 140 });
+  const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
+  c.monsterSprites = vm.runInContext(`(() => {
+    ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
+    return monsterSprites;
+  })()`, c);
+  assert.equal(c.monsterSprites.spider.shadowAnchorY, 0.35);
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion']);
+  const shadows = [];
+  c.drawSunSpriteShadow = (...args) => shadows.push(args);
+  c.drawEnemyBody({ kind: 'spider', x: 200, y: 240, hp: 4, maxHp: 4, radius: 14 });
+  c.drawCompanion({ kind: 'spider', x: 200, y: 240, hp: 4 });
+  assert.equal(shadows.length, 2);
+  assert.ok(shadows.every((args) => args[12] === 0.35));
+  loadFunctions(c, 'gameui.js', ['drawSunSpriteShadow']);
+  c.calls.length = 0;
+  c.drawSunSpriteShadow(c.monsterSprites.spider.image, 0, 0, 35, 35,
+    200, 240, 70, 70, 0, 1, 0, 0.35);
+  const translations = c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'translate');
+  assert.deepEqual(translations.map(({ args }) => args), [[200, 194.5], [0, 10.5]]);
+});
+
+test('mouse mobs and companions anchor their shadows beneath the abdomen', () => {
+  const c = presentation();
+  c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 224, naturalHeight: 320 });
+  const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
+  c.monsterSprites = vm.runInContext(`(() => {
+    ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
+    return monsterSprites;
+  })()`, c);
+  assert.equal(c.monsterSprites.ratto.shadowAnchorY, 0.5);
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion']);
+  const shadows = [];
+  c.drawSunSpriteShadow = (...args) => shadows.push(args);
+  c.drawEnemyBody({ kind: 'ratto', x: 200, y: 240, hp: 4, maxHp: 4, radius: 14 });
+  c.drawCompanion({ kind: 'ratto', x: 200, y: 240, hp: 4 });
+  assert.equal(shadows.length, 2);
+  assert.ok(shadows.every((args) => args[12] === 0.5));
+  loadFunctions(c, 'gameui.js', ['drawSunSpriteShadow']);
+  c.calls.length = 0;
+  c.drawSunSpriteShadow(c.monsterSprites.ratto.image, 0, 0, 32, 32,
+    200, 272, 64, 64, 0, 1, 0, 0.5);
+  assert.deepEqual(c.calls.filter(({ layer, method }) => layer === 'screen' &&
+    method === 'translate').map(({ args }) => args), [[200, 240], [0, 0]]);
+});
+
+test('every airborne projectile has a separated shadow that converges on landing', () => {
+  const c = presentation();
+  const shot = { type: 'arrow', x: 200, y: 180, vx: 200, vy: 0, ttl: 1, ttl0: 1, radius: 6 };
+  const render = (projectile) => {
+    c.calls.length = 0;
+    c.drawProjectileGroundShadow(projectile);
+    return c.calls.find(({ method }) => method === 'ellipse').args;
+  };
+  const airborne = render(shot);
+  const landing = render({ ...shot, ttl: 0 });
+  assert.ok(airborne[0] > landing[0]);
+  assert.ok(airborne[1] > landing[1]);
+  assert.equal(landing[0], 200);
+  assert.equal(landing[1], 214);
+  assert.ok(airborne[2] > landing[2] && airborne[3] > landing[3]);
+  assert.equal(c.projectileLightingState(shot).y, 180);
+  assert.equal(c.projectileLightingState({ ...shot, ttl: 0 }).y, 214);
+  assert.equal(c.projectileLightingState({ ...shot, vx: 0, vy: 200, ttl: 0 }).y, 180,
+    'vertical shots retain the existing visual flight path');
+  for (const kind of ['arrow', 'fire', 'spore-orb', 'spore-shard']) {
+    const shadow = render({ kind, x: 200, y: 180, vx: 200, vy: 0, radius: 7 });
+    assert.ok(shadow[0] > 200 && shadow[1] > 204);
+    assert.equal(shadow[4], Math.PI / 4);
+  }
+  c.calls.length = 0;
+  c.drawProjectileGroundShadow({ type: 'charge-beam' });
+  assert.equal(c.calls.length, 0, 'pure light beams illuminate instead of casting a solid blob');
+});
+
+test('soul menhir uses a solid base-connected shadow with artwork and fallback', () => {
+  const c = presentation();
+  for (const complete of [true, false]) {
+    c.soulMenhirImage.complete = complete;
+    c.calls.length = 0;
+    c.drawSoulMenhir();
+    const base = c.calls.find(({ method }) => method === 'ellipse');
+    assert.deepEqual(base.args.slice(0, 2), [480, 170]);
+    assert.equal(base.args[2], 80 * 0.22, 'menhir contact and cast silhouette are wider than the tree shadow');
+    assert.ok(!c.calls.some(({ method }) => method === 'transform'),
+      'menhir does not project gaps from its sprite alpha');
+    assert.ok(c.calls.some(({ method }) => method === 'createRadialGradient'),
+      'magical glow remains separate from the solid shadow');
+  }
+});
+
+test('tree shadows form one solid trunk-rooted shape projected down and right', () => {
+  const c = presentation();
+  loadFunctions(c, 'gameui.js', ['drawTrunkShadow']);
+  c.drawTrunkShadow(200, 240, 70, 66);
+  const rootY = 240 + 66 * 0.34;
+  const reach = 66 * 0.55;
+  assert.deepEqual(c.calls.find(({ method }) => method === 'ellipse').args.slice(0, 2), [200, rootY]);
+  assert.ok(c.calls.some(({ method, args }) => method === 'lineTo' &&
+    args[0] === 200 + reach + 70 * 0.22 && args[1] === rootY + reach));
+  assert.equal(c.calls.filter(({ method }) => method === 'fill').length, 1,
+    'root contact and cast shadow fill together without doubled opacity or light gaps');
+  assert.ok(!c.calls.some(({ method }) => method === 'drawImage'));
+  assert.equal(c.calls.filter(({ method }) => method === 'save').length,
+    c.calls.filter(({ method }) => method === 'restore').length);
+});
+
+test('grounded shadows start under objects and grow monotonically with elevation', () => {
+  const c = presentation();
+  const image = { complete: true, naturalWidth: 32, naturalHeight: 64 };
+  const sizes = [];
+  for (const elevation of [0, 16, 40, 85]) {
+    c.calls.length = 0;
+    c.drawSunGroundShadow(200, 240, 12, elevation);
+    const ellipse = c.calls.find(({ method }) => method === 'ellipse').args;
+    assert.equal(ellipse[0], 200 + elevation * 0.55);
+    assert.equal(ellipse[1], 240 + elevation * 0.55);
+    c.calls.length = 0;
+    c.drawSunSpriteShadow(image, 0, 0, 32, 64, 200, 240, 32, 64, elevation);
+    const scale = c.calls.find(({ method }) => method === 'scale').args;
+    assert.equal(scale[0], scale[1]);
+    sizes.push([ellipse[2], ellipse[3], scale[0]]);
+  }
+  assert.deepEqual(sizes[0], [12, 6, 1]);
+  for (let index = 1; index < sizes.length; index += 1) {
+    assert.ok(sizes[index].every((value, axis) => value > sizes[index - 1][axis]));
+  }
+});
+
+test('blue item outlines use cached alpha silhouettes without copying or recoloring artwork', () => {
+  const c = presentation();
+  const image = { complete: true, naturalWidth: 32, naturalHeight: 32 };
+  c.drawOutlinedItemImage(image, 200, 180, 32, 32);
+  const texture = c.outlinedItemTexture.images.get(image);
+  assert.deepEqual([texture.width, texture.height], [34, 34]);
+  assert.ok(c.styles.some(({ property, value }) => property === 'fillStyle' && value === '#0e0868'));
+  assert.ok(c.styles.some(({ property, value }) => property === 'globalCompositeOperation' && value === 'source-in'));
+  const sourceDraw = c.calls.filter(({ layer, method }) => layer === 'cache' && method === 'drawImage').at(-1);
+  assert.equal(sourceDraw.args[0], image, 'unmodified original art is drawn above the blue silhouette');
+  assert.deepEqual(sourceDraw.args.slice(1), [0, 0, 32, 32, 1, 1, 32, 32]);
+  const before = c.calls.filter(({ layer }) => layer === 'cache').length;
+  c.drawOutlinedItemImage(image, 240, 200, 32, 32);
+  assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, before);
+  assert.equal(c.calls.filter(({ method }) => method === 'getImageData').length, 1,
+    'padding is sampled once and never rescanned while drawing');
+});
+
+test('keys, bombs and other drops grow with shared blue outlines and bounded caches', () => {
+  const c = presentation();
+  for (const kind of ['key', 'bomb', 'coin', 'xp', 'heart', 'curio', 'consumable']) {
+    c.calls.length = 0;
+    const pickup = { kind, x: 200, y: 180 };
+    if (['curio', 'consumable'].includes(kind)) {
+      pickup.item = { id: kind, kind };
+      c.shopItemIconImages[kind] = { complete: true, naturalWidth: 32, naturalHeight: 32 };
+    }
+    assert.equal(c.drawPickupItem(pickup), true);
+    const draw = c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').at(-1);
+    assert.ok(draw.args[3] >= 32 && draw.args[4] >= 32);
+    assert.ok(c.styles.some(({ property, value }) => property === 'imageSmoothingEnabled' && value === false));
+  }
+  c.calls.length = 0;
+  c.drawPickupItem({ kind: 'key', x: 220, y: 200 });
+  assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, 0);
+  for (let index = 0; index < 140; index += 1) {
+    c.drawShopItemIcon({ id: `fallback-${index}`, kind: 'passive' }, 200, 180);
+  }
+  assert.equal(c.drawShopItemIcon.cache.size, 128);
+  c.shopItemIconImages['fallback-139'] = { complete: true, naturalWidth: 32, naturalHeight: 32 };
+  c.calls.length = 0;
+  c.drawShopItemIcon({ id: 'fallback-139', kind: 'passive' }, 200, 180);
+  assert.equal(c.calls.filter(({ method }) => method === 'drawImage').at(-1).args[3], 34,
+    'late loaded artwork replaces the procedural icon');
+});
+
+test('Guardian Heart and healing-heart icons share the smaller drop scale', () => {
+  const c = presentation();
+  loadFunctions(c, 'gameui.js', ['drawDropIcon']);
+  c.drawDropIcon(200, 180, () => {}, 0.6);
+  assert.deepEqual(c.calls.find(({ method }) => method === 'scale').args, [0.6, 0.6]);
+  for (const complete of [true, false]) {
+    c.heartImage.complete = complete;
+    c.calls.length = 0;
+    c.drawDropIcon(200, 180, () => c.drawPickupItem({ kind: 'heart', x: 200, y: 180 }), 0.6);
+    assert.deepEqual(c.calls.find(({ method }) => method === 'scale').args, [0.6, 0.6]);
+    assert.equal(c.calls.filter(({ method }) => method === 'save').length,
+      c.calls.filter(({ method }) => method === 'restore').length);
+  }
+});
+
+test('padded item artwork is cropped and enlarged with uniform whole-pixel scale', () => {
+  const c = presentation();
+  c.maskWidth = 16;
+  c.maskFootRow = 12;
+  const image = { complete: true, naturalWidth: 32, naturalHeight: 32 };
+  c.drawOutlinedItemImage(image, 200, 180, 32, 32);
+  const texture = c.outlinedItemTexture.images.get(image);
+  assert.deepEqual([texture.width, texture.height], [18, 14]);
+  const draw = c.calls.find(({ layer, method }) => layer === 'screen' && method === 'drawImage').args;
+  assert.deepEqual(draw.slice(3), [36, 28]);
+  assert.equal(draw[3] / texture.width, draw[4] / texture.height);
+});
+
+test('drop icons shrink slightly without smoothing or resizing labels and shop icons', () => {
+  const c = presentation();
+  loadFunctions(c, 'gameui.js', ['drawDropIcon']);
+  const result = c.drawDropIcon(200, 180, () => {
+    c.ctx.drawImage('icon', 184, 164, 32, 32);
+    return true;
+  });
+  assert.equal(result, true);
+  assert.deepEqual(c.calls.filter(({ method }) => method === 'translate').map(({ args }) => args),
+    [[200, 180], [-200, -180]]);
+  assert.deepEqual(c.calls.find(({ method }) => method === 'scale').args, [0.8, 0.8]);
+  assert.ok(c.styles.some(({ property, value }) => property === 'imageSmoothingEnabled' && value === false));
+  assert.ok(!c.styles.some(({ property, value }) => property === 'imageSmoothingEnabled' && value === true));
+  assert.equal(c.calls.filter(({ method }) => method === 'save').length,
+    c.calls.filter(({ method }) => method === 'restore').length);
+});
+
+test('shop pedestal icons shrink around their center without changing other item surfaces', () => {
+  const c = presentation();
+  loadFunctions(c, 'gameui.js', ['drawShopStockIcon']);
+  const items = [];
+  c.drawShopItemIcon = (...args) => items.push(args);
+  const item = { id: 'shop-bomb', kind: 'shop-bomb' };
+  c.drawShopStockIcon(item, 200, 180);
+  assert.deepEqual(items, [[item, 0, 0]]);
+  assert.deepEqual(c.calls.find(({ method }) => method === 'translate').args, [200, 180]);
+  assert.deepEqual(c.calls.find(({ method }) => method === 'scale').args, [0.875, 0.875]);
+  assert.equal(c.calls.filter(({ method }) => method === 'save').length,
+    c.calls.filter(({ method }) => method === 'restore').length);
+});
+
+test('shop text gets one thin blue outline instead of stacked heavy highlighting', () => {
+  const c = presentation();
+  const original = c.ctx.fillText;
+  c.ctx.fillText = original;
+  c.withTextOutline(() => c.withTextOutline(() => c.ctx.fillText('Item 10z', 200, 180), '#0e0868', 1));
+  assert.equal(c.calls.filter(({ method }) => method === 'strokeText').length, 1);
+  assert.equal(c.calls.filter(({ method }) => method === 'fillText').length, 1);
+  assert.ok(c.styles.some(({ property, value }) => property === 'strokeStyle' && value === '#0e0868'));
+  assert.ok(c.styles.some(({ property, value }) => property === 'lineWidth' && value === 1));
+  assert.equal(c.ctx.fillText, original);
+});
+
+test('world labels share the door font and dark outline without changing HUD defaults', () => {
+  const c = presentation();
+  c.withTextOutline(() => {
+    for (const label of ['OPEN', 'MERCHANT', 'Bomb Bundle', 'Three bombs', '[E] BUY']) {
+      c.ctx.font = '18px Georgia';
+      c.ctx.fillText(label, 200, 180);
+    }
+  }, 'rgba(8, 6, 10, 0.92)', 3.5, 'bold 10px Arial');
+  assert.equal(c.styles.filter(({ property, value }) => property === 'font' && value === 'bold 10px Arial').length, 5);
+  assert.equal(c.calls.filter(({ method }) => method === 'fillText').length, 5);
+  assert.equal(c.calls.filter(({ method }) => method === 'strokeText').length, 5);
+  assert.ok(!c.styles.some(({ property, value }) => property === 'strokeStyle' && value === '#0e0868'));
+  c.styles.length = 0;
+  c.withTextOutline(() => c.ctx.fillText('HUD', 20, 20));
+  assert.ok(!c.styles.some(({ property }) => property === 'font'));
+});
+test('player body, clothing and head retain their original size and attack pulse', () => {
+  const c = presentation();
+  const layers = [];
+  c.character = { sprite: 'test', hue: 0, hairStyle: 'test' };
+  c.humanoidSprites = { test: { image: { complete: true, naturalWidth: 1024 }, framesPerDirection: 16 } };
+  Object.assign(c.player, { lookX: 0, lookY: 1, attackPulse: 0.14, attackAnimationTimer: 0,
+    chargeFraction: 0, swordParryFlash: 0, invuln: 0, damageFlashTimer: 0 });
+  c.equippedClothing = { legs: { sprite: 'pants' }, chest: { sprite: 'shirt' } };
+  c.meleeWeapons = new Set();
+  c.nativeStyle = () => 'magic';
+  c.drawOrbitGuard = () => {};
+  c.drawHumanoid = (...args) => layers.push(['body', args[4]]);
+  c.drawClothing = (...args) => layers.push(['clothing', args[4]]);
+  c.drawHead = (...args) => layers.push(['head', args[4]]);
+  c.drawCastingHands = () => {};
+  c.wornHat = () => null;
+  loadFunctions(c, 'gameui.js', ['drawPlayer']);
+  c.drawPlayer();
+  assert.deepEqual(layers, [['body', 1.45], ['clothing', 1.45], ['clothing', 1.45], ['head', 1.45]]);
+  const shadow = c.calls.find(({ layer, method }) => layer === 'screen' && method === 'drawImage');
+  assert.deepEqual(shadow.args.slice(-2), [64 * 1.45 * 1.08, 64 * 1.45 * 0.955]);
+  assert.ok(c.calls.some(({ method, args }) => method === 'scale' && args[0] === 1.08 && args[1] === 0.955));
+});
+
+test('ordinary mobs, bosses and offspring draw halfway between original and enlarged sizes', () => {
+  const c = presentation();
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody']);
+  for (const base of [0.45, 1, 1.5, 2, 3.2]) {
+    const image = { complete: true, naturalWidth: 208, naturalHeight: 24 };
+    c.monsterSprites = { slime: { image, frameWidth: 52, frameHeight: 24, scale: base, frames: [0] } };
+    for (const variant of [{}, { boss: true }, { miniBoss: true }, { isOffspring: true }]) {
+      c.calls.length = 0;
+      c.drawEnemyBody({ kind: 'slime', x: 200, y: 240, hp: 4, maxHp: 4, radius: 14, ...variant });
+      const body = c.calls.find(({ layer, method, args }) => layer === 'screen' &&
+        method === 'drawImage' && args[0] === image).args;
+      const original = base * (variant.boss ? 1.4 : 1) * (variant.miniBoss ? 1.5 : 1) *
+        (variant.isOffspring ? 0.58 : 1);
+      const expected = (original + Math.max(1, Math.ceil(original * 1.15))) / 2;
+      assert.ok(Math.abs(body[7] / 52 - expected) < 1e-10);
+      assert.ok(Math.abs(body[7] / 52 - body[8] / 24) < 1e-10);
+    }
+  }
+});
+
+test('both bat atlases crop baked shadows for mobs and companions without shifting their bodies', () => {
+  const c = presentation();
+  c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 370, naturalHeight: 232 });
+  const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
+  c.monsterSprites = vm.runInContext(`(() => {
+    ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
+    return monsterSprites;
+  })()`, c);
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion']);
+  for (const kind of ['bat', 'vampirebat']) {
+    const sprite = c.monsterSprites[kind];
+    assert.equal(sprite.frameHeight, 58, 'atlas row stride remains unchanged');
+    assert.equal(sprite.cropHeight, 22, 'only body rows precede the baked shadow');
+    for (const [index, render] of [
+      () => c.drawEnemyBody({ kind, x: 200, y: 240, hp: 4, maxHp: 4, radius: 14 }),
+      () => c.drawCompanion({ kind, x: 200, y: 240, hp: 4 }),
+    ].entries()) {
+      c.calls.length = 0;
+      render();
+      const body = c.calls.find(({ layer, method, args }) => layer === 'screen' &&
+        method === 'drawImage' && args[0] === sprite.image);
+      assert.equal(body.args[4], 22);
+      const scale = body.args[7] / 37;
+      assert.equal(body.args[8], 22 * scale, 'crop is not stretched back to the full frame');
+      assert.equal(body.args[6], (index === 0 ? 0 : 240) - 29 * scale,
+        'body retains its original top position');
+      assert.equal(c.sunlightMask.images.get(sprite.image).values().next().value.height, 22,
+        'new projected shadows also exclude baked artwork shadows');
+    }
+  }
+});
+
+test('fire and lightning illuminate nearby ground and actors; acid and webs do not emit light', () => {
+  const c = presentation();
+  c.groundHazards = [
+    { kind: 'fire', x: 200, y: 180, color: '#ff8042', radius: 24, ttl: 4 },
+    { kind: 'acid', x: 400, y: 180, color: '#9af264', radius: 24, ttl: 4 },
+    { kind: 'web', x: 500, y: 180, color: '#fff', radius: 24, ttl: 4 },
+  ];
+  c.projectiles = [
+    { type: 'elemental', element: 'lightning', x: 700, y: 180, vx: 200, vy: 0, ttl: 1 },
+    { type: 'arrow', x: 800, y: 180, vx: 200, vy: 0, ttl: 1 },
+  ];
+  c.enemyProjectiles = [{ kind: 'spore-orb', color: '#f8daff', x: 300, y: 400, vx: 100, vy: 0 }];
+  c.collectWorldLights();
+  assert.equal(c.collectWorldLights.lights.length, 3);
+  assert.ok(c.worldLightExposure(200, 180) > 0);
+  assert.equal(c.worldLightExposure(500, 180), 0);
+  assert.ok(c.sunlightStrength(200, 180) < c.sunlightStrength(500, 180),
+    'emission lifts local shadow darkness without removing it');
+  c.drawWorldLightSources();
+  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').length, 3);
+  const reads = c.calls.filter(({ layer }) => layer === 'cache').length;
+  c.drawWorldLightSources();
+  assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, reads);
+  c.groundHazards = [];
+  c.projectiles = [];
+  c.enemyProjectiles = [];
+  c.collectWorldLights();
+  assert.equal(c.worldLightExposure(200, 180), 0, 'expired effects leave no stale illumination');
+});
+
+test('ground pools and webs gain only a thin down-right depth shadow', () => {
+  const c = presentation();
+  c.bossStrikes = [];
+  for (const kind of ['acid', 'slime', 'web', 'fire', 'miasma']) {
+    c.groundHazards = [{ kind, x: 200, y: 180, radius: 24, color: '#9af264', ttl: 4 }];
+    c.calls.length = 0;
+    c.drawGroundHazards();
+    assert.deepEqual(c.calls.find(({ method }) => method === 'translate').args, [2, 2]);
+    const ellipses = c.calls.filter(({ method }) => method === 'ellipse');
+    if (kind === 'web') {
+      assert.equal(ellipses.length, 0, 'web shadow follows strands, not a dark filled disc');
+    } else {
+      assert.equal(ellipses.length, 2);
+      assert.deepEqual(ellipses[0].args, ellipses[1].args);
+    }
+  }
+});
+
+test('visible local lighting stays capped during busy fights and culls offscreen emitters', () => {
+  const c = presentation();
+  c.projectiles = Array.from({ length: 100 }, (_, index) => ({
+    type: 'elemental', element: 'fire', color: '#ff8042',
+    x: index < 50 ? -2000 : 400, y: 200, vx: 100, vy: 0, ttl: 1,
+  }));
+  c.collectWorldLights();
+  assert.equal(c.collectWorldLights.lights.length, 24);
+  assert.ok(c.collectWorldLights.lights.every(({ x }) => x === 400));
+  c.drawWorldLightSources();
+  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').length, 24);
+  assert.equal(c.drawWorldLightSources.textures.size, 1);
+  const cachedCalls = c.calls.filter(({ layer }) => layer === 'cache').length;
+  c.drawWorldLightSources();
+  assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, cachedCalls);
+  for (let color = 0; color < 20; color += 1) {
+    c.collectWorldLights.lights = [{ x: 400, y: 200, color: `#${color.toString(16).padStart(6, '0')}`, radius: 64, strength: 0.3 }];
+    c.drawWorldLightSources();
+  }
+  assert.equal(c.drawWorldLightSources.textures.size, 16);
+});
+
+test('all regions receive directional lighting; cave crevices use stable 45-degree shafts', () => {
+  const c = presentation();
+  for (const region of ['tulimshar', 'hurnscald', 'graveyard', 'artis', 'halinarzo',
+    'nivalis', 'frostia', 'candor', 'worldedge']) {
+    c.region = region;
+    c.calls.length = 0;
+    c.drawRoomSunlight();
+    assert.ok(c.drawRoomSunlight.layer);
+    const cave = ['frostia', 'candor', 'worldedge'].includes(region);
+    assert.equal(c.roomUsesCreviceLight(), cave);
+    const screenGradients = c.calls.filter(({ layer, method }) =>
+      layer === 'screen' && method === 'createLinearGradient');
+    assert.equal(screenGradients.length, cave ? 2 : 0);
+    for (const { args: [x, y, endX, endY] } of screenGradients) {
+      assert.ok(endX > x);
+      assert.equal(endX - x, endY - y, 'ceiling rays shine down and right');
+    }
+  }
+  c.region = 'tulimshar';
+  c.currentRoom.type = 'secret';
+  assert.equal(c.roomUsesCreviceLight(), true);
+  const shafts = c.roomLightShafts();
+  const first = shafts[0];
+  assert.ok(c.sunlightStrength(first.x + 100, first.y + 100) >
+    c.sunlightStrength(first.x + 100, first.y - 150));
+  c.elapsed += 20;
+  assert.deepEqual(c.roomLightShafts(), shafts, 'crevice positions do not drift with animation time');
+});
+
+test('cave crevice rays have cached irregular feathered edges rather than straight wedges', () => {
+  const c = presentation();
+  c.region = 'candor';
+  const shafts = c.roomLightShafts();
+  for (const shaft of shafts) {
+    assert.equal(shaft.contours.length, 4);
+    for (const contour of shaft.contours) {
+      assert.equal(contour.length, 34);
+      const offsets = contour.slice(0, 17).map(([x, y]) => (x - shaft.x - y + shaft.y) / 2);
+      const changes = offsets.slice(1).map((offset, index) => offset - offsets[index]);
+      assert.ok(Math.max(...changes) - Math.min(...changes) > 1,
+        'edge widths vary along the shaft rather than tracing a perfect straight line');
+    }
+  }
+  c.drawRoomSunlight();
+  assert.equal(c.roomLightShafts(), shafts, 'contours are reused rather than regenerated per frame');
+  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'fill').length, 8);
+  const stops = [];
+  c.ctx.createLinearGradient = () => ({ addColorStop: (...args) => stops.push(args) });
+  c.drawRoomSunlight();
+  assert.deepEqual(stops[0], [0, 'rgba(255, 239, 193, 0)']);
+  assert.equal(stops[1][0], 0.18, 'light fades in instead of exposing a hard upper cap');
+  assert.deepEqual(stops[3], [1, 'rgba(255, 239, 193, 0)']);
+});
+
+test('room light cache invalidates for doors and room geometry, not moving actors or quality', () => {
+  const c = presentation();
+  c.drawRoomSunlight();
+  let layer = c.drawRoomSunlight.layer;
+  c.player.x += 40;
+  c.quality.low = true;
+  c.calls.length = 0;
+  c.drawRoomSunlight();
+  assert.equal(c.drawRoomSunlight.layer, layer);
+  assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, 0);
+  for (const change of [
+    () => { c.currentRoom.links.up = true; },
+    () => { c.currentRoom.lockedDoors.up = true; },
+    () => { c.currentRoom.secretExit = { direction: 'left', room: { hidden: false } }; },
+    () => { c.ROOM_W = 1504; },
+    () => { c.currentRoom.x += 1; },
+  ]) {
+    change();
+    c.drawRoomSunlight();
+    assert.notEqual(c.drawRoomSunlight.layer, layer);
+    layer = c.drawRoomSunlight.layer;
+  }
+  const polygons = c.calls.filter(({ layer, method }) => layer === 'cache' && method === 'lineTo');
+  assert.ok(polygons.length > 0);
+});
+
+test('crevice rays respect reduced motion and low quality without changing light direction', () => {
+  const c = presentation();
+  c.region = 'candor';
+  c.drawRoomSunlight();
+  const render = () => {
+    c.calls.length = 0;
+    c.drawRoomSunlight();
+    return JSON.stringify(c.calls);
+  };
+  setReducedMotion(c, true);
+  const still = render();
+  c.elapsed += 10;
+  assert.equal(render(), still);
+  setReducedMotion(c, false);
+  const animated = render();
+  c.elapsed += 10;
+  assert.notEqual(render(), animated);
+  const rays = () => c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'createLinearGradient')
+    .map(({ args }) => args);
+  const full = rays();
+  c.quality.low = true;
+  render();
+  assert.deepEqual(rays(), full);
+  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'fillRect').length, 4);
 });
 
 test('sand ambience stays at world edges, outside the central combat area', () => {
@@ -211,13 +863,12 @@ test('gold panel rendering balances canvas state without changing room data', ()
   assert.equal(JSON.stringify(c.currentRoom), room);
 });
 
-test('windblown ground sand and wall scenery animate without changing room or floor data', () => {
+test('ambient sand gusts animate without flags, candles or changes to room and floor data', () => {
   const c = presentation();
   const room = JSON.stringify(c.currentRoom);
   const render = () => {
     c.calls.length = 0;
     c.drawDesertWind();
-    c.drawDesertScenery();
     return JSON.stringify(c.calls);
   };
   const first = render();
@@ -228,31 +879,30 @@ test('windblown ground sand and wall scenery animate without changing room or fl
   const wind = c.calls.filter(({ method }) => method === 'quadraticCurveTo');
   assert.ok(wind.length > 10);
   assert.ok(wind.length <= 56, 'ambient drawing remains bounded');
+  assert.ok(!c.calls.some(({ method }) => method === 'fillRect' || method === 'fill'));
+  assert.equal(c.drawDesertScenery, undefined);
 });
 
-test('reduced motion freezes ground sand and decorative cloth/flames at either quality level', () => {
+test('reduced motion freezes sand gusts at either quality level', () => {
   for (const low of [false, true]) {
     const c = presentation();
     c.quality.low = low;
     setReducedMotion(c, true);
     c.drawDesertWind();
-    c.drawDesertScenery();
     const first = JSON.stringify(c.calls);
     c.calls.length = 0;
     c.elapsed += 10;
     c.drawDesertWind();
-    c.drawDesertScenery();
     assert.equal(JSON.stringify(c.calls), first);
   }
 });
 
-test('new scenery skips non-desert and secret rooms but keeps lightweight animation in low quality', () => {
+test('sand gusts skip non-desert and secret rooms but keep lightweight animation in low quality', () => {
   const c = presentation();
   for (const [region, type] of [['hurnscald', 'normal'], ['tulimshar', 'secret']]) {
     c.region = region;
     c.currentRoom.type = type;
     c.drawDesertWind();
-    c.drawDesertScenery();
     assert.equal(c.calls.length, 0);
   }
   c.currentRoom.type = 'normal';
@@ -264,22 +914,15 @@ test('new scenery skips non-desert and secret rooms but keeps lightweight animat
   c.elapsed += 0.5;
   c.drawDesertWind();
   assert.notEqual(JSON.stringify(c.calls), wind);
-  c.calls.length = 0;
-  c.drawDesertScenery();
-  const first = JSON.stringify(c.calls);
-  c.calls.length = 0;
-  c.elapsed += 5;
-  c.drawDesertScenery();
-  assert.notEqual(JSON.stringify(c.calls), first);
 });
 
-test('automatic quality changes never reset cloth or flame animation phase', () => {
+test('automatic quality changes never reset sand gust positions', () => {
   const c = presentation();
   const render = (low) => {
     c.quality.low = low;
     c.calls.length = 0;
-    c.drawDesertScenery();
-    return JSON.stringify(c.calls);
+    c.drawDesertWind();
+    return JSON.stringify(c.calls.filter(({ method }) => method === 'quadraticCurveTo').slice(0, 1));
   };
   assert.equal(render(true), render(false));
   c.elapsed += 0.5;
@@ -324,48 +967,123 @@ test('pause inventory reveals hovered item names and handles an empty inventory'
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0].includes('Equipped 0')));
 });
 
-test('desert walls follow the actual SoM TMX face courses and side walkway, not random face tiles', () => {
-  // tulimshar.tmx is not loaded by the game; it is the unmodified source this test checks the wall tile ids against.
-  const map = fs.readFileSync(path.join(__dirname, '..', 'assets', 'som', 'maps', 'tulimshar.tmx'), 'utf8');
-  const layers = [...map.matchAll(/<layer\b([^>]*)>[\s\S]*?<data encoding="csv">([\s\S]*?)<\/data>[\s\S]*?<\/layer>/g)];
-  const tileAt = (name, x, y) => {
-    const layer = layers.find((match) => match[1].includes(`name="${name}"`));
-    return Number(layer[2].trim().split(/[,\s]+/)[y * 186 + x]) - 1;
-  };
-  const face = [25, 26, 27, 28].map((y) => tileAt('Over', 39, y));
-  const walkway = [35, 36, 37, 38].map((x) => tileAt('Ground', x, 0));
+test('Tulimshar uses only castle1 upper-left frame at native scale with complete corner coverage', () => {
   const c = presentation();
-  const art = vm.runInContext('DESERT_ART', c);
-  assert.deepEqual(face, [...art.walls.face], 'face courses come from the map');
-  assert.deepEqual(walkway, [...art.walls.walkway], 'side walkway comes from the map');
-  c.drawRoomFloor();
-  const tiles = c.calls.filter(({ method, args }) => method === 'drawImage' && args[0].name === 'som-walls');
-  const id = ({ args }) => args[1] / 32 + args[2] / 32 * 16;
-  assert.deepEqual(tiles.filter(({ args }) => args[5] === 96 && args[6] < 64).map(id), face);
-  assert.deepEqual(tiles.filter(({ args }) => args[5] < 64 && args[6] === 64).map(id), walkway);
-  assert.ok(!c.calls.some(({ method, args }) => method === 'drawImage' && args[0].name === 'walls'));
-  assert.ok(tiles.some(({ args }) => args[5] === 48 && args[6] === 0 && id({ args }) === 1));
-  assert.ok(tiles.some(({ args }) => args[5] === 896 && args[6] === 0 && id({ args }) === 3));
-  assert.deepEqual([54, 55, 56].map((y) => tileAt('Over', 35, y)), [1, 8, 24]);
-  assert.equal(tileAt('Ground', 35, 57), 40);
-  assert.deepEqual([[47, 54], [48, 55], [48, 56]].map(([x, y]) =>
-    tileAt('Over', x, y)), [3, 11, 27]);
-  assert.equal(tileAt('Ground', 48, 57), 43);
-  assert.equal(tileAt('Over', 36, 27), 25);
-  assert.equal(tileAt('Over', 36, 28), 41);
-  assert.equal(tileAt('Over', 47, 56), 26);
-  assert.equal(tileAt('Over', 47, 57), 42);
-  for (const [x, y, curves] of [
-    [0, 0, [8, 24, 40]], [896, 0, [11, 27, 43]],
-    [0, 476, [25, 41]], [896, 476, [26, 42]],
-  ]) {
-    const corner = tiles.filter(({ args }) => args[5] >= x && args[5] < x + 64 &&
-      args[6] >= y && args[6] < y + 64);
-    assert.equal(corner.length, 32, 'each 4x4 corner overlays its supporting wall-top ground');
-    assert.deepEqual(corner.slice(0, 4).map(id), walkway);
-    assert.ok(curves.every((curve) => corner.slice(16).some((tile) => id(tile) === curve)));
-    assert.ok(corner.every(({ args }) => args[7] === 16 && args[8] === 16));
+  const png = fs.readFileSync(path.join(__dirname, '..', 'assets', 'tmw', 'clientdata',
+    'graphics', 'tilesets', 'castle1.png'));
+  assert.equal(png.readUInt32BE(16), c.tulimsharCastleTiles.naturalWidth);
+  for (const [width, height] of [[960, 540], [1504, 804], [2000, 720], [1000, 1440], [997, 573]]) {
+    c.ROOM_W = width;
+    c.ROOM_H = height;
+    c.calls.length = 0;
+    c.drawTulimsharCastleWalls();
+    const coverage = new Uint8Array(width * height);
+    const tiles = c.calls.filter(({ method, args }) => method === 'drawImage' && args[0].name === 'evol-castle');
+    for (const { args: [, sx, sy, sw, sh, x, y, dw, dh] } of tiles) {
+      assert.ok(sx + sw <= 96 && sy + sh <= 128);
+      assert.equal(sw, dw);
+      assert.equal(sh, dh);
+      assert.ok(!(sx === 32 && sy === 64), 'do not repeat the centre window as a wall');
+      for (let py = y; py < y + dh; py++) {
+        for (let px = x; px < x + dw; px++) coverage[py * width + px]++;
+      }
+    }
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const edge = x < 32 || y < 32 || x >= width - 32 || y >= height - 32;
+        assert.equal(coverage[y * width + x], edge ? 1 : 0);
+      }
+    }
+    assert.deepEqual(tiles.filter(({ args }) => (args[5] === 0 || args[5] === width - 32) &&
+      (args[6] === 0 || args[6] === height - 32)).map(({ args }) => [args[1], args[2]]),
+    [[0, 0], [64, 0], [0, 96], [64, 96]]);
   }
+});
+
+test('native castle layer is cached and refreshed for openings, secrets, size and artwork readiness', () => {
+  const c = presentation();
+  c.tulimsharCastleTiles.complete = false;
+  c.drawCachedRoomWalls(true);
+  assert.equal(c.drawCachedRoomWalls.layer, undefined);
+  c.tulimsharCastleTiles.complete = true;
+  c.drawCachedRoomWalls(true);
+  let last = c.drawCachedRoomWalls.layer;
+  c.calls.length = 0;
+  c.drawCachedRoomWalls(true);
+  assert.equal(c.drawCachedRoomWalls.layer, last);
+  assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, 0);
+  for (const change of [
+    () => { c.currentRoom.links.up = true; },
+    () => { c.currentRoom.lockedDoors.up = true; },
+    () => { c.currentRoom.secretExit = { direction: 'left', room: { hidden: false } }; },
+    () => { c.ROOM_W = 1504; },
+  ]) {
+    change();
+    c.drawCachedRoomWalls(true);
+    assert.notEqual(c.drawCachedRoomWalls.layer, last);
+    last = c.drawCachedRoomWalls.layer;
+  }
+});
+
+test('four native doorway corner tiles turn walls outward at passage edges without projecting pillars', () => {
+  const c = presentation();
+  c.currentRoom.links = { up: true, down: true, left: true, right: true };
+  for (const [width, height] of [[960, 540], [1504, 804], [997, 573]]) {
+    c.ROOM_W = width;
+    c.ROOM_H = height;
+    c.calls.length = 0;
+    c.drawTulimsharDoorJambs();
+    const posts = c.calls.filter(({ method }) => method === 'drawImage').map(({ args }) => args);
+    assert.equal(posts.length, 8);
+    for (const [, sx, sy, sw, sh, x, y, dw, dh] of posts) {
+      assert.ok(sx === 32 || sx === 64);
+      assert.equal(sy, 640);
+      assert.deepEqual([sw, sh, dw, dh], [32, 32, 32, 32]);
+      assert.ok(x === -80 || x === 48);
+      assert.equal(y, -16);
+    }
+    assert.deepEqual(posts.map((args) => [args[1], args[2]]),
+      [[32, 640], [64, 640], [32, 640], [64, 640],
+        [32, 640], [64, 640], [32, 640], [64, 640]]);
+    const rotations = c.calls.filter(({ method }) => method === 'rotate').map(({ args }) => args[0]);
+    assert.deepEqual(rotations, [-Math.PI, -0, -Math.PI * 1.5, -Math.PI / 2]);
+    const centers = c.calls.filter(({ method }) => method === 'translate').map(({ args }) => args);
+    assert.deepEqual(centers, [[width / 2, 16], [width / 2, height - 16],
+      [16, height / 2], [width - 16, height / 2]]);
+    posts.forEach((args, index) => {
+      const direction = Math.floor(index / 2);
+      const [cx, cy] = centers[direction];
+      const angle = rotations[direction];
+      for (const px of [args[5], args[5] + 32]) {
+        for (const py of [-16, 16]) {
+          const x = Math.round(cx + px * Math.cos(angle) - py * Math.sin(angle));
+          const y = Math.round(cy + px * Math.sin(angle) + py * Math.cos(angle));
+          assert.ok(x >= 0 && x <= width && y >= 0 && y <= height);
+          assert.ok(x <= 32 || x >= width - 32 || y <= 32 || y >= height - 32);
+        }
+      }
+    });
+    assert.deepEqual(c.calls.filter(({ method }) => method === 'clearRect').map(({ args }) => args),
+      posts.map((args) => args.slice(5)), 'remove old straight wall pixels beneath each bevel');
+    assert.equal(posts[1][5] - (posts[0][5] + 32), 96);
+    assert.equal(posts[3][5] - (posts[2][5] + 32), 96);
+    assert.equal(posts[5][5] - (posts[4][5] + 32), 96);
+    assert.equal(posts[7][5] - (posts[6][5] + 32), 96);
+  }
+  c.currentRoom.links = {};
+  c.currentRoom.secretExit = { direction: 'left', room: { hidden: true } };
+  c.calls.length = 0;
+  c.drawTulimsharDoorJambs();
+  assert.equal(c.calls.filter(({ method }) => method === 'drawImage').length, 0);
+  c.currentRoom.secretExit.room.hidden = false;
+  c.drawTulimsharDoorJambs();
+  assert.equal(c.calls.filter(({ method }) => method === 'drawImage').length, 2);
+  c.currentRoom.cleared = false;
+  c.drawCachedRoomWalls(true);
+  const before = c.drawCachedRoomWalls.layer;
+  c.currentRoom.links.up = true;
+  c.drawCachedRoomWalls(true);
+  assert.notEqual(c.drawCachedRoomWalls.layer, before, 'sealed-room doorway jambs also invalidate the cache');
 });
 
 test('castle side walls use authored vertical edges and connected caps instead of stacked horizontal facades', () => {
@@ -399,9 +1117,10 @@ test('castle side walls use authored vertical edges and connected caps instead o
     'do not stamp window/facade blocks over the wall courses');
 });
 
-['drawSandstoneWalls', 'drawCastleWalls'].forEach((renderer) => test(`${renderer} clips exactly to the collision band and cleared unlocked doorways at any room size`, () => {
+['drawTulimsharCastleWalls', 'drawCastleWalls'].forEach((renderer) => test(`${renderer} clips exactly to the collision band and cleared unlocked doorways at any room size`, () => {
   const c = presentation();
-  const band = vm.runInContext('ROOM_WALL_BAND', c);
+  if (renderer === 'drawCastleWalls') c.region = 'hurnscald';
+  const band = c.roomWallBand();
   const half = vm.runInContext('DOOR_OPENING_HALF_WIDTH', c);
   c.currentRoom.links = { up: true, down: true, left: true, right: true };
   for (const [width, height] of [[960, 540], [1504, 804], [997, 573]]) {
@@ -518,8 +1237,11 @@ test('SoM soul menhir uses its full native image and freezes its aura for reduce
   c.ctx.createRadialGradient = () => ({ addColorStop() {} });
   setReducedMotion(c, true);
   c.drawSoulMenhir();
+  c.calls.length = 0;
+  c.drawSoulMenhir();
   const first = JSON.stringify(c.calls);
-  const sprite = c.calls.find(({ method }) => method === 'drawImage');
+  const sprite = c.calls.find(({ layer, method, args }) => layer === 'screen' &&
+    method === 'drawImage' && args[0] === c.soulMenhirImage);
   assert.deepEqual(sprite.args.slice(1), [0, 0, 64, 64, 448, 106, 64, 64]);
   c.calls.length = 0;
   c.elapsed += 2;
@@ -564,7 +1286,8 @@ test('regional floor selections reproduce verified TMX interiors in their author
       c.ROOM_H = height;
       c.calls.length = 0;
       c.drawRoomFloor();
-      const tiles = c.calls.filter(({ layer, method }) => layer === 'cache' && method === 'drawImage');
+      const tiles = c.calls.filter(({ layer, method, args }) =>
+        layer === 'cache' && method === 'drawImage' && args[0] === terrain.image);
       const columns = Math.floor(terrain.image.naturalWidth / 32);
       for (const { args: [image, sx, sy, sw, sh, dx, dy] } of tiles) {
         assert.ok(sx >= 0 && sy >= 0 && sx + sw <= image.naturalWidth && sy + sh <= image.naturalHeight);
@@ -583,11 +1306,12 @@ test('desert paving uses the same authored cobblestone motif as Artis, not ornam
   c.currentRoom.links = { up: true, down: true, left: true, right: true };
   c.drawRoomFloor();
   const paving = c.calls.filter(({ layer, method, args }) =>
-    layer === 'cache' && method === 'drawImage' && args[0].name.endsWith('artis-pavement.png'));
+    layer === 'cache' && method === 'drawImage' && args[0].name?.endsWith('artis-pavement.png'));
   assert.ok(paving.length > 40);
   for (const { args: [image, sx, sy, sw, sh, x, y, width, height] } of paving) {
     assert.equal(Math.floor(sx / 32) + Math.floor(sy / 32) * (image.naturalWidth / 32),
-      c.terrainTileAt(c.terrainTiles.artis, Math.floor(x / 32) - 2, Math.floor(y / 32) - 2));
+      c.terrainTileAt(c.terrainTiles.artis, Math.floor((x - c.roomWallBand()) / 32),
+        Math.floor((y - c.roomWallBand()) / 32)));
     assert.equal(sx % 32, x % 32);
     assert.equal(sy % 32, y % 32);
     assert.deepEqual([sw, sh], [width, height], 'masking must not stretch the source motif');
@@ -639,8 +1363,9 @@ test('natural paving reaches only connected door approaches at different room si
       c.currentRoom.links = {};
       c.directions.forEach(({ name }, index) => { c.currentRoom.links[name] = Boolean(mask & (1 << index)); });
       for (const { name, dx, dy } of c.directions) {
-        const x = dx ? dx > 0 ? width - 68 : 68 : width / 2;
-        const y = dy ? dy > 0 ? height - 68 : 68 : height / 2;
+        const edge = c.roomWallBand() + 4;
+        const x = dx ? dx > 0 ? width - edge : edge : width / 2;
+        const y = dy ? dy > 0 ? height - edge : edge : height / 2;
         assert.equal(c.desertPavingCoverage(x, y) >= 0.5, c.currentRoom.links[name], name);
       }
     }
@@ -653,11 +1378,13 @@ test('curved paths stay connected from each door to the center without solid rec
   for (const [width, height] of [[960, 540], [1504, 804], [997, 573]]) {
     c.ROOM_W = width;
     c.ROOM_H = height;
-    const columns = Math.floor((width - 128) / 8);
-    const rows = Math.floor((height - 128) / 8);
+    const band = c.roomWallBand();
+    const edge = band + 4;
+    const columns = Math.floor((width - band * 2) / 8);
+    const rows = Math.floor((height - band * 2) / 8);
     const paving = Array.from({ length: columns * rows }, (_, index) =>
-      c.desertPavingCoverage(68 + index % columns * 8, 68 + Math.floor(index / columns) * 8) >= 0.5);
-    const center = Math.round((height / 2 - 68) / 8) * columns + Math.round((width / 2 - 68) / 8);
+      c.desertPavingCoverage(edge + index % columns * 8, edge + Math.floor(index / columns) * 8) >= 0.5);
+    const center = Math.round((height / 2 - edge) / 8) * columns + Math.round((width / 2 - edge) / 8);
     const seen = new Set([center]);
     const queue = [center];
     for (let cursor = 0; cursor < queue.length; cursor++) {

@@ -24,6 +24,12 @@ jobs:
         uses: actions/checkout@v7
       - name: Configure Pages
         uses: actions/configure-pages@v6
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Generate file hashes for automatic cache updates
+        run: node tools/generate-asset-manifest.js
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

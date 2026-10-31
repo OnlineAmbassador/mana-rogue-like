@@ -16,7 +16,7 @@ let renderScale = 1;
 let pixelRatioQuery = null;
 
 // Auto quality: when frames run slow, glow (shadowBlur) is switched off and particles are capped.
-const quality = { low: false, avgMs: 16.7, slowFor: 0, fastFor: 0 };
+const quality = { low: false, avgMs: 16.7, slowFor: 0, fastFor: 0, recoverySeconds: 10 };
 const nativeShadowBlur = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
 // shadowBlur is measured in backing pixels and ignores the transform, so it is scaled here.
 Object.defineProperty(ctx, 'shadowBlur', {
@@ -27,6 +27,7 @@ const MAX_PARTICLES = 400;
 const MAX_PARTICLES_LOW = 120;
 
 function updateQuality(dtSeconds) {
+  if (!(dtSeconds > 0) || dtSeconds > 0.25) return;
   quality.avgMs += (dtSeconds * 1000 - quality.avgMs) * 0.08;
   if (quality.avgMs > 26) {
     quality.slowFor += dtSeconds;
@@ -34,13 +35,19 @@ function updateQuality(dtSeconds) {
   } else if (quality.avgMs < 19) {
     quality.fastFor += dtSeconds;
     quality.slowFor = 0;
+  } else {
+    quality.slowFor = 0;
+    quality.fastFor = 0;
   }
   if (!quality.low && quality.slowFor > 2) {
     quality.low = true;
+    quality.fastFor = 0;
     resizeCanvas();
-  } else if (quality.low && quality.fastFor > 10) {
+  } else if (quality.low && quality.fastFor > quality.recoverySeconds) {
     quality.low = false;
     quality.slowFor = 0;
+    quality.fastFor = 0;
+    quality.recoverySeconds = Math.min(120, quality.recoverySeconds * 2);
     resizeCanvas();
   }
 }
@@ -250,8 +257,8 @@ const bossPhaseAttackSets = {
 let ROOM_W = ROOM_SIZES.large.w;
 let ROOM_H = ROOM_SIZES.large.h;
 const camera = { x: 0, y: 0 };
-const ROOM_WALL_THICKNESS = 64;
-const DOORWAY_HALF_WIDTH = 64;
+let ROOM_WALL_THICKNESS = 64;
+let DOORWAY_HALF_WIDTH = 64;
 const PLAYER_VISUAL_HALF_WIDTH = 24;
 const PLAYER_VISUAL_HEIGHT = 80;
 const WALL_COLLISION_PADDING = 8;
@@ -346,7 +353,7 @@ const musicChords = [[45, 48, 52], [41, 45, 48], [48, 52, 55], [43, 47, 50]];
 const NARRATION_ENABLED = false;
 
 const prologueNarrations = NARRATION_ENABLED ? [1, 2, 3].map((segment) => {
-  const audio = new Audio(`assets/audio/prologue-0${segment}.ogg`);
+  const audio = new Audio(versionedAssetUrl(`assets/audio/prologue-0${segment}.ogg`));
   audio.preload = 'auto';
   audio.volume = 0.76;
   return audio;
@@ -384,6 +391,16 @@ let narratorVoiceCache = null;
 
 
 
+
+const artwork = { images: new Map(), pending: new Set(), failed: new Set() };
+document.getElementById('artwork-retry').addEventListener('click', retryFailedArtwork);
+window.addEventListener('keydown', (event) => {
+  if (!artwork.pending.size && !artwork.failed.size) return;
+  if (event.ctrlKey || event.metaKey || event.altKey || event.key === 'Tab') return;
+  if (event.key === 'Enter' || event.key === ' ') retryFailedArtwork();
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
 
 const heartImage =  loadAsset('items/equipment/charms/heartofisis.png');
 const stoneImage = loadAsset('items/equipment/ammo/roundstone.png');
@@ -475,10 +492,10 @@ shopItemIconImages['dark-crystal'] = loadDyedAsset('items/generic/crystal.png',
   ['#252e6a', '#923eda', '#ba72ec', '#ffffff']);
 const sacredRoomTiles = loadAsset('tilesets/desert_castle_interior.png');
 const castleWallTiles = loadAsset('tilesets/desert_castle.png');
-const sandstoneWallTiles = loadAsset('wall.png', 'assets/som/graphics');
+const tulimsharCastleTiles = loadAsset('tilesets/castle1.png');
+const desertSandstormImage = loadAsset('images/ambient/sandstorm.png');
 const desertObstacleTiles = loadAsset('tilesets/desert1.png');
 const desertGroundTiles = loadAsset('tilesets/desert2.png');
-const desertSandstormImage = loadAsset('images/ambient/sandstorm.png');
 const soulMenhirImage = loadAsset('soulmenhir.png', 'assets/som/graphics');
 const sandFootprintImage = loadAsset('tilesets/footprints.png');
 const sandFootprints = { room: null, marks: [], x: 0, y: 0, distance: 0 };
@@ -540,19 +557,19 @@ const monsterSprites = {
   piou: { image: loadAsset('sprites/monsters/piou.png'), frameWidth: 10, frameHeight: 9, scale: 3.2, frames: [0, 1, 2, 3] },
   maggot: { image: loadAsset('sprites/monsters/maggot.png'), frameWidth: 20, frameHeight: 15, scale: 1.5, frames: [0, 10, 20, 30] },
   tortuga: { image: loadAsset('sprites/monsters/tortuga.png'), frameWidth: 32, frameHeight: 32, scale: 1.15, frames: [32, 33, 34, 35] },
-  ratto: { image: loadAsset('sprites/monsters/ratto.png'), frameWidth: 32, frameHeight: 32, scale: 1.35, frames: [22, 23, 24, 21] },
+  ratto: { image: loadAsset('sprites/monsters/ratto.png'), frameWidth: 32, frameHeight: 32, shadowAnchorY: 0.5, scale: 1.35, frames: [22, 23, 24, 21] },
   croc: { image: loadAsset('sprites/monsters/croc.png'), frameWidth: 30, frameHeight: 22, scale: 1.65, frames: [1, 0, 2, 0] },
   wisp: { image: loadAsset('sprites/monsters/wisp.png'), frameWidth: 64, frameHeight: 64, scale: 1.1, frames: [0, 1, 2, 3, 4] },
   jacko: { image: loadAsset('sprites/monsters/jacko.png'), frameWidth: 60, frameHeight: 60, scale: 2, frames: [0, 1, 2, 12, 13, 14] },
   bosspinkie: { image: loadAsset('sprites/monsters/bosspinkie.png'), frameWidth: 50, frameHeight: 42, scale: 1.45, frames: [0, 10, 20, 30] },
-  bat: { image: loadAsset('sprites/monsters/bat.png'), frameWidth: 37, frameHeight: 58, scale: 1.05, frames: [1, 2, 3, 4] },
+  bat: { image: loadAsset('sprites/monsters/bat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1.05, frames: [1, 2, 3, 4] },
   bluepar: { image: loadAsset('sprites/monsters/bluepar.png'), frameWidth: 50, frameHeight: 42, scale: 1.1, frames: [1, 2, 3, 4] },
   frog: { image: loadAsset('sprites/monsters/frog-small.png'), frameWidth: 32, frameHeight: 32, scale: 1.35, frames: [0, 1, 2, 3] },
   mouboo: { image: loadAsset('sprites/monsters/mouboo.png'), frameWidth: 80, frameHeight: 80, scale: 0.82, frames: [1, 2, 3, 4, 5, 6] },
   skeleton: { image: loadAsset('sprites/monsters/skeleton.png'), frameWidth: 64, frameHeight: 64, scale: 1, frames: [1, 2, 3, 4, 5, 6] },
   slime: { image: loadAsset('sprites/monsters/slime.png'), frameWidth: 52, frameHeight: 24, scale: 1.25, frames: [0, 1, 2, 3] },
   snake: { image: loadAsset('sprites/monsters/snake.png'), frameWidth: 48, frameHeight: 29, scale: 1.2, frames: [1, 2, 3, 4] },
-  spider: { image: loadAsset('sprites/monsters/spider.png'), frameWidth: 35, frameHeight: 35, scale: 1.25, frames: [0, 2, 7, 9] },
+  spider: { image: loadAsset('sprites/monsters/spider.png'), frameWidth: 35, frameHeight: 35, shadowAnchorY: 0.35, scale: 1.25, frames: [0, 2, 7, 9] },
   'spider-queen': { image: loadAsset('sprites/monsters/spider-queen.png'), frameWidth: 96, frameHeight: 96, scale: 1.05 },
   golem: { image: loadAsset('sprites/monsters/golem.png'), frameWidth: 128, frameHeight: 128, scale: 0.9 },
   'slime-mother': { image: loadAsset('sprites/monsters/slime-mother.png'), frameWidth: 64, frameHeight: 64, scale: 1.2, frames: [0, 18, 36, 54] },
@@ -565,7 +582,7 @@ const monsterSprites = {
   nightdragon: { image: loadAsset('sprites/monsters/nightdragon.png'), frameWidth: 256, frameHeight: 128, scale: 0.45, frames: [0, 8, 16, 24] },
   snowman: { image: loadAsset('sprites/monsters/snowman.png'), frameWidth: 128, frameHeight: 128, scale: 0.55, frames: [0, 1, 2, 3, 4, 5, 6, 7] },
   yeti: { image: loadAsset('sprites/monsters/yeti.png'), frameWidth: 80, frameHeight: 80, scale: 0.9, frames: [3, 4, 5, 6] },
-  vampirebat: { image: loadAsset('sprites/monsters/vampirebat.png'), frameWidth: 37, frameHeight: 58, scale: 1, frames: [1, 2, 3, 4] },
+  vampirebat: { image: loadAsset('sprites/monsters/vampirebat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1, frames: [1, 2, 3, 4] },
   frostiana: { image: loadAsset('sprites/monsters/frostiana.png'), frameWidth: 32, frameHeight: 32, scale: 1.4, frames: [4, 5, 6, 7] },
   troll: { image: loadAsset('sprites/monsters/troll.png'), frameWidth: 40, frameHeight: 40, scale: 1.3, frames: [0, 1, 2, 3, 4, 5] },
   junglefowl: { image: loadAsset('sprites/monsters/junglefowl.png'), frameWidth: 50, frameHeight: 50, scale: 1.1, frames: [0, 12, 24, 36] },
@@ -579,7 +596,7 @@ const monsterSprites = {
 };
 const banditBowImage = loadAsset('sprites/monsters/accessories/banditbow.png');
 const obstacleSprites = [
-  { image: loadAsset('sprites/monsters/loghead.png'), frameWidth: 45, frameHeight: 43, frames: [0], scale: 1.55, hp: 1, radius: 23, type: 'solid',
+  { image: loadAsset('sprites/monsters/loghead.png'), frameWidth: 45, frameHeight: 43, frames: [0], scale: 1.55, hp: 1, radius: 23, type: 'solid', trunkShadow: true,
     sound: { hit: 'monsters/loghead/loghead-hurt1.ogg', break: 'monsters/loghead/loghead-die1.ogg' } },
   { image: loadAsset('sprites/monsters/redmushroom.png'), frameWidth: 42, frameHeight: 33, frames: [0, 10, 20, 30], scale: 1.55, hp: 2, radius: 18, type: 'bomb-only',
     sound: { hit: 'monsters/shroom/shroom-hurt1.ogg', break: 'monsters/shroom/shroom-die1.ogg' } },
@@ -2062,7 +2079,7 @@ function update(dt) {
       distanceBetween(projectile, rock) < projectile.radius + rock.radius);
     const enemy = enemies.find((candidate) => !candidate.manaRift &&
       !(projectile.hitEnemies && projectile.hitEnemies.includes(candidate)) &&
-      distanceBetween(projectile, candidate) < projectile.radius + candidate.radius);
+      projectileHitsEnemy(projectile, candidate, dt));
     if (rockIndex >= 0) {
       triggerMagicCluster(projectile, null, breakables[rockIndex]);
       triggerWildMagicImpact(projectile);
@@ -2454,7 +2471,7 @@ function draw() {
   camera.y = clamp(player.y - VIEW_H / 2, 0, Math.max(0, ROOM_H - VIEW_H));
   ctx.save();
   ctx.translate(shake.x - Math.round(camera.x), shake.y - Math.round(camera.y));
-  withTextOutline(drawWorld);
+  withTextOutline(drawWorld, 'rgba(8, 6, 10, 0.92)', 3.5, 'bold 10px Arial');
   ctx.restore();
   drawRegionAtmosphere();
   if (mode === 'playing' && hurtVignetteTimer > 0) drawHurtVignette(shake);
@@ -2498,9 +2515,14 @@ function draw() {
 
 
 function loop(timestamp) {
-  const dt = Math.min((timestamp - lastTime) / 1000 || 0.016, 0.1);
+  const frameSeconds = (timestamp - lastTime) / 1000 || 0.016;
+  const dt = Math.min(frameSeconds, 0.1);
   lastTime = timestamp;
-  if (document.visibilityState === 'visible') updateQuality(dt);
+  if (document.visibilityState !== 'visible' || updateArtworkLoading()) {
+    requestAnimationFrame(loop);
+    return;
+  }
+  updateQuality(frameSeconds);
   resetConfirmTimer = Math.max(0, resetConfirmTimer - dt);
   newRunConfirmTimer = Math.max(0, newRunConfirmTimer - dt);
   endScreenDelay = Math.max(0, endScreenDelay - dt);

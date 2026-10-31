@@ -50,15 +50,25 @@
 
     <div class="message" id="message" aria-live="polite">Choose a delver to begin the descent.</div>
 
-    <!-- Manager scripts define shared classic-script functions before game state starts. -->
-    <script src="gameui.js"></script>
-    <script src="desertart.js"></script>
-    <script src="shopart.js"></script>
-    <script src="mobmanager.js"></script>
-    <script src="playermanager.js"></script>
-    <script src="dbmanager.js"></script>
-    <script src="worldmanager.js"></script>
-    <script src="controllermanager.js"></script>
-    <script src="game.js"></script>
+    <div id="artwork-loading" class="artwork-loading">
+      <div class="artwork-loading-panel">
+        <p id="artwork-status" role="status">Checking for updated game files...</p>
+        <button id="artwork-retry" type="button" hidden>Retry artwork (Enter)</button>
+      </div>
+    </div>
+
+    <script>
+      const bootstrap = document.createElement('script');
+      bootstrap.src = `cachemanager.js?check=${Date.now()}`;
+      bootstrap.onerror = () => {
+        console.error('Could not load the game update checker.');
+        document.getElementById('artwork-status').textContent = 'Could not load the game. Check your connection and retry.';
+        const retry = document.getElementById('artwork-retry');
+        retry.textContent = 'Retry game loading';
+        retry.hidden = false;
+        retry.onclick = () => location.reload();
+      };
+      document.head.appendChild(bootstrap);
+    </script>
   </body>
 </html>
