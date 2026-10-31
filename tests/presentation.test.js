@@ -24,6 +24,8 @@ function presentation() {
   const image = (name) => ({ name, complete: true, naturalWidth: 512, naturalHeight: 512 });
   const c = vm.createContext({
     ctx: makeContext('screen'), calls,
+    materialCatalog: { ironOre: { id: 'iron-ore', name: 'Iron Ore', price: 1 }, darkCrystal: { id: 'dark-crystal', name: 'Dark Crystal', price: 3 } },
+    materials: { ironOre: 0, darkCrystal: 0 },
     document: { createElement: () => ({ getContext: () => makeContext('cache') }) },
     window: { matchMedia: () => ({ matches: false }) },
     ROOM_W: 960, ROOM_H: 540, VIEW_W: 960, VIEW_H: 540,

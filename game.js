@@ -404,7 +404,6 @@ const shopItemIconImages = {
   'heart-vessel-i': heartImage,
   'heart-vessel-ii': heartImage,
   'heart-vessel-iii': heartImage,
-  'guardian-heart': heartImage,
   'shop-heart': heartImage,
   'orbiting-projectiles': loadAsset('items/equipment/charms/spectralorb.png'),
   'element-fire': loadAsset('items/equipment/charms/firescroll.png'),
@@ -470,6 +469,10 @@ const uniqueItemIconPaths = {
 for (const [id, path] of Object.entries(uniqueItemIconPaths)) {
   shopItemIconImages[id] = loadAsset(`items/${path.startsWith('generic/') ? '' : 'equipment/'}${path}.png`);
 }
+// Dye values come from the TMW item XML: Lifestone (item 730) and Dark Crystal (item 631).
+shopItemIconImages.lifestone = loadDyedAsset('items/generic/gemstone-a.png', ['#a0a010', '#ffffa0']);
+shopItemIconImages['dark-crystal'] = loadDyedAsset('items/generic/crystal.png',
+  ['#252e6a', '#923eda', '#ba72ec', '#ffffff']);
 const sacredRoomTiles = loadAsset('tilesets/desert_castle_interior.png');
 const castleWallTiles = loadAsset('tilesets/desert_castle.png');
 const sandstoneWallTiles = loadAsset('wall.png', 'assets/som/graphics');
@@ -619,7 +622,7 @@ const shopItemCatalog = [
   { id: 'heart-vessel-i', name: 'Heart Vessel I', description: 'Gain one heart for this descent', cost: 8, kind: 'passive' },
   { id: 'heart-vessel-ii', name: 'Heart Vessel II', description: 'Gain one heart for this descent', cost: 11, kind: 'passive' },
   { id: 'heart-vessel-iii', name: 'Heart Vessel III', description: 'Gain one heart for this descent', cost: 14, kind: 'passive' },
-  { id: 'guardian-heart', name: 'Guardian Heart', description: 'A boss-room relic: gain one heart container and restore up to two hearts', cost: 0, kind: 'boss-relic' },
+  { id: 'lifestone', name: 'Lifestone', description: 'A boss drop: gain one heart container (below five extra hearts) and recover three hearts over 18 seconds', cost: 0, kind: 'boss-relic' },
   { id: 'luck-up-i', name: 'Luck Up I', description: 'Zeny can overflow a map’s budget more often', cost: 6, kind: 'passive' },
   { id: 'luck-up-ii', name: 'Luck Up II', description: 'Even better odds of a zeny windfall', cost: 9, kind: 'passive' },
   { id: 'range-lens', name: 'Far-Reach Lens I', description: 'Projectiles travel 35% farther; melee reach +10%', cost: 8, kind: 'passive' },
@@ -961,6 +964,21 @@ let endScreenDelay = 0;
 let newRunConfirmTimer = 0;
 
 let coins = 0;
+// Enemy drops that are only worth zeny at a shop's sell pad. Carried amounts are lost with the run, like zeny.
+// Rates are per eligible kill: normal, elite and miniboss foes, never summoned, split-off or ambush foes.
+const materialCatalog = {
+  ironOre: { id: 'iron-ore', name: 'Iron Ore', price: 1 },
+  darkCrystal: { id: 'dark-crystal', name: 'Dark Crystal', price: 3 },
+};
+const MATERIAL_DROP_TUNING = {
+  rates: { ironOre: 0.06, darkCrystal: 0.02 },
+  luckBonus: { ironOre: 0.01, darkCrystal: 0.005 },
+  strongFoeMultiplier: 2,
+};
+const materials = { ironOre: 0, darkCrystal: 0 };
+function resetMaterials() {
+  for (const key of Object.keys(materialCatalog)) materials[key] = 0;
+}
 let keysHeld = 0;
 let bombsHeld = 3;
 let rooms = [];
@@ -1483,6 +1501,7 @@ function beginRun() {
   player.damage = entry.damage;
   player.armor = 0;
   player.aegisCharges = 0;
+  player.lifestoneRegen = null;
   orbitGuardChargeUps = 0;
   orbitGuards.length = 0;
   nextOrbitGuardId = 1;
@@ -1564,6 +1583,7 @@ function beginRun() {
   player.classKills = 0;
   laserBeams.length = 0;
   coins = 0;
+  resetMaterials();
   resetFloorCoins();
   keysHeld = 0;
   bombsHeld = entry.startingBombs || 3;
@@ -1924,6 +1944,7 @@ function update(dt) {
   lastPlayerSample.y = player.y;
   playerStillTimer = Math.hypot(playerVelocity.x, playerVelocity.y) < 45 ? playerStillTimer + dt : 0;
   updateStyleHeat(dt);
+  updateLifestoneRegen(dt);
   updateInputAI(dt);
   updateBossStrikes(dt);
   resolveDoorCrossing();
@@ -2188,6 +2209,11 @@ function update(dt) {
       coins += 1;
       runStats.zenyFound += 1;
       playPickupSound('gp', 0.25);
+    }
+    if (pickup.kind === 'material' && materialCatalog[pickup.material]) {
+      materials[pickup.material] += 1;
+      playPickupSound('gp', 0.2);
+      popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[materialCatalog[pickup.material].id] });
     }
     if (pickup.kind === 'heart') {
       player.hp = Math.min(player.maxHp, player.hp + 1);

@@ -237,6 +237,49 @@ function loadAsset(path, root = assetRoot) {
   return image;
 }
 
+// Maps the grey pixels of a TMW icon onto a gradient of evenly spaced colors, as the TMW client does for the
+// `|W:` dye of an item. Coloured and transparent pixels are left alone.
+function dyeGreyPixels(data, stops) {
+  const colors = stops.map((stop) => {
+    const hex = stop.replace('#', '');
+    return [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+  });
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index + 3] === 0 || data[index] !== data[index + 1] || data[index + 1] !== data[index + 2]) continue;
+    const position = (data[index] / 255) * (colors.length - 1);
+    const segment = Math.min(colors.length - 2, Math.floor(position));
+    const blend = position - segment;
+    for (let channel = 0; channel < 3; channel += 1) {
+      data[index + channel] = Math.round(colors[segment][channel] +
+        (colors[segment + 1][channel] - colors[segment][channel]) * blend);
+    }
+  }
+  return data;
+}
+
+// The PNG on disk stays unmodified; the dyed copy is made once the source has loaded. Browsers that block pixel
+// readback for local files keep the grey icon.
+function loadDyedAsset(path, stops, root = assetRoot) {
+  const dyed = new Image();
+  const source = loadAsset(path, root);
+  source.addEventListener('load', () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = source.naturalWidth;
+      canvas.height = source.naturalHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(source, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      dyeGreyPixels(pixels.data, stops);
+      context.putImageData(pixels, 0, 0);
+      dyed.src = canvas.toDataURL();
+    } catch {
+      dyed.src = source.src;
+    }
+  });
+  return dyed;
+}
+
 function soundUrl(path) {
   return path.startsWith('som:') ? `${somSoundRoot}/${path.slice(4)}` : `${soundRoot}/${path}`;
 }
@@ -864,7 +907,9 @@ function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
 function drawPauseEquipment() {
   const equipped = shopItemCatalog.filter((item) => ownedItems.has(item.id));
   const supplies = consumables.filter((item) => item.count > 0);
-  const items = [...equipped, ...supplies];
+  const carried = Object.keys(materialCatalog).filter((key) => materials[key] > 0)
+    .map((key) => ({ id: materialCatalog[key].id, name: materialCatalog[key].name, count: materials[key] }));
+  const items = [...equipped, ...supplies, ...carried];
   const panel = { x: 104, y: 400, width: VIEW_W - 208, height: VIEW_H - 412 };
   const gridWidth = panel.width - 24;
   const gridHeight = panel.height - 38;
@@ -877,7 +922,8 @@ function drawPauseEquipment() {
   ctx.textBaseline = 'alphabetic';
   ctx.font = 'bold 12px Georgia';
   ctx.fillStyle = '#e9d39f';
-  let label = `Inventory  /  Equipped ${equipped.length}  /  Supplies ${supplies.length}`;
+  let label = `Inventory  /  Equipped ${equipped.length}  /  Supplies ${supplies.length}` +
+    (carried.length ? `  /  Materials ${carried.reduce((total, stack) => total + stack.count, 0)}` : '');
   items.forEach((item, index) => {
     const x = panel.x + 12 + (index % columns) * cell;
     const y = panel.y + 32 + Math.floor(index / columns) * cell;
@@ -3270,6 +3316,25 @@ function drawWorld() {
         ctx.fillRect(pickup.x - 7, pickup.y - 9, 14, 18);
       }
       ctx.restore();
+    } else if (pickup.kind === 'material' && materialCatalog[pickup.material]) {
+      // A small shadow and soft glow keep a dull grey-brown ore readable on every floor tile.
+      const icon = shopItemIconImages[materialCatalog[pickup.material].id];
+      const bob = prefersReducedMotion() ? 0 : Math.sin(elapsed * 4 + pickup.x) * 1.5;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      ctx.beginPath();
+      ctx.ellipse(pickup.x, pickup.y + 11, 9, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowColor = pickup.material === 'darkCrystal' ? 'rgba(186, 114, 236, 0.8)' : 'rgba(255, 224, 160, 0.55)';
+      ctx.shadowBlur = 9;
+      ctx.imageSmoothingEnabled = false;
+      if (icon?.complete && icon.naturalWidth > 0) {
+        ctx.drawImage(icon, pickup.x - 13, pickup.y - 13 + bob, 26, 26);
+      } else {
+        ctx.fillStyle = pickup.material === 'darkCrystal' ? '#923eda' : '#a8765a';
+        ctx.fillRect(pickup.x - 6, pickup.y - 8 + bob, 12, 16);
+      }
+      ctx.restore();
     } else if (pickup.kind === 'xp') {
       const bob = Math.sin(elapsed * 6 + pickup.x) * 1.5;
       ctx.save();
@@ -4745,7 +4810,8 @@ function drawGameHud() {
   const rightHud = { x: -4, y: 62 };
   ctx.save();
   drawManaPanel(leftHud.x, leftHud.y + 4, Math.max(170, player.maxHp * 20 + 58), 56);
-  drawManaPanel(3, rightHud.y + 3, 54, 94);
+  const carriedMaterials = Object.keys(materialCatalog).filter((key) => materials[key] > 0);
+  drawManaPanel(3, rightHud.y + 3, 54, 94 + carriedMaterials.length * 21);
   const drawIndicatorBorder = (x, y, width, height) => {
     ctx.save();
     ctx.shadowBlur = 0;
@@ -4877,8 +4943,43 @@ function drawGameHud() {
   ctx.lineWidth = 3;
   ctx.strokeText(activeCompanions, familiarX + 18, rightHud.y + 17);
   ctx.fillText(activeCompanions, familiarX + 18, rightHud.y + 17);
+
+  // Carried ore and crystals appear beneath the other counts only while there are any.
+  ctx.shadowBlur = 0;
+  ctx.imageSmoothingEnabled = false;
+  for (const key of carriedMaterials) {
+    const icon = shopItemIconImages[materialCatalog[key].id];
+    ctx.translate(0, 21);
+    if (icon?.complete && icon.naturalWidth > 0) ctx.drawImage(icon, familiarX - 1, rightHud.y + 8, 18, 18);
+    ctx.fillStyle = '#f4e6c4';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeText(materials[key], familiarX + 20, rightHud.y + 17);
+    ctx.fillText(materials[key], familiarX + 20, rightHud.y + 17);
+  }
   ctx.textBaseline = 'alphabetic';
   ctx.restore();
+
+  const regen = player.lifestoneRegen;
+  if (regen && regen.ticks > 0) {
+    const regenIcon = shopItemIconImages.lifestone;
+    const panelRight = leftHud.x + Math.max(170, player.maxHp * 20 + 58);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffa0';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    const label = `+${regen.ticks} in ${Math.ceil(regen.timer)}s`;
+    ctx.strokeText(label, panelRight - 10, leftHud.y + 16);
+    ctx.fillText(label, panelRight - 10, leftHud.y + 16);
+    if (regenIcon?.complete && regenIcon.naturalWidth > 0) {
+      ctx.drawImage(regenIcon, panelRight - 14 - ctx.measureText(label).width - 14, leftHud.y + 8, 16, 16);
+    }
+    ctx.restore();
+  }
 
   const boss = enemies.find((enemy) => enemy.boss || enemy.miniBoss);
   if (boss) {

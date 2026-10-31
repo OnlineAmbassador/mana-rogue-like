@@ -488,6 +488,10 @@ function heartVesselAllowed() {
   return extra < MAX_EXTRA_HEARTS && (extra < SOFT_EXTRA_HEARTS || Math.random() < 0.04);
 }
 
+// The Lifestone is a boss drop: one extra heart container while extra hearts are below the soft cap, then three
+// hearts recovered one at a time. It is not added to ownedItems, so every boss can drop one.
+const LIFESTONE_HEARTS = 3;
+const LIFESTONE_TICK_SECONDS = 6;
 // Each Far-Reach Lens tier also lengthens every melee weapon.
 const MELEE_REACH_PER_LENS = 0.1;
 const FLURRY_COOLDOWN_SCALE = 0.35;
@@ -495,6 +499,39 @@ const DAGGER_COOLDOWN_SCALE = 0.8;
 // Prism Shard: a three-way fan whose shots add up to 1.2x one shot. A fused elemental shot stays at 1.6x.
 const PRISM_SHOT_COUNT = 3;
 const PRISM_TOTAL_DAMAGE = 1.2;
+
+function lifestoneGainsHeart() {
+  return extraHearts() < Math.min(SOFT_EXTRA_HEARTS, MAX_EXTRA_HEARTS);
+}
+
+function startLifestoneRegen() {
+  const active = player.lifestoneRegen;
+  player.lifestoneRegen = { ticks: (active?.ticks || 0) + LIFESTONE_HEARTS, timer: active ? active.timer : LIFESTONE_TICK_SECONDS };
+}
+
+// Runs on game time, so it pauses with the game; damage does not interrupt it and a dead run stops it.
+function updateLifestoneRegen(dt) {
+  const regen = player.lifestoneRegen;
+  if (!regen) return;
+  if (deathTimer > 0 || player.hp <= 0) {
+    player.lifestoneRegen = null;
+    return;
+  }
+  regen.timer -= dt;
+  while (regen.timer <= 0 && regen.ticks > 0) {
+    regen.timer += LIFESTONE_TICK_SECONDS;
+    regen.ticks -= 1;
+    if (player.hp < player.maxHp) {
+      player.hp = Math.min(player.maxHp, player.hp + 1);
+      playPickupSound('heal', 0.3);
+      popOverPlayer({ icon: 'heart', color: '#ff7b8e' });
+      addParticles(player.x, player.y - 12, '#ffe7a6', 8, 70);
+      updateHud();
+    }
+  }
+  if (regen.ticks <= 0) player.lifestoneRegen = null;
+}
+
 function isUpgradeAvailable(item) {
   if (item.kind === 'boss-relic') return false;
   const rangeTier = rangeLensItemIds.indexOf(item.id);

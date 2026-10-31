@@ -748,20 +748,18 @@ function grantUpgrade(item, source = 'descent') {
     showMessage(`You already own ${item.name}.`, 2);
     return false;
   }
-  if (item.id === 'guardian-heart') {
-    const healthCap = (character ? startingHearts(character) : BASE_HEARTS) + MAX_EXTRA_HEARTS;
-    const previousMaxHp = player.maxHp;
-    player.maxHp = Math.min(healthCap, player.maxHp + 2);
-    player.hp = Math.min(player.maxHp, player.hp + phaseRewardHealAmount());
-    const gainedContainer = player.maxHp > previousMaxHp;
-    ownedItems.add(item.id);
-    markAbilityOffered(item);
+  if (item.id === 'lifestone') {
+    // A dying run cannot be healed: pickups are not gated during the death slow-motion.
+    if (deathTimer > 0 || player.hp <= 0) return false;
+    const gainedContainer = lifestoneGainsHeart();
+    if (gainedContainer) player.maxHp += 1;
+    startLifestoneRegen();
     recordItemDiscovery(item);
     updateHud();
     showMessage(gainedContainer
-      ? 'Guardian Heart: one heart container gained and up to two hearts restored.'
-      : 'Guardian Heart: your capacity is full, so it restores up to two hearts.', 4);
-    showPickupBanner(item.name, [gainedContainer ? '+1 HEART CONTAINER' : 'CAPACITY FULL', 'RESTORED UP TO 2 HEARTS']);
+      ? 'Lifestone: one heart container gained. You recover three hearts over 18 seconds.'
+      : 'Lifestone: you recover three hearts over 18 seconds.', 4);
+    showPickupBanner(item.name, [gainedContainer ? '+1 HEART CONTAINER' : 'CONTAINERS FULL', 'RECOVER 3 HEARTS OVER 18 S']);
     popOverPlayer({ icon: 'heart', color: '#ff7b8e', image: shopItemIconImages[item.id] });
     return true;
   }
@@ -1666,7 +1664,8 @@ function startRiskShrineAmbush() {
     const kind = kinds[Math.floor(Math.random() * kinds.length)];
     const spawn = findEnemySpawnPosition(180 + Math.random() * (ROOM_W - 360), 120 + Math.random() * (ROOM_H - 240), 18, 140);
     if (!spawn) continue;
-    applyBossAIPromotion(applyEliteMutation(createEnemy(kind, spawn.x, spawn.y)));
+    // Extra foes the player opted into must not be a material farm.
+    applyBossAIPromotion(applyEliteMutation(createEnemy(kind, spawn.x, spawn.y))).noMaterialDrops = true;
   }
   addParticles(ROOM_W / 2 + 130, ROOM_H / 2 - 30, '#cc92e7', 24, 95);
   showMessage('The doors seal. Survive the ambush.', 2.5);

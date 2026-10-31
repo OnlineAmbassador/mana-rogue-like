@@ -290,7 +290,8 @@ function restoreRoomRuntime(room) {
     });
   }
   for (const pickup of runtime.pickups || []) {
-    const { roomKey: pickupRoomKey, ...state } = pickup;
+    const { roomKey: pickupRoomKey, ...savedState } = pickup;
+    const state = migrateSavedPickup(savedState);
     pickups.push({
       ...state,
       room: pickupRoomKey ? rooms.find((candidate) => roomKey(candidate) === pickupRoomKey) : undefined,
@@ -369,6 +370,8 @@ function serializeRun() {
     },
     score,
     coins,
+    materials: { ...materials },
+    lifestoneRegen: player.lifestoneRegen ? { ...player.lifestoneRegen } : null,
     floorCoinsSpawned,
     floorCoinCeiling,
     floorOverflowRolled,
@@ -502,6 +505,18 @@ function restoreRun() {
   player.hp = Math.min(player.hp, player.maxHp);
   score = saved.score || 0;
   coins = saved.coins || 0;
+  resetMaterials();
+  for (const key of Object.keys(materialCatalog)) {
+    const amount = saved.materials?.[key];
+    if (Number.isFinite(amount) && amount > 0) materials[key] = Math.floor(amount);
+  }
+  const savedRegen = saved.lifestoneRegen;
+  player.lifestoneRegen = savedRegen && Number.isFinite(savedRegen.ticks) && savedRegen.ticks > 0
+    ? {
+      ticks: Math.min(savedRegen.ticks, LIFESTONE_HEARTS * 3),
+      timer: clamp(Number.isFinite(savedRegen.timer) ? savedRegen.timer : LIFESTONE_TICK_SECONDS, 0, LIFESTONE_TICK_SECONDS),
+    }
+    : null;
   floorCoinsSpawned = saved.floorCoinsSpawned || 0;
   floorCoinCeiling = saved.floorCoinCeiling || SOFT_FLOOR_COINS;
   floorOverflowRolled = saved.floorOverflowRolled === true;
