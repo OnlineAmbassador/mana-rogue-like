@@ -8,7 +8,7 @@ function assets() {
   const warnings = [];
   const errors = [];
   const c = vm.createContext({
-    artwork: { images: new Map(), pending: new Set(), failed: new Set() },
+    artwork: { images: new Map(), pending: new Set(), failed: new Set(), deferred: new Set(), queue: [] },
     assetRoot: 'graphics', timers, warnings, errors,
     Image: class {
       set src(value) {
@@ -22,7 +22,7 @@ function assets() {
   });
   c.gameAssetVersions = null;
   loadFunctions(c, 'cachemanager.js', ['versionedAssetUrl']);
-  loadFunctions(c, 'gameui.js', ['loadAsset', 'retryFailedArtwork', 'artworkBlocking', 'updateArtworkLoading']);
+  loadFunctions(c, 'gameui.js', ['loadAsset', 'loadDeferredAsset', 'retryFailedArtwork', 'artworkBlocking', 'updateArtworkLoading']);
   return c;
 }
 
@@ -175,6 +175,28 @@ test('artwork that finishes loading mid-run never blocks play, but a failed down
   c.timers[0]();
   late.onerror('offline');
   assert.equal(c.artworkBlocking(), true, 'a failed download offers Retry');
+});
+
+test('deferred artwork waits for the startup art, then downloads without blocking play', () => {
+  const c = assets();
+  const status = { textContent: '' };
+  const elements = {
+    'artwork-loading': { hidden: true }, 'artwork-status': status, 'artwork-retry': { hidden: true },
+  };
+  c.document = { getElementById: (id) => elements[id] };
+  c.keys = {};
+  c.pointer = { down: false };
+  c.resetTouchInput = () => {};
+  const boss = c.loadDeferredAsset('boss.png');
+  const floor = c.loadAsset('floor.png');
+  assert.equal(boss.url, undefined, 'the deferred download has not started');
+  assert.equal(c.updateArtworkLoading(), true);
+  assert.equal(status.textContent, 'Loading artwork: 0 / 1', 'the counter leaves deferred art out');
+  floor.onload();
+  assert.equal(c.updateArtworkLoading(), false, 'startup does not wait for deferred art');
+  assert.equal(boss.url, 'graphics/boss.png', 'the queue starts once the startup art is in');
+  assert.equal(c.artwork.pending.size, 0);
+  assert.equal(c.loadDeferredAsset('boss.png'), boss, 'a deferred image is shared like any other');
 });
 
 test('the game loop does not advance combat while artwork is pending or the tab is hidden', () => {

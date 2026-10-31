@@ -233,6 +233,8 @@ function loadAsset(path, root = assetRoot) {
   if (artwork.images.has(url)) return artwork.images.get(url);
   const image = new Image();
   artwork.images.set(url, image);
+  // Deferred art (see loadDeferredAsset) waits in a queue and never holds the loading screen.
+  const deferred = Boolean(artwork.deferNext) && !artwork.started;
   image.decoding = 'async';
   let retries = 0;
   const fail = (error) => {
@@ -247,7 +249,7 @@ function loadAsset(path, root = assetRoot) {
   };
   const start = () => {
     artwork.failed.delete(url);
-    artwork.pending.add(url);
+    if (!deferred) artwork.pending.add(url);
     image.src = url;
   };
   image.onload = () => {
@@ -256,8 +258,25 @@ function loadAsset(path, root = assetRoot) {
     else ready();
   };
   image.onerror = fail;
-  start();
+  if (deferred) {
+    artwork.deferred.add(url);
+    artwork.queue.push(start);
+  } else {
+    start();
+  }
   return image;
+}
+
+// For art first needed after startup (boss sheets, effect sprites): the download starts only once the startup art
+// has loaded, so it neither competes with it for connections nor holds up the loading screen. Until it arrives the
+// drawing code skips it or draws its fallback, as it does for any art still loading.
+function loadDeferredAsset(path, root = assetRoot) {
+  artwork.deferNext = true;
+  try {
+    return loadAsset(path, root);
+  } finally {
+    artwork.deferNext = false;
+  }
 }
 
 // Maps the grey pixels of a TMW icon onto a gradient of evenly spaced colors, as the TMW client does for the
@@ -319,6 +338,7 @@ function artworkBlocking() {
 
 function updateArtworkLoading() {
   if (!artwork.pending.size && !artwork.failed.size) artwork.started = true;
+  if (artwork.started && artwork.queue.length) for (const start of artwork.queue.splice(0)) start();
   const busy = artworkBlocking();
   const panel = document.getElementById('artwork-loading');
   if (panel.hidden === busy) {
@@ -333,7 +353,7 @@ function updateArtworkLoading() {
     const failed = artwork.failed.size;
     const text = failed
       ? `Could not load ${failed} artwork file(s). Check your connection and retry. ${artwork.failed.values().next().value}`
-      : `Loading artwork: ${artwork.images.size - artwork.pending.size} / ${artwork.images.size}`;
+      : `Loading artwork: ${artwork.images.size - artwork.deferred.size - artwork.pending.size} / ${artwork.images.size - artwork.deferred.size}`;
     const status = document.getElementById('artwork-status');
     if (status.textContent !== text) status.textContent = text;
     document.getElementById('artwork-retry').hidden = !failed;

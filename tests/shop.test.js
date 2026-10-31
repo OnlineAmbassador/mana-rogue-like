@@ -209,7 +209,7 @@ test('no script that loads before game.js calls loadAsset at top level', () => {
   const offenders = [];
   for (const file of early) {
     readSource(file).split('\n').forEach((line, index) => {
-      if (/^(?!function\b|\/\/|\s|\*)[^\n]*\bload(?:Dyed)?Asset\(/.test(line)) offenders.push(`${file}:${index + 1}`);
+      if (/^(?!function\b|\/\/|\s|\*)[^\n]*\bload(?:Dyed|Deferred)?Asset\(/.test(line)) offenders.push(`${file}:${index + 1}`);
     });
   }
   assert.deepEqual(offenders, []);

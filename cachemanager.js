@@ -68,6 +68,16 @@ function loadGameFile(file, stylesheet = false) {
   });
 }
 
+function preloadGameFile(file) {
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.as = 'script';
+  link.href = versionedAssetUrl(file);
+  // A failed preload is reported by the real load that follows.
+  link.onload = link.onerror = () => {};
+  document.head.appendChild(link);
+}
+
 function showStartupFailure(message, error) {
   console.error('Could not start the current game version.', error);
   document.getElementById('artwork-status').textContent = message;
@@ -85,8 +95,10 @@ async function startCachedGame() {
     return;
   }
   try {
+    // Preload every script at once so the downloads overlap, then run them one by one: the classic managers must
+    // execute in GAME_SCRIPTS order, and a failed file must stop startup before any later manager runs.
+    for (const file of GAME_SCRIPTS) preloadGameFile(file);
     await loadGameFile('style.css', true);
-    // Classic managers must execute in order before game state starts.
     for (const file of GAME_SCRIPTS) await loadGameFile(file);
   } catch (error) {
     showStartupFailure('Could not load a game file. Retrying reloads the whole page.', error);

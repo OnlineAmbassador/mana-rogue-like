@@ -295,6 +295,7 @@ test('bat and Road Captain attacks match visible bodies rather than ground circl
 test('spider shadows project from the abdomen for mobs and companions', () => {
   const c = presentation();
   c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 245, naturalHeight: 140 });
+  c.loadDeferredAsset = c.loadAsset;
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.monsterSprites = vm.runInContext(`(() => {
     ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
@@ -319,6 +320,7 @@ test('spider shadows project from the abdomen for mobs and companions', () => {
 test('mouse mobs and companions anchor their shadows beneath the abdomen', () => {
   const c = presentation();
   c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 224, naturalHeight: 320 });
+  c.loadDeferredAsset = c.loadAsset;
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.monsterSprites = vm.runInContext(`(() => {
     ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
@@ -603,6 +605,7 @@ test('ordinary mobs, bosses and offspring draw halfway between original and enla
 test('both bat atlases crop baked shadows for mobs and companions without shifting their bodies', () => {
   const c = presentation();
   c.loadAsset = (name) => ({ name, complete: true, naturalWidth: 370, naturalHeight: 232 });
+  c.loadDeferredAsset = c.loadAsset;
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   c.monsterSprites = vm.runInContext(`(() => {
     ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}

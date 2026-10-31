@@ -33,7 +33,7 @@ function cacheContext() {
   });
   loadBetween(c, 'cachemanager.js', 'const GAME_SCRIPTS', 'function validateAssetManifest');
   loadFunctions(c, 'cachemanager.js', [
-    'validateAssetManifest', 'versionedAssetUrl', 'readAssetManifest', 'loadGameFile', 'showStartupFailure',
+    'validateAssetManifest', 'versionedAssetUrl', 'readAssetManifest', 'loadGameFile', 'preloadGameFile', 'showStartupFailure',
     'startCachedGame',
   ]);
   return { c, requests, elements, errors, status, retry, manifest };
@@ -70,8 +70,12 @@ test('startup checks fresh metadata once and loads versioned CSS and managers in
   assert.equal(requests.length, 1, 'do not redownload artwork merely to hash it on the phone');
   assert.equal(requests[0].url, 'asset-manifest.json');
   assert.equal(requests[0].options.cache, 'no-store');
-  assert.deepEqual(elements.map((element) => (element.href || element.src).split('?')[0]),
-    ['style.css', ...vm.runInContext('GAME_SCRIPTS', c)]);
+  const scripts = vm.runInContext('GAME_SCRIPTS', c);
+  const preloads = elements.filter((element) => element.rel === 'preload');
+  const loads = elements.filter((element) => element.rel !== 'preload');
+  assert.deepEqual(preloads.map((element) => element.href.split('?')[0]), [...scripts],
+    'every script starts downloading before any runs');
+  assert.deepEqual(loads.map((element) => (element.href || element.src).split('?')[0]), ['style.css', ...scripts]);
   const entry = manifest.files['game.js'];
   assert.equal(elements.at(-1).src, `game.js?v=${entry.hash}-${entry.size}`);
   assert.equal(errors.length, 0);
@@ -118,7 +122,9 @@ test('script failures stop startup and offer a full reload rather than rerunning
     else element.onload();
   };
   await c.startCachedGame();
-  assert.equal(elements.length, 3);
+  const loads = elements.filter((element) => element.rel !== 'preload');
+  assert.equal(elements.length - loads.length, vm.runInContext('GAME_SCRIPTS.length', c), 'every script is preloaded up front');
+  assert.equal(loads.length, 3, 'nothing runs after the failed script');
   assert.equal(errors.length, 1);
   assert.match(status.textContent, /Could not load a game file/);
   assert.equal(retry.hidden, false);

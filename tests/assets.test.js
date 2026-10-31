@@ -25,7 +25,7 @@ function loadAssetCalls() {
   const found = [];
   for (const { name, text } of sources) {
     // The root is either an identifier or a quoted path, e.g. loadAsset('wall.png', 'assets/som/graphics').
-    for (const match of text.matchAll(/load(?:Dyed)?Asset\('([^']+)'(?:,\s*(?:\[[^\]]*\]|'([^']+)'|([A-Za-z.]+)))*\)/g)) {
+    for (const match of text.matchAll(/load(?:Dyed|Deferred)?Asset\('([^']+)'(?:,\s*(?:\[[^\]]*\]|'([^']+)'|([A-Za-z.]+)))*\)/g)) {
       found.push({ file: name, value: match[1], root: match[2] || match[3] || null });
     }
   }
@@ -102,7 +102,7 @@ test('every effect image is credited with its source path', () => {
   const credits = fs.readFileSync(path.join(ROOT, 'docs', 'CREDITS.md'), 'utf8');
   const somCredits = fs.readFileSync(path.join(ROOT, 'assets', 'som', 'CREDITS.md'), 'utf8');
   const missing = [];
-  for (const [, file, root] of block.matchAll(/loadAsset\('([^']+)'(?:, '([^']+)')?\)/g)) {
+  for (const [, file, root] of block.matchAll(/load(?:Deferred)?Asset\('([^']+)'(?:, '([^']+)')?\)/g)) {
     // The TMW credit list names several runestones on one line, so match each file by its own name.
     const credited = root ? somCredits.includes(`graphics/${file}`)
       : credits.includes(`graphics/${file}`) || credits.includes(`\`${path.basename(file)}\``);
