@@ -174,16 +174,16 @@ function createShopStock() {
     if (item.id.startsWith('heart-vessel-') && !heartVesselAllowed()) return false;
     if (reservedUpgradeIds.has(item.id) || ownedItems.has(item.id)) return false;
     if (item.kind === 'ability' && abilityAlreadyOffered(item.id)) return false;
-    if (item.kind === 'ability' && item.id !== 'orbiting-projectiles' &&
-        abilityCount + reservedAbilityCount() >= 2) return false;
-    return item.kind !== 'skill' || !combatStyles.has(item.style);
+    return !(item.kind === 'ability' && item.id !== 'orbiting-projectiles' &&
+      abilityCount + reservedAbilityCount() >= 2);
   });
-  const costFor = (item) => Math.max(MIN_ABILITY_COST,
-    Math.min(15, item.cost + Math.max(0, currentFloor - 1) * 2));
+  const costFor = (item) => Math.max(MIN_ABILITY_COST, Math.min(SHOP_PRICE_CAP, item.cost + shopFloorSteps() * 2));
+  // Bombs and hearts climb more slowly than upgrades, so a plain heart stays cheaper than a Heart Vessel.
+  const stapleCost = (base) => Math.min(SHOP_PRICE_CAP, base + shopFloorSteps());
   const bomb = { id: 'shop-bomb', name: 'Bomb', description: 'Gain one bomb immediately',
-    cost: Math.min(15, 4 + Math.max(0, currentFloor - 1) * 2), kind: 'shop-bomb', purchased: false };
+    cost: stapleCost(4), kind: 'shop-bomb', purchased: false };
   const heart = { id: 'shop-heart', name: 'Heart', description: 'Restore one health point',
-    cost: Math.min(15, 3 + Math.max(0, currentFloor - 1) * 2), kind: 'shop-heart', purchased: false };
+    cost: stapleCost(3), kind: 'shop-heart', purchased: false };
   const abilities = available.filter((item) => item.kind === 'ability');
   const upgrades = available.filter((item) => item.kind !== 'ability' && item.kind !== 'consumable');
   const stock = [bomb, heart];
@@ -196,14 +196,24 @@ function createShopStock() {
       markAbilityOffered(second);
       stock.push({ ...second, cost: costFor(second), purchased: false });
     }
-  } else if (upgrades.length > 0) {
+  }
+  // One non-ability upgrade is always offered, so passives, curios, mods and clothing reach the shop.
+  if (upgrades.length > 0) {
     const item = upgrades[Math.floor(Math.random() * upgrades.length)];
     stock.push({ ...item, cost: costFor(item), purchased: false });
-  } else {
+  } else if (stock.length === 2) {
     stock[1] = { id: 'shop-heart-2', name: 'Heart', description: 'Restore one health point',
       cost: heart.cost, kind: 'shop-heart', purchased: false };
   }
   return stock;
+}
+
+const SHOP_PRICE_CAP = 15;
+const SHOP_MAX_STALLS = 5;
+
+// Floors after the first; every shop price climbs with it.
+function shopFloorSteps() {
+  return Math.max(0, currentFloor - 1);
 }
 
 function shopItemStillValid(item) {
@@ -1250,13 +1260,106 @@ function isPlayerNearDoor(direction) {
   return aligned && nearWall;
 }
 
+// Up to five stalls share one row; the cards narrow as more are stocked.
+function shopStallSpacing(count) {
+  return count <= 3 ? 220 : count === 4 ? 190 : 164;
+}
+
+function shopStallWidth(count) {
+  return count <= 3 ? 210 : count === 4 ? 182 : 156;
+}
+
 function shopPedestalPosition(index) {
   const count = currentRoom?.shopStock?.length || 3;
-  return { x: ROOM_W / 2 + (index - (count - 1) / 2) * 220, y: 372 };
+  return { x: ROOM_W / 2 + (index - (count - 1) / 2) * shopStallSpacing(count), y: 372 };
 }
 
 function bankPadPosition(withdraw) {
   return { x: ROOM_W / 2 + (withdraw ? 200 : -200), y: 160 };
+}
+
+// The sell pad (walk-on) and the repair pad (stand on it and interact) flank the merchant.
+function sellPadPosition() {
+  return { x: ROOM_W / 2 - 170, y: ROOM_H / 2 + 20 };
+}
+
+function repairPadPosition() {
+  return { x: ROOM_W / 2 + 170, y: ROOM_H / 2 + 20 };
+}
+
+const SHOP_PAD_REACH = 48;
+
+function nearSellPad() {
+  return currentRoom?.type === 'shop' && distanceBetween(player, sellPadPosition()) < SHOP_PAD_REACH;
+}
+
+function nearRepairPad() {
+  return currentRoom?.type === 'shop' && distanceBetween(player, repairPadPosition()) < SHOP_PAD_REACH;
+}
+
+function materialCount() {
+  return Object.keys(materialCatalog).reduce((total, key) => total + materials[key], 0);
+}
+
+function materialSaleValue() {
+  return Object.keys(materialCatalog).reduce((total, key) => total + materials[key] * materialCatalog[key].price, 0);
+}
+
+function sellMaterials() {
+  const parts = Object.keys(materialCatalog).filter((key) => materials[key] > 0)
+    .map((key) => `${materials[key]} ${materialCatalog[key].name}`);
+  if (parts.length === 0) {
+    showMessage('You have no ore or crystals to sell.', 2);
+    return false;
+  }
+  const total = materialSaleValue();
+  coins += total;
+  runStats.zenyFound += total;
+  resetMaterials();
+  playPickupSound('gp', 0.25);
+  showMessage(`Sold ${parts.join(' and ')} for ${total} zeny.`, 3);
+  updateHud();
+  saveRunState();
+  return true;
+}
+
+// Armor comes only from equipped clothing and is never stored as a maximum, so it is summed here.
+function armorCapacity() {
+  return Object.values(equippedClothing).reduce((total, item) => total + (item?.armorBonus || 0), 0);
+}
+
+function armorMissing() {
+  return Math.max(0, armorCapacity() - player.armor);
+}
+
+// 2 zeny per missing point on floors 1-3, 3 on floors 4-6, 4 on floors 7-9.
+function repairCostPerPoint() {
+  return 2 + Math.floor(shopFloorSteps() / 3);
+}
+
+function repairArmor() {
+  const missing = armorMissing();
+  if (armorCapacity() <= 0) {
+    showMessage('You are not wearing any armor to repair.', 2);
+    return false;
+  }
+  if (missing <= 0) {
+    showMessage('Your armor is already in good shape.', 2);
+    return false;
+  }
+  const cost = repairCostPerPoint();
+  const points = Math.min(missing, Math.floor(coins / cost));
+  if (points <= 0) {
+    showMessage(`Repairs cost ${cost} zeny per point.`, 2);
+    return false;
+  }
+  coins -= points * cost;
+  player.armor += points;
+  playSound('system/item.ogg', 0.3);
+  showMessage(`Repaired ${points} armor for ${points * cost} zeny.`, 2.5);
+  updateHud();
+  saveRunState();
+  return true;
 }
 
 function hasVault(room) {
@@ -1287,6 +1390,7 @@ function canInteract() {
   if (nearestRiskShrineAltar()) return true;
   if (currentRoom.type === 'start' && distanceBetween(player, soulMenhirPosition()) < 86) return true;
   if (nearestShopSlot() >= 0) return true;
+  if (nearSellPad() || nearRepairPad()) return true;
   if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
       (distanceBetween(player, bankPadPosition(false)) < 160 ||
         distanceBetween(player, bankPadPosition(true)) < 160)) return true;
@@ -1319,6 +1423,11 @@ function updateWalkInInteractions(dt) {
     currentRoom.descendArmed = true;
   }
   if (walkInCooldown > 0) return;
+  if (nearSellPad() && materialCount() > 0) {
+    walkInCooldown = 1.5;
+    sellMaterials();
+    return;
+  }
   if (hasVault(currentRoom)) {
     if (coins > 0 && distanceBetween(player, bankPadPosition(false)) < 44) {
       walkInCooldown = 1.5;
@@ -1472,6 +1581,15 @@ function interact(withdrawFromBank = false) {
     buyShopItem(shopSlot);
     return;
   }
+  // The pads sit within reach of the bank pads, so they are checked first.
+  if (!withdrawFromBank && nearRepairPad()) {
+    repairArmor();
+    return;
+  }
+  if (!withdrawFromBank && nearSellPad()) {
+    sellMaterials();
+    return;
+  }
   if (hasVault(currentRoom) && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 240 &&
       (withdrawFromBank || distanceBetween(player, bankPadPosition(false)) < 160 ||
         distanceBetween(player, bankPadPosition(true)) < 160)) {
@@ -1498,7 +1616,7 @@ function interact(withdrawFromBank = false) {
     return;
   }
   if (currentRoom.type === 'shop' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 150) {
-    showMessage('Stand next to an item and press E to buy it.', 2);
+    showMessage('Stand next to an item and press E to buy it. Step on the left pad to sell ore; press E on the right pad to repair.', 3);
     return;
   }
 

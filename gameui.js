@@ -3020,54 +3020,7 @@ function drawWorld() {
     ctx.textAlign = 'center';
     ctx.fillText('DESCEND', ROOM_W * 0.72, ROOM_H / 2 - 18);
   }
-  if (currentRoom.type === 'shop') {
-    drawHumanoid(humanoidSprites.neutral.image, 0, ROOM_W / 2, ROOM_H / 2, 1.35, 40);
-    drawHead('keeper', 'down', ROOM_W / 2, ROOM_H / 2, 1.35);
-    ctx.fillStyle = '#f2e5c6';
-    ctx.font = 'bold 13px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('MERCHANT', ROOM_W / 2, ROOM_H / 2 - 28);
-    ctx.fillStyle = '#d3c4a6';
-    ctx.font = '12px Arial';
-    ctx.fillText('Stand by an item and press E to buy', ROOM_W / 2, ROOM_H / 2 + 43);
-    ctx.fillStyle = '#ab8058';
-    ctx.fillRect(ROOM_W / 2 - 34, ROOM_H / 2 + 18, 68, 11);
-    const stock = currentRoom.shopStock || [];
-    stock.forEach((item, index) => {
-      const spot = shopPedestalPosition(index);
-      const x = spot.x - 105;
-      const y = spot.y + 30;
-      ctx.fillStyle = item.purchased ? 'rgba(63, 77, 63, 0.92)' : 'rgba(25, 22, 29, 0.94)';
-      ctx.fillRect(x, y, 210, 64);
-      ctx.strokeStyle = item.purchased ? '#77936a' : '#b79664';
-      ctx.strokeRect(x, y, 210, 64);
-      ctx.save();
-      ctx.globalAlpha = item.purchased ? 0.4 : 1;
-      ctx.fillStyle = 'rgba(16, 14, 19, 0.55)';
-      ctx.strokeStyle = coins >= item.cost || item.purchased ? '#d9bd83' : '#9a6666';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(spot.x, spot.y, 30, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      drawShopItemIcon(item, spot.x, spot.y);
-      ctx.restore();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = item.purchased ? '#9bb38e' : '#f2dfa9';
-      ctx.font = 'bold 12px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`${item.name} · ${item.cost}z`, x + 12, y + 24, 186);
-      ctx.fillStyle = '#d4c7ae';
-      ctx.font = '10px Arial';
-      ctx.fillText(item.purchased ? 'SOLD' : item.description, x + 12, y + 43, 186);
-      ctx.textAlign = 'center';
-      if (nearestShopSlot() === index) {
-        ctx.fillStyle = '#fff0a8';
-        ctx.font = 'bold 13px Arial';
-        ctx.fillText('[E] BUY', spot.x, spot.y - 40);
-      }
-    });
-  }
+  if (currentRoom.type === 'shop') drawShopRoom();
   if (hasVault(currentRoom)) {
     ctx.fillStyle = '#f4d78e';
     ctx.font = 'bold 18px Georgia';
@@ -5839,7 +5792,7 @@ function tutorialPages() {
       ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENY AND KEYS', sections: [
-      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends.'],
+      ['Zeny', 'Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: step on the shop’s left pad to sell them for zeny.'],
       ['Shops', `Walk up to an item and press ${b('interact')} to buy it. Walking over an item never buys it. A shop is also a bank.`],
       ['Bank', `Step on the vault pad to deposit what you carry. ${pad ? p.b : 'Shift+' + b('interact')} near it withdraws your savings.`],
       ['Keys and chests', 'Keys open locked doors and chests. You will never be offered an item you already own.'],
@@ -5856,7 +5809,7 @@ function tutorialPages() {
     { title: 'TIPS FOR A GOOD RUN', sections: [
       ['Keep moving', `Dash with ${b('dash')} to slip out of danger. Strafe around foes instead of standing still.`],
       ['Know your base weapon', 'Your class weapon hits hardest, but swapping to another weapon for range or crowds is always free.'],
-      ['Spend zeny', 'Buy potions and items. Keep a few coins in the bank so a bad run does not cost you everything.'],
+      ['Spend zeny', 'Buy items, or stand on the shop’s right pad and interact to repair armor. Keep a few coins in the bank so a bad run does not cost you everything.'],
       ['Make it yours', 'Open Controls to rebind keys and buttons. This guide updates to match. Enjoy the descent.'],
     ] },
   ];

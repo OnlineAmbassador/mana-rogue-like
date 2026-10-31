@@ -337,7 +337,8 @@ function serializeRun() {
     coinsSpawned: room.coinsSpawned || 0,
     sizeKey: room.sizeKey,
     rewardClaimed: room.rewardClaimed,
-    shopStock: room.shopStock?.map(({ id, purchased }) => ({ id, purchased })) || null,
+    // Whole stalls are saved: the Bomb and Heart stalls are not catalogue items and prices scale with the floor.
+    shopStock: room.shopStock?.map((stall) => JSON.parse(JSON.stringify(stall))) || null,
     rewardUpgrade: room.rewardUpgrade,
     riskShrineChoice: room.riskShrineChoice,
     riskShrineDone: room.riskShrineDone,
@@ -464,6 +465,8 @@ function restoreRun() {
     Object.assign(room, record);
     room.shopStock = record.shopStock?.map((stock) => {
       const item = shopItemCatalog.find((candidate) => candidate.id === stock.id);
+      if (stock.kind && Number.isFinite(stock.cost)) return { ...(item || {}), ...stock };
+      // Older saves kept only the id: such a stall has the catalogue's base price, or is gone if it was a staple.
       return item ? { ...item, purchased: stock.purchased } : null;
     }).filter(Boolean) || null;
     roomByPosition.set(`${room.x},${room.y}`, room);
