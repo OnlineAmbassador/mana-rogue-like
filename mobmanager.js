@@ -40,7 +40,7 @@ function aiStyleProfile() {
 
 const styleRangedArchetypes = ['ranged', 'cluster-caster', 'web-spitter'];
 
-// Input-adaptive tactics. Every derived number and the rule behind it (R1-R10) is recorded in BALANCE.md; change a
+// Input-adaptive tactics. Every derived number and the rule behind it (R1-R10) is recorded in docs/BALANCE.md; change a
 // value there, here and in tests/tuning.test.js together. Values marked "playtest" have no stronger anchor than the
 // pacing of the surrounding fights.
 const ADAPTIVE_AI_TUNING = {

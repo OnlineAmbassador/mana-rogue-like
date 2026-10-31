@@ -112,7 +112,7 @@ function handleAudioPanelPad(horizontal, confirmPressed) {
   return true;
 }
 
-// Pause-screen switch for input-adaptive enemy tactics (see BALANCE.md).
+// Pause-screen switch for input-adaptive enemy tactics (see docs/BALANCE.md).
 function adaptiveToggleBounds() {
   return { x: 24, y: ttsButtonBounds().y + (NARRATION_ENABLED ? 32 : 0), width: 190, height: 22 };
 }

@@ -1511,7 +1511,7 @@ function useConsumable() {
 }
 
 // Invulnerability granted by a dash and by taking a hit. Enemy timings in ADAPTIVE_AI_TUNING are checked against
-// these (see BALANCE.md), so change them here only together with the tuning rules.
+// these (see docs/BALANCE.md), so change them here only together with the tuning rules.
 const DASH_INVULN_SECONDS = 0.24;
 const PLAYER_HIT_INVULN_SECONDS = 0.9;
 

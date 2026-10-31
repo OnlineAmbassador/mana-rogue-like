@@ -283,7 +283,7 @@ const gameMusic = {
 };
 const SETTINGS_STORAGE_KEY = 'mana-hollow-sanctum-settings';
 const gameSettings = (() => {
-  // adaptiveEnemies: enemies adapt to the active input method and use dash-check pulses (see BALANCE.md).
+  // adaptiveEnemies: enemies adapt to the active input method and use dash-check pulses (see docs/BALANCE.md).
   const defaults = { adaptiveEnemies: true };
   try {
     const stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || '{}');

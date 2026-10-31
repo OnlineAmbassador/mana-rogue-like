@@ -1,6 +1,6 @@
 // Headless damage-rate probe for the playtest-balance questions (charge damage, boss time-to-kill).
 // It fires the real `shoot` and reads the projectile it produces, so the numbers follow the game code.
-// Run `node tests/helpers/sim.js` to print the table that PLAYTEST.md refers to.
+// Run `node tests/helpers/sim.js` to print the table that docs/PLAYTEST.md refers to.
 const { combat, source } = require('./combat');
 
 // The combat() stub uses simplified charge constants; take the production values from game.js.

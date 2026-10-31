@@ -11,6 +11,10 @@ Useful to write down with each note: which character you played, which floor, an
 - **Enemy difficulty.** Are fights fair? Look for enemies that feel too accurate, too fast, or that hit you from out of nowhere.
 - **Boss fights.** Do boss warnings give you enough time to react? Is there too much waiting around between attacks, or too little?
 - **Weapon swap.** Is the 6-second wait before swapping weapons too long?
+- **Enemies that read your input.** Play with keyboard, touch and a gamepad if you can. Does each feel distinct and fair? Look for touch shots that miss at close range, gamepad enemies that flank or crowd you too much, and the timing of the wide pulse (the circle that tells you to dash). The pause screen can turn Adaptive enemies off for comparison.
+- **Weapon styles.** Do enemies respond differently to sword, bow and magic, and does that feel fair?
+- **Tougher enemies.** Are enemies that gain boss-style moves early easy to read? Are the two-room trials worth the time?
+- **Desert regions.** Do the Tulimshar and Candor walls, paving and sand effects look right?
 
 ## Altar rooms
 
@@ -39,4 +43,4 @@ Short notes are enough, for example: "Floor 3, Mage, keyboard: charged magic kil
 
 ---
 
-*For developers:* `node tests/helpers/sim.js` prints damage rates and boss kill times from the real game code. Current finding: a fully charged magic shot does about 9 times the damage per second of tapping, and no number has been changed yet. `BALANCE.md` covers the enemy-AI numbers.
+*For developers:* `node tests/helpers/sim.js` prints current damage rates and boss kill times from the real game code. [BALANCE.md](BALANCE.md) covers the enemy-AI numbers.

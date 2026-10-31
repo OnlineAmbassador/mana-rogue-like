@@ -1,5 +1,5 @@
-// Enforces the balance rules recorded in BALANCE.md. Tests are named by rule ID (R1-R10, T1-T2); the last test fails
-// when BALANCE.md and this file disagree about which rules exist, so changing a number means updating both.
+// Enforces the balance rules recorded in docs/BALANCE.md. Tests are named by rule ID (R1-R10, T1-T2); the last test fails
+// when docs/BALANCE.md and this file disagree about which rules exist, so changing a number means updating both.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -359,7 +359,7 @@ test('obstacle steering returns the same headings as the unfiltered reference ov
 });
 
 test('BALANCE.md and this file describe the same set of rules', () => {
-  const doc = fs.readFileSync(path.join(__dirname, '..', 'BALANCE.md'), 'utf8');
+  const doc = fs.readFileSync(path.join(__dirname, '..', 'docs', 'BALANCE.md'), 'utf8');
   const documented = [...doc.matchAll(/^###\s+([RT]\d+)\b/gm)].map((match) => match[1]).sort();
   const tested = [...fs.readFileSync(__filename, 'utf8').matchAll(/^test\('([RT]\d+):/gm)].map((match) => match[1]).sort();
   assert.ok(documented.length >= 12, 'BALANCE.md lists the rules as "### R1 ..." headings');
