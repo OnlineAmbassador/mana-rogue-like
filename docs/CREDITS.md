@@ -4,6 +4,8 @@ Third-party artwork, sounds and references used by MANA: Hollow Sanctum. Per-fil
 
 ## Third-party artwork
 
+**Lossless recompression (2026-10-31).** Every PNG under `assets/` was losslessly recompressed from the upstream file by `tools/optimize-pngs.js` (ASSETS.md rule 4): the image data was re-encoded with a smaller colour type and better compression, and text, time, background and resolution chunks were dropped; colour-management chunks were kept. Every decoded pixel is identical to the upstream file, checked by the tool and again with the browser's decoder for all 283 changed files. "Unmodified" in this file means the pixels are unchanged; the bytes are not the upstream bytes. To compare with upstream, compare decoded pixels, not file hashes.
+
 The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3ab88eb52cb995be3d85c96810fe1826bc429ede`). `node tools/trim-assets.js --apply` then removed every file the game scripts do not reference, so only the referenced `graphics` and `sfx` files, the license records, and the TMX maps cited below (with the tilesets they load) remain; the original files are in the upstream repository and git history. Run the script without `--apply` to see what a new import would remove. The game uses these client-data graphics:
 
 - `graphics/items/equipment/charms/heart-of-isis.png` — V0id; GPLv2 and CC BY-SA 3.0.

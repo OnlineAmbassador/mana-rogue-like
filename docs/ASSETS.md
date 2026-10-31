@@ -9,7 +9,7 @@ The same rules are kept in [HANDOFF.md](HANDOFF.md) under "Persistent instructio
 1. **Goal.** The long-term goal is to use only human-made assets. Every agent-made visual or recording in the game is on the replacement list below until a human-made asset replaces it.
 2. **UI chrome is permitted.** HUD panels, menu frames, bars, text, damage numbers, map and minimap shapes, HUD glyphs and the CSS touch controls may stay code-drawn. They are listed at the end for completeness and are not on the replacement list.
 3. **Hybrids are permitted.** A credited human-made bitmap drawn with a runtime recolour, filter, mask, outline, glow, shadow or overlay counts as human-made. The treatment must happen at draw time only.
-4. **Bitmaps on disk are never edited by an agent.** No agent may change an original image file's pixels, crop, resize, re-encode or re-save it, or create a derived image file from it. Files stay exactly as shipped upstream. A needed change is made at draw time (rule 3) or by the user.
+4. **The credited art is never visually edited by an agent.** No agent may change what an image shows: no pixel edits, cropping, resizing, recolouring, lossy compression or derived image files. Visual changes are made at draw time (rule 3) or by the user. Lossless technical changes that leave every decoded pixel identical are permitted, such as recompressing a PNG losslessly or stripping metadata. Record any such change in [CREDITS.md](CREDITS.md) (for example "losslessly recompressed from the upstream file") so the file can be traced to its source.
 5. **Keep this file current.** A change that adds an agent-drawn visual or generated media adds a line here in the same change. A change that replaces one ticks its line here and credits the new asset in [CREDITS.md](CREDITS.md). Prefer an existing licensed Manasource asset to drawing a new one; a new import needs its exact license, author and source verified.
 6. **Files with no recorded license.** A file that The Mana World or Source of Mana ships without a recorded license may be used, because this project is part of the Manasource family. Credit it in [CREDITS.md](CREDITS.md) with its source path and "license not recorded upstream", naming any author the upstream records give, the same way TMW's `license-missing` file lists it.
 
@@ -24,7 +24,7 @@ The same rules are kept in [HANDOFF.md](HANDOFF.md) under "Persistent instructio
 | The Mana World client data (`assets/tmw/clientdata`, snapshot `3ab88eb5`) | Player, hair and clothing sprites, monster sprites, item icons, hats, floor tilesets, castle and desert walls, footprints, sandstorm, sound effects | [CREDITS.md](CREDITS.md), `assets/tmw/clientdata/LICENSE` |
 | Source of Mana (`assets/som`) | Sandstone walls (`wall.png`), Soul Menhir, Artis market sheet (shop stalls, counters, banners), Tulimshar map fixture, sound effects | `assets/som/CREDITS.md` |
 
-**Check of the files on disk (2026-10-31).** `assets/som/CREDITS.md` records its images as unedited. In git history the only commit that modified existing TMW images is `b107cbb` (2026-10-25). It changed 598 files across the whole client-data tree, including the upstream CI scripts, `.mailmap` and tooling, which matches an upstream refresh rather than an edit; no agent edit of a bitmap was found. The files have not been compared byte for byte with upstream revision `3ab88eb5`. That comparison is the open item at the end of the list.
+**Check of the files on disk (2026-10-31).** `assets/som/CREDITS.md` records its images as unedited. In git history the only commit that modified existing TMW images is `b107cbb` (2026-10-25). It changed 598 files across the whole client-data tree, including the upstream CI scripts, `.mailmap` and tooling, which matches an upstream refresh rather than an edit; no agent edit of a bitmap was found. All PNGs were then losslessly recompressed (2026-10-31, `tools/optimize-pngs.js`; see CREDITS.md), so their bytes no longer match upstream; any comparison with upstream revision `3ab88eb5` has to compare decoded pixels. That comparison is the open item at the end of the list.
 
 ## Agent-made visuals to replace
 
@@ -97,7 +97,7 @@ Drawn only when a bitmap fails to load. They may stay as safety nets.
 
 ### Open checks
 
-- [ ] Compare the TMW images on disk byte for byte with upstream revision `3ab88eb5` to confirm none differs from the published files (rule 4).
+- [ ] Compare the decoded pixels of the TMW images on disk with upstream revision `3ab88eb5` to confirm none differs from the published art (rule 4); `decode` in `tools/optimize-pngs.js` can read both.
 
 ## Audio of unknown provenance
 

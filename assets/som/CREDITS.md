@@ -4,7 +4,7 @@ Source of Mana is developed by [Manasource / Reid and contributors](https://gith
 
 ## Graphics and map reference
 
-Copied unmodified from [revision ebb0335f1ac438a883f1d70e27cdfe92f811ed28](https://github.com/sourceofmana/sourceofmana/tree/ebb0335f1ac438a883f1d70e27cdfe92f811ed28). Authors and license were verified against that revision's [LICENSE.md](https://github.com/sourceofmana/sourceofmana/blob/ebb0335f1ac438a883f1d70e27cdfe92f811ed28/LICENSE.md) and the map's license property.
+Copied from [revision ebb0335f1ac438a883f1d70e27cdfe92f811ed28](https://github.com/sourceofmana/sourceofmana/tree/ebb0335f1ac438a883f1d70e27cdfe92f811ed28). Authors and license were verified against that revision's [LICENSE.md](https://github.com/sourceofmana/sourceofmana/blob/ebb0335f1ac438a883f1d70e27cdfe92f811ed28/LICENSE.md) and the map's license property. The images were later losslessly recompressed by `tools/optimize-pngs.js` (2026-10-31): every decoded pixel is identical to the upstream file, colour-management chunks were kept and text and other metadata chunks were dropped, so the bytes differ from upstream but the pictures do not.
 
 | Local file | Original path under `data/` | Artist / author | Contributor |
 |---|---|---|---|
