@@ -7,6 +7,7 @@ For contributors and agents. Player-facing information is in the root `README.md
 - `game.js` owns shared state, startup, keyboard/mouse/touch input, and the update/render main loop.
 - `controllermanager.js` owns gamepad polling, controller button actions, stick movement/aiming, and controller disconnect behavior.
 - `gameui.js` contains canvas rendering, HUD, menus, controls, and presentation.
+- `lightingmanager.js` holds sunlight, cast shadows (sprites, trunks, ground, projectiles), cave light shafts and local light sources from fire and lightning. It loads after `desertart.js`.
 - `shopart.js` draws the shop room: the merchant's stall, banners, counters, price cards and the sell and repair pads, using sub-rectangles of the Artis market sheet (`assets/som/graphics/artis-market.png`) plus canvas text and shapes. It loads after `desertart.js`.
 - `desertart.js` contains the Tulimshar desert room art (paved lanes, wind, banners and torches, haze, footprints, sandstone walls) and its `DESERT_ART` constants.
 - `mobmanager.js` contains enemy and boss setup, attacks, damage, and AI.
@@ -14,7 +15,7 @@ For contributors and agents. Player-facing information is in the root `README.md
 - `dbmanager.js` contains local storage, profiles, progression, and save/load persistence.
 - `worldmanager.js` contains room/map generation, pickups, shops, and world objects.
 
-These are classic browser scripts, not modules, so their shared top-level declarations keep the existing gameplay code interoperable. `index.html` loads the manager files first and `game.js` last: manager functions can refer to shared state when called, while the core script initializes that state before starting the game.
+These are classic browser scripts, not modules, so their shared top-level declarations keep the existing gameplay code interoperable. `cachemanager.js` (started by `index.html`) loads them from its `GAME_SCRIPTS` list, manager files first and `game.js` last; a test fails if a root `.js` file is missing from that list. Manager functions can refer to shared state when called, while the core script initializes that state before starting the game: manager functions can refer to shared state when called, while the core script initializes that state before starting the game.
 
 ## Combat regression checks
 
@@ -26,7 +27,7 @@ node --test tests/*.test.js
 
 The suite covers combat, healing/proc probability boundaries, class tradeoffs, floor/boss balance, bomb physics, loot, spore clusters, and wild magic. Element checks cover all eight Mage starting elements, upgrade-driven changes, save restoration without a purchased sigil, and matching colors on immediate and delayed effects. Boss telegraph checks cover real golem and Jacko windups, slam completion timing, and bounded arc radii for oversized or expired timers. Input-aware AI tests cover delayed switching, committed aim, physical dodging, obstacle routes, staggered attack limits and pulse safety; real dash tests verify walking and early dashes take the hit while a late dash survives all three warning lengths.
 
-Check every runtime script before publishing (every root `.js` file that `index.html` loads):
+Check every runtime script before publishing (every root `.js` file that `GAME_SCRIPTS` in `cachemanager.js` lists):
 
 ```bash
 for f in *.js; do node --check "$f" || break; done
@@ -84,7 +85,7 @@ The repository includes a GitHub Actions workflow that publishes the game whenev
 
 Once deployment finishes, playtest at <https://onlineambassador.github.io/mana-rogue-like/>.
 
-The game is static files only, so it can be hosted anywhere (GitHub Pages, itch.io HTML5, Netlify, any web server). Upload `index.html`, `style.css`, every script that `index.html` loads, and the `assets` folder. Keep the script order in `index.html`; deploying only `game.js` does not include the full game. `assets/tmw` is trimmed to the files the game references (about 17 MB, see `tools/trim-assets.js`); the full TMW client-data snapshot is much larger. Keep the licence files (`assets/tmw/clientdata/LICENSE`, `ART_LICENSE`, `GPL`, `CC BY-SA 3.0`) with whatever you publish.
+The game is static files only, so it can be hosted anywhere (GitHub Pages, itch.io HTML5, Netlify, any web server). Upload `index.html`, `style.css`, `cachemanager.js`, every script in its `GAME_SCRIPTS` list, and the `assets` folder. Keep the script order in `GAME_SCRIPTS`; deploying only `game.js` does not include the full game. `assets/tmw` is trimmed to the files the game references (about 17 MB, see `tools/trim-assets.js`); the full TMW client-data snapshot is much larger. Keep the licence files (`assets/tmw/clientdata/LICENSE`, `ART_LICENSE`, `GPL`, `CC BY-SA 3.0`) with whatever you publish.
 
 Before pushing, run the regression and syntax checks above, review `git diff --check` and `git status --short`, and include the manager scripts and regression tests in the commit along with the updated entry point and documentation. A push to `main` triggers the Pages deployment; smoke-test the published game afterward, including a new Mage run, elemental menhir attunement, menu audio controls, and saved-run resume.
 
@@ -235,3 +236,7 @@ Landscape touch layouts hide the external title/stats header and message panel, 
 - Prologue: use Left/Right or A/D to read; Enter/Space advances; click the page buttons to navigate
 - Character selection: click or browse delvers with Left/Right or A/D, or click the arrows beside the cards; Enter/A starts an unlocked delver; locked delvers show their unlock condition; P (LB on a controller) replays the prologue
 - Return to character selection after a run: Enter, A, or click; the run summary lists level, time, foes and guardians defeated, zeny found, the route, collected items, and new delvers
+
+### Automatic cache updates
+
+`cachemanager.js` fetches `asset-manifest.json` (never cached) and loads scripts, CSS, artwork and sounds with a `?v=<hash>-<size>` query so a changed file bypasses stale browser copies. The manifest is generated, not committed (it is in `.gitignore`): both Pages workflows run `node tools/generate-asset-manifest.js` before upload, and for a local HTTP preview run it once after editing runtime files. Without a manifest (HTTP 404) the game runs on the unversioned files with a console warning; other manifest failures stop startup with a Retry button. A file missing from the manifest loads unversioned with a warning.
