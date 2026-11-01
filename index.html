@@ -27,23 +27,31 @@
             </div>
           </div>
           <div class="touch-zone touch-aim-zone" id="touch-aim-zone" aria-label="Aim and shoot area">
-            <button class="touch-attack" id="touch-attack" type="button" aria-label="Hold to auto-target enemies; with no enemies, drag to aim or shoot where you face">⚔<span>Attack</span></button>
-            <button class="touch-dash" type="button" data-touch-action="dash" aria-label="Dash">↗<span>Dash</span></button>
+            <button class="touch-attack" id="touch-attack" type="button" aria-label="Hold to auto-target enemies; with no enemies, drag to aim or shoot where you face. Near a shop, menhir or altar it becomes Use.">⚔<span>Attack</span></button>
+            <button class="touch-round touch-arc-dash" type="button" data-touch-action="dash" aria-label="Dash">↗<span>Dash</span></button>
+            <button class="touch-round touch-arc-2" type="button" data-touch-action="bomb" aria-label="Place bomb">✦<span>Bomb</span><strong class="touch-count">0</strong></button>
+            <button class="touch-round touch-arc-3" type="button" data-touch-action="shock" aria-label="Shockwave">◎<span>Wave</span><strong class="touch-count">0</strong></button>
           </div>
-          <div class="touch-utilities" aria-label="Actions">
-            <button type="button" data-touch-action="interact" aria-label="Interact">E<span>Use</span></button>
-            <button type="button" data-touch-action="ability" aria-label="Ability">★<span>Skill</span></button>
-            <button type="button" data-touch-action="shock" aria-label="Mana guard">◎<span>Guard</span></button>
-            <button type="button" data-touch-action="withdraw" aria-label="Withdraw from vault">↓<span>Bank</span></button>
+          <div class="touch-utilities" aria-label="Menus">
             <button type="button" data-touch-action="map" aria-label="Map">▦<span>Map</span></button>
             <button type="button" data-touch-action="journal" aria-label="Journal">▤<span>Story</span></button>
+            <button type="button" data-touch-action="branches" aria-label="Weapon branches (safe rooms)">❖<span>Build</span></button>
+          </div>
+          <div class="touch-quick-actions" aria-label="Actions and items">
             <button type="button" data-touch-action="pause" aria-label="Pause">Ⅱ<span>Pause</span></button>
+            <button type="button" data-touch-action="ability" aria-label="Class skill" hidden>★<span>Skill</span></button>
+            <button type="button" data-touch-action="item" aria-label="Use potion or item" hidden>✚<span>Item</span><strong class="touch-count">0</strong></button>
+            <button type="button" data-touch-action="nextWeapon" aria-label="Swap weapon hands">⇄<span>Swap</span></button>
           </div>
-          <div class="touch-quick-actions" aria-label="Combat items">
-            <button type="button" data-touch-action="bomb" aria-label="Place bomb">✦<span>Bomb</span><strong class="touch-count">0</strong></button>
-            <button type="button" data-touch-action="item" aria-label="Use potion or item">✚<span>Use item</span><strong class="touch-count">0</strong></button>
-            <button type="button" data-touch-action="nextWeapon" aria-label="Switch weapon">⇄<span>Switch</span></button>
-          </div>
+        </div>
+        <div class="side-menu" id="side-menu" aria-label="Game menu" hidden>
+          <button type="button" data-side-action="map">▦<span>Map</span><em></em></button>
+          <button type="button" data-side-action="journal">▤<span>Story</span><em></em></button>
+          <button type="button" data-side-action="branches" title="Weapon branches (cleared rooms only)">❖<span>Build</span><em></em></button>
+          <button type="button" data-side-action="ability" hidden>★<span>Skill</span><em></em></button>
+        </div>
+        <div class="side-menu side-menu-right" id="side-menu-right" aria-label="Pause" hidden>
+          <button type="button" data-side-action="pause">Ⅱ<span>Pause</span><em></em></button>
         </div>
       </div>
     </div>

@@ -309,7 +309,7 @@ function loadDyedAsset(path, stops, root = assetRoot) {
       const canvas = document.createElement('canvas');
       canvas.width = source.naturalWidth;
       canvas.height = source.naturalHeight;
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { willReadFrequently: true });
       context.drawImage(source, 0, 0);
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
       dyeGreyPixels(pixels.data, stops);
@@ -382,6 +382,44 @@ function loadSoundBuffer(path) {
 
 function preloadSounds(paths) {
   for (const path of paths) loadSoundBuffer(path);
+}
+
+// Decodes the cues this room can play (its enemies' hit, death and attack sounds, its breakables, the kill-streak
+// fanfare) on entry. Otherwise the first bomb that breaks crates and kills several foes opens a fresh audio element
+// per sound in one frame, a visible hitch on phones.
+function preloadRoomSounds() {
+  if (typeof gameMusic === 'undefined' || !gameMusic.context) return;
+  const paths = new Set(['special/fanfare.ogg', 'monsters/zombie/zombiedie.ogg']);
+  for (const enemy of enemies) {
+    for (const event of ['hit', 'death', 'attack', 'dodge']) {
+      const path = enemySound(enemy, event);
+      if (path) paths.add(path);
+    }
+  }
+  for (const obstacle of breakables) {
+    if (obstacle.sprite?.sound?.break) paths.add(obstacle.sprite.sound.break);
+  }
+  preloadSounds(paths);
+}
+
+// Builds the bomb aftermath and ground-warning textures in idle time at the start of a run, so the first blast
+// doesn't build them mid-fight.
+function prewarmCombatEffects() {
+  const work = [
+    () => scorchImage(0), () => scorchImage(1), () => scorchImage(2),
+    () => ['#ff5a46', '#ff2a1a', '#ff9d49', '#ffcf6a', '#ffbf6f', '#ffae42', '#ffb25a', '#9fe7f3'].forEach(strikeWaveImage),
+    () => effectImageReady(effectArt.smoke) && tintedEffectImage(effectArt.smoke, '#3a3330'),
+    () => ['#ffd38a', '#ff8a3a', '#140d08'].forEach((color) => normalLightFalloff(color)),
+  ];
+  const schedule = typeof requestIdleCallback === 'function'
+    ? (callback) => requestIdleCallback(callback, { timeout: 500 }) : (callback) => setTimeout(callback, 16);
+  const step = () => {
+    const next = work.shift();
+    if (!next) return;
+    next();
+    schedule(step);
+  };
+  schedule(step);
 }
 
 function playSoundBuffer(buffer, volume) {
@@ -493,6 +531,7 @@ function startGameMusic() {
   gameMusic.context.resume().then(() => {
     gameMusic.starting = false;
     preloadSounds(commonSoundEffects);
+    if (typeof preloadRoomSounds === 'function' && typeof enemies !== 'undefined') preloadRoomSounds();
     if (!gameMusic.enabled || gameMusic.timer !== null) return;
     gameMusic.nextBeat = gameMusic.context.currentTime + 0.06;
     scheduleGameMusic();
@@ -1046,6 +1085,13 @@ function drawPauseEquipment() {
     ctx.scale((cell - 9) / 28, (cell - 9) / 28);
     drawShopItemIcon(item, 0, 0);
     ctx.restore();
+    const gates = item.count > 0 ? [] : branchesForItem(item.id);
+    const dormant = gates.length > 0 && item.id !== character?.startingAbility &&
+      !gates.some((branch) => branchLoadout(branch.style).includes(branch.id));
+    if (dormant) {
+      ctx.fillStyle = 'rgba(10, 10, 14, 0.55)';
+      ctx.fillRect(x + 2, y + 2, cell - 5, cell - 5);
+    }
     if (item.count > 0) {
       ctx.font = `bold ${Math.max(7, Math.min(10, cell / 3))}px Arial`;
       ctx.textAlign = 'right';
@@ -1054,7 +1100,8 @@ function drawPauseEquipment() {
     }
     if (hovered) {
       const bonuses = itemEffectTagsFor(item).filter((tag) => tag !== item.description);
-      label = item.name + (item.count > 0 ? ` (${item.count})` : '') + (bonuses.length ? `:  ${bonuses.join(', ')}` : '');
+      label = item.name + (item.count > 0 ? ` (${item.count})` : '') + (bonuses.length ? `:  ${bonuses.join(', ')}` : '') +
+        (dormant ? `  (needs the ${gates.map((branch) => branch.name).join(' or ')} branch)` : '');
     }
   });
   ctx.textAlign = 'left';
@@ -1220,17 +1267,22 @@ function drawRoomFloor() {
   const theme = currentFloorTheme();
   const band = roomWallBand();
   if (currentRoom.type === 'secret' && sacredRoomTiles.complete && sacredRoomTiles.naturalWidth > 0) {
-    ctx.fillStyle = '#16131b';
-    ctx.fillRect(0, 0, ROOM_W, ROOM_H);
-    for (let y = 64; y < ROOM_H - 64; y += 32) {
-      for (let x = 64; x < ROOM_W - 64; x += 32) {
-        const variation = (Math.floor(x / 32) + Math.floor(y / 32) * 3) % sacredRoomFloorTileIds.length;
-        const tileId = sacredRoomFloorTileIds[variation];
-        const sourceX = (tileId % 16) * 32;
-        const sourceY = Math.floor(tileId / 16) * 32;
-        ctx.drawImage(sacredRoomTiles, sourceX, sourceY, 32, 32, x, y, 32, 32);
+    const drawSacredFloor = (target) => {
+      target.fillStyle = '#16131b';
+      target.fillRect(0, 0, ROOM_W, ROOM_H);
+      for (let y = 64; y < ROOM_H - 64; y += 32) {
+        for (let x = 64; x < ROOM_W - 64; x += 32) {
+          const variation = (Math.floor(x / 32) + Math.floor(y / 32) * 3) % sacredRoomFloorTileIds.length;
+          const tileId = sacredRoomFloorTileIds[variation];
+          const sourceX = (tileId % 16) * 32;
+          const sourceY = Math.floor(tileId / 16) * 32;
+          target.drawImage(sacredRoomTiles, sourceX, sourceY, 32, 32, x, y, 32, 32);
+        }
       }
-    }
+    };
+    drawSacredFloor(ctx);
+    requestRoomNormalMap(`secret:${ROOM_W}x${ROOM_H}:${sacredRoomTiles.naturalWidth}x${sacredRoomTiles.naturalHeight}`,
+      drawSacredFloor);
     ctx.fillStyle = '#ead8ac';
     ctx.font = 'bold 12px Arial';
     ctx.textAlign = 'center';
@@ -1243,31 +1295,28 @@ function drawRoomFloor() {
       const desert = isDesertRegion();
       const layoutKey = desert ? desertLayoutKey(desertPavingReady()) : '';
       const terrainKey = `${regionId}:${ROOM_W}x${ROOM_H}${layoutKey}`;
-      let terrainBackground = terrainBackgroundCache.get(terrainKey);
-      if (!terrainBackground) {
-        terrainBackground = document.createElement('canvas');
-        terrainBackground.width = ROOM_W;
-        terrainBackground.height = ROOM_H;
-        const terrainContext = terrainBackground.getContext('2d');
+      const drawTerrain = (terrainContext) => {
         terrainContext.fillStyle = theme.wall;
         terrainContext.fillRect(0, 0, ROOM_W, ROOM_H);
-        terrainContext.save();
-        if (regionId === 'graveyard') {
-          terrainContext.filter = 'saturate(0.28) brightness(0.52)';
-        } else if (regionId === 'artis' || regionId === 'candor') {
-          terrainContext.filter = 'hue-rotate(205deg) saturate(0.75) brightness(0.72)';
-        }
+        const tiles = filteredTileset(image, regionId === 'graveyard' ? 'saturate(0.28) brightness(0.52)'
+          : regionId === 'artis' || regionId === 'candor' ? 'hue-rotate(205deg) saturate(0.75) brightness(0.72)' : null);
         const tileColumns = Math.floor(image.naturalWidth / 32);
         for (let row = band / 32; row * 32 < ROOM_H - band; row += 1) {
           for (let column = band / 32; column * 32 < ROOM_W - band; column += 1) {
             const tileId = terrainTileAt(terrain, column - band / 32, row - band / 32);
             const sourceX = (tileId % tileColumns) * 32;
             const sourceY = Math.floor(tileId / tileColumns) * 32;
-            terrainContext.drawImage(image, sourceX, sourceY, 32, 32, column * 32, row * 32, 32, 32);
+            terrainContext.drawImage(tiles, sourceX, sourceY, 32, 32, column * 32, row * 32, 32, 32);
           }
         }
-        terrainContext.restore();
         if (desert) drawDesertGround(terrainContext, image);
+      };
+      let terrainBackground = terrainBackgroundCache.get(terrainKey);
+      if (!terrainBackground) {
+        terrainBackground = document.createElement('canvas');
+        terrainBackground.width = ROOM_W;
+        terrainBackground.height = ROOM_H;
+        drawTerrain(terrainBackground.getContext('2d'));
         if (terrainBackgroundCache.size >= 12) {
           terrainBackgroundCache.delete(terrainBackgroundCache.keys().next().value);
         }
@@ -1275,6 +1324,11 @@ function drawRoomFloor() {
       }
       ctx.drawImage(terrainBackground, 0, 0);
       drawCachedRoomWalls(desert);
+      requestRoomNormalMap(`${terrainKey}:${drawCachedRoomWalls.key || 'no-walls'}`, (target) => {
+        drawTerrain(target);
+        if (desert) drawTulimsharCastleWalls(target);
+        else drawCastleWalls(target);
+      });
     } else {
       ctx.fillStyle = theme.wall;
       ctx.fillRect(0, 0, ROOM_W, ROOM_H);
@@ -1413,13 +1467,13 @@ function drawEnemy(enemy) {
     ctx.lineTo(enemy.x + enemy.radius, enemy.y - 5);
     ctx.stroke();
     ctx.translate(0, -height);
-    drawEnemyBody(enemy);
+    drawEnemyBody(enemy, false);
     ctx.restore();
     return;
   }
   if (enemy.manaBomb) {
     ctx.save();
-    drawEnemyBody(enemy);
+    drawEnemyBody(enemy, false);
     const pulse = 0.5 + Math.sin(elapsed * (18 + (1 - enemy.manaBomb.timer / enemy.manaBomb.duration) * 22)) * 0.5;
     drawEffect('glow', 0, enemy.x, enemy.y - enemy.radius * 0.7, { width: enemy.radius * 3, height: enemy.radius * 3.6,
       tint: '#ff2319', alpha: 0.35 + pulse * 0.6, smooth: true });
@@ -1429,7 +1483,7 @@ function drawEnemy(enemy) {
   }
   const rift = enemy.manaRift;
   if (!rift) {
-    drawEnemyBody(enemy);
+    drawEnemyBody(enemy, false);
     return;
   }
   const progress = 1 - rift.timer / rift.duration;
@@ -1442,7 +1496,7 @@ function drawEnemy(enemy) {
   ctx.scale(1, Math.max(0.02, visible));
   ctx.translate(-enemy.x, -enemy.y);
   ctx.globalAlpha *= visible;
-  drawEnemyBody(enemy);
+  drawEnemyBody(enemy, false);
   ctx.restore();
 }
 
@@ -1452,7 +1506,171 @@ function mobDrawScale(enemy, sprite) {
   return (original + Math.max(1, Math.ceil(original * 1.15))) / 2;
 }
 
-function drawEnemyBody(enemy) {
+// Which frame a mob shows and where it sits; shared by its shadow (drawn in the shadow pass) and its body.
+function enemySpritePose(enemy) {
+  const sprite = monsterSprites[enemy.kind];
+  if (!sprite.image.complete || sprite.image.naturalWidth === 0) return null;
+  let frame = 0;
+  if (enemy.kind === 'ratto') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
+    const direction = [6, 7, 0, 1, 2, 3, 4, 5][directionIndex];
+    const frameSets = [[22, 23, 24, 21], [15, 16, 17, 14], [8, 9, 10, 7], [57, 58, 59, 56],
+      [50, 51, 52, 49], [43, 44, 45, 42], [36, 37, 38, 35], [29, 30, 31, 28]];
+    const set = frameSets[direction];
+    frame = set[Math.floor(elapsed * 7) % set.length];
+  } else if (enemy.kind === 'croc') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
+    const direction = [6, 7, 0, 1, 2, 3, 4, 5][directionIndex];
+    const frameSets = [[49, 48, 50, 48], [57, 56, 58, 56], [1, 0, 2, 0], [9, 8, 10, 8],
+      [17, 16, 18, 16], [25, 24, 26, 24], [33, 32, 34, 32], [41, 40, 42, 40]];
+    const set = frameSets[direction];
+    frame = set[Math.floor(elapsed * 5) % set.length];
+  } else if (['slime-mother', 'banditlord'].includes(enemy.kind)) {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
+      ? Math.cos(angle) < 0 ? 1 : 3
+      : Math.sin(angle) < 0 ? 2 : 0;
+    const bases = [0, 18, 36, 54];
+    const attackBases = enemy.kind === 'banditlord' ? [13, 31, 49, 67] : [9, 27, 45, 63];
+    const attackFrameCount = enemy.kind === 'banditlord' ? 5 : 4;
+    const moving = Math.hypot(player.x - enemy.x, player.y - enemy.y) > enemy.radius + player.radius + 4;
+    const attacking = enemy.behavior !== 'jacko-idle';
+    if (attacking) frame = attackBases[direction] + Math.floor(elapsed * 13) % attackFrameCount;
+    else if (moving) frame = bases[direction] + 1 + Math.floor(elapsed * 13) % 6;
+    else frame = bases[direction];
+  } else if (enemy.kind === 'reaper') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
+      ? Math.cos(angle) < 0 ? 1 : 3
+      : Math.sin(angle) < 0 ? 2 : 0;
+    const walkFrames = [[25, 26, 25, 24], [28, 27, 28, 27], [19, 20, 19, 18], [22, 21, 22, 21]];
+    const attackFrames = [[0, 1, 2, 3, 4, 5, 4, 3, 2, 1], [17, 16, 15, 16, 17],
+      [6, 7, 8, 9, 10, 11, 10, 9, 8, 7], [12, 13, 14, 13, 12]];
+    const frames = enemy.behavior !== 'jacko-idle' ? attackFrames[direction] : walkFrames[direction];
+    frame = frames[Math.floor(elapsed * (enemy.behavior !== 'jacko-idle' ? 12 : 8)) % frames.length];
+  } else if (enemy.kind === 'serqet') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
+      ? Math.cos(angle) < 0 ? 1 : 3
+      : Math.sin(angle) < 0 ? 0 : 2;
+    const standFrames = [[22, 23], [11, 12], [33, 34], [0, 1]];
+    const walkFrames = [[24, 25, 26, 27], [13, 14, 15, 16], [35, 36, 37, 38], [2, 3, 4, 5]];
+    const attackFrames = [[28, 29], [17, 18], [39, 40], [6, 7]];
+    const attacking = enemy.behavior !== 'jacko-idle';
+    const frames = attacking ? attackFrames[direction]
+      : Math.hypot(player.x - enemy.x, player.y - enemy.y) > enemy.radius + player.radius + 4
+        ? walkFrames[direction] : standFrames[direction];
+    frame = frames[Math.floor(elapsed * (attacking ? 12 : 8)) % frames.length];
+  } else if (enemy.kind === 'yetiking') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
+      ? Math.cos(angle) < 0 ? 1 : 3
+      : Math.sin(angle) < 0 ? 0 : 2;
+    const standFrames = [[3], [10], [31], [20]];
+    const walkFrames = [[1, 2, 3, 4], [11, 12, 13, 14], [31, 32, 33, 34], [21, 22, 23, 24]];
+    const attackFrames = [[5, 6, 7, 8], [15, 16, 17, 18], [35, 36, 37, 38], [25, 26, 27, 28]];
+    const attacking = enemy.behavior !== 'jacko-idle';
+    const frames = attacking ? attackFrames[direction]
+      : Math.hypot(player.x - enemy.x, player.y - enemy.y) > enemy.radius + player.radius + 4
+        ? walkFrames[direction] : standFrames[direction];
+    frame = frames[Math.floor(elapsed * (attacking ? 14 : 9)) % frames.length];
+  } else if (['forestdragon', 'nightdragon'].includes(enemy.kind)) {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
+      ? Math.cos(angle) < 0 ? 3 : 2
+      : Math.sin(angle) < 0 ? 1 : 0;
+    const base = [0, 8, 16, 24][direction];
+    const attacking = enemy.behavior !== 'jacko-idle';
+    frame = attacking ? base + 2 + Math.floor(elapsed * 11) % 6
+      : base + (Math.floor(elapsed * 2) % 5 === 0 ? 1 : 0);
+  } else if (enemy.kind === 'spider-queen') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
+    const standFrames = [36, 18, 0, 126, 108, 90, 72, 54];
+    const base = standFrames[directionIndex];
+    const attacking = enemy.behavior !== 'jacko-idle' && enemy.behavior !== 'jacko-ground-pound-hidden';
+    frame = attacking
+      ? base + 9 + Math.floor(elapsed * (enemy.phase >= 2 ? 12 : 8)) % 9
+      : base + Math.floor(elapsed * 6) % 9;
+  } else if (enemy.kind === 'golem' || enemy.kind === 'snowman-boss') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
+    const xmlDirection = [2, 1, 0, 7, 6, 5, 4, 3][directionIndex];
+    const walkStarts = [12, 24, 36, 48, 60, 72, 84, 96];
+    const attacking = enemy.behavior !== 'jacko-idle' && enemy.behavior !== 'jacko-ground-pound-hidden';
+    const attackStarts = [108, 120, 132, 144, 156, 168, 180, 192];
+    const start = attacking ? attackStarts[xmlDirection] : walkStarts[xmlDirection];
+    const frameCount = attacking ? 11 : 12;
+    frame = start + Math.floor(elapsed * (enemy.phase >= 2 ? 12 : 7)) % frameCount;
+    if (enemy.behavior === 'jacko-idle') frame = xmlDirection;
+  } else if (enemy.kind === 'jacko') {
+    const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const direction = Math.abs(angle) < Math.PI / 4 ? 1
+      : angle > Math.PI / 4 && angle < Math.PI * 3 / 4 ? 0
+        : Math.abs(angle) > Math.PI * 3 / 4 ? 2 : 3;
+    const animationFrame = Math.floor(elapsed * 7) % 3;
+    frame = (enemy.behavior === 'jacko-idle' ? 0 : 12) + direction * 3 + animationFrame;
+  } else if (enemy.kind === 'spore-sower' && enemy.behavior === 'cluster-windup') {
+    frame = 5 + Math.floor(elapsed * 8) % 4;
+  } else {
+    const frames = sprite.frames || [0, 1, 2, 3];
+    frame = frames[Math.floor(elapsed * (enemy.phase >= 2 ? 10 : 6)) % frames.length];
+  }
+  const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
+  const sourceX = (frame % columns) * sprite.frameWidth;
+  const sourceY = Math.floor(frame / columns) * sprite.frameHeight;
+  const scale = mobDrawScale(enemy, sprite);
+  const width = sprite.frameWidth * scale;
+  const height = sprite.frameHeight * scale;
+  const sourceHeight = sprite.cropHeight || sprite.frameHeight;
+  const visibleHeight = sourceHeight * scale;
+  const flightHeight = sprite.cropHeight ? Math.max(0, height / 2 - visibleHeight) : 0;
+  const hop = enemy.linkDash && enemy.linkDash.windup <= 0
+    ? Math.sin(Math.min(1, enemy.linkDash.t) * Math.PI) * 38
+    : enemy.archetype === 'leaper' && enemy.behavior === 'leap'
+    ? Math.sin((enemy.leapDuration - enemy.stateTimer) / enemy.leapDuration * Math.PI) * enemy.leapHeight
+    : enemy.kind === 'spider-queen' && enemy.behavior === 'spider-pounce'
+      ? Math.sin(((enemy.phase >= 2 ? 0.34 : 0.48) - enemy.stateTimer) /
+        (enemy.phase >= 2 ? 0.34 : 0.48) * Math.PI) * (enemy.phase >= 2 ? 72 : 54)
+    : enemy.kind === 'jacko' && enemy.behavior === 'jacko-jump'
+      ? Math.sin(((enemy.phase >= 2 ? 0.7 : 0.85) - enemy.stateTimer) /
+        (enemy.phase >= 2 ? 0.7 : 0.85) * Math.PI) * (enemy.phase >= 2 ? 86 : 56)
+      : enemy.kind === 'wisp' ? Math.sin(elapsed * 5 + enemy.x) * 5 : 0;
+  const slam = enemy.manaSlam;
+  const progress = slam ? 1 - slam.timer / slam.duration : 0;
+  const lift = slam ? progress < 0.35 ? progress / 0.35 * 85 : progress < 0.7 ? 85
+    : (1 - progress) / 0.3 * 85 : 0;
+  const rolling = enemy.archetype === 'charger' && enemy.behavior === 'roll' ||
+    enemy.linkDash && enemy.linkDash.windup <= 0 && enemy.linkDash.kind === 'roll' ||
+    enemy.kind === 'jacko' && enemy.behavior === 'jacko-roll';
+  return { sprite, sourceX, sourceY, width, height, sourceHeight, visibleHeight, flightHeight, hop, lift, rolling };
+}
+
+function drawEnemyShadow(enemy, pose = enemySpritePose(enemy)) {
+  if (!pose || (enemy.boss && enemy.behavior === 'jacko-ground-pound-hidden') ||
+      (enemy.boss && (enemy.x < 0 || enemy.x > ROOM_W || enemy.y < 0 || enemy.y > ROOM_H))) return;
+  const { sprite, sourceX, sourceY, width, height, sourceHeight, visibleHeight, flightHeight, hop, lift, rolling } = pose;
+  ctx.save();
+  if (enemy.manaRift) {
+    const progress = 1 - enemy.manaRift.timer / enemy.manaRift.duration;
+    const visible = Math.abs(progress * 2 - 1);
+    ctx.beginPath();
+    ctx.rect(enemy.x - enemy.radius * 4, enemy.y - enemy.radius * 6, enemy.radius * 8, enemy.radius * 6 + 4);
+    ctx.clip();
+    ctx.translate(enemy.x, enemy.y + (1 - visible) * 24);
+    ctx.scale(1, Math.max(0.02, visible));
+    ctx.translate(-enemy.x, -enemy.y);
+    ctx.globalAlpha *= visible;
+  }
+  drawSunSpriteShadow(sprite.image, sourceX, sourceY, sprite.frameWidth, sourceHeight,
+    enemy.x, enemy.y - height / 2 + visibleHeight + flightHeight, width, visibleHeight,
+    flightHeight + Math.max(0, hop) + lift, 1, rolling ? elapsed * 18 : 0, sprite.shadowAnchorY ?? null);
+  ctx.restore();
+}
+
+function drawEnemyBody(enemy, drawShadow = true) {
   if (enemy.linkId) {
     const twin = enemies.find((candidate) => candidate !== enemy && candidate.linkId === enemy.linkId);
     if (twin && enemies.indexOf(enemy) < enemies.indexOf(twin)) {
@@ -1529,181 +1747,43 @@ function drawEnemyBody(enemy) {
           tint: '#daf3ff', alpha: 0.35 + strength * 0.6 });
     }
   }
+  const pose = enemySpritePose(enemy);
   const sprite = monsterSprites[enemy.kind];
-  if (!sprite.image.complete || sprite.image.naturalWidth === 0) {
+  if (!pose) {
     ctx.fillStyle = enemy.freezeTimer > 0 ? '#56cfff'
       : enemy.slowTimer > 0 ? '#7ebee8' : enemy.color;
     ctx.beginPath();
     ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
     ctx.fill();
   } else {
-    let frame = 0;
-    if (enemy.kind === 'ratto') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
-      const direction = [6, 7, 0, 1, 2, 3, 4, 5][directionIndex];
-      const frameSets = [[22, 23, 24, 21], [15, 16, 17, 14], [8, 9, 10, 7], [57, 58, 59, 56],
-        [50, 51, 52, 49], [43, 44, 45, 42], [36, 37, 38, 35], [29, 30, 31, 28]];
-      const set = frameSets[direction];
-      frame = set[Math.floor(elapsed * 7) % set.length];
-    } else if (enemy.kind === 'croc') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
-      const direction = [6, 7, 0, 1, 2, 3, 4, 5][directionIndex];
-      const frameSets = [[49, 48, 50, 48], [57, 56, 58, 56], [1, 0, 2, 0], [9, 8, 10, 8],
-        [17, 16, 18, 16], [25, 24, 26, 24], [33, 32, 34, 32], [41, 40, 42, 40]];
-      const set = frameSets[direction];
-      frame = set[Math.floor(elapsed * 5) % set.length];
-    } else if (['slime-mother', 'banditlord'].includes(enemy.kind)) {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
-        ? Math.cos(angle) < 0 ? 1 : 3
-        : Math.sin(angle) < 0 ? 2 : 0;
-      const bases = [0, 18, 36, 54];
-      const attackBases = enemy.kind === 'banditlord' ? [13, 31, 49, 67] : [9, 27, 45, 63];
-      const attackFrameCount = enemy.kind === 'banditlord' ? 5 : 4;
-      const moving = Math.hypot(player.x - enemy.x, player.y - enemy.y) > enemy.radius + player.radius + 4;
-      const attacking = enemy.behavior !== 'jacko-idle';
-      if (attacking) frame = attackBases[direction] + Math.floor(elapsed * 13) % attackFrameCount;
-      else if (moving) frame = bases[direction] + 1 + Math.floor(elapsed * 13) % 6;
-      else frame = bases[direction];
-    } else if (enemy.kind === 'reaper') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
-        ? Math.cos(angle) < 0 ? 1 : 3
-        : Math.sin(angle) < 0 ? 2 : 0;
-      const walkFrames = [[25, 26, 25, 24], [28, 27, 28, 27], [19, 20, 19, 18], [22, 21, 22, 21]];
-      const attackFrames = [[0, 1, 2, 3, 4, 5, 4, 3, 2, 1], [17, 16, 15, 16, 17],
-        [6, 7, 8, 9, 10, 11, 10, 9, 8, 7], [12, 13, 14, 13, 12]];
-      const frames = enemy.behavior !== 'jacko-idle' ? attackFrames[direction] : walkFrames[direction];
-      frame = frames[Math.floor(elapsed * (enemy.behavior !== 'jacko-idle' ? 12 : 8)) % frames.length];
-    } else if (enemy.kind === 'serqet') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
-        ? Math.cos(angle) < 0 ? 1 : 3
-        : Math.sin(angle) < 0 ? 0 : 2;
-      const standFrames = [[22, 23], [11, 12], [33, 34], [0, 1]];
-      const walkFrames = [[24, 25, 26, 27], [13, 14, 15, 16], [35, 36, 37, 38], [2, 3, 4, 5]];
-      const attackFrames = [[28, 29], [17, 18], [39, 40], [6, 7]];
-      const attacking = enemy.behavior !== 'jacko-idle';
-      const frames = attacking ? attackFrames[direction]
-        : Math.hypot(player.x - enemy.x, player.y - enemy.y) > enemy.radius + player.radius + 4
-          ? walkFrames[direction] : standFrames[direction];
-      frame = frames[Math.floor(elapsed * (attacking ? 12 : 8)) % frames.length];
-    } else if (enemy.kind === 'yetiking') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
-        ? Math.cos(angle) < 0 ? 1 : 3
-        : Math.sin(angle) < 0 ? 0 : 2;
-      const standFrames = [[3], [10], [31], [20]];
-      const walkFrames = [[1, 2, 3, 4], [11, 12, 13, 14], [31, 32, 33, 34], [21, 22, 23, 24]];
-      const attackFrames = [[5, 6, 7, 8], [15, 16, 17, 18], [35, 36, 37, 38], [25, 26, 27, 28]];
-      const attacking = enemy.behavior !== 'jacko-idle';
-      const frames = attacking ? attackFrames[direction]
-        : Math.hypot(player.x - enemy.x, player.y - enemy.y) > enemy.radius + player.radius + 4
-          ? walkFrames[direction] : standFrames[direction];
-      frame = frames[Math.floor(elapsed * (attacking ? 14 : 9)) % frames.length];
-    } else if (['forestdragon', 'nightdragon'].includes(enemy.kind)) {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const direction = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))
-        ? Math.cos(angle) < 0 ? 3 : 2
-        : Math.sin(angle) < 0 ? 1 : 0;
-      const base = [0, 8, 16, 24][direction];
-      const attacking = enemy.behavior !== 'jacko-idle';
-      frame = attacking ? base + 2 + Math.floor(elapsed * 11) % 6
-        : base + (Math.floor(elapsed * 2) % 5 === 0 ? 1 : 0);
-    } else if (enemy.kind === 'spider-queen') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
-      const standFrames = [36, 18, 0, 126, 108, 90, 72, 54];
-      const base = standFrames[directionIndex];
-      const attacking = enemy.behavior !== 'jacko-idle' && enemy.behavior !== 'jacko-ground-pound-hidden';
-      frame = attacking
-        ? base + 9 + Math.floor(elapsed * (enemy.phase >= 2 ? 12 : 8)) % 9
-        : base + Math.floor(elapsed * 6) % 9;
-    } else if (enemy.kind === 'golem' || enemy.kind === 'snowman-boss') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const directionIndex = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
-      const xmlDirection = [2, 1, 0, 7, 6, 5, 4, 3][directionIndex];
-      const walkStarts = [12, 24, 36, 48, 60, 72, 84, 96];
-      const attacking = enemy.behavior !== 'jacko-idle' && enemy.behavior !== 'jacko-ground-pound-hidden';
-      const attackStarts = [108, 120, 132, 144, 156, 168, 180, 192];
-      const start = attacking ? attackStarts[xmlDirection] : walkStarts[xmlDirection];
-      const frameCount = attacking ? 11 : 12;
-      frame = start + Math.floor(elapsed * (enemy.phase >= 2 ? 12 : 7)) % frameCount;
-      if (enemy.behavior === 'jacko-idle') frame = xmlDirection;
-    } else if (enemy.kind === 'jacko') {
-      const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-      const direction = Math.abs(angle) < Math.PI / 4 ? 1
-        : angle > Math.PI / 4 && angle < Math.PI * 3 / 4 ? 0
-          : Math.abs(angle) > Math.PI * 3 / 4 ? 2 : 3;
-      const animationFrame = Math.floor(elapsed * 7) % 3;
-      frame = (enemy.behavior === 'jacko-idle' ? 0 : 12) + direction * 3 + animationFrame;
-    } else if (enemy.kind === 'spore-sower' && enemy.behavior === 'cluster-windup') {
-      frame = 5 + Math.floor(elapsed * 8) % 4;
-    } else {
-      const frames = sprite.frames || [0, 1, 2, 3];
-      frame = frames[Math.floor(elapsed * (enemy.phase >= 2 ? 10 : 6)) % frames.length];
-    }
-    const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
-    const sourceX = (frame % columns) * sprite.frameWidth;
-    const sourceY = Math.floor(frame / columns) * sprite.frameHeight;
-    const scale = mobDrawScale(enemy, sprite);
-    const width = sprite.frameWidth * scale;
-    const height = sprite.frameHeight * scale;
-    const sourceHeight = sprite.cropHeight || sprite.frameHeight;
-    const visibleHeight = sourceHeight * scale;
-    const flightHeight = sprite.cropHeight ? Math.max(0, height / 2 - visibleHeight) : 0;
-    const hop = enemy.linkDash && enemy.linkDash.windup <= 0
-      ? Math.sin(Math.min(1, enemy.linkDash.t) * Math.PI) * 38
-      : enemy.archetype === 'leaper' && enemy.behavior === 'leap'
-      ? Math.sin((enemy.leapDuration - enemy.stateTimer) / enemy.leapDuration * Math.PI) * enemy.leapHeight
-      : enemy.kind === 'spider-queen' && enemy.behavior === 'spider-pounce'
-        ? Math.sin(((enemy.phase >= 2 ? 0.34 : 0.48) - enemy.stateTimer) /
-          (enemy.phase >= 2 ? 0.34 : 0.48) * Math.PI) * (enemy.phase >= 2 ? 72 : 54)
-      : enemy.kind === 'jacko' && enemy.behavior === 'jacko-jump'
-        ? Math.sin(((enemy.phase >= 2 ? 0.7 : 0.85) - enemy.stateTimer) /
-          (enemy.phase >= 2 ? 0.7 : 0.85) * Math.PI) * (enemy.phase >= 2 ? 86 : 56)
-        : enemy.kind === 'wisp' ? Math.sin(elapsed * 5 + enemy.x) * 5 : 0;
-    const slam = enemy.manaSlam;
-    const progress = slam ? 1 - slam.timer / slam.duration : 0;
-    const lift = slam ? progress < 0.35 ? progress / 0.35 * 85 : progress < 0.7 ? 85
-      : (1 - progress) / 0.3 * 85 : 0;
-    const rolling = enemy.archetype === 'charger' && enemy.behavior === 'roll' ||
-      enemy.linkDash && enemy.linkDash.windup <= 0 && enemy.linkDash.kind === 'roll' ||
-      enemy.kind === 'jacko' && enemy.behavior === 'jacko-roll';
-    ctx.save();
-    if (lift) ctx.translate(0, lift);
-    drawSunSpriteShadow(sprite.image, sourceX, sourceY, sprite.frameWidth, sourceHeight,
-      enemy.x, enemy.y - height / 2 + visibleHeight + flightHeight, width, visibleHeight,
-      flightHeight + Math.max(0, hop) + lift, 1, rolling ? elapsed * 18 : 0, sprite.shadowAnchorY ?? null);
-    ctx.restore();
+    const { sprite, sourceX, sourceY, width, height, sourceHeight, visibleHeight, hop, rolling } = pose;
+    if (drawShadow) drawEnemyShadow(enemy, pose);
     ctx.save();
     ctx.translate(enemy.x, enemy.y - hop);
     if (rolling) {
       ctx.rotate(elapsed * 18);
     }
     const frostAffected = enemy.freezeTimer > 0 || enemy.slowTimer > 0;
+    let tint = null;
     if (frostAffected) {
-      ctx.filter = 'hue-rotate(155deg) saturate(1.8) brightness(1.2)';
+      tint = 'hue-rotate(155deg) saturate(1.8) brightness(1.2)';
       ctx.shadowColor = '#59d7ff';
       ctx.shadowBlur = enemy.freezeTimer > 0 ? 22 : 14;
     } else if (enemy.kind === 'slime-mother') {
       // The sprite is grayscale, so sepia first to give hue-rotate something to shift.
-      ctx.filter = enemy.phase >= 2
+      tint = enemy.phase >= 2
         ? 'sepia(1) saturate(7) hue-rotate(-38deg) brightness(1.1)'
         : 'sepia(1) saturate(6) hue-rotate(-38deg)';
     } else if (enemy.kind === 'jacko') {
       ctx.shadowColor = '#ff8e38';
       ctx.shadowBlur = enemy.phase >= 2 ? 30 : 16;
-      if (enemy.phase >= 2) ctx.filter = 'saturate(1.5) brightness(1.25)';
+      if (enemy.phase >= 2) tint = 'saturate(1.5) brightness(1.25)';
     }
     // A brief bright flash confirms the hit without fading the sprite out.
-    if (enemy.hitFlash > 0) ctx.filter = 'brightness(2.6) saturate(0.3)';
-    const lightExposure = worldLightExposure(enemy.x, enemy.y);
-    if (lightExposure > 0) ctx.filter = `${ctx.filter === 'none' ? '' : ctx.filter} brightness(${1 + lightExposure})`;
-    ctx.drawImage(sprite.image, sourceX, sourceY, sprite.frameWidth, sourceHeight,
-      -width / 2, -height / 2, width, visibleHeight);
+    if (enemy.hitFlash > 0) tint = 'brightness(2.6) saturate(0.3)';
+    const spriteEffect = { filter: tint, lift: worldLightExposure(enemy.x, enemy.y) };
+    drawSpriteImage(sprite.image, sourceX, sourceY, sprite.frameWidth, sourceHeight,
+      -width / 2, -height / 2, width, visibleHeight, spriteEffect);
     if ((enemy.kind === 'bandit' || enemy.kind === 'banditlord') &&
       banditBowImage.complete && banditBowImage.naturalWidth >= 128) {
       const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
@@ -1715,8 +1795,8 @@ function drawEnemyBody(enemy) {
       const bowFrame = rowStart + (attacking ? 13 + Math.floor(elapsed * 14) % 5
         : 1 + Math.floor(elapsed * 7) % 6);
       const bowColumns = Math.floor(banditBowImage.naturalWidth / 128);
-      ctx.drawImage(banditBowImage, (bowFrame % bowColumns) * 128,
-        Math.floor(bowFrame / bowColumns) * 128, 128, 128, -32, -16, 64, 64);
+      drawSpriteImage(banditBowImage, (bowFrame % bowColumns) * 128,
+        Math.floor(bowFrame / bowColumns) * 128, 128, 128, -32, -16, 64, 64, spriteEffect);
     }
     ctx.restore();
   }
@@ -1737,20 +1817,27 @@ function drawEnemyBody(enemy) {
     ctx.stroke();
     ctx.restore();
   }
-  if (enemy.kind === 'jacko' && enemy.behavior === 'jacko-ground-pound-windup' && enemy.groundPoundTarget) {
-    drawEffectCircle(enemy.groundPoundTarget.x, enemy.groundPoundTarget.y,
-      38 + clamp(1 - enemy.stateTimer / 0.35, 0, 1) * 34, '#ffae42', { fill: 0.45, alpha: 0.9, ring: 'castCross' });
+  if (enemy.kind === 'jacko' && enemy.groundPoundTarget &&
+    (enemy.behavior === 'jacko-ground-pound-windup' || enemy.behavior === 'jacko-ground-pound-charge')) {
+    // Jacko lands where the charge ends, so the front follows how much of the charge is left, not the clock.
+    windupProgress(enemy);
+    let progress = 0;
+    if (enemy.behavior === 'jacko-ground-pound-charge') {
+      const remaining = distanceBetween(enemy, enemy.groundPoundTarget);
+      enemy.telegraphDistance ??= Math.max(1, remaining);
+      progress = 1 - remaining / enemy.telegraphDistance;
+    }
+    drawStrikeWave(enemy.groundPoundTarget.x, enemy.groundPoundTarget.y, JACKO_POUND_RADIUS, progress, '#ffae42');
   }
   if (enemy.kind === 'golem' && enemy.behavior === 'golem-slam-windup' && enemy.slamTarget) {
-    drawEffectCircle(enemy.slamTarget.x, enemy.slamTarget.y,
-      (enemy.phase >= 2 ? 112 : 74) * clamp(1 - enemy.stateTimer * 0.12, 0, 1), '#ffbf6f',
-      { fill: 0.4, alpha: 0.92, ring: 'castCross' });
+    const slamRadius = golemSlamRadius(enemy);
+    drawStrikeWave(enemy.slamTarget.x, enemy.slamTarget.y, slamRadius, windupProgress(enemy), '#ffbf6f');
     ctx.save();
     if (enemy.boss) {
       ctx.fillStyle = '#fff0d1';
       ctx.font = 'bold 12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('HEAVY - 2 HEARTS', enemy.slamTarget.x, enemy.slamTarget.y - 85);
+      ctx.fillText('HEAVY - 2 HEARTS', enemy.slamTarget.x, enemy.slamTarget.y - slamRadius - 10);
     }
     ctx.restore();
   }
@@ -1776,9 +1863,11 @@ function drawEnemyBody(enemy) {
             : '#b79be7';
     drawEffectCircle(enemy.x, enemy.y, enemy.radius + 8 + Math.sin(elapsed * 15) * 3, signatureColor,
       { alpha: 0.8, ring: 'castStar', rotation: elapsed * 2 });
-    if (enemy.signatureTarget && ['yeti-slam', 'reaper-charge', 'slime-trail'].includes(enemy.signature)) {
-      drawEffectCircle(enemy.signatureTarget.x, enemy.signatureTarget.y, enemy.signature === 'yeti-slam' ? 72 : 24,
-        signatureColor, { alpha: 0.45 });
+    if (enemy.signatureTarget && enemy.signature === 'yeti-slam') {
+      drawStrikeWave(enemy.signatureTarget.x, enemy.signatureTarget.y, yetiSlamRadius(enemy), windupProgress(enemy),
+        signatureColor);
+    } else if (enemy.signatureTarget && ['reaper-charge', 'slime-trail'].includes(enemy.signature)) {
+      drawEffectCircle(enemy.signatureTarget.x, enemy.signatureTarget.y, 24, signatureColor, { alpha: 0.45 });
     }
     ctx.save();
     ctx.strokeStyle = signatureColor;
@@ -1836,6 +1925,7 @@ function drawEnemyBody(enemy) {
   if (enemy.behavior === 'bomb-windup' && enemy.bombTarget) {
     drawEffectCircle(enemy.bombTarget.x, enemy.bombTarget.y, 16 + Math.sin(elapsed * 14) * 3, '#ffb25a',
       { fill: 0.4, alpha: 0.9 });
+    drawStrikeWave(enemy.bombTarget.x, enemy.bombTarget.y, enemy.bombRadius || 86, 0, '#ffb25a', 0.6);
   }
   if (enemy.behavior === 'windup' || enemy.behavior === 'leap-windup' ||
     enemy.behavior === 'stalker-windup' || enemy.behavior === 'shoot-windup' ||
@@ -1919,7 +2009,7 @@ function drawEnemyBody(enemy) {
   }
 }
 
-function drawCompanion(companion) {
+function drawCompanion(companion, shadowOnly = null) {
   if (companion.hp <= 0) return;
   const sprite = monsterSprites[companion.kind];
   if (!sprite.image.complete || sprite.image.naturalWidth === 0) return;
@@ -1934,10 +2024,11 @@ function drawCompanion(companion) {
   const frame = companion.kind === 'wisp' ? Math.floor(elapsed * 5) % 5 : 0;
   const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
   const glow = companion.kind === 'wisp' ? '#c8a6ff' : companion.color || '#a8e39c';
-  drawSunSpriteShadow(sprite.image, (frame % columns) * sprite.frameWidth,
+  if (shadowOnly !== false) drawSunSpriteShadow(sprite.image, (frame % columns) * sprite.frameWidth,
     Math.floor(frame / columns) * sprite.frameHeight, sprite.frameWidth, sourceHeight,
     companion.x, companion.y - height / 2 + visibleHeight + flightHeight, width, visibleHeight,
     flightHeight + (companion.kind === 'wisp' ? 10 : 0), 1, 0, sprite.shadowAnchorY ?? null);
+  if (shadowOnly === true) return;
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.strokeStyle = glow;
@@ -1948,8 +2039,7 @@ function drawCompanion(companion) {
   ctx.arc(companion.x, companion.y, Math.max(width, height) * 0.42, 0, Math.PI * 2);
   ctx.stroke();
   ctx.globalAlpha = 1;
-  ctx.filter = `brightness(${1 + worldLightExposure(companion.x, companion.y)})`;
-  ctx.drawImage(
+  drawSpriteImage(
     sprite.image,
     (frame % columns) * sprite.frameWidth,
     Math.floor(frame / columns) * sprite.frameHeight,
@@ -1959,11 +2049,30 @@ function drawCompanion(companion) {
     companion.y - height / 2,
     width,
     visibleHeight,
+    { lift: worldLightExposure(companion.x, companion.y) },
   );
   ctx.restore();
 }
 
-function drawPlayer() {
+function drawPlayer(shadowOnly = null) {
+  if (player.dashMove === 'weapon-form' && typeof dashTimer !== 'undefined' && dashTimer > 0) {
+    if (shadowOnly !== true) drawWeaponForm();
+    return;
+  }
+  if (shadowOnly !== true && player.dashMove === 'earthshaker' && typeof dashTimer !== 'undefined' && dashTimer > 0) {
+    // The landing ring shows exactly where the smash will hit.
+    const landX = player.x + dashVector.x * 360 * dashTimer;
+    const landY = player.y + dashVector.y * 360 * dashTimer;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232, 196, 130, 0.85)';
+    ctx.fillStyle = 'rgba(120, 84, 40, 0.18)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(landX, landY, EARTHSHAKER_RADIUS, EARTHSHAKER_RADIUS * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
   const sprite = humanoidSprites[character.sprite];
   const direction = Math.abs(player.lookX) >= Math.abs(player.lookY)
     ? player.lookX < 0 ? 'left' : 'right'
@@ -1980,11 +2089,12 @@ function drawPlayer() {
   const pulse = player.attackPulse / 0.14;
   const pulseX = 1 + pulse * 0.08;
   const pulseY = 1 - pulse * 0.045;
-  drawOrbitGuard();
+  if (shadowOnly !== true) drawOrbitGuard();
   const bodyColumns = Math.floor(sprite.image.naturalWidth / 64);
-  drawSunSpriteShadow(sprite.image, bodyFrameIndex % bodyColumns * 64,
+  if (shadowOnly !== false) drawSunSpriteShadow(sprite.image, bodyFrameIndex % bodyColumns * 64,
     Math.floor(bodyFrameIndex / bodyColumns) * 64, 64, 64,
     player.x, player.y + 6 * pulseY, 64 * 1.45 * pulseX, 64 * 1.45 * pulseY);
+  if (shadowOnly === true) return;
   if (player.chargeFraction > 0.02) {
     // A dark SoM magic circle, revealed in colour clockwise from the top as the charge builds.
     const chargeColor = player.chargeFraction >= 1 ? '#fff2a0' : '#7fd8ff';
@@ -1999,19 +2109,19 @@ function drawPlayer() {
     ctx.restore();
   }
   ctx.save();
+  let flash = null;
   if (player.chargeFraction >= 1 && Math.floor(elapsed * 16) % 2 === 0) {
-    ctx.filter = 'brightness(2.2) saturate(0.6)';
+    flash = 'brightness(2.2) saturate(0.6)';
     ctx.shadowColor = '#fff2a0';
     ctx.shadowBlur = 22;
   }
   if (player.damageFlashTimer > 0) {
-    ctx.filter = 'sepia(0.8) saturate(3.5) hue-rotate(305deg)';
+    flash = 'sepia(0.8) saturate(3.5) hue-rotate(305deg)';
     ctx.shadowColor = '#ff4058';
     ctx.shadowBlur = 18;
   }
   if (player.invuln > 0 && Math.floor(player.invuln * 14) % 2 === 0) ctx.globalAlpha = 0.4;
-  const lightExposure = worldLightExposure(player.x, player.y);
-  if (lightExposure > 0) ctx.filter = `${ctx.filter === 'none' ? '' : ctx.filter} brightness(${1 + lightExposure})`;
+  const playerEffect = { filter: flash, lift: worldLightExposure(player.x, player.y) };
   ctx.translate(player.x, player.y);
   ctx.imageSmoothingEnabled = false;
   ctx.scale(pulseX, pulseY);
@@ -2019,12 +2129,13 @@ function drawPlayer() {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = clamp(player.swordParryFlash / 0.24, 0, 1) * 0.42;
-    ctx.filter = 'brightness(2.4) saturate(0.35)';
     ctx.shadowColor = '#dffcff';
     ctx.shadowBlur = 22;
+    drawSpriteImage.effect = { filter: 'brightness(2.4) saturate(0.35)' };
     drawHumanoid(sprite.image, bodyFrameIndex, 0, 0, 1.45, character.hue);
     ctx.restore();
   }
+  drawSpriteImage.effect = playerEffect;
   drawHumanoid(sprite.image, bodyFrameIndex, 0, 0, 1.45, character.hue);
   for (const slot of ['legs', 'chest']) {
     const clothing = equippedClothing[slot];
@@ -2032,7 +2143,9 @@ function drawPlayer() {
   }
   const heldStyle = currentAttackStyle();
   const glowColor = styleGlowColor(heldStyle);
-  const visibleWeapon = meleeWeapons.has('sword') ? 'ironSword'
+  // Found weapons have no worn sprite; they show as icons in the HUD weapon slots instead of on the character.
+  const mainVariant = weaponShape(heldStyle).variant;
+  const visibleWeapon = mainVariant ? null : meleeWeapons.has('sword') ? 'ironSword'
     : meleeWeapons.has('daggers') ? 'daggers' : nativeStyle() === 'melee' ? 'ironSword' : null;
   if (heldStyle === 'melee' && visibleWeapon) {
     ctx.save();
@@ -2047,7 +2160,7 @@ function drawPlayer() {
     drawClothing({ sprite: visibleWeapon }, bodyFrameIndex, 0, 0, 1.45);
     ctx.restore();
   }
-  if (heldStyle === 'bow' && banditBowImage.complete && banditBowImage.naturalWidth >= 128) {
+  if (heldStyle === 'bow' && !mainVariant && banditBowImage.complete && banditBowImage.naturalWidth >= 128) {
     const rowStart = { down: 0, left: 18, up: 36, right: 54 }[direction];
     const drawing = player.attackAnimationTimer > 0 && player.attackAnimationStyle === 'bow';
     const bowFrame = drawing
@@ -2059,12 +2172,46 @@ function drawPlayer() {
       ctx.shadowColor = glowColor;
       ctx.shadowBlur = 16;
     }
-    ctx.drawImage(banditBowImage, (bowFrame % bowColumns) * 128,
+    drawSpriteImage(banditBowImage, (bowFrame % bowColumns) * 128,
       Math.floor(bowFrame / bowColumns) * 128, 128, 128, -60, -96, 120, 120);
     ctx.restore();
   }
   if (heldStyle === 'magic') drawCastingHands(direction, glowColor || magicElementPalette.bubble);
   drawHead(character.hairStyle, direction, 0, 0, 1.45, wornHat());
+  drawSpriteImage.effect = null;
+  ctx.restore();
+}
+
+// Weapon Form: while dashing the player becomes their main weapon, a glowing streak along the dash.
+function drawWeaponForm() {
+  const art = shopItemIconImages[`weapon-${weaponHands.main}`];
+  const angle = Math.atan2(dashVector.y, dashVector.x);
+  const glow = styleGlowColor(currentAttackStyle()) || '#fff2a0';
+  ctx.save();
+  ctx.translate(player.x, player.y - 20);
+  ctx.rotate(angle);
+  ctx.globalCompositeOperation = 'lighter';
+  const trail = ctx.createLinearGradient(-90, 0, 0, 0);
+  trail.addColorStop(0, 'rgba(255, 242, 160, 0)');
+  trail.addColorStop(1, 'rgba(255, 242, 160, 0.55)');
+  ctx.fillStyle = trail;
+  ctx.fillRect(-90, -9, 90, 18);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 20;
+  ctx.imageSmoothingEnabled = false;
+  if (art?.complete && art.naturalWidth) {
+    ctx.rotate(Math.PI / 4);
+    ctx.drawImage(art, -24, -24, 48, 48);
+  } else {
+    ctx.fillStyle = '#fff2a0';
+    ctx.beginPath();
+    ctx.moveTo(26, 0);
+    ctx.lineTo(-18, -6);
+    ctx.lineTo(-18, 6);
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -2116,7 +2263,7 @@ function drawClothing(clothing, frameIndex, x, y, scale) {
   const sourceY = Math.floor(frameIndex / columns) * sprite.frameHeight;
   const width = sprite.frameWidth * scale;
   const height = sprite.frameHeight * scale;
-  ctx.drawImage(
+  drawSpriteImage(
     image,
     sourceX,
     sourceY,
@@ -2218,7 +2365,7 @@ function drawHumanoid(sheet, frameIndex, x, y, scale = 1, hue = 0) {
   const size = frameSize * scale;
   try {
     const correctedFrame = getCorrectedHumanoidFrame(sheet, frameIndex, hue);
-    ctx.drawImage(correctedFrame, x - size / 2, y - size + 6, size, size);
+    drawSpriteImage(correctedFrame, 0, 0, frameSize, frameSize, x - size / 2, y - size + 6, size, size);
   } catch (error) {
     if (!isPixelReadbackSecurityError(error)) return;
     const columns = Math.floor(sheet.naturalWidth / frameSize);
@@ -2256,7 +2403,7 @@ function drawHat(hat, direction, x, headY, scale) {
   const image = hatImage(hat);
   if (!image.complete || image.naturalWidth === 0) return;
   const frame = { down: 0, left: 1, up: 2, right: 3 }[direction] ?? 0;
-  ctx.drawImage(image, frame * 32, 0, 32, 64, x - 16 * scale, headY - 12 * scale, 32 * scale, 64 * scale);
+  drawSpriteImage(image, frame * 32, 0, 32, 64, x - 16 * scale, headY - 12 * scale, 32 * scale, 64 * scale);
 }
 
 function drawHead(style, direction, x, y, scale = 1, hat = null) {
@@ -2282,8 +2429,12 @@ function drawHeadSprite(style, direction, x, y, scale = 1) {
       head.frameWidth,
       head.frameHeight,
     );
-    ctx.drawImage(
+    drawSpriteImage(
       correctedFrame,
+      0,
+      0,
+      head.frameWidth,
+      head.frameHeight,
       destinationX,
       destinationY,
       width,
@@ -2291,7 +2442,7 @@ function drawHeadSprite(style, direction, x, y, scale = 1) {
     );
   } catch (error) {
     if (!isPixelReadbackSecurityError(error)) return;
-    ctx.drawImage(
+    drawSpriteImage(
       head.image,
       sourceX,
       0,
@@ -2340,6 +2491,46 @@ function drawFallbackBreakable(rock, width, height) {
   ctx.restore();
 }
 
+// ctx.filter costs milliseconds per draw on phone GPUs, so sprite tints are baked once per frame and
+// cached, and light brightening is an additive redraw: brightness(1 + e) equals sprite + e × sprite.
+function filteredSpriteFrame(image, sx, sy, sw, sh, filter) {
+  const cache = filteredSpriteFrame.cache || (filteredSpriteFrame.cache = new WeakMap());
+  let frames = cache.get(image);
+  if (!frames) {
+    frames = new Map();
+    cache.set(image, frames);
+  }
+  const key = `${filter}|${sx},${sy},${sw},${sh}`;
+  let frame = frames.get(key);
+  if (frame) return frame;
+  frame = document.createElement('canvas');
+  frame.width = Math.max(1, Math.ceil(sw));
+  frame.height = Math.max(1, Math.ceil(sh));
+  const target = frame.getContext('2d');
+  target.filter = filter;
+  target.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+  if (frames.size >= 96) frames.delete(frames.keys().next().value);
+  frames.set(key, frame);
+  return frame;
+}
+
+// effect: { filter, lift }. Without an argument, the effect set on drawSpriteImage.effect applies.
+function drawSpriteImage(image, sx, sy, sw, sh, dx, dy, dw, dh, effect = drawSpriteImage.effect) {
+  const baked = effect?.filter ? filteredSpriteFrame(image, sx, sy, sw, sh, effect.filter) : null;
+  const source = baked || image;
+  const sourceX = baked ? 0 : sx;
+  const sourceY = baked ? 0 : sy;
+  ctx.drawImage(source, sourceX, sourceY, sw, sh, dx, dy, dw, dh);
+  if (effect?.lift > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha *= Math.min(1, effect.lift);
+    ctx.shadowBlur = 0;
+    ctx.drawImage(source, sourceX, sourceY, sw, sh, dx, dy, dw, dh);
+    ctx.restore();
+  }
+}
+
 function getBreakableFrame(sprite, frame, type) {
   const cache = getBreakableFrame.cache || (getBreakableFrame.cache = new WeakMap());
   let frames = cache.get(sprite.image);
@@ -2367,9 +2558,11 @@ function getBreakableFrame(sprite, frame, type) {
   return layer;
 }
 
-function drawSoulMenhir() {
+function drawSoulMenhir(shadowOnly = null) {
   const position = soulMenhirPosition();
   const t = prefersReducedMotion() ? 0 : elapsed;
+  if (shadowOnly !== false) drawTrunkShadow(position.x, position.y - 28, 80, 64, 1, 0.5);
+  if (shadowOnly === true) return;
   ctx.save();
   const glow = ctx.createRadialGradient(position.x, position.y - 34, 4, position.x, position.y - 34, 74);
   glow.addColorStop(0, `rgba(143, 211, 255, ${0.22 + Math.sin(t * 2) * 0.06})`);
@@ -2377,7 +2570,6 @@ function drawSoulMenhir() {
   ctx.fillStyle = glow;
   ctx.fillRect(position.x - 80, position.y - 110, 160, 160);
   ctx.restore();
-  drawTrunkShadow(position.x, position.y - 28, 80, 64, 1, 0.5);
   if (soulMenhirImage.complete && soulMenhirImage.naturalWidth >= 64 && soulMenhirImage.naturalHeight >= 64) {
     ctx.drawImage(soulMenhirImage, 0, 0, 64, 64, position.x - 32, position.y - 60, 64, 64);
   } else {
@@ -2409,7 +2601,8 @@ function drawSoulMenhir() {
   ctx.fillStyle = '#26352d';
   ctx.font = 'bold 12px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('SOUL MENHIR  ·  E TO TALK', position.x, position.y + 22);
+  const talkPrompt = lastInputMode === 'touch' ? 'TAP USE TO TALK' : `${bindLabel('interact').toUpperCase()} TO TALK`;
+  ctx.fillText(`SOUL MENHIR  ·  ${talkPrompt}`, position.x, position.y + 22);
   ctx.restore();
 }
 
@@ -2547,7 +2740,7 @@ function drawElementGlyph(element, x, y, size, alpha = 1) {
   else drawEffect('star', 0, x, y, { width: size, tint: tint || '#d8d0bc', alpha });
 }
 
-function drawElementalMenhir() {
+function drawElementalMenhir(shadowOnly = null) {
   const { x, y } = elementalShrinePosition();
   const element = currentRoom.shrineElement;
   const color = magicElementPalette[element] || '#d8d0bc';
@@ -2556,7 +2749,8 @@ function drawElementalMenhir() {
   const frame = ELEMENTAL_MENHIR_FRAMES[element] ?? 7;
   const [sx, sy] = effectFrameRect(EFFECT_SHEETS.menhirs, frame);
   const size = 112;
-  drawSunSpriteShadow(effectArt.menhirs, sx, sy, 64, 64, x, y + 36, size, size);
+  if (shadowOnly !== false) drawSunSpriteShadow(effectArt.menhirs, sx, sy, 64, 64, x, y + 36, size, size);
+  if (shadowOnly === true) return;
   ctx.save();
   drawEffect('glow', 0, x, y - 28, { width: 220, tint: color, alpha: active ? 0.55 : 0.25, smooth: true });
   drawEffect('menhirs', frame, x, y + 36, { width: size, anchorY: 1, alpha: active ? 1 : 0.8 });
@@ -2575,7 +2769,7 @@ function drawElementalMenhir() {
   ctx.fillStyle = '#f2e5c6';
   ctx.font = 'bold 13px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(active ? `${element.toUpperCase()} MENHIR` : 'MENHIR ATTUNED', x, y + 62);
+  ctx.fillText(active ? `${magicElementName(element).toUpperCase()} OBELISK` : 'OBELISK ATTUNED', x, y + 62);
   if (active && distanceBetween(player, { x, y }) < 92) {
     ctx.fillStyle = '#fff0bd';
     ctx.font = 'bold 12px Arial';
@@ -2590,7 +2784,8 @@ function outlinedItemTexture(image) {
   const layer = document.createElement('canvas');
   layer.width = image.naturalWidth || image.width;
   layer.height = image.naturalHeight || image.height;
-  const tint = layer.getContext('2d');
+  // CPU-backed: reading pixels back from a GPU canvas stalls the frame for tens of milliseconds on phones.
+  const tint = layer.getContext('2d', { willReadFrequently: true });
   tint.drawImage(image, 0, 0);
   let bounds = { x: 0, y: 0, width: layer.width, height: layer.height };
   try {
@@ -2631,6 +2826,20 @@ function outlinedItemTexture(image) {
   return outline;
 }
 
+// Builds item outlines a few at a time while the browser is idle, so a shop or loot drop never pays for them mid-frame.
+function prewarmItemOutlines(images = Object.values(shopItemIconImages)) {
+  const pending = [...new Set(images)];
+  const idle = window.requestIdleCallback || ((callback) => setTimeout(() => callback({ timeRemaining: () => 4 }), 50));
+  const step = (deadline) => {
+    while (pending.length && deadline.timeRemaining() > 2) {
+      const image = pending.shift();
+      if (image?.complete && image.naturalWidth > 0) outlinedItemTexture(image);
+    }
+    if (pending.length) idle(step);
+  };
+  idle(step);
+}
+
 function drawOutlinedItemImage(image, x, y, width, height) {
   if (!image?.complete || image.naturalWidth === 0) return;
   const texture = outlinedItemTexture(image);
@@ -2652,7 +2861,7 @@ function drawShopStockIcon(item, centerX, centerY) {
 }
 
 function drawShopItemIcon(item, centerX, centerY) {
-  const image = shopItemIconImages[item.id];
+  const image = shopItemIconImages[item.icon || item.id];
   if (image?.complete && image.naturalWidth > 0) {
     drawOutlinedItemImage(image, centerX - 16, centerY - 16, 32, 32);
     return;
@@ -2930,6 +3139,11 @@ function drawPickupItem(pickup) {
   const bob = prefersReducedMotion() ? 0 : pickup.kind === 'xp' ? Math.sin(elapsed * 6 + pickup.x) * 1.5
     : ['coin', 'curio'].includes(pickup.kind) ? Math.sin(elapsed * (pickup.kind === 'coin' ? 5 : 4) + pickup.x) * 2 : 0;
   if (pickup.item) {
+    if (pickup.kind === 'weapon' || pickup.kind === 'rune') {
+      // Weapon caches and runes are rare: a soft pulse marks them so they read apart from ordinary loot.
+      drawEffect('glow', 0, pickup.x, pickup.y, { width: 58 + Math.sin(elapsed * 4) * 6,
+        tint: pickup.kind === 'rune' ? '#c8a8ff' : '#ffe38a', alpha: 0.55, composite: 'lighter', smooth: true });
+    }
     drawShopItemIcon(pickup.item, Math.round(pickup.x), Math.round(pickup.y + bob));
     return true;
   }
@@ -3005,14 +3219,111 @@ function drawPickupItem(pickup) {
   return true;
 }
 
+// A burn mark baked once per variant: a sooty core, ragged blotches and blast streaks, transparent at the rim.
+function scorchImage(variant) {
+  const cache = scorchImage.cache || (scorchImage.cache = []);
+  if (cache[variant]) return cache[variant];
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const context = canvas.getContext('2d');
+  let seed = 9301 + variant * 4973;
+  const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const blot = (x, y, radius, alpha) => {
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, `rgba(18, 11, 7, ${alpha})`);
+    gradient.addColorStop(1, 'rgba(18, 11, 7, 0)');
+    context.fillStyle = gradient;
+    context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  };
+  blot(64, 64, 46, 0.85);
+  for (let index = 0; index < 28; index += 1) {
+    const angle = random() * Math.PI * 2;
+    const distance = Math.sqrt(random()) * 44;
+    blot(64 + Math.cos(angle) * distance, 64 + Math.sin(angle) * distance, 6 + random() * 14, 0.3 + random() * 0.35);
+  }
+  context.strokeStyle = 'rgba(14, 9, 6, 0.4)';
+  context.lineCap = 'round';
+  for (let index = 0; index < 14; index += 1) {
+    const angle = random() * Math.PI * 2;
+    const start = 18 + random() * 10;
+    const end = 44 + random() * 18;
+    context.lineWidth = 1.5 + random() * 3;
+    context.beginPath();
+    context.moveTo(64 + Math.cos(angle) * start, 64 + Math.sin(angle) * start);
+    context.lineTo(64 + Math.cos(angle) * end, 64 + Math.sin(angle) * end);
+    context.stroke();
+  }
+  cache[variant] = canvas;
+  return canvas;
+}
+
+// The char left on the ground by each blast; drawn right after the floor so light and shadow fall on it.
+function drawBombScorchMarks() {
+  for (const scorch of bombScorches) {
+    const { char } = bombAftermath(scorch.age);
+    if (char <= 0) continue;
+    const size = scorch.radius * 1.7;
+    ctx.save();
+    ctx.globalAlpha = 0.8 * char;
+    ctx.translate(scorch.x, scorch.y);
+    ctx.rotate(scorch.seed);
+    ctx.drawImage(scorchImage(Math.floor(scorch.seed) % 3), -size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+}
+
+// Fire across the blast area, each flame burning out at its own time, under rising dark smoke.
+function drawBombAftermath() {
+  for (const scorch of bombScorches) {
+    const { fire, smoke } = bombAftermath(scorch.age);
+    if (fire <= 0 && smoke <= 0) continue;
+    for (let flame = 0; fire > 0 && flame < 6; flame += 1) {
+      const random = (Math.sin(scorch.seed * 12.9898 + flame * 78.233) * 43758.5453) % 1;
+      const spread = Math.abs(random);
+      const strength = clamp(fire * 1.5 - spread * 0.5, 0, 1);
+      if (strength <= 0) continue;
+      const angle = scorch.seed + flame * 2.4;
+      const distance = scorch.radius * (0.12 + spread * 0.45);
+      drawEffect('flames', effectFrameAt('flames', elapsed + flame * 0.23 + spread, 12),
+        scorch.x + Math.cos(angle) * distance, scorch.y + Math.sin(angle) * distance * 0.6,
+        { anchorY: 0.85, width: (24 + spread * 18) * (0.5 + strength * 0.5), alpha: strength });
+    }
+    for (let puff = 0; smoke > 0 && puff < 4; puff += 1) {
+      const rise = (scorch.age * 0.35 + puff / 4) % 1;
+      const angle = scorch.seed + puff * 1.7;
+      drawEffect('smoke', 0, scorch.x + Math.cos(angle) * scorch.radius * 0.35 + rise * 10,
+        scorch.y + Math.sin(angle) * scorch.radius * 0.2 - rise * 46,
+        { width: 40 + rise * 36, alpha: smoke * 0.6 * (1 - rise * 0.7), tint: '#3a3330', smooth: true });
+    }
+  }
+}
+
+// How far through its current windup an enemy is (0..1), measured against the timer it had when the state began.
+function windupProgress(enemy) {
+  if (enemy.telegraphState !== enemy.behavior) {
+    enemy.telegraphState = enemy.behavior;
+    enemy.telegraphTotal = Math.max(0.01, enemy.stateTimer || 0);
+    enemy.telegraphDistance = null;
+  }
+  return clamp(1 - (enemy.stateTimer || 0) / enemy.telegraphTotal, 0, 1);
+}
+
 function drawGroundHazards() {
   for (const strike of bossStrikes) {
-    const progress = 1 - strike.timer / strike.duration;
-    // A red SoM magic circle marks the edge; a tinted TMW glow fills in from the centre as the strike charges.
-    drawEffect('glow', 0, strike.x, strike.y, { width: strike.radius * 2.6 * progress, tint: '#ff4630',
-      alpha: 0.5 + progress * 0.4, smooth: true });
+    const progress = clamp(1 - strike.timer / strike.duration, 0, 1);
+    // The whole danger area throbs red, faster and stronger as the strike nears (about 1.5 beats a second rising
+    // to 6.5), and the runes spin up with it, so the timing reads at a glance even on a huge pulse.
+    const beats = strike.duration * (progress * 1.5 + progress * progress * 2.5);
+    const throb = 0.5 + 0.5 * Math.sin(beats * Math.PI * 2 - Math.PI / 2);
+    ctx.save();
+    ctx.globalAlpha = (0.12 + progress * 0.28) * (0.35 + throb * 0.65);
+    ctx.drawImage(strikeWaveImage('#ff2a1a'), strike.x - strike.radius, strike.y - strike.radius,
+      strike.radius * 2, strike.radius * 2);
+    ctx.restore();
+    // The exact hit circle, with a front sweeping out to it as the strike charges; SoM runes turn over the top.
+    drawStrikeWave(strike.x, strike.y, strike.radius, progress, '#ff5a46');
     drawEffectCircle(strike.x, strike.y, strike.radius, '#ff5a46',
-      { fill: 0.35 + progress * 0.3, alpha: 0.6 + progress * 0.4, ring: 'castRunes', rotation: elapsed * 0.6 });
+      { alpha: 0.22 + progress * 0.22, ring: 'castRunes', rotation: elapsed * 0.6 + progress * progress * 5 });
     ctx.save();
     if (strike.dashCheck) {
       ctx.fillStyle = '#fff0d1';
@@ -3048,6 +3359,31 @@ function drawGroundHazards() {
     }
     drawEffect('glow', 0, hazard.x, hazard.y, { width: hazard.radius * 2.8, height: hazard.radius * 1.6,
       rotation: wobble, tint: hazard.color, alpha: Math.min(1, alpha * 1.4), smooth: true });
+    if (hazard.kind === 'water' || hazard.kind === 'slush' || hazard.kind === 'charged') {
+      drawWaterReflections(hazard, Math.min(1, alpha * 1.4));
+    }
+    if (hazard.kind === 'charged') {
+      // Jagged sparks that re-roll a few times a second so the pool reads as live current.
+      const seed = Math.floor(elapsed * 9);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(255, 246, 160, ${Math.min(0.9, alpha * 1.3)})`;
+      ctx.lineWidth = 1.5;
+      for (let spark = 0; spark < 3; spark += 1) {
+        const angle = ((seed * 7 + spark * 13 + hazard.x) % 31) / 31 * Math.PI * 2;
+        let px = hazard.x + Math.cos(angle) * hazard.radius * 0.2;
+        let py = hazard.y + Math.sin(angle) * hazard.radius * 0.12;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        for (let step = 1; step <= 3; step += 1) {
+          px += Math.cos(angle + (step % 2 ? 0.7 : -0.7)) * hazard.radius * 0.24;
+          py += Math.sin(angle + (step % 2 ? 0.7 : -0.7)) * hazard.radius * 0.14;
+          ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     if (hazard.kind === 'miasma') {
       for (let puff = 0; puff < 3; puff += 1) {
         const angle = elapsed * 1.8 + puff * Math.PI * 2 / 3;
@@ -3097,6 +3433,16 @@ function withTextOutline(fn, color = 'rgba(8, 6, 10, 0.92)', width = 3.5, font =
   }
 }
 
+// Spinning spells wind up as they near their landing point (about 4.6x the base rate at the end of the flight),
+// so the spin itself tells the player where and when the spell comes down.
+function spellSpin(projectile, rate) {
+  if (!(projectile.spinTtl0 > 0)) projectile.spinTtl0 = projectile.ttl0 || projectile.ttl || 1;
+  const total = projectile.spinTtl0;
+  const age = Math.max(0, total - (Number.isFinite(projectile.ttl) ? projectile.ttl : total));
+  const flown = Math.min(1, age / total);
+  return rate * (age + total * 1.2 * flown * flown * flown);
+}
+
 function drawEnemyProjectile(projectile) {
   const angle = Math.atan2(projectile.vy, projectile.vx);
   if (projectile.kind === 'arrow') {
@@ -3109,7 +3455,7 @@ function drawEnemyProjectile(projectile) {
     drawEffect('sporeBubble', effectFrameAt('sporeBubble', elapsed, 12), projectile.x, projectile.y,
       { width: projectile.radius * 2.4 * pulse });
     for (let seed = 0; seed < 4; seed += 1) {
-      const seedAngle = elapsed * 2 + seed * Math.PI / 2;
+      const seedAngle = spellSpin(projectile, 2) + seed * Math.PI / 2;
       drawEffect('star', 0, projectile.x + Math.cos(seedAngle) * 9, projectile.y + Math.sin(seedAngle) * 9,
         { width: 8, tint: '#f5d8fb' });
     }
@@ -3123,19 +3469,62 @@ function drawEnemyProjectile(projectile) {
   }
 }
 
-function drawWorld() {
-  drawRoomFloor();
-  collectWorldLights();
-  drawRoomSunlight();
-  drawWorldLightSources();
+function drawWorldGroundShadows() {
+  const band = roomWallBand();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(band, band, ROOM_W - band * 2, ROOM_H - band * 2);
+  ctx.clip();
   for (const projectile of projectiles) drawProjectileGroundShadow(projectile);
   for (const projectile of enemyProjectiles) drawProjectileGroundShadow(projectile);
+  if (currentRoom.type === 'start') drawSoulMenhir(true);
+  if (currentRoom.type === 'elemental-shrine') drawElementalMenhir(true);
+  for (const rock of breakables) {
+    if (rock.broken) continue;
+    const sprite = rock.sprite;
+    if (!sprite.image.complete || sprite.image.naturalWidth === 0) continue;
+    const width = sprite.frameWidth * sprite.scale;
+    const height = sprite.frameHeight * sprite.scale;
+    if (rock.x + width / 2 < camera.x - 64 || rock.x - width / 2 > camera.x + VIEW_W + 64 ||
+        rock.y + height / 2 < camera.y - 64 || rock.y - height / 2 > camera.y + VIEW_H + 64) continue;
+    const opacity = rock.regenerating && rock.regenStage < rock.regenSteps
+      ? 0.62 + rock.regenStage * 0.12 : 1;
+    if (sprite.trunkShadow) {
+      drawTrunkShadow(rock.x, rock.y, width, height, opacity);
+    } else {
+      const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
+      drawSunSpriteShadow(sprite.image, rock.frame % columns * sprite.frameWidth,
+        Math.floor(rock.frame / columns) * sprite.frameHeight, sprite.frameWidth, sprite.frameHeight,
+        rock.x, rock.y + height / 2, width, height, 0, opacity);
+    }
+  }
+  for (const bomb of bombs) {
+    const progress = bomb.flightTimer > 0 ? 1 - bomb.flightTimer / bomb.flightDuration : 1;
+    drawSunGroundShadow(bomb.x, bomb.y, 11, bomb.flightTimer > 0 ? Math.sin(progress * Math.PI) * 36 : 0);
+  }
+  for (const pickup of pickups) drawSunGroundShadow(pickup.x, pickup.y, 9.6);
+  for (const enemy of enemies) drawEnemyShadow(enemy);
+  for (const companion of companions) drawCompanion(companion, true);
+  for (const summon of elementalSummons) drawCompanion(summon, true);
+  drawPlayer(true);
+  ctx.restore();
+}
+
+function drawWorld() {
+  drawRoomFloor();
+  drawBombScorchMarks();
+  collectWorldLights();
+  beginWaterReflections();
+  advanceRoomNormalMap(quality.low ? 4000 : 8000);
+  drawRoomSunlight();
+  drawWorldLightSources();
+  drawWorldGroundShadows();
   drawSandFootprints();
   drawDesertWind();
   drawGroundHazards();
   drawRewardTrial();
-  if (currentRoom.type === 'start') drawSoulMenhir();
-  if (currentRoom.type === 'elemental-shrine') drawElementalMenhir();
+  if (currentRoom.type === 'start') drawSoulMenhir(false);
+  if (currentRoom.type === 'elemental-shrine') drawElementalMenhir(false);
   if (currentRoom.type === 'boss' && currentRoom.cleared) {
     // The descent pad is the 40 px circle the walk-on check uses: a turning SoM magic circle.
     drawEffectCircle(ROOM_W * 0.72, ROOM_H / 2, 40, '#a8d7b4', { fill: 0.5, ring: 'castStar', rotation: elapsed * 0.8 });
@@ -3154,7 +3543,10 @@ function drawWorld() {
     ctx.font = '14px Arial';
     ctx.fillText(`Carried: ${coins}  ·  Stored: ${save.bankedZeny}`, ROOM_W / 2, 142);
     ctx.font = '12px Arial';
-    ctx.fillText('Stand on a pad and press E  ·  Shift+E / B withdraw all', ROOM_W / 2, 164);
+    const vaultHint = lastInputMode === 'touch' ? 'Stand on a pad and tap Use (the Attack button)'
+      : lastInputMode === 'controller' ? `Stand on a pad and press ${bindLabel('interact')}  ·  ${padLabels().b} withdraws all`
+        : `Stand on a pad and press ${bindLabel('interact')}  ·  Shift+${bindLabel('interact')} withdraws all`;
+    ctx.fillText(vaultHint, ROOM_W / 2, 164);
     for (const withdraw of [false, true]) {
       const pad = bankPadPosition(withdraw);
       drawEffectCircle(pad.x, pad.y, 40, withdraw ? '#9fd39a' : '#d7b66e', { fill: 0.35, ring: 'castCross' });
@@ -3194,16 +3586,6 @@ function drawWorld() {
     if (rock.x + width / 2 < camera.x - 64 || rock.x - width / 2 > camera.x + VIEW_W + 64 ||
         rock.y + height / 2 < camera.y - 64 || rock.y - height / 2 > camera.y + VIEW_H + 64) continue;
     if (hasImage) {
-      const columns = Math.floor(sprite.image.naturalWidth / sprite.frameWidth);
-      const shadowOpacity = rock.regenerating && rock.regenStage < rock.regenSteps
-        ? 0.62 + rock.regenStage * 0.12 : 1;
-      if (sprite.trunkShadow) {
-        drawTrunkShadow(rock.x, rock.y, width, height, shadowOpacity);
-      } else {
-        drawSunSpriteShadow(sprite.image, rock.frame % columns * sprite.frameWidth,
-          Math.floor(rock.frame / columns) * sprite.frameHeight, sprite.frameWidth, sprite.frameHeight,
-          rock.x, rock.y + height / 2, width, height, 0, shadowOpacity);
-      }
       ctx.save();
       if (rock.regenerating && rock.regenStage < rock.regenSteps) {
         ctx.globalAlpha = 0.62 + rock.regenStage * 0.12;
@@ -3245,7 +3627,10 @@ function drawWorld() {
     const inFlight = bomb.flightTimer > 0;
     const progress = inFlight ? 1 - bomb.flightTimer / bomb.flightDuration : 1;
     const renderY = bomb.y - (inFlight ? Math.sin(progress * Math.PI) * 36 : 0);
-    drawSunGroundShadow(bomb.x, bomb.y, 11, bomb.y - renderY);
+    // Everyone inside the blast radius is hit, the thrower included, so every bomb shows its wave.
+    drawStrikeWave(inFlight ? bomb.targetX : bomb.x, inFlight ? bomb.targetY : bomb.y, bomb.radius,
+      inFlight ? 0 : 1 - bomb.fuse / (bomb.fuseTotal || 1.7), bomb.owner === 'enemy' ? '#ff9d49' : '#ffcf6a',
+      bomb.owner === 'enemy' ? 1 : 0.7);
     if (bomb.owner === 'enemy') {
       drawEffectCircle(bomb.targetX, bomb.targetY, 15, '#ff9d49', { fill: 0.4, alpha: 0.85 });
     }
@@ -3261,7 +3646,6 @@ function drawWorld() {
     ctx.fillRect(bomb.x + 4, renderY - 14, 3, 5);
   }
   for (const pickup of pickups) {
-    drawSunGroundShadow(pickup.x, pickup.y, 9.6);
     if (drawDropIcon(pickup.x, pickup.y, () => drawPickupItem(pickup), pickup.kind === 'heart' ? 0.6 : 0.8)) {
       if (pickup.guaranteedTreasure) {
         drawEffect('twinkle', 0, pickup.x, pickup.y, { width: (22 + Math.sin(elapsed * 4) * 2) * 2.2,
@@ -3372,13 +3756,15 @@ function drawWorld() {
       ctx.beginPath();
       ctx.ellipse(pickup.x, pickup.y + 11, 9, 3.5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowColor = pickup.material === 'darkCrystal' ? 'rgba(186, 114, 236, 0.8)' : 'rgba(255, 224, 160, 0.55)';
+      const glow = { darkCrystal: 'rgba(186, 114, 236, 0.8)', lifeStone: 'rgba(240, 240, 120, 0.85)' };
+      const fallback = { darkCrystal: '#923eda', lifeStone: '#d8d850' };
+      ctx.shadowColor = glow[pickup.material] || 'rgba(255, 224, 160, 0.55)';
       ctx.shadowBlur = 9;
       ctx.imageSmoothingEnabled = false;
       if (icon?.complete && icon.naturalWidth > 0) {
         ctx.drawImage(icon, pickup.x - 13, pickup.y - 13 + bob, 26, 26);
       } else {
-        ctx.fillStyle = pickup.material === 'darkCrystal' ? '#923eda' : '#a8765a';
+        ctx.fillStyle = fallback[pickup.material] || '#a8765a';
         ctx.fillRect(pickup.x - 6, pickup.y - 8 + bob, 12, 16);
       }
       ctx.restore();
@@ -3502,7 +3888,7 @@ function drawWorld() {
     if (projectile.wildEffect) {
       drawEffect('castStar', 0, projectile.x, projectile.y, {
         width: (projectile.radius + 3 + Math.sin(elapsed * 18) * 2) * 2.4,
-        rotation: elapsed * 4, tint: projectile.color, smooth: true,
+        rotation: spellSpin(projectile, 4), tint: projectile.color, smooth: true,
       });
     }
     if (projectiles.length <= 24) {
@@ -3538,7 +3924,18 @@ function drawWorld() {
             tint: magicElementPalette[arrowElement], composite: 'lighter', smooth: true });
         }
       }
-      drawEffect('arrow', 0, projectile.x, projectile.y, { width: 30 * s, rotation: angle });
+      const kunaiArt = projectile.weaponVariant === 'kunai' ? shopItemIconImages['weapon-kunai'] : null;
+      if (kunaiArt?.complete && kunaiArt.naturalWidth > 0) {
+        ctx.save();
+        ctx.translate(projectile.x, projectile.y);
+        // The kunai icon points up-right; turn it to face its flight.
+        ctx.rotate(angle + Math.PI / 4);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(kunaiArt, -13 * s, -13 * s, 26 * s, 26 * s);
+        ctx.restore();
+      } else {
+        drawEffect('arrow', 0, projectile.x, projectile.y, { width: 30 * s, rotation: angle });
+      }
     } else if (projectile.type === 'elemental' && projectile.shape) {
       const sprite = projectile.shape === 'ring' ? 'orbGlow' : projectile.shape === 'diamond' ? 'manaBall' : 'orbOval';
       drawEffect(sprite, 0, projectile.x, projectile.y, { width: 24 * (projectile.size || 1),
@@ -3555,7 +3952,7 @@ function drawWorld() {
       } else if (element === 'lightning') {
         drawEffect('sparks', effectFrameAt('sparks', elapsed, 24), x, y, { width: 30, tint });
       } else if (element === 'ice') {
-        drawEffect('snowflake', 0, x, y, { width: 22, rotation: elapsed * 6 });
+        drawEffect('snowflake', 0, x, y, { width: 22, rotation: spellSpin(projectile, 6) });
       } else if (element === 'earth') {
         drawEffect('glow', 0, x, y, { width: 30, tint, smooth: true });
         if (stoneImage.complete && stoneImage.naturalWidth > 0) ctx.drawImage(stoneImage, x - 10, y - 10, 20, 20);
@@ -3565,7 +3962,7 @@ function drawWorld() {
         drawEffect('orbGlow', 0, x, y, { width: 30, tint, smooth: true });
         drawEffect('sporeBubble', effectFrameAt('sporeBubble', elapsed, 12), x, y, { width: 22 });
       } else {
-        drawEffect('smoke', 0, x, y, { width: 34, rotation: elapsed * 2, tint, smooth: true });
+        drawEffect('smoke', 0, x, y, { width: 34, rotation: spellSpin(projectile, 2), tint, smooth: true });
       }
     } else if (projectile.type === 'spore-shard') {
       drawEffect('sporeSplash', effectFrameAt('sporeSplash', elapsed, 12), projectile.x, projectile.y,
@@ -3588,6 +3985,7 @@ function drawWorld() {
     }
     ctx.restore();
   }
+  drawBombAftermath();
   for (const particle of particles) {
     // SoM soft orb for sparks and dust, the SoM arc streak (drawn diagonally in its file) for hit streaks.
     const fade = clamp(particle.ttl / particle.maxTtl, 0, 1);
@@ -3622,8 +4020,9 @@ function drawWorld() {
         centerY + Math.sin(swing.angle) * swing.reach * 0.68, { width: 12, alpha: 0.7 * fade });
     }
     const swingColor = swing.element ? magicElementPalette[swing.element]
-      : swing.weapon === 'sword' ? combatPalette.sword
-        : swing.weapon === 'daggers' ? combatPalette.daggers : combatPalette.melee;
+      : swing.offhand ? '#9fd8ff'
+        : swing.weapon === 'sword' ? combatPalette.sword
+          : swing.weapon === 'daggers' ? combatPalette.daggers : combatPalette.melee;
     const ribbonAngle = swing.spin ? swing.angle + progress * Math.PI * 2 - 0.9 : swing.angle;
     const reach = swing.reach + progress * 12;
     drawEffect('swipe', frame, player.x + Math.cos(ribbonAngle) * reach * 0.55, centerY + Math.sin(ribbonAngle) * reach * 0.55,
@@ -3636,8 +4035,12 @@ function drawWorld() {
     });
   }
   for (const enemy of enemies) drawEnemy(enemy);
-  for (const companion of companions) drawCompanion(companion);
-  drawPlayer();
+  for (const companion of companions) drawCompanion(companion, false);
+  for (const summon of elementalSummons) {
+    drawEffect('glow', 0, summon.x, summon.y + 10, { width: 54, height: 22, tint: summon.color, alpha: 0.55, smooth: true });
+    drawCompanion(summon, false);
+  }
+  drawPlayer(false);
   // Enemy shots draw above the delver so the sprite never hides an incoming hit.
   for (const projectile of enemyProjectiles) drawEnemyProjectile(projectile);
   drawOverheadPops();
@@ -3736,7 +4139,7 @@ function roomMapLetter(room) {
 
 function roomMapLabel(room) {
   return { start: 'Start', boss: 'Guardian', miniboss: 'Mini-boss', shop: 'Shop', bank: 'Bank',
-    shrine: 'Shrine', 'elemental-shrine': 'Menhir', riskShrine: 'Altars', trial: 'Trial', secret: 'Secret' }[room.type] || 'Room';
+    shrine: 'Shrine', 'elemental-shrine': 'Obelisk', riskShrine: 'Altars', trial: 'Trial', secret: 'Secret' }[room.type] || 'Room';
 }
 
 const MAP_AREA = { x: 36, y: 92, w: 724, h: 372 };
@@ -4476,7 +4879,8 @@ function drawStyleSlots() {
   ctx.save();
   styles.forEach((style, index) => {
     const selected = style.id === active;
-    const locked = !styleUnlocked(style.id);
+    const locked = !styleUnlocked(style.id) ||
+      ![weaponHands.main, weaponHands.off].some((id) => weaponById(id)?.family === style.id);
     const x = baseX + index * (size + gap);
     const y = baseY;
     ctx.save();
@@ -4498,7 +4902,13 @@ function drawStyleSlots() {
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    if (style.id === 'melee') {
+    // The weapon each hand holds shows as its icon here, instead of being drawn on the walking character.
+    const slotHand = [weaponHands.main, weaponHands.off].find((id) => weaponById(id)?.family === style.id);
+    const slotArt = slotHand && shopItemIconImages[`weapon-${slotHand}`];
+    if (slotArt?.complete && slotArt.naturalWidth) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(slotArt, -17, -21, 34, 34);
+    } else if (style.id === 'melee') {
       ctx.moveTo(-11, 11);
       ctx.lineTo(10, -10);
       ctx.moveTo(-3, 5);
@@ -4551,11 +4961,37 @@ function drawStyleSlots() {
     ctx.textBaseline = 'top';
     ctx.fillStyle = selected ? '#ffe38a' : '#bdb59f';
     ctx.fillText(style.key, x + 4, y + 3);
+    const handId = [weaponHands.main, weaponHands.off].find((id) => weaponById(id)?.family === style.id);
+    const handVariant = handId && !weaponById(handId).base ? weaponById(handId) : null;
+    const hand = handId ? weaponHandOf(handId) : null;
+    if (hand) {
+      // Hand tag: gold M for the main hand; blue O for the off hand, lit while Dual Grip has it attacking.
+      const tagX = x + size - 6;
+      const tagY = y + 6;
+      ctx.fillStyle = hand === 'main' ? '#ffe38a' : offhandActive() ? '#9fd8ff' : '#5f7d8c';
+      ctx.beginPath();
+      ctx.arc(tagX, tagY, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = 'bold 8px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#1b1408';
+      ctx.fillText(hand === 'main' ? 'M' : 'O', tagX, tagY + 0.5);
+      if (handId && weaponProficiency(handId) < 1) {
+        // Not learned yet: the weapon hits weaker, shown as its power in the corner.
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = '#e0a868';
+        ctx.fillText(`${Math.round(weaponProficiency(handId) * 100)}%`, x + size - 2, y + size - 1);
+      }
+    }
     const mod = activeWeaponMod(style.id);
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
     ctx.font = selected ? 'bold 10px Arial' : '9px Arial';
     ctx.fillStyle = selected ? '#ffffff' : '#a9a28f';
-    ctx.fillText(mod ? mod.name : style.label, x + size / 2, y + size + 3);
+    ctx.fillText(handVariant ? handVariant.name.toUpperCase() : mod ? mod.name : style.label, x + size / 2, y + size + 3);
     ctx.restore();
   });
   const sig = classSignature();
@@ -5123,6 +5559,33 @@ function drawChapter() {
     : 'Enter, Space, a click, or A continues.', VIEW_W / 2, 520);
 }
 
+// The weapon a class fights with, as an icon in its card's corner (a ? for the random delver).
+const CLASS_WEAPON_COLORS = { melee: '#e58a64', bow: '#94d47e', magic: '#7fc8ff' };
+
+function drawClassWeaponBadge(entry, x, y) {
+  const size = 34;
+  const color = entry.random ? '#d9c796' : CLASS_WEAPON_COLORS[entry.startingStyle] || '#d9c796';
+  ctx.save();
+  ctx.fillStyle = 'rgba(12, 14, 12, 0.85)';
+  ctx.fillRect(x, y, size, size);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+  const id = weaponCatalog.find((weapon) => weapon.base && weapon.family === entry.startingStyle)?.id;
+  const art = !entry.random && id ? shopItemIconImages[`weapon-${id}`] : null;
+  if (art?.complete && art.naturalWidth) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(art, x + 3, y + 3, size - 6, size - 6);
+  } else {
+    ctx.fillStyle = color;
+    ctx.font = 'bold 20px Georgia';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(entry.random ? '?' : BRANCH_HEART_ICONS[entry.startingStyle] || '?', x + size / 2, y + size / 2 + 1);
+  }
+  ctx.restore();
+}
+
 function drawCharacterSelect() {
   ctx.fillStyle = '#20221d';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -5216,6 +5679,7 @@ function drawCharacterSelect() {
     ctx.lineWidth = 2;
     ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
     ctx.globalAlpha = unlocked ? 1 : 0.38;
+    drawClassWeaponBadge(entry, bounds.x + 6, bounds.y + 6);
     drawHumanoid(humanoidSprites[entry.sprite].image, 0, x, y, 0.95, entry.hue);
     drawHead(entry.hairStyle, 'down', x, y, 0.95, wornHat(entry, null));
     ctx.fillStyle = '#f2e8d8';
@@ -5243,6 +5707,9 @@ function drawCharacterSelect() {
   ctx.fillText(isCharacterUnlocked(selected)
     ? `${selected.trait}${selectedSignature ? `  ·  ${selectedSignature.label}: ${selectedSignature.desc}` : ''}`
     : `LOCKED  /  ${selected.unlock}`, VIEW_W / 2, 416);
+  const ancestry = raceProfiles[selected.raceHead];
+  ctx.font = '11px Arial';
+  if (!selected.random && ancestry) ctx.fillText(`${ancestry.name}: ${ancestry.trait}`, VIEW_W / 2, 434);
   if (hasSavedRun()) {
     const resume = resumeRunBounds();
     const hoveredResume = pointer.x >= resume.x && pointer.x <= resume.x + resume.width &&
@@ -5410,6 +5877,1955 @@ function helpButtonBounds() {
 
 function pointInBounds(bounds, x = pointer.x, y = pointer.y) {
   return x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height;
+}
+
+// ---- Weapon branch screen (opened from a cleared room) and the level-up boon picker ----
+const BRANCH_TIER_NUMERALS = ['I', 'II', 'III'];
+let branchTab = 'magic';
+let branchNotice = '';
+let branchNoticeUntil = 0;
+
+function branchEditAllowed() {
+  return deathTimer <= 0 && enemies.length === 0;
+}
+
+function openBranchScreen() {
+  if (mode !== 'playing' || deathTimer > 0) return false;
+  if (!branchEditAllowed()) {
+    showMessage('Clear the room before changing weapon branches.', 2);
+    return false;
+  }
+  showMap = false;
+  showStoryJournal = false;
+  const style = currentAttackStyle();
+  branchTab = BRANCH_STYLES.includes(style) ? style : 'magic';
+  resetBranchMap();
+  branchNotice = '';
+  for (const key of Object.keys(keys)) keys[key] = false;
+  pointer.down = false;
+  mode = 'branches';
+  branchGuide = null;
+  startBranchTour();
+  return true;
+}
+
+function closeBranchScreen() {
+  if (mode !== 'branches') return;
+  mode = 'playing';
+  branchGuide = null;
+  branchTour = null;
+  for (const key of Object.keys(keys)) keys[key] = false;
+  suppressHeldAttackInput();
+  updateHud();
+  saveRunState();
+  persistSave();
+}
+
+// The branch map: each weapon is a cross-section of growth rings. The weapon's heart sits in the middle, its five
+// branches swirl outward as root paths of three tier nodes, synergy gems sit between the branches they join, and
+// the character walks node to node. Drag or pinch to look around, wheel or +/- to zoom.
+const BRANCH_MAP_RINGS = [0, 72, 128, 184];
+const BRANCH_MAP_SWIRL = 0.1;
+// Spoke order keeps synergy partners side by side; Flurry + Cinder is the one pair that has to reach around Riposte.
+const BRANCH_MAP_ORDER = {
+  magic: ['prism', 'conduit', 'focus', 'impact', 'miasma'],
+  bow: ['quickdraw', 'volley', 'piercer', 'longdraw', 'stormstring'],
+  melee: ['windup', 'cleave', 'flurry', 'riposte', 'cinder'],
+};
+const BRANCH_HEART_ICONS = { melee: '⚔', bow: '➶', magic: '✦' };
+const BRANCH_HEART_COLORS = { melee: '#e58a64', bow: '#94d47e' };
+const BRANCH_MAP_VIEW = { x: 34, y: 72, width: 620, height: 404 };
+const BRANCH_ZOOM_MIN = 0.5;
+const BRANCH_ZOOM_MAX = 2.4;
+const BRANCH_DRAG_SLOP = 7;
+// The Confluence tab lays the three weapon maps out as one, bridged through the middle toward the Trinity.
+// Same order as BRANCH_STYLES in playermanager.js (a literal so gameui can load without it in tests).
+const BRANCH_TABS = ['melee', 'bow', 'magic', 'confluence'];
+const CONFLUENCE_HEARTS = { magic: { x: 0, y: -416 }, melee: { x: -360, y: 208 }, bow: { x: 360, y: 208 } };
+const CONFLUENCE_ZOOM_MIN = 0.25;
+const CONFLUENCE_START_ZOOM = 0.7;
+const CONFLUENCE_PART_ORDER = ['g1', 's1', 's2', 'fusion', 's3', 's4', 'g2'];
+const branchMapCache = new Map();
+const branchCam = { x: 0, y: 0, zoom: 1 };
+let branchCamTarget = null;
+let branchMapFocus = 'heart';
+const branchToken = { x: 0, y: 0, fromX: 0, fromY: 0, toX: 0, toY: 0, t: 1, duration: 0.2, row: 0 };
+const branchPointers = new Map();
+let branchDrag = null;
+let branchPinch = null;
+let branchLastFrame = 0;
+
+function branchMapNodes(style = branchTab) {
+  return allBranchMapNodes(style);
+}
+
+// Every weapon hangs on an outer rack in the gaps between the spokes, turned against the gem swirl so their paths
+// clear the synergy gems; Dual Grip is a small node just below the heart.
+const BRANCH_WEAPON_GAPS = [-0.3, 0.1, 0.9, 1.3, 0.5];
+const BRANCH_WEAPON_RING = 236;
+
+function allBranchMapNodes(style = branchTab) {
+  if (branchMapCache.has(style)) return branchMapCache.get(style);
+  if (style === 'confluence') {
+    const nodes = confluenceMapNodes();
+    branchMapCache.set(style, nodes);
+    return nodes;
+  }
+  const order = BRANCH_MAP_ORDER[style] || skillBranches.filter((branch) => branch.style === style).map((branch) => branch.id);
+  const spoke = (index) => -Math.PI / 2 + index * (Math.PI * 2 / order.length);
+  const at = (angle, radius) => ({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  const nodes = [{ id: 'heart', kind: 'heart', x: 0, y: 0, links: [] }];
+  nodes.push({ id: 'grip', kind: 'grip', ...at(Math.PI / 2, 45), links: ['heart'] });
+  weaponCatalog.filter((entry) => entry.family === style && !entry.base).forEach((entry, index) => {
+    const angle = BRANCH_WEAPON_GAPS[index % BRANCH_WEAPON_GAPS.length] * Math.PI - 0.12;
+    nodes.push({ id: `weapon:${entry.id}`, kind: 'weapon', weapon: entry, angle,
+      ...at(angle, BRANCH_WEAPON_RING), links: ['heart'] });
+  });
+  order.forEach((id, index) => {
+    const branch = branchById(id);
+    if (!branch) return;
+    for (let tier = 1; tier <= 3; tier += 1) {
+      const angle = spoke(index) + BRANCH_MAP_SWIRL * (tier - 1);
+      nodes.push({ id: `${id}:${tier}`, kind: 'tier', branch, tier, angle, ...at(angle, BRANCH_MAP_RINGS[tier]),
+        links: [tier === 1 ? 'heart' : `${id}:${tier - 1}`] });
+    }
+  });
+  for (const synergy of branchSynergies.filter((entry) => entry.style === style)) {
+    const [a, b] = synergy.branches.map((id) => order.indexOf(id));
+    if (a < 0 || b < 0) continue;
+    const gap = Math.abs(a - b);
+    const adjacent = gap === 1 || gap === order.length - 1;
+    const mid = Math.atan2(Math.sin(spoke(a)) + Math.sin(spoke(b)), Math.cos(spoke(a)) + Math.cos(spoke(b)));
+    // Neighbours meet between their second rings; a pair that has to reach around another branch sits outside it.
+    const point = adjacent ? at(mid + BRANCH_MAP_SWIRL, 158) : at(mid - 0.16, 250);
+    const tier = adjacent ? 2 : 3;
+    nodes.push({ id: `syn:${synergy.id}`, kind: 'synergy', synergy, ...point, outer: !adjacent,
+      links: synergy.branches.map((id) => `${id}:${tier}`) });
+  }
+  branchMapCache.set(style, nodes);
+  return nodes;
+}
+
+// Map id of a node on the current tab: on the Confluence tab weapon-map nodes carry their style as a prefix.
+function branchMapId(style, id) {
+  return branchTab === 'confluence' ? `${style}/${id}` : id;
+}
+
+// The three weapon maps around their hearts, Dual Grip left out (it has its own spot on every weapon tab), then each
+// bridge's seven nodes (a seal at each end) evenly spaced between its two tier III ends, its move pushed outward from its fusion, and the
+// Trinity in the middle. Bridge links point back along the chain so each segment is drawn once.
+function confluenceMapNodes() {
+  const nodes = [];
+  for (const style of BRANCH_STYLES) {
+    const center = CONFLUENCE_HEARTS[style];
+    for (const node of allBranchMapNodes(style)) {
+      if (node.kind === 'grip') continue;
+      nodes.push({ ...node, id: `${style}/${node.id}`, style, x: node.x + center.x, y: node.y + center.y,
+        links: node.links.map((link) => `${style}/${link}`) });
+    }
+  }
+  const tierNodeId = (branchId) => `${branchById(branchId).style}/${branchId}:3`;
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  for (const bridge of CONFLUENCE_BRIDGES) {
+    const from = byId.get(tierNodeId(bridge.ends[0]));
+    const to = byId.get(tierNodeId(bridge.ends[1]));
+    if (!from || !to) continue;
+    const part = (name) => `cf:${bridge.id}:${name}`;
+    CONFLUENCE_PART_ORDER.forEach((name, index) => {
+      const t = (index + 1) / (CONFLUENCE_PART_ORDER.length + 1);
+      const links = [index === 0 ? from.id : part(CONFLUENCE_PART_ORDER[index - 1])];
+      if (index === CONFLUENCE_PART_ORDER.length - 1) links.push(to.id);
+      nodes.push({ id: part(name), kind: 'cf', cf: confluenceNode(part(name)),
+        x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, links });
+    });
+    const fusion = nodes.find((node) => node.id === part('fusion'));
+    const out = Math.hypot(fusion.x, fusion.y) || 1;
+    nodes.push({ id: part('move'), kind: 'cf', cf: confluenceNode(part('move')),
+      x: fusion.x + fusion.x / out * 78, y: fusion.y + fusion.y / out * 78, links: [fusion.id] });
+  }
+  nodes.push({ id: 'cf:trinity', kind: 'cf', cf: confluenceNode('cf:trinity'), x: 0, y: 0,
+    links: CONFLUENCE_BRIDGES.map((bridge) => `cf:${bridge.id}:fusion`) });
+  return nodes;
+}
+
+function branchZoomMin() {
+  return branchTab === 'confluence' ? CONFLUENCE_ZOOM_MIN : BRANCH_ZOOM_MIN;
+}
+
+function branchMapNode(id, style = branchTab) {
+  return branchMapNodes(style).find((node) => node.id === id) || null;
+}
+
+// Fits every node, keeping the bottom clear of the socket bar.
+function branchMapFitZoom(style = branchTab) {
+  const center = branchMapCenter();
+  const room = {
+    x: BRANCH_MAP_VIEW.width / 2 - 46,
+    top: center.y - BRANCH_MAP_VIEW.y - 30,
+    bottom: 428 - 40 - center.y,
+  };
+  let zoom = BRANCH_ZOOM_MAX;
+  for (const node of branchMapNodes(style)) {
+    if (node.x) zoom = Math.min(zoom, room.x / Math.abs(node.x));
+    if (node.y) zoom = Math.min(zoom, (node.y > 0 ? room.bottom : room.top) / Math.abs(node.y));
+  }
+  return clamp(zoom, branchZoomMin(), BRANCH_ZOOM_MAX);
+}
+
+function branchMapCenter() {
+  return { x: BRANCH_MAP_VIEW.x + BRANCH_MAP_VIEW.width / 2, y: BRANCH_MAP_VIEW.y + BRANCH_MAP_VIEW.height / 2 - 14 };
+}
+
+function branchWorldToScreen(x, y) {
+  const center = branchMapCenter();
+  return { x: center.x + (x - branchCam.x) * branchCam.zoom, y: center.y + (y - branchCam.y) * branchCam.zoom };
+}
+
+function branchScreenToWorld(x, y) {
+  const center = branchMapCenter();
+  return { x: branchCam.x + (x - center.x) / branchCam.zoom, y: branchCam.y + (y - center.y) / branchCam.zoom };
+}
+
+function resetBranchMap() {
+  branchMapFocus = 'heart';
+  Object.assign(branchToken, { x: 0, y: 0, fromX: 0, fromY: 0, toX: 0, toY: 0, t: 1, row: 0 });
+  fitBranchMap();
+  if (branchTab === 'confluence') {
+    // Start on the main hand's heart, close enough to read; the magnifier button shows the whole grid.
+    const family = weaponById(weaponHands.main)?.family;
+    const style = BRANCH_STYLES.includes(family) ? family : 'magic';
+    const heart = CONFLUENCE_HEARTS[style];
+    branchMapFocus = `${style}/heart`;
+    Object.assign(branchToken, { x: heart.x, y: heart.y, fromX: heart.x, fromY: heart.y, toX: heart.x, toY: heart.y });
+    Object.assign(branchCam, { x: heart.x * 0.5, y: heart.y * 0.5, zoom: CONFLUENCE_START_ZOOM });
+    clampBranchCam();
+  }
+  branchPointers.clear();
+  branchDrag = null;
+  branchPinch = null;
+}
+
+function fitBranchMap() {
+  branchCam.x = 0;
+  branchCam.y = 0;
+  branchCam.zoom = branchMapFitZoom();
+  branchCamTarget = null;
+}
+
+function zoomBranchMap(factor, screenX = branchMapCenter().x, screenY = branchMapCenter().y) {
+  const anchor = branchScreenToWorld(screenX, screenY);
+  branchCam.zoom = clamp(branchCam.zoom * factor, branchZoomMin(), BRANCH_ZOOM_MAX);
+  const center = branchMapCenter();
+  branchCam.x = anchor.x - (screenX - center.x) / branchCam.zoom;
+  branchCam.y = anchor.y - (screenY - center.y) / branchCam.zoom;
+  branchCamTarget = null;
+  clampBranchCam();
+}
+
+// Keeps some of the map in view however far the player drags.
+function clampBranchCam() {
+  const limit = branchMapNodes().reduce((max, node) => Math.max(max, Math.hypot(node.x, node.y)), 0);
+  branchCam.x = clamp(branchCam.x, -limit, limit);
+  branchCam.y = clamp(branchCam.y, -limit, limit);
+}
+
+function focusBranchNode(id, follow = false) {
+  const node = branchMapNode(id);
+  if (!node) return false;
+  branchMapFocus = id;
+  const dx = node.x - branchToken.x;
+  const dy = node.y - branchToken.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance > 1) {
+    Object.assign(branchToken, { fromX: branchToken.x, fromY: branchToken.y, toX: node.x, toY: node.y, t: 0,
+      duration: clamp(distance / 380, 0.14, 0.42),
+      row: Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 1 : 3) : (dy < 0 ? 2 : 0) });
+  }
+  if (follow) branchCamTarget = { x: node.x, y: node.y };
+  return true;
+}
+
+// Picks the nearest node roughly in the pressed direction, so the stick or D-pad walks the paths.
+function moveBranchMapFocus(dx, dy) {
+  const nodes = branchMapNodes();
+  const from = branchMapNode(branchMapFocus) || nodes[0];
+  const length = Math.hypot(dx, dy);
+  if (!length) return;
+  let best = null;
+  let bestScore = Infinity;
+  for (const node of nodes) {
+    if (node === from) continue;
+    const vx = node.x - from.x;
+    const vy = node.y - from.y;
+    const distance = Math.hypot(vx, vy);
+    const cos = (vx * dx + vy * dy) / (distance * length);
+    if (cos < 0.34) continue;
+    const linked = node.links.includes(from.id) || from.links.includes(node.id);
+    const score = distance * (1 + (1 - cos) * 3) * (linked ? 0.8 : 1);
+    if (score < bestScore) {
+      best = node;
+      bestScore = score;
+    }
+  }
+  if (best) focusBranchNode(best.id, true);
+}
+
+function focusedMapBranch() {
+  return branchMapNode(branchMapFocus)?.branch || null;
+}
+
+function branchMapLayout() {
+  return {
+    tabs: BRANCH_TABS.map((style, index) => ({ style, bounds: { x: 330 + index * 122, y: 26, width: 114, height: 34 } })),
+    close: { x: 820, y: 26, width: 96, height: 34 },
+    view: BRANCH_MAP_VIEW,
+    zoomOut: { x: 44, y: 430, width: 38, height: 36 },
+    zoomIn: { x: 88, y: 430, width: 38, height: 36 },
+    fit: { x: 132, y: 430, width: 50, height: 36 },
+    sockets: Array.from({ length: BRANCH_SLOTS }, (_, index) => ({ x: 284 + index * 44, y: 428, width: 38, height: 38 })),
+    toggle: { x: 676, y: 410, width: 112, height: 52 },
+    unlock: { x: 796, y: 410, width: 112, height: 52 },
+    unweave: { x: 676, y: 368, width: 232, height: 34 },
+  };
+}
+
+function branchNodeRadius(node) {
+  if (node.kind === 'cf') return { stat: 11, seal: 12, fusion: 16, move: 15, trinity: 24 }[node.cf.kind] || 12;
+  return node.kind === 'heart' ? 22 : node.kind === 'synergy' ? 11 : node.kind === 'grip' ? 12
+    : node.kind === 'weapon' ? 16 : node.tier === 1 ? 16 : 13;
+}
+
+function branchNodeAt(x, y) {
+  const view = BRANCH_MAP_VIEW;
+  if (x < view.x || x > view.x + view.width || y < view.y || y > view.y + view.height) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const node of branchMapNodes()) {
+    const screen = branchWorldToScreen(node.x, node.y);
+    const distance = Math.hypot(screen.x - x, screen.y - y);
+    if (distance < Math.max(22, branchNodeRadius(node) + 8) && distance < bestDistance) {
+      best = node;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function branchItemNames(branch) {
+  return branch.items.map((id) => shopItemCatalog.find((item) => item.id === id)?.name || id);
+}
+
+function setBranchNotice(text) {
+  branchNotice = text;
+  branchNoticeUntil = performance.now() + 3200;
+  branchGuide = null;
+}
+
+// Guidance spotlight: when something can't be done (or on the first visit, as a short tour), the rest of the screen
+// dims slightly and a bobbing arrow points at what is needed. A target is a screen rect or a map node id.
+const BRANCH_GUIDE_MS = 3600;
+const BRANCH_GUIDE_RECTS = {
+  status: { x: 36, y: 482, width: 294, height: 20 },
+  sockets: { x: 280, y: 424, width: 134, height: 46 },
+  needs: { x: 670, y: 104, width: 240, height: 20 },
+};
+let branchGuide = null;
+let branchTour = null;
+
+function pointBranchGuide(target, label) {
+  const now = performance.now();
+  branchGuide = { ...target, label, start: now, until: target.hold ? Infinity : now + BRANCH_GUIDE_MS };
+  if (target.node) {
+    const node = branchMapNode(target.node);
+    if (node) branchCamTarget = { x: node.x, y: node.y };
+  }
+}
+
+function dismissBranchGuide() {
+  if (branchTour) return advanceBranchTour();
+  branchGuide = null;
+}
+
+// First visit: the token, the suggested path, the highlight button and the grow button, one tap at a time.
+function branchTourSteps() {
+  const layout = branchMapLayout();
+  const first = branchSuggestion[0] || suggestedPath(branchTab)[0];
+  return [
+    { node: branchMapFocus, label: 'This is you. Tap a node (or walk) to look at it.' },
+    first ? { node: first.mapId, label: 'Gold numbers are a suggested path for how you play. Any other node is fine too.' } : null,
+    { rect: layout.toggle, label: 'ON/OFF highlights a branch. Only highlighted branches (up to 3) work.' },
+    { rect: layout.unlock, label: 'Grow: stats cost ore, crystal or zeny. Padlocked abilities cost Life Stones.' },
+    { rect: BRANCH_GUIDE_RECTS.status, label: 'Your career XP, bank and pouch. Growing needs enough XP first.' },
+  ].filter(Boolean);
+}
+
+function startBranchTour() {
+  if (branchState().guided) return;
+  branchTour = { step: -1, steps: branchTourSteps() };
+  advanceBranchTour();
+}
+
+function advanceBranchTour() {
+  if (!branchTour) return;
+  branchTour.step += 1;
+  const step = branchTour.steps[branchTour.step];
+  if (!step) {
+    branchTour = null;
+    branchGuide = null;
+    branchState().guided = true;
+    persistBranchState();
+    return;
+  }
+  pointBranchGuide({ ...step, hold: true }, `${step.label}  (${branchTour.step + 1}/${branchTour.steps.length})`);
+}
+
+// The map node a locked Confluence node is waiting on: an unowned link (a tier III end or bridge node).
+function confluenceBlockerMapId(cf) {
+  const links = cf.kind === 'trinity' ? cf.links.filter((id) => !confluenceOwned(id)) : cf.links;
+  const id = links.find((link) => !confluenceOwned(link)) || links[0];
+  if (!id) return null;
+  if (!id.startsWith('tier:')) return id;
+  const branch = branchById(id.slice(5));
+  return branch ? `${branch.style}/${branch.id}:3` : null;
+}
+
+function guideGrowthBlock(cost) {
+  const block = growthBlock(cost);
+  if (block === 'gate') pointBranchGuide({ rect: BRANCH_GUIDE_RECTS.status }, `Need ${growthXpRequirement()} career XP: earn it in runs`);
+  else if (block === 'short') {
+    const pouch = carriedMaterials() || {};
+    const missing = COST_PARTS.filter(([key]) => (cost[key] || 0) > (key === 'zeny' ? bankedZenyBalance() : pouch[key] || 0))
+      .map(([key, one, many]) => `${cost[key]} ${cost[key] === 1 ? one : many}`);
+    pointBranchGuide({ rect: BRANCH_GUIDE_RECTS.status }, `Short: need ${missing.join(' + ')}`);
+  }
+}
+
+function setBranchTab(style) {
+  if (!BRANCH_TABS.includes(style) || style === branchTab) return;
+  branchTab = style;
+  branchGuide = null;
+  resetBranchMap();
+}
+
+function stepBranchTab(direction) {
+  const index = BRANCH_TABS.indexOf(branchTab);
+  setBranchTab(BRANCH_TABS[(index + direction + BRANCH_TABS.length) % BRANCH_TABS.length]);
+}
+
+function branchBaseWeaponId(style = branchTab) {
+  return weaponCatalog.find((entry) => entry.base && entry.family === style)?.id || null;
+}
+
+// The weapon a focused node stands for: the heart is the family's base weapon.
+function focusedWeaponId() {
+  const node = branchMapNode(branchMapFocus);
+  if (node?.kind === 'heart') return branchBaseWeaponId(node.style || branchTab);
+  return node?.kind === 'weapon' ? node.weapon.id : null;
+}
+
+function weaponPowerText(id) {
+  const rank = weaponProficiencyRank(id);
+  if (rank === 'learned') return 'full power';
+  return `${Math.round(WEAPON_PROFICIENCY[rank] * 100)}% power until ${rank === 'unfound' ? 'found and learned' : 'learned'}`;
+}
+
+function setFocusedWeaponHand(slot) {
+  const id = focusedWeaponId();
+  const entry = weaponById(id);
+  if (!entry) return;
+  if (weaponHands[slot] === id) {
+    setBranchNotice(`${entry.name} is already in your ${slot === 'main' ? 'main' : 'off'} hand.`);
+    return;
+  }
+  setWeaponHand(slot, id);
+  const power = weaponProficiency(id) < 1 ? ` (${weaponPowerText(id)})` : '';
+  setBranchNotice(slot === 'main' ? `${entry.name} in your main hand${power}.`
+    : dualGripOwned() ? `${entry.name} in your off hand${power}: it attacks on its own at foes you look at.`
+      : `${entry.name} in your off hand${power}, sheathed. Swap to use it, or grow Dual Grip to wield both.`);
+  playSound('som:alteration/skillup.ogg', 0.18);
+}
+
+// Found but not yet learned: the weapon's secondary action is Learn.
+function focusedLearnableWeapon() {
+  const id = focusedWeaponId();
+  return id && weaponFound(id) && !weaponLearned(id) ? weaponById(id) : null;
+}
+
+function learnFocusedWeapon() {
+  const entry = focusedLearnableWeapon();
+  if (!entry) return;
+  const result = learnWeapon(entry.id);
+  if (result === 'learned') {
+    setBranchNotice(`${entry.name} learned: full power.`);
+    playSound('som:alteration/skillup.ogg', 0.3);
+  } else if (result === 'gate' || result === 'short') {
+    setBranchNotice(growthBlockedNotice(WEAPON_LEARN_COST, `Learning the ${entry.name}`));
+    guideGrowthBlock(WEAPON_LEARN_COST);
+  }
+}
+
+function toggleFocusedBranch() {
+  const node = branchMapNode(branchMapFocus);
+  if (focusedWeaponId()) return setFocusedWeaponHand('main');
+  if (node?.kind === 'grip') {
+    setBranchNotice(dualGripOwned() ? 'Dual Grip grown: your off hand attacks on its own.' : 'Grow Dual Grip to wield both hands at once.');
+    return;
+  }
+  if (node?.kind === 'cf') {
+    setBranchNotice('Confluence nodes need no slot: once grown they always count.');
+    return;
+  }
+  const branch = focusedMapBranch();
+  if (!branch) {
+    setBranchNotice('Walk onto a branch to highlight it.');
+    return;
+  }
+  const result = toggleBranch(branch.id);
+  if (result === 'full') {
+    setBranchNotice(`All ${BRANCH_SLOTS} ${BRANCH_STYLE_NAMES[branch.style]} slots are in use. Turn one off first.`);
+    pointBranchGuide({ rect: BRANCH_GUIDE_RECTS.sockets }, 'Slots full: tap one here, then turn it OFF');
+  } else if (result === 'on') {
+    setBranchNotice(branchPowered(branch) ? `${branch.name} highlighted.`
+      : `${branch.name} highlighted. Dormant until you find ${branchItemNames(branch).join(' or ')}.`);
+    if (!branchPowered(branch)) pointBranchGuide({ rect: BRANCH_GUIDE_RECTS.needs }, 'Dormant: find this item in a run to power it');
+    playSound('som:alteration/skillup.ogg', 0.18);
+  } else if (result === 'off') {
+    setBranchNotice(`${branch.name} turned off.`);
+  }
+}
+
+const COST_PARTS = [
+  ['ironOre', 'Iron Ore', 'Iron Ore', 'ore'],
+  ['darkCrystal', 'Dark Crystal', 'Dark Crystals', 'crystal'],
+  ['lifeStone', 'Life Stone', 'Life Stones', 'stone'],
+  ['zeny', 'zeny', 'zeny', 'z'],
+];
+
+// "2 Iron Ore + 40 zeny", or "2 ore 40 z" on a button.
+function costLabel(cost, short = false) {
+  return COST_PARTS.filter(([key]) => cost?.[key]).map(([key, one, many, abbreviation]) =>
+    `${cost[key]} ${short ? abbreviation : cost[key] === 1 ? one : many}`).join(short ? ' ' : ' + ');
+}
+
+// Why a growth could not be paid: the career XP gate, or the price in carried materials and banked zeny.
+function growthBlockedNotice(cost, what) {
+  if (growthBlock(cost) === 'gate') {
+    return `${what} needs ${growthXpRequirement()} career XP (you have ${Math.floor(branchState().xp)}).`;
+  }
+  if (cost.lifeStone) return `${what} is an ability lock: it takes ${costLabel(cost)}. Elites, minibosses, caches and boss relics drop them.`;
+  return `${what} costs ${costLabel(cost)}. Ore and crystals come from your pouch, zeny from the bank.`;
+}
+
+function confluenceNodeName(cf) {
+  if (cf.kind === 'stat') return CONFLUENCE_STATS[cf.stat].name;
+  if (cf.kind === 'seal') return CONFLUENCE_SEAL.name;
+  if (cf.kind === 'fusion') return cf.fusion.name;
+  if (cf.kind === 'move') return cf.move.name;
+  return CONFLUENCE_TRINITY.name;
+}
+
+function confluenceNodeIcon(cf) {
+  if (cf.kind === 'stat') return CONFLUENCE_STATS[cf.stat].icon;
+  if (cf.kind === 'seal') return CONFLUENCE_SEAL.icon;
+  if (cf.kind === 'fusion') return cf.fusion.icon;
+  if (cf.kind === 'move') return cf.move.icon;
+  return CONFLUENCE_TRINITY.icon;
+}
+
+function growFocusedConfluence(cf) {
+  const name = confluenceNodeName(cf);
+  const result = growConfluenceNode(cf.id);
+  if (result === 'grown') {
+    setBranchNotice(cf.kind === 'trinity' ? 'The Trinity is yours: every fusion now works whatever you hold.'
+      : cf.kind === 'seal' ? 'Bridge Seal unsealed: the bridge is open.' : `${name} grown!`);
+    playSound('som:alteration/skillup.ogg', 0.3);
+  } else if (result === 'known') setBranchNotice(`${name} is already grown.`);
+  else if (result === 'locked') {
+    setBranchNotice(cf.kind === 'trinity' ? 'The Trinity needs all three fusions grown.'
+      : `Grow a linked node first. Bridges start from a tier III ${cf.bridge.styles.map((style) => BRANCH_STYLE_NAMES[style]).join(' or ')} branch.`);
+    const blocker = confluenceBlockerMapId(cf);
+    if (blocker) pointBranchGuide({ node: blocker }, cf.kind === 'trinity' ? 'Grow this fusion first' : 'Grow this first');
+  } else if (result === 'gate' || result === 'short') {
+    setBranchNotice(growthBlockedNotice(cf.cost, name));
+    guideGrowthBlock(cf.cost);
+  }
+}
+
+function unlockFocusedBranch() {
+  const node = branchMapNode(branchMapFocus);
+  if (node?.kind === 'cf') return growFocusedConfluence(node.cf);
+  const weaponId = focusedWeaponId();
+  if (weaponId) return setFocusedWeaponHand('off');
+  if (node?.kind === 'grip') {
+    const result = growDualGrip();
+    if (result === 'learned') {
+      setBranchNotice('Dual Grip grown! Your off hand now attacks foes you look toward.');
+      playSound('som:alteration/skillup.ogg', 0.3);
+    } else if (result === 'gate' || result === 'short') {
+      setBranchNotice(growthBlockedNotice(DUAL_GRIP_COST, 'Dual Grip'));
+      guideGrowthBlock(DUAL_GRIP_COST);
+    } else {
+      setBranchNotice('Dual Grip is already grown.');
+    }
+    return;
+  }
+  const branch = focusedMapBranch();
+  if (!branch) {
+    setBranchNotice('Walk onto a branch to grow it.');
+    return;
+  }
+  const cost = nextBranchTierCost(branch.id);
+  const result = unlockBranchTier(branch.id);
+  if (result === 'unlocked') {
+    const tier = branchTier(branch.id);
+    setBranchNotice(`${branch.name} tier ${BRANCH_TIER_NUMERALS[tier - 1]} unlocked!`);
+    focusBranchNode(branchMapId(branch.style, `${branch.id}:${tier}`), true);
+    playSound('som:alteration/skillup.ogg', 0.3);
+  } else if (result === 'gate' || result === 'short') {
+    setBranchNotice(growthBlockedNotice(cost, `${branch.name} tier ${BRANCH_TIER_NUMERALS[branchTier(branch.id)]}`));
+    guideGrowthBlock(cost);
+  } else {
+    setBranchNotice(`${branch.name} is fully grown.`);
+  }
+}
+
+// The button under the info panel: Learn on a found weapon, otherwise Unweave when a rune can undo the node.
+function branchSecondaryShown() {
+  return Boolean(focusedLearnableWeapon()) || (weaponState().runes > 0 && Boolean(focusedUnweave()));
+}
+
+// What an Unweaving Rune would undo on the focused node, or null.
+function focusedUnweave() {
+  const node = branchMapNode(branchMapFocus);
+  const target = (kind, id, name) => {
+    const found = unweaveTarget(kind, id);
+    return found ? { kind, id, name, blocked: Boolean(found.blocked) } : null;
+  };
+  if (node?.kind === 'tier') return target('tier', node.branch.id, node.branch.name);
+  if (node?.kind === 'weapon') return target('weapon', node.weapon.id, node.weapon.name);
+  if (node?.kind === 'grip') return target('grip', 'grip', 'Dual Grip');
+  if (node?.kind === 'cf') return target('confluence', node.cf.id, confluenceNodeName(node.cf));
+  return null;
+}
+
+function unweaveFocusedNode() {
+  if (focusedLearnableWeapon()) return learnFocusedWeapon();
+  const target = focusedUnweave();
+  if (!(weaponState().runes > 0)) {
+    setBranchNotice('Unweaving needs an Unweaving Rune. They rarely drop in reward rooms and from guardians.');
+    return;
+  }
+  if (!target) {
+    setBranchNotice('Walk onto a grown tier, a learned weapon, Dual Grip or a Confluence node to unweave it.');
+    return;
+  }
+  if (target.blocked) {
+    setBranchNotice(`Confluence nodes still grow from ${target.name}. Unweave the ones further out first.`);
+    return;
+  }
+  const tierBefore = target.kind === 'tier' ? branchTier(target.id) : 0;
+  if (unweaveNode(target.kind, target.id) !== 'done') return;
+  setBranchNotice(target.kind === 'tier'
+    ? `${target.name} tier ${BRANCH_TIER_NUMERALS[tierBefore - 1]} unwoven and refunded.`
+    : `${target.name} unwoven and refunded.`);
+  if (target.kind === 'tier') focusBranchNode(branchMapId(branchById(target.id).style, `${target.id}:${branchTier(target.id)}`), true);
+  playSound('som:alteration/skillup.ogg', 0.2);
+}
+
+function branchTourActive() {
+  return Boolean(branchTour);
+}
+
+function skipBranchTour() {
+  if (!branchTour) return;
+  branchTour.step = branchTour.steps.length;
+  advanceBranchTour();
+}
+
+function handleBranchKey(event, key) {
+  if (branchTour) {
+    if (event.key === 'Escape') skipBranchTour();
+    else advanceBranchTour();
+    return;
+  }
+  branchGuide = null;
+  if (event.key === 'Escape' || actionForKey(key) === 'branches') closeBranchScreen();
+  else if (event.key === 'ArrowUp' || key === 'w') moveBranchMapFocus(0, -1);
+  else if (event.key === 'ArrowDown' || key === 's') moveBranchMapFocus(0, 1);
+  else if (event.key === 'ArrowLeft' || key === 'a') moveBranchMapFocus(-1, 0);
+  else if (event.key === 'ArrowRight' || key === 'd') moveBranchMapFocus(1, 0);
+  else if (key === 'q' || key === '[') stepBranchTab(-1);
+  else if (key === 'e' || key === ']') stepBranchTab(1);
+  else if (key === '-' || key === '_') zoomBranchMap(1 / 1.25);
+  else if (key === '=' || key === '+') zoomBranchMap(1.25);
+  else if (key === '0' || key === 'f') fitBranchMap();
+  else if (event.key === 'Enter' || event.key === ' ') toggleFocusedBranch();
+  else if (key === 'u') unlockFocusedBranch();
+  else if (key === 'r') unweaveFocusedNode();
+}
+
+// Buttons act on press; inside the map a press starts a drag that becomes a tap if it barely moves.
+function handleBranchPointerDown(id, x, y) {
+  if (branchTour) {
+    if (branchPointers.size === 0) advanceBranchTour();
+    return;
+  }
+  if (branchPointers.size === 0) branchGuide = null;
+  branchPointers.set(id, { x, y });
+  if (branchPointers.size === 2) {
+    const [a, b] = [...branchPointers.values()];
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    branchPinch = { distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), zoom: branchCam.zoom,
+      anchor: branchScreenToWorld(midX, midY) };
+    branchDrag = null;
+    return;
+  }
+  if (branchPointers.size > 2) return;
+  const layout = branchMapLayout();
+  if (pointInBounds(layout.close, x, y)) return closeBranchScreen();
+  const tab = layout.tabs.find((entry) => pointInBounds(entry.bounds, x, y));
+  if (tab) return setBranchTab(tab.style);
+  if (pointInBounds(layout.toggle, x, y)) return toggleFocusedBranch();
+  if (pointInBounds(layout.unlock, x, y)) return unlockFocusedBranch();
+  if (branchSecondaryShown() && pointInBounds(layout.unweave, x, y)) return unweaveFocusedNode();
+  if (pointInBounds(layout.zoomOut, x, y)) return zoomBranchMap(1 / 1.25);
+  if (pointInBounds(layout.zoomIn, x, y)) return zoomBranchMap(1.25);
+  if (pointInBounds(layout.fit, x, y)) return fitBranchMap();
+  const socket = branchTab === 'confluence' ? -1 : layout.sockets.findIndex((bounds) => pointInBounds(bounds, x, y));
+  if (socket >= 0) {
+    const id = branchLoadout(branchTab)[socket];
+    if (id) focusBranchNode(`${id}:${branchTier(id)}`, true);
+    return;
+  }
+  if (!pointInBounds(BRANCH_MAP_VIEW, x, y)) return;
+  branchDrag = { id, startX: x, startY: y, camX: branchCam.x, camY: branchCam.y, moved: false };
+}
+
+function handleBranchPointerMove(id, x, y) {
+  if (!branchPointers.has(id)) return;
+  branchPointers.set(id, { x, y });
+  if (branchPinch && branchPointers.size >= 2) {
+    const [a, b] = [...branchPointers.values()];
+    const center = branchMapCenter();
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    branchCam.zoom = clamp(branchPinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / branchPinch.distance,
+      branchZoomMin(), BRANCH_ZOOM_MAX);
+    branchCam.x = branchPinch.anchor.x - (midX - center.x) / branchCam.zoom;
+    branchCam.y = branchPinch.anchor.y - (midY - center.y) / branchCam.zoom;
+    branchCamTarget = null;
+    clampBranchCam();
+    return;
+  }
+  if (!branchDrag || branchDrag.id !== id) return;
+  const dx = x - branchDrag.startX;
+  const dy = y - branchDrag.startY;
+  if (!branchDrag.moved && Math.hypot(dx, dy) < BRANCH_DRAG_SLOP) return;
+  branchDrag.moved = true;
+  branchCam.x = branchDrag.camX - dx / branchCam.zoom;
+  branchCam.y = branchDrag.camY - dy / branchCam.zoom;
+  branchCamTarget = null;
+  clampBranchCam();
+}
+
+function handleBranchPointerUp(id, x, y) {
+  if (!branchPointers.delete(id)) return;
+  if (branchPinch) {
+    if (branchPointers.size < 2) branchPinch = null;
+    branchDrag = null;
+    return;
+  }
+  const drag = branchDrag;
+  branchDrag = null;
+  if (!drag || drag.id !== id || drag.moved) return;
+  const node = branchNodeAt(x, y);
+  if (node) focusBranchNode(node.id);
+}
+
+function cancelBranchPointer(id) {
+  branchPointers.delete(id);
+  if (branchPointers.size < 2) branchPinch = null;
+  if (branchDrag?.id === id) branchDrag = null;
+}
+
+function handleBranchWheel(deltaY, x, y) {
+  if (!deltaY) return;
+  const inside = pointInBounds(BRANCH_MAP_VIEW, x, y);
+  zoomBranchMap(deltaY < 0 ? 1.15 : 1 / 1.15, inside ? x : undefined, inside ? y : undefined);
+}
+
+function branchMapCursor(x, y) {
+  if (branchDrag?.moved) return 'grabbing';
+  const layout = branchMapLayout();
+  const buttons = [layout.close, layout.toggle, layout.unlock, layout.zoomOut, layout.zoomIn, layout.fit,
+    ...layout.tabs.map((tab) => tab.bounds), ...layout.sockets,
+    ...(branchSecondaryShown() ? [layout.unweave] : [])];
+  if (branchNodeAt(x, y) || buttons.some((bounds) => pointInBounds(bounds, x, y))) return 'pointer';
+  return pointInBounds(BRANCH_MAP_VIEW, x, y) ? 'grab' : 'default';
+}
+
+function updateBranchMap(now) {
+  const dt = branchLastFrame ? clamp((now - branchLastFrame) / 1000, 0, 0.1) : 0;
+  branchLastFrame = now;
+  if (branchToken.t < 1) {
+    branchToken.t = Math.min(1, branchToken.t + dt / branchToken.duration);
+    const ease = branchToken.t * (2 - branchToken.t);
+    branchToken.x = branchToken.fromX + (branchToken.toX - branchToken.fromX) * ease;
+    branchToken.y = branchToken.fromY + (branchToken.toY - branchToken.fromY) * ease;
+  }
+  if (branchCamTarget && !branchDrag?.moved && !branchPinch) {
+    const blend = 1 - Math.exp(-dt * 7);
+    branchCam.x += (branchCamTarget.x - branchCam.x) * blend;
+    branchCam.y += (branchCamTarget.y - branchCam.y) * blend;
+    if (Math.hypot(branchCamTarget.x - branchCam.x, branchCamTarget.y - branchCam.y) < 0.5) branchCamTarget = null;
+  }
+}
+
+function drawBranchButton(bounds, label, sub, accent, active) {
+  drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, accent);
+  if (!label) return;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = active ? '#fff4d5' : '#9c967f';
+  ctx.font = label.length === 1 ? 'bold 22px Georgia' : 'bold 14px Georgia';
+  ctx.fillText(label, bounds.x + bounds.width / 2, bounds.y + (sub ? 22 : bounds.height / 2 + (label.length === 1 ? 7 : 5)), bounds.width - 8);
+  if (sub) {
+    ctx.font = '11px Arial';
+    ctx.fillText(sub, bounds.x + bounds.width / 2, bounds.y + 38, bounds.width - 8);
+  }
+}
+
+// The spotlight: one even-odd fill dims everything but the target, then a bobbing arrow and a label point at it.
+// The label is wrapped once per guide, so a frame allocates nothing new.
+function drawBranchGuide(now) {
+  const guide = branchGuide;
+  if (!guide) return;
+  if (now > guide.until) {
+    branchGuide = null;
+    return;
+  }
+  let hole = guide.rect;
+  let round = null;
+  if (guide.node) {
+    const node = branchMapNode(guide.node);
+    if (!node) {
+      branchGuide = null;
+      return;
+    }
+    const p = branchWorldToScreen(node.x, node.y);
+    const r = branchNodeRadius(node) + 12;
+    round = { x: p.x, y: p.y, r };
+    hole = { x: p.x - r, y: p.y - r, width: r * 2, height: r * 2 };
+  }
+  if (!hole) return;
+  const pad = 4;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, (now - guide.start) / 180, (guide.until - now) / 350));
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.beginPath();
+  ctx.rect(0, 0, VIEW_W, VIEW_H);
+  if (round) {
+    ctx.moveTo(round.x + round.r, round.y);
+    ctx.arc(round.x, round.y, round.r, 0, Math.PI * 2);
+  } else ctx.rect(hole.x - pad, hole.y - pad, hole.width + pad * 2, hole.height + pad * 2);
+  ctx.fill('evenodd');
+  const pulse = 0.5 + Math.sin(now / 200) * 0.5;
+  ctx.strokeStyle = `rgba(255, 214, 110, ${0.55 + pulse * 0.4})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (round) ctx.arc(round.x, round.y, round.r + pulse * 2, 0, Math.PI * 2);
+  else ctx.rect(hole.x - pad, hole.y - pad, hole.width + pad * 2, hole.height + pad * 2);
+  ctx.stroke();
+
+  ctx.font = 'bold 12px Arial';
+  if (!guide.lines) {
+    guide.lines = [];
+    let current = '';
+    for (const word of String(guide.label || '').split(' ')) {
+      const next = current ? `${current} ${word}` : word;
+      if (ctx.measureText(next).width > 340 && current) {
+        guide.lines.push(current);
+        current = word;
+      } else current = next;
+    }
+    if (current) guide.lines.push(current);
+    guide.textWidth = Math.max(0, ...guide.lines.map((text) => ctx.measureText(text).width));
+  }
+  const centerX = hole.x + hole.width / 2;
+  const below = hole.y < 170;
+  const bob = Math.sin(now / 150) * 4;
+  const tipY = below ? hole.y + hole.height + pad + 6 + bob : hole.y - pad - 6 - bob;
+  const dir = below ? 1 : -1;
+  ctx.fillStyle = '#ffd66e';
+  ctx.beginPath();
+  ctx.moveTo(centerX, tipY);
+  ctx.lineTo(centerX - 10, tipY + dir * 14);
+  ctx.lineTo(centerX - 4, tipY + dir * 14);
+  ctx.lineTo(centerX - 4, tipY + dir * 24);
+  ctx.lineTo(centerX + 4, tipY + dir * 24);
+  ctx.lineTo(centerX + 4, tipY + dir * 14);
+  ctx.lineTo(centerX + 10, tipY + dir * 14);
+  ctx.closePath();
+  ctx.fill();
+  if (guide.lines.length) {
+    const boxW = guide.textWidth + 20;
+    const boxH = guide.lines.length * 16 + 10;
+    const boxX = clamp(centerX - boxW / 2, 30, VIEW_W - 30 - boxW);
+    const boxY = below ? tipY + 28 : tipY - 28 - boxH;
+    ctx.fillStyle = 'rgba(24, 18, 8, 0.94)';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeStyle = '#ffd66e';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxW - 1, boxH - 1);
+    ctx.fillStyle = '#fff4d5';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    guide.lines.forEach((text, index) => ctx.fillText(text, boxX + boxW / 2, boxY + 18 + index * 16));
+  }
+  ctx.restore();
+}
+
+// Zoom-out-to-everything: a magnifying glass with a minus in the lens.
+function drawMagnifierIcon(x, y, radius) {
+  ctx.save();
+  ctx.strokeStyle = '#fff4d5';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = 3.4;
+  ctx.beginPath();
+  ctx.moveTo(x + radius * 0.72, y + radius * 0.72);
+  ctx.lineTo(x + radius * 1.6, y + radius * 1.6);
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - radius * 0.5, y);
+  ctx.lineTo(x + radius * 0.5, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function branchHeartColor(style = branchTab) {
+  return style === 'magic' ? magicElementPalette[activeMagicElement] || '#7fc8ff' : BRANCH_HEART_COLORS[style];
+}
+
+// owned: the tier is grown; lit: owned and its branch is highlighted (gold when powered, amber when dormant).
+function branchNodeState(node, loadout) {
+  const style = node.style || branchTab;
+  if (node.style) loadout = branchLoadout(node.style);
+  if (node.kind === 'cf') {
+    const owned = confluenceOwned(node.cf.id);
+    const working = node.cf.kind === 'fusion' ? confluenceFusionActive(node.cf.fusion.id) : owned;
+    return { owned, lit: working, half: owned && !working, next: !owned && confluenceReachable(node.cf),
+      color: node.cf.bridge?.color || '#fff2a0' };
+  }
+  if (node.kind === 'heart') return { owned: true, lit: loadout.length > 0, color: branchHeartColor(style) };
+  if (node.kind === 'grip') {
+    const owned = dualGripOwned();
+    return { owned, lit: owned, next: !owned, color: '#7fd0e8' };
+  }
+  if (node.kind === 'weapon') {
+    const owned = weaponLearned(node.weapon.id);
+    const held = weaponHandOf(node.weapon.id);
+    return { owned, lit: Boolean(held), next: !owned, color: held === 'main' ? '#ffe38a' : held ? '#9fd8ff' : '#d8b98a' };
+  }
+  if (node.kind === 'synergy') {
+    const on = node.synergy.branches.filter((id) => loadout.includes(id)).length;
+    const awake = activeBranchSynergies(style).includes(node.synergy);
+    return { owned: awake, lit: awake, half: on > 0 && !awake, color: '#c9a0ff' };
+  }
+  const owned = node.tier <= branchTier(node.branch.id);
+  const on = loadout.includes(node.branch.id);
+  const powered = branchPowered(node.branch);
+  return { owned, lit: owned && on, dormant: on && !powered, next: node.tier === branchTier(node.branch.id) + 1,
+    color: on ? (powered ? '#f0c75a' : '#c98a3c') : '#8fae86' };
+}
+
+function drawBranchMap(loadout, now) {
+  const view = BRANCH_MAP_VIEW;
+  const nodes = branchMapNodes();
+  const zoom = branchCam.zoom;
+  const pulse = 0.5 + Math.sin(now / 260) * 0.5;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(view.x, view.y, view.width, view.height);
+  ctx.clip();
+  const heart = branchWorldToScreen(0, 0);
+  const backdrop = ctx.createRadialGradient(heart.x, heart.y, 10, heart.x, heart.y, 340 * zoom + 60);
+  backdrop.addColorStop(0, '#1d2219');
+  backdrop.addColorStop(1, '#0b0d0a');
+  ctx.fillStyle = backdrop;
+  ctx.fillRect(view.x, view.y, view.width, view.height);
+  ctx.lineWidth = 1;
+  const ringCenters = branchTab === 'confluence' ? Object.values(CONFLUENCE_HEARTS).map((center) => branchWorldToScreen(center.x, center.y)) : [heart];
+  for (const center of ringCenters) {
+    for (let ring = 1; ring < BRANCH_MAP_RINGS.length + 2; ring += 1) {
+      ctx.strokeStyle = `rgba(201, 166, 90, ${ring % 2 ? 0.1 : 0.06})`;
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, (ring * 56 + 18) * zoom, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  const states = new Map(nodes.map((node) => [node.id, branchNodeState(node, loadout)]));
+  for (const node of nodes) {
+    const to = branchWorldToScreen(node.x, node.y);
+    const state = states.get(node.id);
+    for (const linkId of node.links) {
+      const link = branchMapNode(linkId);
+      if (!link) continue;
+      const from = branchWorldToScreen(link.x, link.y);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      if (node.kind === 'synergy') {
+        const nodeLoadout = node.style ? branchLoadout(node.style) : loadout;
+        ctx.setLineDash([3, 5]);
+        ctx.strokeStyle = state.lit ? '#d9b8ff' : state.half && nodeLoadout.includes(link.branch?.id) ? '#8a70b0' : '#3d3549';
+        ctx.lineWidth = state.lit ? 2.5 : 1.5;
+        // Pairs that reach around another branch bow outward so they never cut through it.
+        if (node.outer) {
+          const bend = branchWorldToScreen((link.x + node.x) * 0.66, (link.y + node.y) * 0.66);
+          ctx.quadraticCurveTo(bend.x, bend.y, to.x, to.y);
+        } else ctx.lineTo(to.x, to.y);
+      } else if (node.kind === 'cf') {
+        // Bridges glow in their own colour once grown; reachable steps pulse.
+        ctx.setLineDash(state.owned ? [] : [5, 6]);
+        ctx.strokeStyle = state.owned ? node.cf.bridge?.color || '#fff2a0' : state.next ? '#7a6a46' : '#34322a';
+        ctx.lineWidth = state.owned ? 4 : 2;
+        ctx.lineTo(to.x, to.y);
+      } else {
+        const lit = state.lit;
+        ctx.setLineDash(state.owned ? [] : [4, 6]);
+        ctx.strokeStyle = lit ? (state.dormant ? '#b07a34' : '#e9c46a') : state.owned ? '#5d6b52' : '#34322a';
+        ctx.lineWidth = lit ? 4 : state.owned ? 3 : 2;
+        ctx.lineTo(to.x, to.y);
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);
+  branchSuggestion = suggestedPath(branchTab);
+  drawSuggestedTrail(states, now);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const node of nodes) {
+    const { x, y } = branchWorldToScreen(node.x, node.y);
+    const radius = branchNodeRadius(node);
+    if (x < view.x - 60 || x > view.x + view.width + 60 || y < view.y - 40 || y > view.y + view.height + 40) continue;
+    const state = states.get(node.id);
+    const focused = node.id === branchMapFocus;
+    if (state.lit) drawEffect('glow', 0, x, y, { width: radius * 4.2, tint: state.color, alpha: 0.32 + pulse * 0.12, smooth: true });
+    ctx.beginPath();
+    if (node.kind === 'synergy' || node.cf?.kind === 'fusion') {
+      ctx.moveTo(x, y - radius - 3);
+      ctx.lineTo(x + radius, y);
+      ctx.lineTo(x, y + radius + 3);
+      ctx.lineTo(x - radius, y);
+      ctx.closePath();
+    } else ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = state.lit ? state.color : state.half ? '#4a3d5c' : state.owned ? '#2c3527' : '#151612';
+    if (node.kind === 'heart' || node.kind === 'weapon') ctx.fillStyle = '#1f241b';
+    ctx.fill();
+    ctx.lineWidth = focused ? 3 : 2;
+    ctx.strokeStyle = focused ? '#fff4d5' : node.kind === 'heart' ? state.color
+      : state.lit ? '#ffe9a8' : state.next ? `rgba(240, 212, 134, ${0.45 + pulse * 0.4})` : state.owned ? state.color : '#4a4536';
+    ctx.stroke();
+    const nodeStyle = node.style || branchTab;
+    const named = zoom >= 0.6 || focused;
+    const hand = node.kind === 'heart' ? weaponHandOf(branchBaseWeaponId(nodeStyle)) : node.kind === 'weapon' ? weaponHandOf(node.weapon.id) : null;
+    if (hand) {
+      // Hand badge: M for the main hand, O for the off hand.
+      const bx = x + radius * 0.78;
+      const by = y - radius * 0.78;
+      ctx.beginPath();
+      ctx.arc(bx, by, 7, 0, Math.PI * 2);
+      ctx.fillStyle = hand === 'main' ? '#ffe38a' : '#9fd8ff';
+      ctx.fill();
+      ctx.font = 'bold 9px Arial';
+      ctx.fillStyle = '#1b1408';
+      ctx.fillText(hand === 'main' ? 'M' : 'O', bx, by + 0.5);
+    }
+    ctx.fillStyle = state.lit ? '#21170a' : state.owned ? '#e6dcc0' : '#6f6a58';
+    if (node.kind === 'heart') {
+      ctx.font = 'bold 22px Georgia';
+      ctx.fillStyle = state.color;
+      ctx.fillText(BRANCH_HEART_ICONS[nodeStyle], x, y + 1);
+    } else if (node.kind === 'cf') {
+      const cf = node.cf;
+      if (cf.kind === 'seal') {
+        drawPadlock(x, y + 1, 6, state.owned, state.lit ? '#21170a' : state.next ? '#f0c8ff' : '#8c7f9a');
+      } else {
+        ctx.font = cf.kind === 'trinity' ? 'bold 24px Georgia' : cf.kind === 'stat' ? 'bold 11px Georgia' : 'bold 15px Georgia';
+        ctx.fillStyle = state.lit ? '#21170a' : state.owned ? '#e6dcc0' : state.next ? '#cfc6aa' : '#6f6a58';
+        ctx.fillText(confluenceNodeIcon(cf), x, y + 1);
+      }
+      if (zoom >= 0.8 || focused || (cf.kind !== 'stat' && cf.kind !== 'seal' && named)) {
+        ctx.font = cf.kind === 'stat' ? '9px Arial' : 'bold 11px Georgia';
+        ctx.fillStyle = state.lit ? '#fff0c0' : state.owned ? '#cfc6aa' : '#8c866f';
+        ctx.fillText(cf.kind === 'stat' ? CONFLUENCE_STATS[cf.stat].short : cf.kind === 'seal' ? 'SEAL' : confluenceNodeName(cf), x, y + radius + 11);
+      }
+    } else if (node.kind === 'grip') {
+      ctx.font = 'bold 13px Georgia';
+      ctx.fillStyle = state.owned ? '#21170a' : '#9fd8e8';
+      ctx.fillText('⚯', x, y + 1);
+      if (zoom >= 1.15 || focused) {
+        ctx.font = '11px Georgia';
+        ctx.fillStyle = state.owned ? '#bfeaf5' : '#8aa6ad';
+        ctx.fillText('Dual Grip', x, y + radius + 12);
+      }
+    } else if (node.kind === 'weapon') {
+      const art = shopItemIconImages[`weapon-${node.weapon.id}`];
+      ctx.save();
+      // Brighter the more you know it: unfound, found, learned.
+      ctx.globalAlpha = { unfound: 0.4, found: 0.72, learned: 1 }[weaponProficiencyRank(node.weapon.id)];
+      if (art?.complete && art.naturalWidth > 0) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(art, Math.round(x - 12), Math.round(y - 12), 24, 24);
+      } else {
+        ctx.font = 'bold 15px Georgia';
+        ctx.fillStyle = '#e6dcc0';
+        ctx.fillText(node.weapon.icon, x, y + 1);
+      }
+      ctx.restore();
+      if (named) {
+        ctx.font = state.lit ? 'bold 11px Georgia' : '11px Georgia';
+        ctx.fillStyle = state.lit ? state.color : state.owned ? '#cfc6aa' : '#8c866f';
+        ctx.fillText(node.weapon.name, x, y + radius + 11);
+      }
+    } else if (node.kind === 'tier') {
+      // Tier I shows the branch; later tiers show what they add, like a stat sphere.
+      const badge = node.tier === 1 ? null : branchFxBadge(node.branch.tiers[node.tier - 1].fx);
+      ctx.font = node.tier === 1 ? 'bold 16px Georgia' : 'bold 12px Georgia';
+      ctx.fillText(node.tier === 1 ? node.branch.icon : badge.icon, x, y + 1);
+      if (badge && (zoom >= 1 || focused)) {
+        ctx.font = '9px Arial';
+        ctx.fillStyle = state.owned ? '#cfc6aa' : '#8c866f';
+        ctx.fillText(badge.label, x, y + radius + 9);
+      }
+      if (node.tier === 3 && named) {
+        const out = 30;
+        const nodeLoadout = branchLoadout(node.branch.style);
+        ctx.font = nodeLoadout.includes(node.branch.id) ? 'bold 12px Georgia' : '12px Georgia';
+        ctx.fillStyle = nodeLoadout.includes(node.branch.id) ? '#ffe38a' : '#cfc6aa';
+        ctx.fillText(node.branch.name, x + Math.cos(node.angle) * out, y + Math.sin(node.angle) * (out - 8));
+      }
+    } else if (zoom >= 1.15 || focused) {
+      ctx.font = '11px Georgia';
+      ctx.fillStyle = state.lit ? '#e7d2ff' : '#9a8fae';
+      ctx.fillText(node.synergy.name, x, y + radius + 13);
+    }
+    if (focused) {
+      ctx.strokeStyle = `rgba(255, 244, 213, ${0.35 + pulse * 0.4})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 6 + pulse * 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (node.cf?.kind !== 'seal' && branchNodeLocked(node)) {
+      drawPadlock(x + radius * 0.8, y + radius * 0.8, 4, false, state.next ? '#e8c6ff' : '#9a8bb0');
+    }
+  }
+  drawSuggestedBadges(pulse);
+  drawBranchToken(now);
+  ctx.restore();
+}
+
+// Ability nodes are Life Stone locks until grown: behaviour tiers, learning a weapon, Dual Grip, and the Confluence's
+// seals, fusions, moves and Trinity.
+function branchNodeLocked(node) {
+  if (node.kind === 'tier') return node.tier > 1 && branchTierIsAbility(node.branch.id, node.tier) && branchTier(node.branch.id) < node.tier;
+  if (node.kind === 'weapon') return !weaponLearned(node.weapon.id);
+  if (node.kind === 'grip') return !dualGripOwned();
+  if (node.kind === 'cf') return node.cf.kind !== 'stat' && !confluenceOwned(node.cf.id);
+  return false;
+}
+
+function drawPadlock(x, y, size, open, color) {
+  ctx.save();
+  ctx.fillStyle = '#120f16';
+  ctx.beginPath();
+  ctx.arc(x, y, size * 1.7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = Math.max(1.2, size * 0.32);
+  ctx.beginPath();
+  ctx.arc(x + (open ? size * 0.5 : 0), y - size * 0.2, size * 0.55, Math.PI, open ? Math.PI * 1.9 : 0);
+  ctx.stroke();
+  ctx.fillRect(x - size * 0.8, y - size * 0.2, size * 1.6, size * 1.1);
+  ctx.restore();
+}
+
+// The suggested path: a moving gold trail from what you own through the next few growths that fit how you play,
+// each numbered. Only a hint; every other reachable node can still be grown.
+let branchSuggestion = [];
+
+function suggestionStep(mapId) {
+  const index = branchSuggestion.findIndex((step) => step.mapId === mapId);
+  return index < 0 ? null : { ...branchSuggestion[index], number: index + 1 };
+}
+
+function drawSuggestedTrail(states, now) {
+  if (!branchSuggestion.length) return;
+  const first = branchMapNode(branchSuggestion[0].mapId);
+  if (!first) return;
+  const start = branchMapNode(first.links.find((id) => states.get(id)?.owned) || first.links[0]);
+  const points = [start, ...branchSuggestion.map((step) => branchMapNode(step.mapId))].filter(Boolean)
+    .map((node) => branchWorldToScreen(node.x, node.y));
+  if (points.length < 2) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255, 214, 110, 0.85)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([2, 9]);
+  ctx.lineDashOffset = -(now / 40) % 11;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSuggestedBadges(pulse) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  branchSuggestion.forEach((step, index) => {
+    const node = branchMapNode(step.mapId);
+    if (!node) return;
+    const { x, y } = branchWorldToScreen(node.x, node.y);
+    const radius = branchNodeRadius(node);
+    if (index === 0) {
+      ctx.strokeStyle = `rgba(255, 214, 110, ${0.5 + pulse * 0.45})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(x, y, radius + 9 + pulse * 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const bx = x - radius * 0.8;
+    const by = y - radius * 0.8;
+    ctx.fillStyle = index === 0 ? '#ffd66e' : 'rgba(255, 214, 110, 0.7)';
+    ctx.beginPath();
+    ctx.arc(bx, by, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = 'bold 9px Arial';
+    ctx.fillStyle = '#1b1408';
+    ctx.fillText(String(index + 1), bx, by + 0.5);
+  });
+  ctx.restore();
+}
+
+// One line for the info panel: why the focused node is suggested, or where the suggestion points.
+function suggestionLine(mapId) {
+  const step = suggestionStep(mapId);
+  if (step) return { text: `★ Suggested ${step.number}: ${step.reason}.`, color: '#ffd66e' };
+  const next = branchSuggestion[0];
+  if (!next) return null;
+  const node = branchMapNode(next.mapId);
+  const name = node?.kind === 'cf' ? confluenceNodeName(node.cf) : node?.branch ? `${node.branch.name} ${BRANCH_TIER_NUMERALS[node.tier - 1]}` : '';
+  return name ? { text: `Suggested next: ${name} · ${next.reason}. Any open node is yours to pick.`, color: '#b8a466' } : null;
+}
+
+function drawBranchToken(now) {
+  const sprite = humanoidSprites[character?.sprite];
+  const { x, y } = branchWorldToScreen(branchToken.x, branchToken.y);
+  const feetY = y - 14;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.beginPath();
+  ctx.ellipse(x, feetY + 1, 10, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (!sprite?.image) return;
+  const walking = branchToken.t < 1;
+  const frame = walking ? 1 + Math.floor(now / 90) % 6 : 0;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  drawSpriteImage.effect = null;
+  drawHumanoid(sprite.image, branchToken.row * sprite.framesPerDirection + frame, x, feetY, 0.74, character.hue);
+  ctx.restore();
+}
+
+function drawBranchInfo(layout, loadout) {
+  const node = branchMapNode(branchMapFocus);
+  const style = node?.style || (BRANCH_STYLES.includes(branchTab) ? branchTab : 'magic');
+  loadout = branchLoadout(style);
+  drawManaPanel(662, 72, 256, 404, '#796b47');
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const line = (text, y, font, color, width = 228) => {
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.fillText(text, 676, y, width);
+  };
+  const wrap = (text, y, font, color, maxLines = 3) => {
+    ctx.font = font;
+    const words = String(text).split(' ');
+    let current = '';
+    let lines = 0;
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (ctx.measureText(next).width > 226 && current) {
+        line(current, y + lines * 15, font, color);
+        lines += 1;
+        current = word;
+        if (lines >= maxLines) return y + lines * 15;
+      } else current = next;
+    }
+    if (current) line(current, y + lines * 15, font, color), lines += 1;
+    return y + lines * 15;
+  };
+  const branch = node?.branch;
+  if (branch) {
+    const tier = branchTier(branch.id);
+    const on = loadout.includes(branch.id);
+    const powered = branchPowered(branch);
+    line(`${branch.icon} ${branch.name}`, 98, 'bold 17px Georgia', '#fff4d5');
+    ctx.font = 'bold 14px Georgia';
+    ctx.fillStyle = '#f0d486';
+    ctx.textAlign = 'right';
+    ctx.fillText('◆'.repeat(tier) + '◇'.repeat(3 - tier), 904, 98);
+    ctx.textAlign = 'left';
+    let y = wrap(branch.items.length ? `Needs: ${branchItemNames(branch).join(' or ')}` : 'Technique: no item needed', 118,
+      '11px Arial', '#bbb49d', 2);
+    branch.tiers.forEach((entryTier, index) => {
+      const owned = index < tier;
+      const here = node.tier === index + 1;
+      const cost = branchTierCost(branch.id, index + 1);
+      line(`${here ? '▸' : ' '}${BRANCH_TIER_NUMERALS[index]}`, y + 14, 'bold 12px Georgia', owned ? '#f0d486' : '#6f6a58');
+      ctx.font = '12px Arial';
+      ctx.fillStyle = owned ? '#e6dcc0' : '#8c866f';
+      ctx.fillText(entryTier.text, 704, y + 14, 200);
+      y += 20;
+      if (!owned && cost) {
+        const ability = branchTierIsAbility(branch.id, index + 1);
+        line(`   ${ability ? 'ability lock' : 'stat'}: ${costLabel(cost)}`, y + 8, '10px Arial', ability ? '#c9a8e8' : '#8c866f');
+        y += 13;
+      }
+    });
+    y += 10;
+    const status = !on ? 'Off. Highlight it to use it.'
+      : powered ? (branch.items.length ? `Powered by ${branchItemNames(branch).filter((_, i) => ownedItems.has(branch.items[i])).join(', ')}` : 'Highlighted and working.')
+        : `Dormant: find ${branchItemNames(branch).join(' or ')}.`;
+    wrap(status, y + 8, 'bold 11px Arial', !on ? '#9c967f' : powered ? '#8fdca6' : '#e0a868', 2);
+    const partners = branchSynergies.filter((synergy) => synergy.branches.includes(branch.id));
+    if (partners.length) {
+      wrap(`Synergies: ${partners.map((synergy) => synergy.name).join(', ')}`, y + 42, '11px Arial', '#b9a3d8', 2);
+    }
+    drawBranchButton(layout.toggle, on ? 'ON' : 'OFF', on ? 'highlighted' : `${loadout.length}/${BRANCH_SLOTS} slots`,
+      on ? '#7fd29a' : '#796b47', true);
+    const cost = nextBranchTierCost(branch.id);
+    if (cost && growthBlock(cost) === 'gate') {
+      line(`Career XP ${Math.floor(branchState().xp)}/${growthXpRequirement()} to grow`, y + 74, 'bold 11px Arial', '#e0a868');
+    }
+    const affordable = cost && canAfford(cost);
+    drawBranchButton(layout.unlock, cost ? `Grow ${BRANCH_TIER_NUMERALS[tier]}` : 'MAX',
+      cost ? costLabel(cost, true) : 'fully grown',
+      affordable ? '#f0d486' : '#796b47', Boolean(affordable));
+  } else if (node?.kind === 'cf') {
+    drawConfluenceInfo(node.cf, layout, line, wrap);
+  } else if (node?.kind === 'synergy') {
+    const { synergy } = node;
+    const active = activeBranchSynergies(style).includes(synergy);
+    line(`${active ? '★' : '☆'} ${synergy.name}`, 98, 'bold 17px Georgia', active ? '#ffe38a' : '#e7d2ff');
+    line('Synergy', 118, '11px Arial', '#bbb49d');
+    let y = wrap(synergy.text, 144, '13px Arial', '#e6dcc0', 3);
+    y = wrap(`Highlight both ${synergy.branches.map((id) => branchById(id)?.name).join(' and ')} with their items found to awaken it.`, y + 14,
+      '11px Arial', '#bbb49d', 3);
+    synergy.branches.forEach((id, index) => {
+      const entry = branchById(id);
+      const on = loadout.includes(id);
+      const label = !on ? '' : branchPowered(entry) ? ' (on)' : ' (on, dormant)';
+      line(`${on ? '●' : '○'} ${entry?.name}${label}`, y + 18 + index * 18, '12px Arial',
+        !on ? '#8c866f' : branchPowered(entry) ? '#8fdca6' : '#e0a868');
+    });
+    line(active ? 'Awake.' : 'Asleep.', y + 64, 'bold 12px Arial', active ? '#ffe38a' : '#9c967f');
+  } else if (node?.kind === 'weapon') {
+    const entry = node.weapon;
+    const rank = weaponProficiencyRank(entry.id);
+    line(`${entry.icon} ${entry.name}`, 98, 'bold 17px Georgia', '#fff4d5');
+    line(`${BRANCH_STYLE_NAMES[entry.family]} weapon · ${rank === 'unfound' ? 'not found yet' : rank}`, 118, '11px Arial', '#bbb49d');
+    let y = wrap(entry.text, 144, '13px Arial', '#e6dcc0', 3);
+    y = wrap(`Uses the ${BRANCH_STYLE_NAMES[entry.family]} branches you highlight here.`, y + 10, '11px Arial', '#bbb49d', 2);
+    const traits = weaponTraitText(entry);
+    if (traits) y = wrap(traits, y + 10, '11px Arial', '#d8c48f', 3);
+    const power = rank === 'learned' ? 'Full power.'
+      : rank === 'found' ? `Hits at ${Math.round(WEAPON_PROFICIENCY.found * 100)}%. Learn it for full power (${costLabel(WEAPON_LEARN_COST)}).`
+        : `Hits at ${Math.round(WEAPON_PROFICIENCY.unfound * 100)}%. Find it in a weapon cache (${Math.round(WEAPON_PROFICIENCY.found * 100)}%), then learn it for full power.`;
+    y = wrap(power, y + 10, 'bold 11px Arial', rank === 'learned' ? '#8fdca6' : '#e0a868', 3);
+    drawWeaponHandButtons(layout, entry.id, y - 4);
+    if (rank === 'found') {
+      const affordable = canAfford(WEAPON_LEARN_COST);
+      drawBranchButton(layout.unweave, `Learn · ${costLabel(WEAPON_LEARN_COST, true)}`, '', affordable ? '#f0d486' : '#796b47', affordable);
+    }
+  } else if (node?.kind === 'grip') {
+    const owned = dualGripOwned();
+    line('⚯ Dual Grip', 98, 'bold 17px Georgia', '#bfeaf5');
+    line(`Shared by every weapon · ${owned ? 'grown' : 'not grown'}`, 118, '11px Arial', '#bbb49d');
+    let y = wrap('Wield both hands at once. Attack uses your main hand; your off hand attacks on its own, only at a foe close to where you are looking.', 144,
+      '12px Arial', '#e6dcc0', 5);
+    y = wrap('The off hand follows its own map: with Wind-Up, Longdraw or Focus highlighted it charges and releases, otherwise it taps at a slower pace and hits a little lighter.',
+      y + 10, '11px Arial', '#bbb49d', 5);
+    drawBranchButton(layout.toggle, owned ? 'ON' : 'OFF', owned ? 'grown' : 'not grown', owned ? '#7fd0e8' : '#796b47', true);
+    const affordable = !owned && canAfford(DUAL_GRIP_COST);
+    drawBranchButton(layout.unlock, owned ? 'MAX' : 'Grow', owned ? 'grown' : costLabel(DUAL_GRIP_COST, true),
+      affordable ? '#f0d486' : '#796b47', affordable);
+  } else {
+    line(`${BRANCH_HEART_ICONS[style]} ${BRANCH_STYLE_NAMES[style]} heart`, 98, 'bold 17px Georgia', branchHeartColor(style));
+    let y = wrap(`Highlight up to ${BRANCH_SLOTS} branches. Walk out along a branch to grow it. Found items only work in a highlighted branch.`,
+      120, '11px Arial', '#bbb49d', 4);
+    line(`Highlighted ${loadout.length}/${BRANCH_SLOTS}`, y + 16, 'bold 12px Georgia', '#e9d39f');
+    loadout.forEach((id, index) => {
+      const entry = branchById(id);
+      line(`${entry?.icon} ${entry?.name}  ${'◆'.repeat(branchTier(id))}`, y + 36 + index * 18, '12px Arial',
+        branchPowered(entry) ? '#f0c75a' : '#c98a3c');
+    });
+    const synergies = activeBranchSynergies(style);
+    line('Awake synergies', y + 104, 'bold 12px Georgia', '#e9d39f');
+    if (!synergies.length) line('None yet. Pair neighbouring branches.', y + 122, '11px Arial', '#8c866f');
+    synergies.forEach((synergy, index) => line(`★ ${synergy.name}: ${synergy.text}`, y + 122 + index * 16, '11px Arial', '#e7d2ff'));
+    drawWeaponHandButtons(layout, branchBaseWeaponId(style), null);
+  }
+  const unweave = focusedUnweave();
+  const runes = weaponState().runes || 0;
+  if (runes > 0 && unweave) {
+    drawBranchButton(layout.unweave, `Unweave (${runes} rune${runes === 1 ? '' : 's'})`, '', '#b48fe0', true);
+  }
+}
+
+// Info for a Confluence node: what it does, whether a fusion is working right now, and what growing it takes.
+function drawConfluenceInfo(cf, layout, line, wrap) {
+  const owned = confluenceOwned(cf.id);
+  const reachable = confluenceReachable(cf);
+  const color = cf.bridge?.color || '#fff2a0';
+  const bridgeNames = cf.bridge ? cf.bridge.styles.map((style) => BRANCH_STYLE_NAMES[style]).join(' + ') : 'Blade + Bow + Magic';
+  const kindName = { stat: 'Stat', seal: 'Lock', fusion: 'Fusion · ability lock', move: 'Move · ability lock', trinity: 'Capstone · lock' }[cf.kind];
+  line(`${confluenceNodeIcon(cf)} ${confluenceNodeName(cf)}`, 98, 'bold 17px Georgia', color);
+  line(`${kindName} · ${bridgeNames} · ${owned ? (cf.kind === 'seal' ? 'unsealed' : 'grown') : 'not grown'}`, 118, '11px Arial', '#bbb49d');
+  const text = cf.kind === 'stat' ? CONFLUENCE_STATS[cf.stat].text : cf.kind === 'seal' ? CONFLUENCE_SEAL.text
+    : cf.kind === 'fusion' ? cf.fusion.text : cf.kind === 'move' ? cf.move.text : CONFLUENCE_TRINITY.text;
+  let y = wrap(text, 144, '13px Arial', '#e6dcc0', 4);
+  if (cf.kind === 'fusion') {
+    const active = confluenceFusionActive(cf.fusion.id);
+    const status = !owned ? `Works while a ${bridgeNames.replace(' + ', ' or ')} weapon is in your main hand.`
+      : confluenceOwned('cf:trinity') ? 'Working with any weapon (Trinity).'
+        : active ? 'Working: your main hand is one of its weapons.' : `Asleep: put a ${bridgeNames.replace(' + ', ' or ')} weapon in your main hand.`;
+    y = wrap(status, y + 10, 'bold 11px Arial', owned && active ? '#8fdca6' : '#e0a868', 3);
+  } else if (cf.kind === 'stat') {
+    y = wrap('Counts for every weapon, in either hand.', y + 10, '11px Arial', '#bbb49d', 2);
+  } else if (cf.kind === 'move') {
+    y = wrap('Always ready once grown, whatever you hold.', y + 10, '11px Arial', '#bbb49d', 2);
+  }
+  if (!owned) {
+    const how = reachable ? `${cf.kind === 'seal' ? 'Unseal' : 'Grow'} for ${costLabel(cf.cost)}.`
+      : cf.kind === 'trinity' ? 'Grow all three fusions first.'
+        : 'Grow a linked node first. Each bridge starts from a tier III branch.';
+    y = wrap(how, y + 12, 'bold 11px Arial', reachable ? '#f0d486' : '#9c967f', 3);
+    if (reachable && growthBlock(cf.cost) === 'gate') {
+      line(`Career XP ${Math.floor(branchState().xp)}/${growthXpRequirement()} to grow`, y + 14, 'bold 11px Arial', '#e0a868');
+    }
+  }
+  drawBranchButton(layout.toggle, '—', owned ? 'always on' : 'no slot needed', owned ? color : '#4a4536', owned);
+  const affordable = !owned && reachable && canAfford(cf.cost);
+  drawBranchButton(layout.unlock, owned ? 'MAX' : cf.kind === 'seal' ? 'Unseal' : 'Grow', owned ? 'grown' : costLabel(cf.cost, true),
+    affordable ? '#f0d486' : '#796b47', affordable);
+}
+
+// A tier's stat as an icon and a short label for its node on the map.
+function branchFxBadge(fx = {}) {
+  const percent = (value) => `${Math.round(Math.abs(value - 1) * 100)}%`;
+  if (fx.shots) return { icon: '⋔', label: `+${fx.shots} SHOT` };
+  if (fx.chain) return { icon: 'ϟ', label: `+${fx.chain} ARC` };
+  if (fx.pierce) return { icon: '➶', label: `PIERCE +${fx.pierce}` };
+  if (fx.explode) return { icon: '✸', label: fx.damage ? `BURST +${percent(fx.damage)}` : 'BIG BURST' };
+  if (fx.linger) return { icon: '☁', label: fx.linger === 'long' ? '5s CLOUD' : 'CLOUD' };
+  if (fx.fireWall) return { icon: '♨', label: 'ELEMENT WALL' };
+  if (fx.arc) return { icon: '⟷', label: 'WIDE' };
+  if (fx.parryDamage) return { icon: '⟲', label: `PARRY +${percent(fx.parryDamage)}` };
+  if (fx.chargeSpeed) return { icon: '◎', label: `+${percent(fx.chargeSpeed)} CHG` };
+  if (fx.rate) return { icon: '»', label: `${percent(fx.rate)} FAST` };
+  if (fx.reach) return { icon: '⟷', label: `+${percent(fx.reach)} RCH` };
+  if (fx.damage) return { icon: '⚔', label: `+${percent(fx.damage)} DMG` };
+  return { icon: '✦', label: '' };
+}
+
+function weaponTraitText(entry) {
+  const fx = entry.fx || {};
+  const percent = (value) => `${value > 1 ? '+' : '−'}${Math.round(Math.abs(value - 1) * 100)}%`;
+  const parts = [];
+  if (fx.damage && fx.damage !== 1) parts.push(`${percent(fx.damage)} damage`);
+  if (fx.rate && fx.rate !== 1) parts.push(fx.rate > 1 ? `${Math.round((fx.rate - 1) * 100)}% slower` : `${Math.round((1 - fx.rate) * 100)}% faster`);
+  if (fx.reach && fx.reach !== 1) parts.push(`${percent(fx.reach)} reach`);
+  if (fx.arc) parts.push(fx.arc > 0 ? 'wider swings' : 'narrow swings');
+  if (fx.knockback) parts.push('heavy knockback');
+  if (fx.stun) parts.push('stuns');
+  if (fx.speed && fx.speed !== 1) parts.push(fx.speed > 1 ? 'fast shots' : 'slower shots');
+  if (fx.range && fx.range !== 1) parts.push(`${percent(fx.range)} range`);
+  if (fx.size && fx.size !== 1) parts.push('bigger shots');
+  if (fx.homing) parts.push('curves toward foes');
+  return parts.join(', ');
+}
+
+// Main / Off hand buttons for a learned weapon (the heart is its family's base weapon).
+function drawWeaponHandButtons(layout, id, y) {
+  const hand = weaponHandOf(id);
+  if (y !== null) {
+    const handText = hand === 'main' ? 'In your main hand.' : hand === 'off'
+      ? (dualGripOwned() ? 'In your off hand: attacks on its own.' : 'In your off hand (sheathed until you Swap).') : 'Not in a hand.';
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 11px Arial';
+    ctx.fillStyle = hand ? '#8fdca6' : '#9c967f';
+    ctx.fillText(handText, 676, y + 16, 228);
+  }
+  drawBranchButton(layout.toggle, 'Main', hand === 'main' ? 'in hand' : 'set main hand', hand === 'main' ? '#f0d486' : '#796b47', true);
+  drawBranchButton(layout.unlock, 'Off', hand === 'off' ? 'in hand' : 'set off hand', hand === 'off' ? '#9fd8ff' : '#796b47', true);
+}
+
+function drawBranchScreen() {
+  const now = performance.now();
+  updateBranchMap(now);
+  const layout = branchMapLayout();
+  const state = branchState();
+  const onConfluence = branchTab === 'confluence';
+  const loadout = onConfluence ? [] : branchLoadout(branchTab);
+  ctx.save();
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.78)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  drawManaPanel(26, 16, 908, 512, '#c9a65a');
+  drawBranchMap(loadout, now);
+  ctx.strokeStyle = '#4f4632';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(BRANCH_MAP_VIEW.x + 0.5, BRANCH_MAP_VIEW.y + 0.5, BRANCH_MAP_VIEW.width - 1, BRANCH_MAP_VIEW.height - 1);
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 20px Georgia';
+  ctx.fillStyle = '#f0d486';
+  ctx.fillText('WEAPON BRANCHES', 42, 52);
+  for (const tab of layout.tabs) {
+    const selected = tab.style === branchTab;
+    const label = tab.style === 'confluence'
+      ? `✦ Confluence ${confluenceState().length}/${confluenceNodes().length}`
+      : `${BRANCH_STYLE_NAMES[tab.style]} ${branchLoadout(tab.style).length}/${BRANCH_SLOTS}`;
+    drawBranchButton(tab.bounds, label, '', selected ? '#f0d486' : '#796b47', selected);
+  }
+  drawBranchButton(layout.close, 'Close', '', '#796b47', true);
+  drawBranchButton(layout.zoomOut, '−', '', '#796b47', true);
+  drawBranchButton(layout.zoomIn, '+', '', '#796b47', true);
+  drawBranchButton(layout.fit, '', '', '#796b47', true);
+  drawMagnifierIcon(layout.fit.x + layout.fit.width / 2 - 2, layout.fit.y + layout.fit.height / 2 - 2, 8);
+  if (!onConfluence) layout.sockets.forEach((bounds, index) => {
+    const entry = branchById(loadout[index]);
+    drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, entry ? (branchPowered(entry) ? '#f0c75a' : '#c98a3c') : '#4a4536');
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 18px Georgia';
+    ctx.fillStyle = entry ? '#fff4d5' : '#4a4536';
+    ctx.fillText(entry ? entry.icon : '·', bounds.x + bounds.width / 2, bounds.y + 26);
+  });
+  drawBranchInfo(layout, loadout);
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillStyle = '#e9d39f';
+  const runeCount = weaponState().runes || 0;
+  const pouch = carriedMaterials() || {};
+  ctx.fillText(`XP ${Math.floor(state.xp)}/${growthXpRequirement()} · ${bankedZenyBalance()}z bank · Ore ${pouch.ironOre || 0} ` +
+    `Crystal ${pouch.darkCrystal || 0} Stone ${pouch.lifeStone || 0}${runeCount ? ` · Runes ${runeCount}` : ''}`, 42, 496, 284);
+  if (branchNotice && performance.now() < branchNoticeUntil) {
+    ctx.font = 'bold 12px Arial';
+    ctx.fillStyle = '#ffe38a';
+    ctx.fillText(branchNotice, 336, 496, 582);
+  } else {
+    const suggestion = suggestionLine(branchMapFocus);
+    if (suggestion) {
+      ctx.font = 'bold 11px Arial';
+      ctx.fillStyle = suggestion.color;
+      ctx.fillText(suggestion.text, 336, 496, 582);
+    }
+  }
+  ctx.font = '11px Arial';
+  ctx.fillStyle = '#bbb49d';
+  const hint = lastInputMode === 'controller'
+    ? 'Stick/D-pad: walk · A: on/off or main hand · Y: grow or off hand · X: learn or unweave · LB/RB: tab · LT/RT: zoom · B: close'
+    : lastInputMode === 'touch'
+      ? 'Drag to look around, pinch or +/− to zoom. Tap a node, then use the buttons on the right. Gold numbers suggest a path.'
+      : 'WASD: walk · Enter: on/off or main · U: grow or off · R: learn or unweave · Q/E: tab · wheel: zoom · Esc: close';
+  ctx.fillText(hint, 42, 514, 876);
+  drawBranchGuide(now);
+  ctx.restore();
+}
+
+function boonCardBounds(index) {
+  return { x: VIEW_W / 2 - 360 + index * 248, y: 170, width: 224, height: 200 };
+}
+
+function moveBoonFocus(direction) {
+  const count = boonChoices?.length || 0;
+  if (count) boonFocus = (boonFocus + direction + count) % count;
+}
+
+function confirmBoonChoice(index = boonFocus) {
+  if (performance.now() < boonInputGuardUntil) return false;
+  return chooseBoon(index);
+}
+
+function handleBoonKey(event, key) {
+  if (['1', '2', '3'].includes(key)) confirmBoonChoice(Number(key) - 1);
+  else if (event.key === 'ArrowLeft' || key === 'a') moveBoonFocus(-1);
+  else if (event.key === 'ArrowRight' || key === 'd') moveBoonFocus(1);
+  else if (event.key === 'Enter' || event.key === ' ' || key === 'e') confirmBoonChoice();
+}
+
+function handleBoonPointer() {
+  (boonChoices || []).forEach((_, index) => {
+    if (!pointInBounds(boonCardBounds(index))) return;
+    boonFocus = index;
+    confirmBoonChoice(index);
+  });
+}
+
+function drawBoonChoice() {
+  if (!boonChoices) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.66)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 26px Georgia';
+  ctx.fillStyle = '#7ee8ff';
+  ctx.fillText(`LEVEL ${xpLevel - pendingBoonPicks + 1}: choose a boon`, VIEW_W / 2, 132);
+  if (pendingBoonPicks > 1) {
+    ctx.font = '13px Arial';
+    ctx.fillStyle = '#bbb49d';
+    ctx.fillText(`${pendingBoonPicks - 1} more after this one`, VIEW_W / 2, 154);
+  }
+  boonChoices.forEach((boon, index) => {
+    const bounds = boonCardBounds(index);
+    const hovered = lastInputMode === 'keyboard' && pointInBounds(bounds);
+    const focused = index === boonFocus || hovered;
+    drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#7ee8ff' : '#796b47');
+    const centerX = bounds.x + bounds.width / 2;
+    ctx.font = 'bold 44px Georgia';
+    ctx.fillStyle = focused ? '#bff4ff' : '#d8cfb2';
+    ctx.fillText(boon.icon, centerX, bounds.y + 96);
+    ctx.font = 'bold 20px Georgia';
+    ctx.fillStyle = '#fff4d5';
+    ctx.fillText(boon.name, centerX, bounds.y + 140, bounds.width - 20);
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#e6dcc0';
+    ctx.fillText(boon.text, centerX, bounds.y + 166, bounds.width - 20);
+    if (lastInputMode === 'keyboard') {
+      ctx.font = 'bold 12px Arial';
+      ctx.fillStyle = '#9c967f';
+      ctx.fillText(`[${index + 1}]`, centerX, bounds.y + 22);
+    }
+  });
+  ctx.font = '13px Arial';
+  ctx.fillStyle = '#bbb49d';
+  const hint = lastInputMode === 'controller' ? 'D-pad left/right to pick · A to take it'
+    : lastInputMode === 'touch' ? 'Tap a boon to take it'
+      : '1-3 or ←/→ then Enter · click a card';
+  ctx.fillText(hint, VIEW_W / 2, 404);
+  ctx.restore();
+}
+
+function elementCardBounds(index) {
+  const column = index % 4;
+  const row = Math.floor(index / 4);
+  return { x: VIEW_W / 2 - 404 + column * 206, y: 150 + row * 138, width: 190, height: 124 };
+}
+
+// Every element is shown so players see what is still out there; only unlocked ones can be picked.
+function elementPickerSlots() {
+  return Object.keys(magicElementPalette).map((element) => ({ element, unlocked: Boolean(elementChoices?.includes(element)) }));
+}
+
+function moveElementFocus(dx, dy = 0) {
+  if (!elementChoices?.length) return;
+  const slots = elementPickerSlots();
+  let index = slots.findIndex((slot) => slot.element === elementChoices[elementFocus]);
+  for (let step = 0; step < slots.length; step += 1) {
+    index = dy ? (index + dy * 4 + slots.length) % slots.length : (index + dx + slots.length) % slots.length;
+    const found = elementChoices.indexOf(slots[index].element);
+    if (found >= 0) {
+      elementFocus = found;
+      return;
+    }
+    if (dy) dy = 0, dx = Math.sign(dx) || 1;
+  }
+}
+
+function confirmElementChoice(index = elementFocus) {
+  if (performance.now() < elementInputGuardUntil) return false;
+  return chooseElement(index);
+}
+
+function handleElementKey(event, key) {
+  const number = Number(key);
+  if (number >= 1 && number <= 8) {
+    const found = elementChoices?.indexOf(elementPickerSlots()[number - 1]?.element) ?? -1;
+    if (found >= 0) confirmElementChoice(found);
+  } else if (event.key === 'ArrowLeft' || key === 'a') moveElementFocus(-1);
+  else if (event.key === 'ArrowRight' || key === 'd') moveElementFocus(1);
+  else if (event.key === 'ArrowUp' || key === 'w') moveElementFocus(0, -1);
+  else if (event.key === 'ArrowDown' || key === 's') moveElementFocus(0, 1);
+  else if (event.key === 'Enter' || event.key === ' ' || key === 'e') confirmElementChoice();
+}
+
+function handleElementPointer() {
+  elementPickerSlots().forEach((slot, index) => {
+    if (!pointInBounds(elementCardBounds(index))) return;
+    const found = elementChoices.indexOf(slot.element);
+    if (found < 0) {
+      showMessage(`${magicElementName(slot.element)} is locked. Use an obelisk during this run to unlock it.`, 2.5);
+      return;
+    }
+    elementFocus = found;
+    confirmElementChoice(found);
+  });
+}
+
+function drawElementChoice() {
+  if (!elementChoices) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.72)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 26px Georgia';
+  ctx.fillStyle = '#f0d486';
+  ctx.fillText(elementPickSource === 'start' ? 'Choose your element for this run' : 'The obelisk offers every element you know',
+    VIEW_W / 2, 108);
+  ctx.font = '13px Arial';
+  ctx.fillStyle = '#bbb49d';
+  ctx.fillText('It stays locked in until you reach an obelisk.', VIEW_W / 2, 132);
+  const focusedElement = elementChoices[elementFocus];
+  elementPickerSlots().forEach((slot, index) => {
+    const { element, unlocked } = slot;
+    const bounds = elementCardBounds(index);
+    const color = magicElementPalette[element];
+    const hovered = unlocked && lastInputMode === 'keyboard' && pointInBounds(bounds);
+    const focused = unlocked && (element === focusedElement || hovered);
+    drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#ffe38a' : unlocked ? color : '#3f3b30');
+    const centerX = bounds.x + bounds.width / 2;
+    if (unlocked) {
+      drawEffect('glow', 0, centerX, bounds.y + 50, { width: focused ? 120 : 90, tint: color, alpha: focused ? 0.5 : 0.28, smooth: true });
+      drawElementGlyph(element, centerX, bounds.y + 50, focused ? 44 : 36);
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = 'bold 18px Georgia';
+    ctx.fillStyle = unlocked ? (focused ? '#fff4d5' : '#e6dcc0') : '#6f6a58';
+    ctx.fillText(magicElementName(element), centerX, bounds.y + 98, bounds.width - 16);
+    ctx.font = '11px Arial';
+    ctx.fillStyle = unlocked ? '#9c967f' : '#5f5a4a';
+    ctx.fillText(unlocked ? (element === activeMagicElement && elementPickSource !== 'start' ? 'current' : '')
+      : 'locked', centerX, bounds.y + 115);
+    if (unlocked && lastInputMode === 'keyboard') {
+      ctx.font = 'bold 12px Arial';
+      ctx.fillStyle = '#9c967f';
+      ctx.fillText(`[${index + 1}]`, bounds.x + 18, bounds.y + 20);
+    }
+  });
+  ctx.font = '13px Arial';
+  ctx.fillStyle = '#bbb49d';
+  const hint = lastInputMode === 'controller' ? 'D-pad to pick · A to attune'
+    : lastInputMode === 'touch' ? 'Tap an element to attune'
+      : '1-8 or arrows then Enter · click an element';
+  ctx.fillText(hint, VIEW_W / 2, 446);
+  ctx.restore();
+}
+
+function startingWeaponBounds(index) {
+  return { x: VIEW_W / 2 - 330 + index * 224, y: 190, width: 212, height: 156 };
+}
+
+function moveStartingWeaponFocus(direction) {
+  startingWeaponFocus = (startingWeaponFocus + direction + STARTING_WEAPON_STYLES.length) % STARTING_WEAPON_STYLES.length;
+}
+
+function confirmStartingWeaponChoice(index = startingWeaponFocus) {
+  if (performance.now() < startingWeaponGuardUntil) return false;
+  return chooseStartingWeapon(index);
+}
+
+function handleStartingWeaponKey(event, key) {
+  if (event.key === 'ArrowLeft' || key === 'a') moveStartingWeaponFocus(-1);
+  else if (event.key === 'ArrowRight' || key === 'd') moveStartingWeaponFocus(1);
+  else if (['1', '2', '3'].includes(key)) confirmStartingWeaponChoice(Number(key) - 1);
+  else if (event.key === 'Enter' || event.key === ' ' || key === 'e') confirmStartingWeaponChoice();
+}
+
+function handleStartingWeaponPointer() {
+  const index = STARTING_WEAPON_STYLES.findIndex((style, slot) => pointInBounds(startingWeaponBounds(slot)));
+  if (index < 0) return;
+  startingWeaponFocus = index;
+  confirmStartingWeaponChoice(index);
+}
+
+function drawStartingWeaponChoice() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.82)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 26px Georgia';
+  ctx.fillStyle = '#f2e5c6';
+  ctx.fillText('CHOOSE YOUR STARTING WEAPON', VIEW_W / 2, 142);
+  const names = ['Sword', 'Arrows', 'Magic'];
+  const descriptions = ['Close-range strikes and parries', 'Tap shots and charged arrows', 'Bubble spells; visit obelisks'];
+  STARTING_WEAPON_STYLES.forEach((style, index) => {
+    const bounds = startingWeaponBounds(index);
+    const focused = index === startingWeaponFocus || pointInBounds(bounds);
+    drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#7ee8ff' : '#796b47');
+    const centerX = bounds.x + bounds.width / 2;
+    const item = weaponById(BASE_WEAPON_FOR_STYLE[style]);
+    drawShopItemIcon({ id: `weapon-${item.id}`, icon: `weapon-${item.id}`, kind: 'weapon' }, centerX, bounds.y + 48);
+    ctx.fillStyle = '#fff4d5';
+    ctx.font = 'bold 20px Georgia';
+    ctx.fillText(names[index], centerX, bounds.y + 96);
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#d9c796';
+    ctx.fillText(descriptions[index], centerX, bounds.y + 126, bounds.width - 12);
+  });
+  ctx.font = '13px Arial';
+  ctx.fillStyle = '#d9c796';
+  ctx.fillText(lastInputMode === 'controller' ? 'D-pad left/right, then A'
+    : lastInputMode === 'touch' ? 'Tap a weapon to start'
+      : '1-3, click, or Left/Right then Enter', VIEW_W / 2, 392);
+  ctx.restore();
+}
+
+// ---- Starting-ability picker (before the final weapon choice) ----
+function abilitySlotBounds(slot) {
+  const x = VIEW_W / 2 - 396 + slot.column * 268;
+  if (slot.row >= START_ABILITY_ROWS) return { x, y: 404, width: 256, height: 44 };
+  return { x, y: 160 + slot.row * 58, width: 256, height: 50 };
+}
+
+function confirmAbilityChoice(index = abilityFocus) {
+  if (performance.now() < abilityInputGuardUntil) return false;
+  return chooseStartAbility(index);
+}
+
+function skipAbilityChoice() {
+  const index = abilitySlots?.findIndex((slot) => slot.kind === 'skip') ?? -1;
+  return index >= 0 && confirmAbilityChoice(index);
+}
+
+function handleAbilityKey(event, key) {
+  if (event.key === 'ArrowLeft' || key === 'a') moveAbilityFocus(-1);
+  else if (event.key === 'ArrowRight' || key === 'd') moveAbilityFocus(1);
+  else if (event.key === 'ArrowUp' || key === 'w') moveAbilityFocus(0, -1);
+  else if (event.key === 'ArrowDown' || key === 's') moveAbilityFocus(0, 1);
+  else if (event.key === 'Enter' || event.key === ' ' || key === 'e') confirmAbilityChoice();
+  else if (event.key === 'Escape') skipAbilityChoice();
+}
+
+function handleAbilityPointer() {
+  const index = abilitySlots?.findIndex((slot) => pointInBounds(abilitySlotBounds(slot))) ?? -1;
+  if (index < 0) return;
+  abilityFocus = index;
+  confirmAbilityChoice(index);
+}
+
+// A solid element-coloured disc so the mark reads even when the element sprite is faint at small sizes.
+function drawAbilityElementBadge(element, color, x, y, radius) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(8, 10, 14, 0.85)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, radius - 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  drawElementGlyph(element, x, y, radius * 2.2);
+}
+
+function drawAbilityChoice() {
+  if (!abilitySlots) return;
+  const element = getActiveAttackElement();
+  const elementColor = magicElementPalette[element] || '#bff4ff';
+  ctx.save();
+  ctx.fillStyle = 'rgba(6, 8, 12, 0.72)';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 26px Georgia';
+  ctx.fillStyle = '#f0d486';
+  ctx.fillText('Choose a starting ability', VIEW_W / 2, 92);
+  ctx.font = '13px Arial';
+  ctx.fillStyle = '#bbb49d';
+  ctx.fillText('Any weapon. Its branch lights up and the weapon goes in your hand. Find more in the descent.', VIEW_W / 2, 116);
+  BRANCH_STYLES.forEach((style, column) => {
+    const x = VIEW_W / 2 - 396 + column * 268 + 128;
+    const base = weaponById(BASE_WEAPON_FOR_STYLE[style]);
+    ctx.font = 'bold 17px Georgia';
+    ctx.fillStyle = '#e6dcc0';
+    ctx.fillText(`${base?.icon || ''} ${BRANCH_STYLE_NAMES[style]}`, x, 148);
+    if (!abilitySlots.some((slot) => slot.kind === 'item' && slot.style === style)) {
+      ctx.font = 'italic 12px Arial';
+      ctx.fillStyle = '#6f6a58';
+      ctx.fillText('None found yet', x, 190);
+    }
+  });
+  abilitySlots.forEach((slot, index) => {
+    const bounds = abilitySlotBounds(slot);
+    const hovered = lastInputMode === 'keyboard' && pointInBounds(bounds);
+    const focused = index === abilityFocus || hovered;
+    const accent = slot.kind === 'random' ? elementColor : slot.kind === 'skip' ? '#5f5a4a' : '#796b47';
+    drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#ffe38a' : accent);
+    const midY = bounds.y + bounds.height / 2;
+    if (slot.kind === 'skip') {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 15px Georgia';
+      ctx.fillStyle = focused ? '#fff4d5' : '#bbb49d';
+      ctx.fillText('Skip: start without one', bounds.x + bounds.width / 2, midY + 5);
+      return;
+    }
+    ctx.textAlign = 'left';
+    if (slot.kind === 'random') {
+      if (element) {
+        drawAbilityElementBadge(element, elementColor, bounds.x + 28, midY, 16);
+      }
+      ctx.font = 'bold 15px Georgia';
+      ctx.fillStyle = focused ? '#fff4d5' : '#e6dcc0';
+      ctx.fillText(`Random ${element ? magicElementName(element) : ''} ability`, bounds.x + 52, midY - 3, bounds.width - 62);
+      ctx.font = '11px Arial';
+      ctx.fillStyle = '#9c967f';
+      ctx.fillText('Suits your element; may be one not found yet', bounds.x + 52, midY + 13, bounds.width - 62);
+      return;
+    }
+    drawShopItemIcon(slot.item, bounds.x + 28, midY);
+    ctx.font = 'bold 15px Georgia';
+    ctx.fillStyle = focused ? '#fff4d5' : '#e6dcc0';
+    ctx.fillText(slot.item.name, bounds.x + 52, midY - 3, bounds.width - 84);
+    ctx.font = '11px Arial';
+    ctx.fillStyle = '#9c967f';
+    ctx.fillText(slot.item.description.replace(/^\w+: /, ''), bounds.x + 52, midY + 13, bounds.width - 62);
+    if (element && abilitySuitsElement(slot.item, element)) {
+      drawAbilityElementBadge(element, elementColor, bounds.x + bounds.width - 16, bounds.y + 15, 10);
+    }
+  });
+  ctx.textAlign = 'center';
+  ctx.font = '13px Arial';
+  ctx.fillStyle = '#bbb49d';
+  const hint = lastInputMode === 'controller' ? 'D-pad to pick · A to take it · B to skip'
+    : lastInputMode === 'touch' ? 'Tap an ability to take it'
+      : 'Arrows then Enter · Esc to skip · click a card';
+  ctx.fillText(hint, VIEW_W / 2, 476);
+  if (element) {
+    ctx.font = '11px Arial';
+    ctx.fillStyle = elementColor;
+    const anyMarked = abilitySlots.some((slot) => slot.kind === 'item' && abilitySuitsElement(slot.item, element));
+    const lead = anyMarked ? `Marked abilities suit ${magicElementName(element)}.` : `Random may find a ${magicElementName(element)} ability.`;
+    ctx.fillText(`${lead} Every ability takes on your element.`, VIEW_W / 2, 494);
+  }
+  ctx.restore();
 }
 
 function openControls(from) {
@@ -5643,7 +8059,7 @@ function tutorialPages() {
       ['Descend the Sanctum', 'Each floor is a chain of up to 10 rooms. Clear a floor, find its boss room, defeat the boss and step onto the descent pad to go deeper. Every floor brings stronger foes.'],
       ['Clear rooms to move on', 'Doors are shut while enemies live. Kill everything in a room and its doors open. A locked door needs a key instead, and shows a lock on the wall.'],
       ['Stay alive', 'Start with four hearts at the top left, each split into two hit points. Direct enemy contact costs a full heart; ordinary projectiles and splash cost half a heart. Telegraphed boss heavy slams cost TWO hearts. Floor hearts heal a full heart.'],
-      ['Grow stronger', 'Kills give XP and you level up, which raises your weapon pools. Items, weapon mods and boons make each run different. If you fall, unlocks and banked zeny carry over.'],
+      ['Grow stronger', 'Kills give XP. Each level-up lets you pick 1 of 3 boons once the room is clear. Items, weapon branches and boons make each run different. If you fall, unlocks, branch tiers and banked zeny carry over.'],
     ] },
     { title: 'CONTROLS', sections: [
       ['Move and aim', pad
@@ -5651,10 +8067,16 @@ function tutorialPages() {
         : lastInputMode === 'touch'
           ? 'Drag the left area to move. Hold Attack to target the nearest live enemy. With no enemies in the room, drag Attack to aim freely, or hold without dragging to fire where you face.'
           : 'W A S D moves. The mouse aims and left click fires. Hold to keep attacking.'],
+      ...(lastInputMode === 'touch' ? [
+        ['Fight', 'Dash sits just above and right of Attack; Bomb and Wave sit to its left (counts show what is left). Switch cycles weapons. Skill appears only for classes with an active skill (Sapper, Scribe, Keeper) and counts down its cooldown.'],
+        ['Use things', 'Near a shop stall, pad, menhir, obelisk or altar with no enemies left, Attack glows gold and reads Use: tap it to buy, talk or activate. Walk into an open doorway to go through. Item appears once you carry a consumable from a broken pot or crate.'],
+        ['Menus', 'Map, Story and Build (cleared rooms) are on the left (top in portrait); Pause is on the right. The pause screen has Resume and Save & exit buttons.'],
+      ] : [
       ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover Betsanc to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
       ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
-      ['Menus', `${b('map')} map, ${b('journal')} journal, ${pad ? p.menu : 'P'} pause. Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}). Weapon upgrades may also change how that weapon fires.`],
-    ] },
+      ['Menus', `${b('map')} map, ${b('journal')} journal, ${b('branches')} weapon branches (cleared rooms), ${pad ? p.menu : 'P'} pause.       Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}).${pad ? '' : ' The buttons beside the game (Pause on the right) do the same with a click.'}`],
+            ]),
+          ] },
     { title: 'READING THE SCREEN', sections: [
       ['Top: weapons', 'Three slots: melee, bow and magic. The lit slot is your active weapon. Every weapon is always ready, no ammo needed.'],
       ['Bottom: action bar', `One chip per action with its ${k('key', 'button')} in the corner, a count, and a dark shade for cooldown. Dim means you have none. AUTO means it fires by itself.`],
@@ -5664,17 +8086,26 @@ function tutorialPages() {
       ['Three weapon types', 'Melee swings a blade, the bow fires arrows and magic casts bolts. Your class hits hardest with one, but every weapon is always ready.'],
       ['No ammo, no waiting', 'There is nothing to refill or recharge. Swap weapons freely to fit the fight and just keep attacking.'],
       ['Foes adapt', 'Ordinary foes adjust their tactics to the weapon you have been using for the past few seconds. Melee, bow and magic each draw a different response; bosses are unaffected.'],
-      ['Weapon upgrades', 'Weapon-specific upgrades can change your firing style as a side effect. Watch the pickup banner to see when an upgrade changes how your weapon fires.'],
-      ['Deflect and elements', 'Bat shots out of the air anywhere along your visible melee sweep. The first clean intercept per swing has a 40% chance to heal half a heart. Late body-contact deflections still hurt. Charged releases deflect nearby shots outward. Returned shots keep their original appearance.'],
+      ['Deflect and elements', 'Bat shots out of the air anywhere along your visible melee sweep. The first clean intercept per swing has a 40% chance to heal half a heart. Late body-contact deflections still hurt. Charged releases deflect nearby shots outward. Arrow tips knock a shot away 50% of the time (75% for charged arrows). Returned shots keep their original appearance.'],
       ['Arrow returns', 'Shoot enemy projectiles away with the forgiving area around an arrow tip. Clashes accelerate shots and scatter them widely, retaining their original look. An arrow-returned shot has one 40% chance to heal half a heart when it first damages an enemy. Interception alone never heals.'],
       ['Spore Bloom', 'Collect mushroom spores to make magic shots split into eight slowing projectiles when they hit an enemy, object, or wall. The smaller spores do not split again. Collecting it also unlocks Sporeling for future runs.'],
-      ['Wild magic', 'Mage starts with random elemental magic; other classes start with water. Items no longer reroll your element; find an elemental menhir and interact to attune. Element sigils grant their named element. Magic effects share your element color. White diamond marks identify friendly effects. Mage surprises: 40% enemy, 20% object, 6% special shot; others: 10%, 5%, 1%. Bosses cannot be lifted or teleported.'],
+      ['Wild magic', 'Every class starts each run with Bubble (Water), regardless of profile discoveries. Only an obelisk unlocks another element during the run and lets you choose among the elements reached in that descent. Sigils never bypass this lock. Choose Sword, Arrows or Magic at the start. Magic effects share your element color. White diamond marks identify friendly effects. Mage surprises: 40% enemy, 20% object, 6% special shot; others: 10%, 5%, 1%. Bosses cannot be lifted or teleported.'],
+    ] },
+    { title: 'BUILD', sections: [
+      ['Weapon branches', `Build (${b('branches')}, cleared rooms) opens a map for each weapon: its heart in the middle, five branches growing outward and synergy gems between partners. Drag or pinch to look around, zoom with the wheel or +/−, and walk your character node to node. Highlight up to 3 branches per weapon. Behaviour items such as Prism or the bow and blade mods only work while a highlighted branch of the held weapon lists them, and an item branch stays dormant until you find its item. Two powered, highlighted partners awaken their synergy. Tier II and III nodes show their stat as an icon. Your picks are remembered between runs.`],
+      ['Growing', 'Every growth needs career XP past a gate (XP is never spent, but each growth raises the next gate), plus a price by kind. Stats cost what suits them: form stats (shots, arcs, pierce, reach, bursts) Iron Ore, power stats (damage) Dark Crystals, speed stats (attack, charge, parry timing) banked zeny. Abilities are padlocked lock nodes paid with Life Stones: behaviour tiers such as Fire Wall, learning a weapon (1), Dual Grip (2), and the Confluence seals, fusions, moves and Trinity. Life Stones drop from elites, minibosses, caches and the boss Lifestone. If something cannot be grown, the screen dims and an arrow points at what is missing.'],
+      ['Found weapons and hands', 'Any weapon (axe, halberd, kunai and more) can be set as your main or off hand from its family\'s map at any time. Unfound weapons hit at 70%, weapons found in caches at 85%, and learned weapons at full power. The HUD weapon icons show what each hand holds (M main, O off) and its power. Grow Dual Grip and the off hand attacks foes in front of you on its own, charging only if its own map has a charge branch. Unweaving Runes undo one growth for a full refund.'],
+      ['Suggested path', 'Gold numbers on each map suggest the next three growths, based on what you highlight, grow and attack with (holding to charge or tapping fast). It is only a hint: any node can still be chosen.'],
+    ] },
+    { title: 'THE CONFLUENCE', sections: [
+      ['The Confluence', 'Once branches reach tier III, the Confluence tab joins the Blade, Bow and Magic maps. Each bridge starts and ends with a Bridge Seal (a lock opened with a Life Stone), then has stat nodes, a fusion that works while either of its weapons is in your main hand, and a move: Weapon Form (dash through foes), Earthshaker (dash while holding attack to smash the ground) or Elemental Call (two creatures of your element join each fight). The Trinity at the centre wakes every fusion.'],
+      ['Element ground effects', 'Lightning charges water into pools that shock foes, ice leaves slush that slows them and puts fire out, and fire boils puddles away.'],
     ] },
     { title: 'CONSUMABLES, BOMBS, MANA GUARD', sections: [
       ['Consumables', `Break scenery to uncover stored consumables. Press ${b('item')} to use one. The Item chip shows what is ready and how many you have.`],
       ['Bombs', `Press ${b('bomb')} to drop a bomb. Shots from either side push grounded bombs; they slide and bounce off scenery without resetting the fuse. Explosions hurt nearby foes and open sealed rooms. Stay out of the blast.`],
       ['Shockwave and Mana familiars', `Your shockwave clears hostile shots and pushes foes away. Find Betsanc to replace it: each room clear fills one charge, up to eight. Five charges summon up to three weapon icons that orbit 32 pixels away; each blocks one hostile hit or strikes one enemy, then disappears. The orbit caps at 13; if it is full, charge is kept.`],
-      ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an elemental menhir. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
+      ['Frost and class ability', `Frost is automatic: once found it chills nearby foes by itself until you attune at an obelisk. Your class ability (${b('ability')}) has a cooldown; its chip shows when it is ready.`],
     ] },
     { title: 'SHOPS, ZENY AND KEYS', sections: [
       ['Zeny', `Enemies and rooms drop zeny. Spend it in shops, or bank it so it stays with you after a run ends. Iron Ore and Dark Crystals drop from foes too: stand on the shop’s left pad and press ${b('interact')} to sell them for zeny.`],

@@ -334,7 +334,7 @@ test('mouse movement updates player facing toward the pointer before firing', ()
   context.updateControlsHint = () => {};
   context.ttsPromptActive = () => false;
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
-  vm.runInContext(sliceText(source, 'function updatePointerPosition(event)', "canvas.addEventListener('pointermove'", 'source'), context);
+  vm.runInContext(sliceText(source, 'function canvasPointFromEvent(event)', "canvas.addEventListener('pointermove'", 'source'), context);
   vm.runInContext(sliceText(source, 'function shouldKeyboardMovementSetFacing', 'function update(dt)', 'source'), context);
 
   context.updatePointerPosition({ pointerType: 'mouse', clientX: 120, clientY: 260 });
@@ -502,13 +502,68 @@ test('touch drag and release keep enemy-free aim aligned with the last shot', ()
   aim.fire('pointercancel', 2);
 });
 
-test('touch attack interacts instead of firing when pressed over the attack button near an object', () => {
+test('touch Attack becomes Use beside a shop or menhir once no enemies live, but never for doors', () => {
   const { context, elements } = touchHarness();
-  context.canInteract = () => true;
-  elements.get('touch-aim-zone').fire('pointerdown', 1, 200, 50, elements.get('touch-attack'));
-  assert.deepEqual(context.actions, ['interact']);
+  const aim = elements.get('touch-aim-zone');
+  const attack = elements.get('touch-attack');
+  let used = 0;
+  let doorsAsked = null;
+  context.interact = () => { used += 1; };
+  context.canInteract = (includeDoors = true) => { doorsAsked = includeDoors; return true; };
+  context.enemies = [];
+  aim.fire('pointerdown', 1, 200, 50, attack);
+  assert.equal(used, 1, 'a tap with something in reach interacts');
+  assert.equal(doorsAsked, false, 'doors are left to walking through the doorway');
   assert.equal(context.touchInput.attack, false);
   assert.equal(context.touchInput.attackPointer, null);
+  context.enemies = [{ hp: 3 }];
+  aim.fire('pointerdown', 2, 200, 50, attack);
+  assert.equal(used, 1, 'with live enemies Attack always attacks');
+  assert.equal(context.touchInput.attack, true);
+  aim.fire('pointercancel', 2);
+  context.enemies = [];
+  context.canInteract = () => false;
+  aim.fire('pointerdown', 3, 200, 50, attack);
+  assert.equal(used, 1);
+  assert.equal(context.touchInput.attack, true);
+});
+
+test('touch Attack glows and reads Use when a tap would interact, and Skill shows only for active class skills', () => {
+  const context = inputContext();
+  const classes = new Set();
+  const attackLabel = { textContent: 'Attack' };
+  context.touchAttackEl = {
+    classList: { toggle(name, on) { if (on) classes.add(name); else classes.delete(name); }, remove() {} },
+    querySelector: () => attackLabel,
+  };
+  const label = { textContent: 'Skill' };
+  const skill = { hidden: true, disabled: false, title: '', querySelector: () => label, setAttribute() {} };
+  const original = context.touchControlsEl.querySelector;
+  context.touchControlsEl.querySelector = (selector) => (selector.includes('"ability"') ? skill
+    : original.call(context.touchControlsEl, selector));
+  context.player = { signatureCooldown: 0 };
+  context.enemies = [];
+  context.canInteract = () => false;
+  context.classSignature = () => ({ label: 'Steady Magic', desc: 'Balanced casting' });
+  context.updateTouchControls();
+  assert.equal(classes.has('is-ready'), false);
+  assert.equal(attackLabel.textContent, 'Attack');
+  assert.equal(skill.hidden, true, 'classes without an active skill get no Skill button');
+  context.canInteract = () => true;
+  context.classSignature = () => ({ label: 'Laser Quill', short: 'Laser', desc: 'Key 4: fire a piercing laser beam', active: true });
+  context.updateTouchControls();
+  assert.equal(classes.has('is-ready'), true);
+  assert.equal(attackLabel.textContent, 'Use');
+  context.enemies = [{ hp: 1 }];
+  context.updateTouchControls();
+  assert.equal(attackLabel.textContent, 'Attack', 'live enemies keep it an attack button');
+  assert.equal(skill.hidden, false);
+  assert.equal(label.textContent, 'Laser');
+  assert.equal(skill.title, 'Laser Quill: fire a piercing laser beam');
+  context.player.signatureCooldown = 2.2;
+  context.updateTouchControls();
+  assert.equal(label.textContent, '3s');
+  assert.equal(skill.disabled, true);
 });
 
 test('movement is clamped and a second finger cannot steal a held movement zone', () => {
@@ -544,9 +599,9 @@ test('Dash triggers without firing or releasing a held attack', () => {
   assert.equal(context.touchInput.attack, true);
   assert.equal(context.touchInput.attackPointer, 2);
 });
-test('the touch Switch button counts down the weapon swap cooldown and disables itself', () => {
+test('the touch Swap button counts down the weapon swap cooldown and disables itself', () => {
   const context = inputContext();
-  const label = { textContent: 'Switch' };
+  const label = { textContent: 'Swap' };
   const button = { disabled: false, querySelector: () => label };
   const original = context.touchControlsEl.querySelector;
   context.touchControlsEl.querySelector = (selector) =>
@@ -557,6 +612,6 @@ test('the touch Switch button counts down the weapon swap cooldown and disables 
   assert.equal(button.disabled, true);
   context.weaponSwapCooldown = 0;
   context.updateTouchControls();
-  assert.equal(label.textContent, 'Switch');
+  assert.equal(label.textContent, 'Swap');
   assert.equal(button.disabled, false);
 });

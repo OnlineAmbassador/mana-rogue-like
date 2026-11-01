@@ -141,6 +141,58 @@ body.mobile-layout {
   display: none;
 }
 
+/* Mouse players get Map, Story, Build and Skill as a column left of the view and Pause right of it;
+   game.js reserves SIDE_MENU_GUTTER on both sides for them. */
+.side-menu {
+  display: none;
+}
+
+.side-menu:not([hidden]) {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.side-menu button {
+  display: grid;
+  place-content: center;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  color: #f6e8c2;
+  border: 2px solid rgba(207, 176, 103, 0.9);
+  border-radius: 12px 3px;
+  background: linear-gradient(150deg, rgba(66, 67, 53, 0.92), rgba(27, 30, 25, 0.94));
+  box-shadow: 0 2px 8px #0006, inset 0 0 0 2px #24251e, inset 0 0 0 3px #867346;
+  font: bold 1.05rem Arial, sans-serif;
+  line-height: 1.05;
+  cursor: pointer;
+}
+
+.side-menu button[hidden] { display: none; }
+
+.side-menu-right:not([hidden]) {
+  right: auto;
+  left: calc(100% + 8px);
+}
+.side-menu button:hover:not(:disabled) { background: #5a5639; }
+.side-menu button:disabled { opacity: 0.4; cursor: default; }
+
+.side-menu span {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+}
+
+.side-menu em {
+  font-style: normal;
+  font-size: 0.55rem;
+  color: #bbb49d;
+}
+
 .message {
   width: min(960px, 92vw);
   margin-top: 0.8rem;
@@ -315,7 +367,7 @@ body:not(.mobile-layout) #game {
 
   .touch-stick,
   .touch-attack,
-  .touch-dash,
+  .touch-round,
   .touch-utilities button,
   .touch-quick-actions button {
     color: #f6e8c2;
@@ -360,11 +412,19 @@ body:not(.mobile-layout) #game {
     pointer-events: none;
   }
 
+  /* Attack and the round buttons around it share these variables, so the arc follows Attack when a layout moves it. */
+  .touch-aim-zone {
+    --atk-right: 20%;
+    --atk-bottom: 15%;
+    --atk-size: 92px;
+    --round-size: 46px;
+  }
+
   .touch-attack {
     position: absolute;
-    right: 20%;
-    bottom: 15%;
-    width: 92px;
+    right: var(--atk-right);
+    bottom: var(--atk-bottom);
+    width: var(--atk-size);
     aspect-ratio: 1;
     border-radius: 50%;
     pointer-events: auto;
@@ -372,7 +432,7 @@ body:not(.mobile-layout) #game {
   }
 
   .touch-attack span,
-  .touch-dash span,
+  .touch-round span,
   .touch-utilities span,
   .touch-quick-actions span {
     display: block;
@@ -380,12 +440,12 @@ body:not(.mobile-layout) #game {
     text-transform: uppercase;
   }
 
-  .touch-dash {
+  /* Dash keeps its original spot north-east of Attack. Bomb and Wave sit on an arc 100px from Attack's
+     centre at 165 and 135 degrees, so a thumb resting on Attack reaches all three without covering a doorway. */
+  .touch-round {
     position: absolute;
-    right: calc(20% - 40px);
-    bottom: calc(15% + 76px);
-    width: 46px;
-    height: 46px;
+    width: var(--round-size);
+    height: var(--round-size);
     padding: 0;
     border-radius: 50%;
     -webkit-appearance: none;
@@ -393,7 +453,25 @@ body:not(.mobile-layout) #game {
     pointer-events: auto;
     font-size: 1.1rem;
     line-height: 1;
+    --arc-x: 0px;
+    --arc-y: 0px;
+    right: calc(var(--atk-right) + var(--atk-size) / 2 - var(--round-size) / 2 + var(--arc-x));
+    bottom: calc(var(--atk-bottom) + var(--atk-size) / 2 - var(--round-size) / 2 + var(--arc-y));
   }
+
+  .touch-arc-dash { --arc-x: -62px; --arc-y: 54px; }
+  .touch-arc-2 { --arc-x: 96.6px; --arc-y: 25.9px; }
+  .touch-arc-3 { --arc-x: 70.7px; --arc-y: 70.7px; }
+
+  .touch-round:disabled { opacity: 0.4; }
+
+  /* Attack glows and reads "Use" while a tap would talk, buy or activate something instead of firing. */
+  .touch-attack.is-ready {
+    border-color: #ffe08a;
+    box-shadow: 0 0 14px #ffd25acc, inset 0 0 0 2px #24251e, inset 0 0 0 3px #c9a65a;
+  }
+
+  .touch-controls [hidden] { display: none !important; }
 
   .touch-utilities {
     position: absolute;
@@ -426,16 +504,16 @@ body:not(.mobile-layout) #game {
     right: 0;
     display: flex;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
     pointer-events: none;
   }
 
   .touch-quick-actions button {
     position: relative;
-    width: 60px;
-    height: 60px;
+    width: 50px;
+    height: 50px;
     border-radius: 14px 4px;
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     pointer-events: auto;
   }
 
@@ -471,10 +549,15 @@ body:not(.mobile-layout) #game {
 @media (orientation: portrait) {
   body.mobile-layout .game-stage { width: 100%; }
   body.mobile-layout { padding-bottom: env(safe-area-inset-bottom); }
+  body.mobile-layout .touch-aim-zone { --atk-right: 8%; }
+  body.mobile-layout .side-menu { display: none; }
 }
 
+/* Landscape phones reserve a gutter on each side of the 16:9 view for the button columns, so no button
+   ever covers the HUD, a doorway or a message. 20:9 phones already have wider gutters than this. */
 @media (orientation: landscape) {
   body.mobile-layout {
+    --touch-gutter: 58px;
     position: fixed;
     inset: 0;
     height: 100dvh;
@@ -487,15 +570,35 @@ body:not(.mobile-layout) #game {
   body.mobile-layout .hud,
   body.mobile-layout .message { display: none; }
   body.mobile-layout .game-stage {
-    width: min(calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right)),
+    width: min(calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * var(--touch-gutter)),
       calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 16 / 9));
   }
   body.mobile-layout #game { border: 0; border-radius: 0; }
   body.mobile-layout .touch-controls:not([hidden]) { position: absolute; inset: 0; height: auto; }
   body.mobile-layout .touch-zone { top: 38%; }
-  body.mobile-layout .touch-utilities { top: 6px; left: 12%; right: 12%; }
-  body.mobile-layout .touch-quick-actions { top: auto; bottom: 12px; }
-  body.mobile-layout .touch-stick { left: 8%; bottom: 14px; width: 104px; }
-  body.mobile-layout .touch-attack { right: 8%; bottom: 18px; width: 96px; }
-  body.mobile-layout .touch-dash { right: calc(8% - 36px); bottom: 98px; }
+  body.mobile-layout .touch-utilities,
+  body.mobile-layout .touch-quick-actions {
+    top: 0;
+    bottom: 0;
+    left: auto;
+    right: auto;
+    width: 46px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+  }
+  body.mobile-layout .touch-utilities { right: calc(100% + 6px); }
+  body.mobile-layout .touch-quick-actions { left: calc(100% + 6px); }
+  body.mobile-layout .touch-utilities button,
+  body.mobile-layout .touch-quick-actions button {
+    width: 46px;
+    height: 46px;
+    font-size: 1rem;
+  }
+  body.mobile-layout .touch-stick { left: 4%; bottom: 10px; width: 104px; }
+  body.mobile-layout .touch-aim-zone { --atk-right: 46px; --atk-bottom: 14px; --atk-size: 96px; }
+  body.mobile-layout .side-menu:not([hidden]) { right: calc(100% + 6px); gap: 6px; }
+  body.mobile-layout .side-menu-right:not([hidden]) { right: auto; left: calc(100% + 6px); }
+  body.mobile-layout .side-menu button { width: 46px; height: 46px; font-size: 0.95rem; }
 }

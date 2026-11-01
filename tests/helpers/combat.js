@@ -23,7 +23,7 @@ function combat() {
       { id: 'bomb-bundle', name: 'Bomb Bundle', kind: 'consumable' },
     ],
     enemies: [], enemyProjectiles: [], projectiles: [], bombs: [], breakables: [], pickups: [],
-    consumables: [], bossStrikes: [], groundHazards: [], laserBeams: [], sporePods: [], playerStillTimer: 0,
+    consumables: [], bossStrikes: [], groundHazards: [], bombScorches: [], laserBeams: [], sporePods: [], playerStillTimer: 0,
     playerVelocity: { x: 0, y: 0 }, hitStopTimer: 0,
     ROOM_W: 960, ROOM_H: 540, ROOM_WALL_THICKNESS: 24, WALL_COLLISION_PADDING: 4,
     dashCooldown: 0, dashTimer: 0,

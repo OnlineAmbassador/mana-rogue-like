@@ -187,6 +187,36 @@ function pollGamepad() {
     else if (wasButtonPressed(3)) toggleAdaptiveEnemies();
   } else if (mode === 'gameover' || mode === 'won') {
     if (wasButtonPressed(0) || wasButtonPressed(9)) returnToCharacterSelect();
+  } else if (mode === 'boon') {
+    if (mapStep && mapStepKey !== lastMapStep && mapStep[0]) moveBoonFocus(mapStep[0]);
+    if (wasButtonPressed(0) || wasButtonPressed(2)) confirmBoonChoice();
+  } else if (mode === 'element') {
+    if (mapStep && mapStepKey !== lastMapStep) moveElementFocus(mapStep[0], mapStep[1]);
+    if (wasButtonPressed(0) || wasButtonPressed(2)) confirmElementChoice();
+  } else if (mode === 'ability') {
+    if (mapStep && mapStepKey !== lastMapStep) moveAbilityFocus(mapStep[0], mapStep[1]);
+    if (wasButtonPressed(0) || wasButtonPressed(2)) confirmAbilityChoice();
+    else if (wasButtonPressed(1)) skipAbilityChoice();
+  } else if (mode === 'weapon') {
+    if (mapStep && mapStepKey !== lastMapStep && mapStep[0]) moveStartingWeaponFocus(mapStep[0]);
+    if (wasButtonPressed(0) || wasButtonPressed(2)) confirmStartingWeaponChoice();
+  } else if (mode === 'branches') {
+    // While the first-visit tour or a guidance spotlight shows, any press moves it on.
+    const anyPress = [0, 1, 2, 3, 4, 5, 6, 7, 9].some((button) => wasButtonPressed(button));
+    if (branchTourActive()) {
+      if (anyPress || (mapStep && mapStepKey !== lastMapStep)) advanceBranchTour();
+    } else {
+      if (anyPress || (mapStep && mapStepKey !== lastMapStep)) dismissBranchGuide();
+      if (mapStep && mapStepKey !== lastMapStep) moveBranchMapFocus(mapStep[0], mapStep[1]);
+      if (wasButtonPressed(4)) stepBranchTab(-1);
+      if (wasButtonPressed(5)) stepBranchTab(1);
+      if (wasButtonPressed(6)) zoomBranchMap(1 / 1.25);
+      if (wasButtonPressed(7)) zoomBranchMap(1.25);
+      if (wasButtonPressed(0)) toggleFocusedBranch();
+      if (wasButtonPressed(3)) unlockFocusedBranch();
+      if (wasButtonPressed(2)) unweaveFocusedNode();
+      if (wasButtonPressed(1) || wasButtonPressed(9)) closeBranchScreen();
+    }
   } else if (mode === 'playing' && showMap) {
     // Map-only navigation (an approved exception to the controller lock): gameplay is paused while the map is open.
     if (mapStep && mapStepKey !== lastMapStep) stepMapCursor(...mapStep);

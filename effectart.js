@@ -113,6 +113,59 @@ function drawEffectCircle(x, y, radius, color, options = {}) {
     rotation: options.rotation || 0, smooth: true });
 }
 
+// Ground-attack warning: the exact hit circle is outlined from the start and a bright front sweeps out from the
+// centre, reaching the outline the moment the hit lands, so where and when it lands both read at a glance. The fill
+// is one cached radial gradient per colour, scaled to the front.
+function strikeWaveImage(color) {
+  const cache = strikeWaveImage.cache || (strikeWaveImage.cache = new Map());
+  let canvas = cache.get(color);
+  if (canvas) return canvas;
+  if (cache.size > 24) cache.clear();
+  canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const context = canvas.getContext('2d');
+  const hex = /^#[0-9a-f]{6}$/i.test(color) ? color : '#ff5a46';
+  const rgb = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16)).join(', ');
+  const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gradient.addColorStop(0, `rgba(${rgb}, 0.06)`);
+  gradient.addColorStop(0.65, `rgba(${rgb}, 0.2)`);
+  gradient.addColorStop(0.88, `rgba(${rgb}, 0.5)`);
+  gradient.addColorStop(0.96, `rgba(${rgb}, 0.95)`);
+  gradient.addColorStop(1, `rgba(${rgb}, 0)`);
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 128, 128);
+  cache.set(color, canvas);
+  return canvas;
+}
+
+function drawStrikeWave(x, y, radius, progress, color, alpha = 1) {
+  const front = Math.max(0, Math.min(1, progress));
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.setLineDash([8, 6]);
+  ctx.lineDashOffset = -elapsed * 24;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (front > 0) {
+    const reach = radius * front;
+    ctx.globalAlpha = alpha * (0.55 + front * 0.45);
+    ctx.drawImage(strikeWaveImage(color), x - reach, y - reach, reach * 2, reach * 2);
+  }
+  // The outline turns solid and bright over the last fifth, as the front closes on it.
+  if (front > 0.8) {
+    ctx.globalAlpha = alpha * (front - 0.8) * 5;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // Stretches a sheet frame along the segment (x1, y1) to (x2, y2): its length follows the segment and `thickness`
 // sets the other side. `along` says which side of the frame runs along the segment ('x' or 'y').
 function drawEffectBetween(name, frame, x1, y1, x2, y2, thickness, options = {}) {

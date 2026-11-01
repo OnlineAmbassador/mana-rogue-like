@@ -57,26 +57,47 @@ test('charge-mode magic drops short taps and emits only a deliberate charged rel
   assert.equal(shots[0].magicCharge, 1 / 3);
 });
 
-test('new Mage runs can start with each element; other classes keep water until an upgrade', () => {
+const peek = (c, name) => vm.runInContext(name, c);
+
+function pickerStubs(c) {
+  vm.runInContext(`
+    var performance = { now: () => 1000 };
+    var keys = { w: true }, pointer = { down: true }, mode = 'playing', messages = [], shopItemCatalog = [];
+    suppressHeldAttackInput = resetChargeState = addParticles = playSound = updateHud = saveRunState = () => {};
+    showMessage = (text) => messages.push(text);
+  `, c);
+}
+
+test('every class starts each run with Bubble only regardless of profile discoveries or last choice', () => {
   const c = combat();
-  const elements = ['bubble', 'fire', 'lightning', 'gas', 'spore', 'ice', 'wind', 'earth'];
+  pickerStubs(c);
   const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
   const init = sliceText(game, '  ownedItems.clear();', '  combatStyles.clear();', 'game');
-  for (const [index, element] of elements.entries()) {
-    c.Math.random = () => (index + 0.5) / elements.length;
-    c.entry = { className: 'Mage' };
+  c.branchState().elements = Object.keys(peek(c, 'magicElementPalette'));
+  c.branchState().element = 'ice';
+  for (const className of ['Mage', 'Rogue', 'Warrior', 'Sporeling', 'Oracle', 'Scholar']) {
+    c.entry = { className };
     vm.runInContext(init, c);
-    assert.equal(c.activeMagicElement, element);
-    assert.equal(c.magicElements.has(element), true);
-    for (const className of ['Rogue', 'Warrior', 'Sporeling']) {
-      c.entry = { className };
-      vm.runInContext(init, c);
-      assert.equal(c.activeMagicElement, 'bubble');
-    }
+    assert.deepEqual([...c.magicElements], ['bubble']);
+    assert.equal(c.activeMagicElement, 'bubble');
+    c.mode = 'playing';
+    assert.equal(c.openElementChoice('start'), false, 'a single choice skips the picker');
+    assert.equal(c.mode, 'playing');
   }
 });
 
-test('ordinary upgrades and consumables preserve the active element; sigils unlock their named element', () => {
+test('unlocking an element never switches the locked-in choice', () => {
+  const c = combat();
+  pickerStubs(c);
+  c.activeMagicElement = 'bubble';
+  assert.equal(c.unlockMagicElement('gas'), true);
+  assert.equal(c.unlockMagicElement('gas'), false, 'already unlocked in this run');
+  assert.equal(c.unlockMagicElement('wind'), true, 'Mage must also reach the Wind obelisk');
+  assert.equal(c.activeMagicElement, 'bubble');
+  assert.equal(c.getActiveAttackElement(), 'bubble');
+});
+
+test('ordinary upgrades, consumables and sigils never bypass an obelisk or change the active element', () => {
   const c = combat();
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'worldmanager.js'), 'utf8'), c);
   vm.runInContext(`
@@ -84,7 +105,8 @@ test('ordinary upgrades and consumables preserve the active element; sigils unlo
     reservedUpgradeIds = new Set(); attackMorphs = {}; itemQuips = {}; shopItemIconImages = {}; rangeLensItemIds = [];
     itemEffectTagsFor = () => [];
     isUpgradeAvailable = () => true;
-    applyRandomFireMode = () => null;
+    branchPickupTag = () => null;
+    resetChargeState = () => {};
     recordItemDiscovery = updateHud = showMessage = popOverPlayer = playSound = () => {};
     showPickupBanner = (name, tags) => { bannerTags = tags; };
   `, c);
@@ -101,10 +123,10 @@ test('ordinary upgrades and consumables preserve the active element; sigils unlo
   c.combatStyles = new Set();
   assert.equal(c.grantUpgrade({ id: 'element-fire', name: 'Ember Sigil', kind: 'element', element: 'fire' }), true);
   assert.equal(c.activeMagicElement, 'bubble');
-  assert.equal(c.magicElements.has('fire'), true);
+  assert.equal(c.magicElements.has('fire'), false, 'even a stale sigil pickup cannot grant element access');
 });
 
-test('an elemental menhir changes the active element once when interacted with', () => {
+test('an obelisk records a discovery and offers only elements unlocked during this run', () => {
   const c = combat();
   c.pickups = [];
   c.player.radius = 12;
@@ -115,36 +137,59 @@ test('an elemental menhir changes the active element once when interacted with',
     { name: 'left', dx: -1, dy: 0 },
   ];
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'worldmanager.js'), 'utf8'), c);
+  pickerStubs(c);
   vm.runInContext(`
-    mode = 'playing';
     currentRoom = { type: 'elemental-shrine', shrineElement: 'fire', shrineUsed: false };
     player.x = ROOM_W / 2;
     player.y = ROOM_H / 2;
     frostActive = true;
     isPlayerNearDoor = () => false;
-    addParticles = updateHud = saveRunState = showMessage = () => {};
-    showPickupBanner = (name, tags) => { shrineBanner = name; };
+    showPickupBanner = (name, tags) => { shrineBanner = name; shrineTags = tags; };
   `, c);
   assert.equal(c.canInteract(), true);
   c.interact();
-  assert.equal(c.activeMagicElement, 'fire');
+  assert.equal(c.activeMagicElement, 'bubble', 'nothing switches until the player picks');
   assert.equal(c.magicElements.has('fire'), true);
+  assert.deepEqual([...c.branchState().elements], ['fire']);
   assert.equal(c.currentRoom.shrineUsed, true);
   assert.equal(c.frostActive, false);
-  assert.equal(c.shrineBanner, 'FIRE ATTUNEMENT');
-  c.activeMagicElement = 'ice';
-  c.interact();
-  assert.equal(c.activeMagicElement, 'ice');
-});
+  assert.equal(c.shrineBanner, 'FIRE OBELISK');
+  assert.deepEqual([...c.shrineTags], ['ELEMENT UNLOCKED']);
+  assert.equal(c.mode, 'element');
+  assert.equal(peek(c, 'elementPickSource'), 'obelisk');
+  assert.deepEqual([...peek(c, 'elementChoices')], ['bubble', 'fire']);
+  assert.equal(c.chooseElement(1), true);
+  assert.equal(c.activeMagicElement, 'fire');
+  assert.match(c.messages.at(-1), /obelisk attunes you to Fire/);
 
-test('saved random elements restore without requiring an owned element sigil', () => {
+  c.currentRoom = { type: 'elemental-shrine', shrineElement: 'fire', shrineUsed: false };
+  c.interact();
+  assert.deepEqual([...c.shrineTags], ['ATTUNEMENT'], 'a known element still lets the player re-pick');
+  assert.equal(c.mode, 'element');
+  assert.equal(peek(c, 'elementChoices')[peek(c, 'elementFocus')], 'fire', 'focus starts on the current element');
+  assert.equal(c.chooseElement(0), true);
+  assert.equal(c.activeMagicElement, 'bubble');
+});
+test('current-rule saved elements restore without requiring an owned element sigil', () => {
   const c = combat();
-  c.saved = { magicElements: ['bubble', 'ice', 'not-an-element'], activeMagicElement: 'ice' };
+  c.saved = { elementRulesVersion: 1, magicElements: ['bubble', 'ice', 'not-an-element'], activeMagicElement: 'ice' };
   c.shopItemCatalog = [];
   const db = fs.readFileSync(path.join(__dirname, '..', 'dbmanager.js'), 'utf8');
   vm.runInContext(sliceText(db, '  magicElements.clear();', '  combatStyles.clear();', 'db'), c);
   assert.equal(c.activeMagicElement, 'ice');
   assert.equal(c.magicElements.has('not-an-element'), false);
+});
+
+test('legacy saves retain only elements from spent obelisks, never old profile or sigil access', () => {
+  const c = combat();
+  c.saved = { magicElements: ['bubble', 'fire', 'ice'], activeMagicElement: 'ice',
+    rooms: [{ shrineUsed: true, shrineElement: 'fire' }, { shrineUsed: false, shrineElement: 'ice' }] };
+  c.shopItemCatalog = [{ id: 'element-ice', kind: 'element', element: 'ice' }];
+  c.ownedItems.add('element-ice');
+  const db = fs.readFileSync(path.join(__dirname, '..', 'dbmanager.js'), 'utf8');
+  vm.runInContext(sliceText(db, '  magicElements.clear();', '  combatStyles.clear();', 'db'), c);
+  assert.deepEqual([...c.magicElements], ['bubble', 'fire']);
+  assert.equal(c.activeMagicElement, 'bubble');
 });
 
 test('every wild effect inherits shot element color and links its impact to the player', () => {
@@ -346,6 +391,7 @@ test('rifts do not teleport bosses and safely handle rooms without a legal desti
 test('new items enhance their effects without raising baseline proc probabilities', () => {
   const c = combat();
   c.ownedItems.add('wild-magic-core');
+  c.toggleBranch('conduit');
   const target = { x: 300, y: 300, hp: 20, radius: 12 };
   c.triggerWildMagicImpact(shot({ wildEffect: 'rot' }), target);
   assert.equal(target.manaRotTimer, 4);
@@ -388,6 +434,7 @@ test('non-Mages have mostly normal shots with 1 percent special, 10 percent enem
 test('Wild Magic Core extends lightning to four targets without recursive impacts', () => {
   const c = combat();
   c.ownedItems.add('wild-magic-core');
+  c.toggleBranch('conduit');
   const target = { x: 300, y: 300, hp: 20, radius: 12 };
   c.enemies.push(target);
   for (let i = 1; i <= 4; i += 1) c.enemies.push({ x: 300 + i * 30, y: 300, hp: 20, radius: 12 });

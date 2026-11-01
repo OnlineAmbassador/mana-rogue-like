@@ -91,7 +91,7 @@ function desertPavingCoverage(x, y) {
   const seed = currentRoom.x * 1.73 + currentRoom.y * 2.37;
   const dx = x - ROOM_W / 2;
   const dy = y - ROOM_H / 2;
-  let distance = (Math.hypot(dx / hub.radiusX, dy / hub.radiusY) - 1) * hub.radiusY;
+  let distance = (Math.sqrt((dx / hub.radiusX) ** 2 + (dy / hub.radiusY) ** 2) - 1) * hub.radiusY;
   for (const { name, dx: directionX, dy: directionY } of directions) {
     if (!currentRoom.links[name]) continue;
     const along = dx * directionX + dy * directionY;
@@ -162,6 +162,119 @@ function drawSandFootprints() {
   ctx.restore();
 }
 
+// Canvas filters cost hundreds of milliseconds per room render on phone GPUs, so each tileset is filtered once.
+// Colour filters act per pixel, so filtering the atlas matches filtering every tile drawn from it.
+function filteredTileset(image, filter) {
+  if (!filter || filter === 'none') return image;
+  const cache = filteredTileset.cache || (filteredTileset.cache = new Map());
+  let filters = cache.get(image);
+  if (!filters) {
+    filters = new Map();
+    cache.set(image, filters);
+  }
+  let canvas = filters.get(filter);
+  if (canvas && canvas.width === image.naturalWidth && canvas.height === image.naturalHeight) return canvas;
+  canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const target = canvas.getContext('2d');
+  target.filter = filter;
+  target.drawImage(image, 0, 0);
+  canvas.sourceImage = image;
+  filters.set(filter, canvas);
+  return canvas;
+}
+
+// Coverage for every paving cell of the current room, computed once per room layout and reused by every render.
+// Same field as desertPavingCoverage, restructured for speed: each lane depends only on a column (east/west) or a row
+// (north/south), and each erosion octave splits as sin(a·x + b·y) = sin(a·x)·cos(b·y) + cos(a·x)·sin(b·y).
+function desertPavingGrid() {
+  const { cell, hub, lane, softness, edgeReach, erosion } = DESERT_ART.paving;
+  const links = currentRoom.links;
+  const doors = (links.up ? 1 : 0) | (links.down ? 2 : 0) | (links.left ? 4 : 0) | (links.right ? 8 : 0);
+  const key = `${currentRoom.x},${currentRoom.y}:${doors}:${ROOM_W}x${ROOM_H}`;
+  const cache = desertPavingGrid.cache || (desertPavingGrid.cache = new Map());
+  let grid = cache.get(key);
+  if (grid) return grid;
+  const columns = Math.ceil(ROOM_W / cell) + 1;
+  const rows = Math.ceil(ROOM_H / cell) + 1;
+  const values = new Float32Array(columns * rows);
+  const seed = currentRoom.x * 1.73 + currentRoom.y * 2.37;
+  const centerX = (column) => column * cell + cell / 2 - ROOM_W / 2;
+  const centerY = (row) => row * cell + cell / 2 - ROOM_H / 2;
+  const lanes = directions.filter(({ name }) => links[name]).map(({ dx: directionX, dy: directionY }) => {
+    const count = directionX ? columns : rows;
+    const length = (directionX ? ROOM_W : ROOM_H) / 2 - DESERT_ART.wallBand;
+    const phase = seed + (directionX ? 1.9 : 0.6) + (directionX + directionY) * 0.8;
+    const bends = new Float64Array(count);
+    const halfWidths = new Float64Array(count).fill(Infinity);
+    for (let index = 0; index < count; index += 1) {
+      const along = directionX ? centerX(index) * directionX : centerY(index) * directionY;
+      if (along < 0 || along > length + cell) continue;
+      const t = along / length;
+      const arch = Math.sin(t * Math.PI);
+      bends[index] = arch * (Math.sin(phase) * lane.bend + Math.sin(t * Math.PI * 2 + phase) * lane.secondaryBend);
+      halfWidths[index] = lane.halfWidth + arch * (lane.swing + Math.sin(t * 9 + phase) * lane.wobble);
+    }
+    return { horizontal: Boolean(directionX), directionX, directionY, bends, halfWidths };
+  });
+  const octaves = [[0.061, 0.037, seed], [0.113, -0.083, -seed], [0.29, 0.23, seed]].map(([a, b, offset], index) => {
+    const table = (count, angle) => {
+      const sines = new Float64Array(count);
+      const cosines = new Float64Array(count);
+      for (let i = 0; i < count; i += 1) {
+        sines[i] = Math.sin(angle(i));
+        cosines[i] = Math.cos(angle(i));
+      }
+      return { sines, cosines };
+    };
+    return { amplitude: erosion[index], x: table(columns, (column) => a * (centerX(column) + ROOM_W / 2)),
+      y: table(rows, (row) => b * (centerY(row) + ROOM_H / 2) + offset) };
+  });
+  const roughX = octaves.map(({ x }) => x);
+  const roughY = octaves.map(({ y }) => y);
+  const amplitudes = octaves.map(({ amplitude }) => amplitude);
+  // Paving never extends under the walls, so only interior cells are computed.
+  const firstColumn = Math.floor(DESERT_ART.wallBand / cell);
+  const firstRow = firstColumn;
+  const lastColumn = Math.min(columns - 1, Math.ceil((ROOM_W - DESERT_ART.wallBand) / cell));
+  const lastRow = Math.min(rows - 1, Math.ceil((ROOM_H - DESERT_ART.wallBand) / cell));
+  const laneCount = lanes.length;
+  for (let row = firstRow; row <= lastRow; row += 1) {
+    const dy = centerY(row);
+    const hubY = (dy / hub.radiusY) * (dy / hub.radiusY);
+    const rowSin0 = roughY[0].sines[row] * amplitudes[0];
+    const rowCos0 = roughY[0].cosines[row] * amplitudes[0];
+    const rowSin1 = roughY[1].sines[row] * amplitudes[1];
+    const rowCos1 = roughY[1].cosines[row] * amplitudes[1];
+    const rowSin2 = roughY[2].sines[row] * amplitudes[2];
+    const rowCos2 = roughY[2].cosines[row] * amplitudes[2];
+    for (let column = firstColumn; column <= lastColumn; column += 1) {
+      const dx = column * cell + cell / 2 - ROOM_W / 2;
+      const hubX = dx / hub.radiusX;
+      let distance = (Math.sqrt(hubX * hubX + hubY) - 1) * hub.radiusY;
+      for (let laneIndex = 0; laneIndex < laneCount; laneIndex += 1) {
+        const path = lanes[laneIndex];
+        const index = path.horizontal ? column : row;
+        const halfWidth = path.halfWidths[index];
+        if (halfWidth === Infinity) continue;
+        const across = -dx * path.directionY + dy * path.directionX;
+        const laneDistance = Math.abs(across - path.bends[index]) - halfWidth;
+        if (laneDistance < distance) distance = laneDistance;
+      }
+      const rough = roughX[0].sines[column] * rowCos0 + roughX[0].cosines[column] * rowSin0 +
+        roughX[1].sines[column] * rowCos1 + roughX[1].cosines[column] * rowSin1 +
+        roughX[2].sines[column] * rowCos2 + roughX[2].cosines[column] * rowSin2;
+      const coverage = (edgeReach - distance - rough) / softness;
+      values[row * columns + column] = coverage < 0 ? 0 : coverage > 1 ? 1 : coverage;
+    }
+  }
+  grid = { columns, rows, values };
+  if (cache.size >= 12) cache.delete(cache.keys().next().value);
+  cache.set(key, grid);
+  return grid;
+}
+
 function drawDesertGround(context, image) {
   const { tile, wallBand } = DESERT_ART;
   const { patch, atlasX, atlasY, filter } = DESERT_ART.ground;
@@ -171,26 +284,27 @@ function drawDesertGround(context, image) {
   context.beginPath();
   context.rect(0, 0, ROOM_W, ROOM_H);
   context.clip();
-  context.filter = filter;
+  const ground = filteredTileset(image, filter);
   for (let y = wallBand - patch; y < ROOM_H; y += patch) {
     for (let x = wallBand - patch; x < ROOM_W; x += patch) {
-      context.drawImage(image, atlasX, atlasY, patch, patch, x, y, patch, patch);
+      context.drawImage(ground, atlasX, atlasY, patch, patch, x, y, patch, patch);
     }
   }
   if (desertPavingReady()) {
     context.beginPath();
     context.rect(wallBand, wallBand, ROOM_W - wallBand * 2, ROOM_H - wallBand * 2);
     context.clip();
-    const paving = terrainTiles.artis.image;
-    context.filter = DESERT_ART.paving.filter;
+    const paving = filteredTileset(terrainTiles.artis.image, DESERT_ART.paving.filter);
+    const grid = desertPavingGrid();
+    const coverageAt = (x, y) => grid.values[Math.floor(y / cell) * grid.columns + Math.floor(x / cell)];
     for (let y = wallBand; y < ROOM_H - wallBand; y += tile) {
       for (let x = wallBand; x < ROOM_W - wallBand; x += tile) {
         const tileId = terrainTileAt(terrainTiles.artis, (x - wallBand) / tile, (y - wallBand) / tile);
-        const columns = Math.floor(paving.naturalWidth / tile);
+        const columns = Math.floor(terrainTiles.artis.image.naturalWidth / tile);
         const sourceX = (tileId % columns) * tile;
         const sourceY = Math.floor(tileId / columns) * tile;
         const coverage = Array.from({ length: cells * cells }, (_, index) =>
-          desertPavingCoverage(x + index % cells * cell, y + Math.floor(index / cells) * cell));
+          coverageAt(x + index % cells * cell, y + Math.floor(index / cells) * cell));
         if (coverage.every((value) => value === 0)) continue;
         if (coverage.every((value) => value === 1)) {
           context.globalAlpha = opacity;

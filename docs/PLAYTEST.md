@@ -45,6 +45,7 @@ Check on a computer and on a phone if you can.
 - Does anything overlap on the screen (hearts, minimap, item pop-ups, touch buttons)?
 - Is all the text readable?
 - Is the full map easy to use with touch or a gamepad?
+- **Magic light.** Cast magic over sand, paving, grass, cave floors and near walls. Does the ground's texture (ripples, stones, bricks) light up around the shot? Is it too bright, too noisy, or missing anywhere? On the phone, does the game stutter for the first second or two in a new region, while the floors are prepared?
 
 ## Sound
 

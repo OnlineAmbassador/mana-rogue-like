@@ -20,7 +20,7 @@ function getSave() {
     return {
       arcanist: false, warden: false, highestFloorCleared: 0, unlockedCharacters: [], completedRuns: 0, bankedZeny: 0,
       playtimeSeconds: 0, unlockedItemIds: [], discoveredItemIds: [], discoveredEnemyIds: [], discoveredEnemyAbilityIds: [],
-      purchasedAbilityIds: [], introducedChapters: [], loreRelics: [],
+      purchasedAbilityIds: [], introducedChapters: [], loreRelics: [], branches: sanitizeBranchSave(null),
     };
   }
   if (!storedSave || typeof storedSave !== 'object' || Array.isArray(storedSave)) storedSave = {};
@@ -68,6 +68,84 @@ function getSave() {
       ? storedSave.introducedChapters.filter((id) => typeof id === 'string').map(currentSaveId) : [],
     loreRelics: Array.isArray(storedSave.loreRelics)
       ? storedSave.loreRelics.filter((id) => typeof id === 'string').map(currentSaveId) : [],
+    branches: sanitizeBranchSave(storedSave.branches),
+  };
+}
+
+// Weapon branches: persistent XP, tier unlocks (2-3) and up to three highlighted branches per weapon style.
+function sanitizeBranchSave(stored) {
+  const source = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  const known = new Map(skillBranches.map((branch) => [branch.id, branch]));
+  const unlocks = {};
+  for (const [id, tier] of Object.entries(source.unlocks && typeof source.unlocks === 'object' ? source.unlocks : {})) {
+    if (known.has(id) && Number.isFinite(tier) && tier >= 2) unlocks[id] = Math.min(3, Math.floor(tier));
+  }
+  const loadouts = {};
+  for (const style of BRANCH_STYLES) {
+    const list = Array.isArray(source.loadouts?.[style]) ? source.loadouts[style] : [];
+    loadouts[style] = [...new Set(list.filter((id) => known.get(id)?.style === style))].slice(0, BRANCH_SLOTS);
+  }
+  return {
+    xp: Number.isFinite(source.xp) ? Math.max(0, Math.floor(source.xp)) : 0,
+    unlocks,
+    loadouts,
+    element: typeof source.element === 'string' && /^[a-z]+$/.test(source.element) ? source.element : null,
+    elements: Array.isArray(source.elements)
+      ? [...new Set(source.elements.filter((element) => typeof element === 'string' && /^[a-z]+$/.test(element)))].slice(0, 16)
+      : [],
+    weapons: sanitizeWeaponSave(source.weapons),
+    confluence: sanitizeConfluenceSave(source.confluence),
+    play: sanitizePlaySave(source.play),
+    guided: source.guided === true,
+    startAbility: typeof source.startAbility === 'string' && /^[a-z-]+$/.test(source.startAbility) ? source.startAbility : null,
+  };
+}
+
+// Saves from before Bridge Seals: a grown stat at a bridge end gets its seal for free so it stays connected.
+function sanitizeConfluenceSave(stored) {
+  const owned = Array.isArray(stored) ? [...new Set(stored.filter((id) => typeof id === 'string' && confluenceNode(id)))] : [];
+  for (const [stat, seal] of [['s1', 'g1'], ['s4', 'g2']]) {
+    for (const id of owned.filter((entry) => entry.endsWith(`:${stat}`))) {
+      const sealId = id.replace(new RegExp(`:${stat}$`), `:${seal}`);
+      if (confluenceNode(sealId) && !owned.includes(sealId)) owned.push(sealId);
+    }
+  }
+  return owned;
+}
+
+// Play-style counts per weapon family (attacks, charged, tapped) for the suggested path.
+function sanitizePlaySave(stored) {
+  const source = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  const count = (value) => (Number.isFinite(value) ? clamp(Math.floor(value), 0, 100000) : 0);
+  return Object.fromEntries(BRANCH_STYLES.map((style) => {
+    const entry = source[style] && typeof source[style] === 'object' ? source[style] : {};
+    return [style, { use: count(entry.use), charge: count(entry.charge), tap: count(entry.tap) }];
+  }));
+}
+
+// Found and learned weapons, Dual Grip, Unweaving Runes and each class's main and off hand.
+function sanitizeWeaponSave(stored) {
+  const source = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  const variants = new Set(weaponCatalog.filter((entry) => !entry.base).map((entry) => entry.id));
+  const ids = new Set(weaponCatalog.map((entry) => entry.id));
+  const list = (value) => [...new Set((Array.isArray(value) ? value : []).filter((id) => variants.has(id)))];
+  const found = list(source.found);
+  const learned = list(source.learned).filter((id) => found.includes(id));
+  const hands = {};
+  const storedHands = source.hands && typeof source.hands === 'object' && !Array.isArray(source.hands) ? source.hands : {};
+  for (const [className, pair] of Object.entries(storedHands)) {
+    if (!pair || typeof pair !== 'object' || typeof className !== 'string' || className.length > 40) continue;
+    const entry = {};
+    if (ids.has(pair.main)) entry.main = pair.main;
+    if (ids.has(pair.off) && pair.off !== pair.main) entry.off = pair.off;
+    hands[className] = entry;
+  }
+  return {
+    found,
+    learned,
+    grip: source.grip === true,
+    runes: Number.isFinite(source.runes) ? clamp(Math.floor(source.runes), 0, 99) : 0,
+    hands,
   };
 }
 
@@ -162,20 +240,20 @@ function discoverRegion() {
   queueChapter(`region:${currentRegionId()}`, regionChapters[currentRegionId()]);
 }
 
-function unlockCharacter(id) {
-  if (save.unlockedCharacters.includes(id)) return false;
+function unlockCharacter(id, floorReward = false) {
+  if (['wanderer', 'warden', 'arcanist'].includes(id) || save.unlockedCharacters.includes(id)) return false;
   const activeRun = character && ['playing', 'paused', 'won'].includes(mode);
   const unlocksThisRun = Number.isInteger(player.characterUnlocksThisRun)
     ? player.characterUnlocksThisRun : 0;
-  if (activeRun && unlocksThisRun >= 1) {
-    showMessage('One delver can be unlocked per descent. Other discoveries will be waiting next run.', 3);
+  if (floorReward && activeRun && unlocksThisRun >= 1) {
+    showMessage('One floor-reward delver can be unlocked per descent. Special discoveries can still unlock others.', 3);
     return false;
   }
   if (!runStats.unlocked.includes(id)) runStats.unlocked.push(id);
   save.unlockedCharacters.push(id);
   if (id === 'warden') save.warden = true;
   if (id === 'arcanist') save.arcanist = true;
-  if (activeRun) player.characterUnlocksThisRun = unlocksThisRun + 1;
+  if (floorReward && activeRun) player.characterUnlocksThisRun = unlocksThisRun + 1;
   persistSave();
   queueChapter(`character:${id}`, characterChapters[id]);
   if (activeRun) saveRunState();
@@ -184,8 +262,6 @@ function unlockCharacter(id) {
 
 function recordFloorClear(floor) {
   save.highestFloorCleared = Math.max(save.highestFloorCleared, floor);
-  if (save.highestFloorCleared >= 1) unlockCharacter('warden');
-  if (save.highestFloorCleared >= 2) unlockCharacter('arcanist');
   persistSave();
 }
 
@@ -384,6 +460,8 @@ function serializeRun() {
     weapon,
     ownedItems: [...ownedItems],
     magicElements: [...magicElements],
+    elementRulesVersion: 1,
+    startingWeaponPending,
     activeMagicElement,
     progressionSnapshot: runProgressionSnapshot ? {
       itemIds: [...runProgressionSnapshot.itemIds],
@@ -392,7 +470,9 @@ function serializeRun() {
     combatStyles: [...combatStyles],
     meleeWeapons: [...meleeWeapons],
     activeCombatStyle,
+    weaponHands: { ...weaponHands },
     fireModes: { ...fireModes },
+    pendingBoonPicks,
     runOfferedAbilityIds: [...runOfferedAbilityIds],
     frostNovaCooldown,
     frostActive,
@@ -537,29 +617,38 @@ function restoreRun() {
   for (const id of saved.ownedItems || []) {
     if (typeof id === 'string' && !id.startsWith('mode-')) ownedItems.add(retiredItemIds[id] || id);
   }
+  // Charge and triple now come from highlighted branches, so older runs' random modes are not restored.
   fireModes.melee = 'rapid';
   fireModes.bow = 'rapid';
   fireModes.magic = 'rapid';
-  for (const style of ['melee', 'bow', 'magic']) {
-    const savedMode = saved.fireModes?.[style];
-    if (['rapid', 'charge', ...(style === 'bow' ? ['triple'] : [])].includes(savedMode)) {
-      fireModes[style] = savedMode;
-    }
-  }
+  pendingBoonPicks = clamp(Number.isInteger(saved.pendingBoonPicks) ? saved.pendingBoonPicks : 0, 0, 20);
+  boonChoices = null;
   magicElements.clear();
   magicElements.add('bubble');
-  for (const element of saved.magicElements || []) {
+  const runElements = saved.elementRulesVersion === 1 ? saved.magicElements || []
+    : (saved.rooms || []).filter((room) => room.shrineUsed).map((room) => room.shrineElement);
+  for (const element of runElements) {
     if (Object.hasOwn(magicElementPalette, element)) magicElements.add(element);
   }
-  for (const item of shopItemCatalog) {
-    if (item.kind === 'element' && ownedItems.has(item.id)) magicElements.add(item.element);
-  }
   activeMagicElement = magicElements.has(saved.activeMagicElement) ? saved.activeMagicElement : 'bubble';
+  startingWeaponPending = saved.startingWeaponPending === true;
   combatStyles.clear();
   for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
   meleeWeapons.clear();
   for (const item of saved.meleeWeapons || []) meleeWeapons.add(item);
   activeCombatStyle = saved.activeCombatStyle;
+  const savedHands = saved.weaponHands;
+  if (savedHands && weaponById(savedHands.main) && weaponById(savedHands.off) && savedHands.main !== savedHands.off) {
+    applyWeaponHands(savedHands);
+  } else {
+    const hands = savedWeaponHands();
+    const familyBase = weaponCatalog.find((entry) => entry.base && entry.family === saved.activeCombatStyle)?.id;
+    if (familyBase && weaponById(hands.main)?.family !== saved.activeCombatStyle) {
+      applyWeaponHands({ main: familyBase, off: hands.main === familyBase ? hands.off : hands.main });
+    } else {
+      applyWeaponHands(hands);
+    }
+  }
   resetStyleHeat();
   resetInputAI();
   frostNovaCooldown = saved.frostNovaCooldown || 0;
@@ -598,6 +687,7 @@ function restoreRun() {
   updateHud();
   showMessage('Saved descent restored.', 3);
   saveRunState();
+  if (startingWeaponPending) openStartingWeaponChoice();
   return true;
 }
 
@@ -610,7 +700,7 @@ function clearSavedRun() {
 }
 
 function isCharacterUnlocked(entry) {
-  return entry.id === 'wanderer' || entry.random || save.unlockedCharacters.includes(entry.id) ||
+  return ['wanderer', 'warden', 'arcanist'].includes(entry.id) || entry.random || save.unlockedCharacters.includes(entry.id) ||
     (entry.id === 'arcanist' && save.arcanist) ||
     (entry.id === 'warden' && save.warden) ||
     (entry.id === 'mycelia-sporeling' && save.discoveredItemIds.includes('spore-bloom')) ||

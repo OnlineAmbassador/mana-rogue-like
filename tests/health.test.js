@@ -9,7 +9,7 @@ function combat() {
   const c = vm.createContext({
     player: { x: 100, y: 100, radius: 12, hp: 4, maxHp: 4, armor: 0, invuln: 0 },
     mode: 'playing', ownedItems: new Set(), enemies: [], enemyProjectiles: [], pickups: [],
-    groundHazards: [], bossStrikes: [], breakables: [], currentFloor: 12,
+    groundHazards: [], bombScorches: [], bossStrikes: [], breakables: [], currentFloor: 12,
     save: { loreRelics: [] }, rooms: [], manaLoreRelics: [], shopItemCatalog: [],
     runOfferedAbilityIds: new Set(),
     reservedUpgradeIds: new Set(),
@@ -456,6 +456,37 @@ test('ordinary splash costs half a heart but marked boss heavy strikes cost two'
   assert.equal(c.player.hp, 1);
 });
 
+test('bomb fire burns after the blast: the player always, enemies only from the player\'s own bombs', () => {
+  for (const owner of ['enemy', 'player']) {
+    const c = combat();
+    const hits = [];
+    c.damageEnemy = (enemy, amount) => hits.push({ enemy, amount });
+    const near = { x: 130, y: 104, radius: 14, hp: 20 };
+    const far = { x: 100, y: 160, radius: 14, hp: 20 };
+    c.enemies.push(near, far);
+    c.bombScorches.push({ x: 100, y: 100, radius: 110, owner, age: 0, seed: 1,
+      playerBurnCooldown: 0.6, enemyBurnCooldown: 0.3 });
+    const run = (seconds) => { for (let t = 0; t < seconds; t += 0.05) { c.player.invuln = 0; c.updateBombScorches(0.05); } };
+    run(0.55);
+    assert.equal(c.player.hp, 4, 'no burn in the moment right after the blast');
+    run(1.2);
+    assert.ok(c.player.hp < 4 && c.player.hp >= 3, 'half a heart every 0.8 s while standing in the flames');
+    assert.equal(hits.some(({ enemy }) => enemy === far), false, 'outside the flames is safe');
+    assert.equal(hits.length > 0, owner === 'player');
+    if (owner === 'player') assert.ok(near.burnTimer > 0);
+    const hp = c.player.hp;
+    hits.length = 0;
+    run(1.5);
+    c.player.invuln = 0;
+    run(3);
+    assert.ok(c.bombAftermath(c.bombScorches[0].age).fire === 0);
+    const afterOut = c.player.hp;
+    run(2);
+    assert.equal(c.player.hp, afterOut, 'burnt-out fire and smoke do not hurt');
+    assert.ok(afterOut <= hp);
+  }
+});
+
 test('wide pulse punishes normal walking but a late real dash evades it through invulnerability', () => {
   for (const warning of [0.95, 1.05, 1.1]) {
     for (const [action, expectedHp] of [['walk', 3], ['late-dash', 4], ['early-dash', 3]]) {
@@ -518,6 +549,7 @@ test('weapon slots show the swap cooldown on the unselected styles only', () => 
   c.activeCombatStyle = 'magic';
   c.currentAttackStyle = () => 'magic';
   c.classSignature = () => null;
+  c.shopItemIconImages = {};
   vm.runInContext('weaponSwapCooldown = 4.2;', c);
   c.drawStyleSlots();
   assert.equal(texts.filter((text) => text === '5').length, 2);

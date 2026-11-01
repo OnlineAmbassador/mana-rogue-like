@@ -54,16 +54,22 @@ Two standard ability slots; Betsanc does not use one.
 |---|---|---|---|
 | Iron Sword | 8 | +2 melee damage, reach 92 (+40% against bare hands) | was 7; no longer offered when a sword is already held (the Warrior starts with one) |
 | Swift Daggers | 7 | +1 melee damage, reach 53 (-20% against bare hands), +25% swing rate | the speed is new |
-| Wind-Up Wraps | 7 | Taking it puts melee in charge mode; +40% charge speed | it used to re-roll the style to rapid, so it almost never worked |
+| Wind-Up Wraps | 7 | Powers the Wind-Up branch (charge mode); +40% charge speed | charge mode now comes from the highlighted branch, not a re-roll |
 | Flurry Gauntlets | 7 | Jabs at 1.0x scale (-62% hit damage) with +180% swing rate (about +8% DPS) | was x0.4 (about -4%) |
-| Cinder Edge | 8 | Swings leave a fire wall | unchanged |
+| Cinder Edge | 8 | Swings leave a wall of the run element (fire with no element) | unchanged |
 | Piercing Heads | 8 | Arrows pierce 9 foes | was 7 |
-| Longbow Draw | 7 | Taking it puts the bow in charge mode; +40% charge speed | same fix as Wind-Up |
+| Longbow Draw | 7 | Powers the Longdraw branch (charge mode); +40% charge speed | same as Wind-Up |
 | Rapid Quiver | 7 | -40% damage, +80% fire rate (about +8% DPS) | unchanged |
 | Storm Fletching | 9 | Arrows chain lightning | unchanged |
 | Impact Core / Storm Conduit / Lingering Mana | 8 / 9 / 8 | Magic bursts / chains / leaves a cloud | unchanged |
 
-One mod per style; a new one replaces the old. Taking any weapon, mod or element re-rolls that style's fire mode (rapid, or a 5% once-per-run charge discovery), except the two charge mods above.
+One mod per style; a new one replaces the old. Fire modes are no longer re-rolled: charge and triple shots come only from highlighted weapon branches (`skillBranches` in playermanager.js).
+
+### Weapon branches
+
+Each weapon style (Blade, Bow, Magic) has 5 branches, and 3 of them can be highlighted at once. You can only edit them in a cleared room, through the B key, D-pad up or the touch **Build** button. An item that changes attack behaviour (mods, elements, Prism, Wild Magic Core, Spore Bloom) works only while a highlighted branch of the held style lists it. A branch that lists items stays dormant until you own one of them. Cleave, Focus and Riposte are techniques that always work. Stat items are in no branch and always work. Picking up a gated item highlights its branch automatically when a slot is free.
+
+Tier I is free. Higher tiers need career branch XP past a rising gate (XP is never spent) plus a price set by what the tier gives (`branchTierCost`): form stats (more shots, chain, pierce, blast, reach, arc) cost Iron Ore, power stats (damage) cost Dark Crystal, speed stats (fire rate, charge speed, parry window) cost banked zeny, and abilities (charge modes, burn, linger, element wall and similar) are padlocked and cost a Life Stone. Learning a weapon costs 1 Life Stone, Dual Grip 2, and on the Confluence each Bridge Seal 1, each fusion and move 2 and the Trinity 3. Life Stones drop from elites and minibosses (8%), purpose caches (10%), the bomb-cache room (25%) and the boss Lifestone relic. Highlighting both branches of a pair turns on a synergy (`branchSynergies`), for example Prism + Conduit = Fork Storm. Unlocks and loadouts are stored in `save.branches` and remembered between runs. Every level-up also offers a pick-one-of-three boon.
 
 ## Curios
 

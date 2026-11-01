@@ -36,7 +36,9 @@ test('elites and minibosses roll twice as often, and Luck adds to both rates', (
   const c = lootContext();
   assert.deepEqual(roll(c, {}, 0.1), []);
   assert.deepEqual(roll(c, { elite: true }, 0.1), ['ironOre']);
-  assert.deepEqual(roll(c, { miniBoss: true }, 0.039), ['ironOre', 'darkCrystal']);
+  assert.deepEqual(roll(c, { miniBoss: true }, 0.039), ['ironOre', 'darkCrystal', 'lifeStone']);
+  assert.equal(c.materialDropChance('lifeStone', {}), 0, 'ordinary foes never drop Life Stones');
+  assert.ok(Math.abs(c.materialDropChance('lifeStone', { elite: true }) - 0.08) < 1e-9, 'elites have an 8% Life Stone');
   c.player.luck = 2;
   // 6% + 2 x 1% = 8% ore and 2% + 2 x 0.5% = 3% crystal.
   assert.deepEqual(roll(c, {}, 0.07), ['ironOre']);
@@ -64,6 +66,34 @@ test('dropLoot only rolls materials when it is told which foe died, and never fo
   c.pickups.length = 0;
   c.dropLoot(300, 300, true, false, { boss: true });
   assert.deepEqual(materialPickups(c), []);
+});
+
+test('all boss rewards leave clearance around the descent pad and room walls', () => {
+  const c = lootContext();
+  c.shopItemCatalog.push({ id: 'lifestone', kind: 'boss-relic' });
+  c.weaponDropPool = () => [{ id: 'sword', name: 'Sword' }];
+  c.spawnCoin = (x, y) => c.pickups.push({ x, y, kind: 'coin' });
+  c.Math.random = () => 0;
+  const pad = { x: c.ROOM_W * 0.72, y: c.ROOM_H / 2 };
+  for (const death of [pad, { x: pad.x + 130, y: pad.y }, { x: pad.x, y: pad.y - 100 },
+    { x: 0, y: 0 }, { x: c.ROOM_W, y: c.ROOM_H }]) {
+    c.pickups.length = 0;
+    c.dropLoot(death.x, death.y, true);
+    assert.deepEqual(new Set(c.pickups.map((pickup) => pickup.kind)),
+      new Set(['xp', 'heart', 'coin', 'upgrade', 'weapon', 'rune']));
+    for (const pickup of c.pickups) {
+      assert.ok(c.distanceBetween(pickup, pad) >= 120, `${pickup.kind} crowds the descent pad`);
+      assert.ok(pickup.x >= 50 && pickup.x <= c.ROOM_W - 50, `${pickup.kind} outside horizontal bounds`);
+      assert.ok(pickup.y >= 50 && pickup.y <= c.ROOM_H - 50, `${pickup.kind} outside vertical bounds`);
+    }
+  }
+});
+
+test('boss rewards keep their death location when it is already safely away from descent', () => {
+  const c = lootContext();
+  c.dropLoot(300, 300, true);
+  const heart = c.pickups.find((pickup) => pickup.kind === 'heart');
+  assert.deepEqual({ x: heart.x, y: heart.y }, { x: 300, y: 300 });
 });
 
 test('the sell prices and the expected extra zeny per run match the economy notes', () => {

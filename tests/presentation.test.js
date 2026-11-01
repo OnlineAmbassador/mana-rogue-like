@@ -65,13 +65,15 @@ function presentation() {
     sandFootprintImage: image('footprints'),
     sandFootprints: { room: null, marks: [], x: 0, y: 0, distance: 0 },
     player: { x: 100, y: 140, moving: false },
-    projectiles: [], enemyProjectiles: [], groundHazards: [],
+    projectiles: [], enemyProjectiles: [], groundHazards: [], bombScorches: [],
     magicElementPalette: { fire: '#ff8042', lightning: '#cfeaff', bubble: '#8bdfff' },
     shopItemIconImages: {}, heartImage: image('heart'),
     currentAttackStyle: () => 'magic', styleGlowColor: () => null,
     clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
     soulMenhirPosition: () => ({ x: 480, y: 166 }),
     keysHeld: 0,
+    branchesForItem: () => [], branchLoadout: () => [],
+    lastInputMode: 'keyboard', bindLabel: () => 'E',
   });
   // Every effect sprite is a loaded image named after its effectArt key, so drawImage calls show which one was drawn.
   const effectImages = {};
@@ -91,12 +93,14 @@ function presentation() {
   loadFunctions(c, 'gameui.js', ['prefersReducedMotion']);
   loadFunctions(c, 'lightingmanager.js', ['roomUsesCreviceLight', 'roomLightShafts', 'sunlightStrength',
     'sunlightMask', 'drawSunSpriteShadow', 'drawSunGroundShadow', 'drawRoomSunlight',
-    'worldLightExposure', 'collectWorldLights', 'drawWorldLightSources',
-    'drawProjectileGroundShadow', 'drawTrunkShadow']);
+    'worldLightExposure', 'tilesetNormalMap', 'bakeTilesetNormalRows', 'recordNormalMapSource', 'replayNormalMapOps',
+    'requestRoomNormalMap', 'advanceRoomNormalMap', 'normalLightFalloff', 'normalReliefLayer', 'drawNormalMappedLight',
+    'normalMaterialFor', 'collectWorldLights', 'drawWorldLightSources',
+    'drawProjectileGroundShadow', 'drawTrunkShadow', 'beginWaterReflections', 'drawWaterReflections']);
   loadFunctions(c, 'gameui.js', ['drawGroundHazards', 'outlinedItemTexture', 'drawOutlinedItemImage',
     'drawShopItemIcon', 'drawShopItemIconArt', 'drawPickupItem', 'withTextOutline']);
-  loadFunctions(c, 'gameui.js', ['mobDrawScale']);
-  loadFunctions(c, 'playermanager.js', ['projectileArcState']);
+  loadFunctions(c, 'gameui.js', ['mobDrawScale', 'enemySpritePose', 'drawEnemyShadow']);
+  loadFunctions(c, 'playermanager.js', ['projectileArcState', 'projectileHitsCircle']);
   loadBetween(c, 'desertart.js', 'const DESERT_ART');
   return c;
 }
@@ -150,8 +154,8 @@ test('desert floor uses intact dune patches and translucent paving within atlas 
   const c = presentation();
   c.drawRoomFloor();
   const images = c.calls.filter((call) => call.layer === 'cache' && call.method === 'drawImage');
-  assert.ok(images.some(({ args }) => args[0].name === 'dunes' && args[3] === 128));
-  assert.ok(images.some(({ args }) => args[0].name === 'paving'));
+  assert.ok(images.some(({ args }) => (args[0].sourceImage || args[0]).name === 'dunes' && args[3] === 128));
+  assert.ok(images.some(({ args }) => (args[0].sourceImage || args[0]).name === 'paving'));
   for (const { args: [image, x, y, width, height] } of images) {
     if (width === undefined) continue;
     assert.ok(x >= 0 && y >= 0);
@@ -170,7 +174,7 @@ test('sand continues beneath walls and transparent doorway corners while paving 
     c.drawDesertGround(c.ctx, c.terrainTiles.tulimshar.image);
     const clips = c.calls.filter(({ method }) => method === 'rect').map(({ args }) => args);
     assert.deepEqual(clips, [[0, 0, width, height], [32, 32, width - 64, height - 64]]);
-    const dunes = c.calls.filter(({ method, args }) => method === 'drawImage' && args[0].name === 'dunes');
+    const dunes = c.calls.filter(({ method, args }) => method === 'drawImage' && (args[0].sourceImage || args[0]).name === 'dunes');
     assert.ok(dunes.some(({ args }) => args[5] < 0 && args[5] + args[7] >= 32),
       'sand extends beneath the west wall without shifting the interior dune pattern');
     assert.ok(dunes.some(({ args }) => args[5] <= width - 32 && args[5] + args[7] >= width),
@@ -219,7 +223,8 @@ test('sunlight projects sprite silhouettes equally down and right and reuses bou
   assert.equal(frames.values().next().value, mask, 'moving does not rebuild a sprite shadow');
   c.calls.length = 0;
   render(200, 200, 40);
-  assert.deepEqual(c.calls.find(({ method }) => method === 'translate').args, [222, 222]);
+  assert.equal(mask.contactRow, 56, 'the 32px-wide footprint anchors 8px above its bottom');
+  assert.deepEqual(c.calls.find(({ method }) => method === 'translate').args, [222, 214]);
   c.calls.length = 0;
   c.drawSunSpriteShadow(image, 0, 0, 32, 64, 200, 200, 32, 64, 0, 1, 0.8);
   assert.equal(c.calls.find(({ method }) => method === 'rotate').args[0], 0.8,
@@ -236,21 +241,94 @@ test('sunlight projects sprite silhouettes equally down and right and reuses bou
   assert.equal(c.calls.length, 0, 'offscreen shadows add no drawing or cache work');
 });
 
-test('transparent frame padding never separates a shadow from the rendered feet', () => {
+test('transparent frame padding keeps the shadow contact underneath the rendered footprint', () => {
   const c = presentation();
   c.maskFootRow = 48;
   const image = { complete: true, naturalWidth: 64, naturalHeight: 64 };
   c.drawSunSpriteShadow(image, 0, 0, 64, 64, 200, 200, 96, 96);
   const mask = c.sunlightMask.images.get(image).values().next().value;
   assert.equal(mask.footRow, 48);
+  assert.equal(mask.contactRow, 38);
   const translations = c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'translate');
-  assert.deepEqual(translations.map(({ args }) => args), [[200, 176], [0, -24]]);
+  assert.deepEqual(translations.map(({ args }) => args), [[200, 161], [0, -9]]);
   const destination = c.calls.find(({ layer, method }) => layer === 'screen' && method === 'drawImage').args;
-  const footLocalY = translations[1].args[1] + destination[2] + mask.footRow / 64 * destination[4];
-  assert.equal(footLocalY, 0, 'last opaque foot row projects exactly from its on-screen feet');
+  const contactLocalY = translations[1].args[1] + destination[2] + mask.contactRow / 64 * destination[4];
+  assert.equal(contactLocalY, 0, 'the footprint contact projects from underneath the opaque body');
   c.drawSunSpriteShadow(image, 0, 0, 64, 64, 250, 240, 96, 96);
   assert.equal(c.calls.filter(({ method }) => method === 'getImageData').length, 1,
     'alpha bounds are sampled once per cached frame, not per draw');
+});
+
+test('world shadows draw once beneath every object and are clipped away from the south wall', () => {
+  const c = presentation();
+  const order = [];
+  c.currentRoom.type = 'start';
+  c.roomWallBand = () => 24;
+  c.breakables = [{ x: 200, y: 200, frame: 0, sprite: {
+    image: { complete: true, naturalWidth: 32 }, frameWidth: 32, frameHeight: 64, scale: 1,
+  } }];
+  c.bombs = [{ x: 300, y: 200, radius: 20, fuse: 1 }];
+  c.pickups = [{ x: 350, y: 200, kind: 'heart' }];
+  c.enemies = [{ x: 250, y: 200 }];
+  c.companions = [{ x: 150, y: 200 }];
+  c.elementalSummons = [{ x: 175, y: 200 }];
+  c.particles = c.lightningArcs = c.player.meleeSwings = [];
+  c.streakCallout = { timer: 0 };
+  c.hasVault = () => false;
+  for (const name of ['drawRoomFloor', 'drawBombScorchMarks', 'drawRoomSunlight', 'drawWorldLightSources',
+    'advanceRoomNormalMap', 'drawSandFootprints', 'drawDesertWind', 'drawGroundHazards', 'drawRewardTrial',
+    'drawStrikeWave', 'drawBombAftermath', 'drawOverheadPops', 'drawDamageNumbers', 'drawLaserBeams', 'drawSporePods']) {
+    c[name] = () => {};
+  }
+  c.drawSunSpriteShadow = () => order.push('shadow-scenery');
+  c.drawSunGroundShadow = () => order.push('shadow-ground');
+  c.drawEnemyShadow = () => order.push('shadow-mob');
+  c.drawTrunkShadow = () => order.push('shadow-menhir');
+  c.drawEnemy = () => order.push('body-mob');
+  c.drawCompanion = (companion, shadowOnly) => order.push(shadowOnly ? 'shadow-companion' : 'body-companion');
+  c.drawPlayer = (shadowOnly) => order.push(shadowOnly ? 'shadow-player' : 'body-player');
+  c.getBreakableFrame = () => { order.push('body-scenery'); return {}; };
+  c.drawPickupItem = () => order.push('body-pickup');
+  c.drawDropIcon = (x, y, draw) => { draw(); return true; };
+  const menhir = c.drawSoulMenhir;
+  c.drawSoulMenhir = (shadowOnly) => {
+    if (!shadowOnly) order.push('body-menhir');
+    menhir(shadowOnly);
+  };
+  loadFunctions(c, 'gameui.js', ['drawWorldGroundShadows', 'drawWorld']);
+  c.drawWorld();
+  assert.deepEqual(order.filter((event) => event.startsWith('shadow-')), [
+    'shadow-menhir', 'shadow-scenery', 'shadow-ground', 'shadow-ground',
+    'shadow-mob', 'shadow-companion', 'shadow-companion', 'shadow-player',
+  ]);
+  const firstBody = order.findIndex((event) => event.startsWith('body-'));
+  assert.ok(order.slice(firstBody).every((event) => !event.startsWith('shadow-')),
+    'a player north of scenery or mobs never casts shadows over their artwork');
+  assert.ok(c.calls.some(({ layer, method, args }) => layer === 'screen' && method === 'rect' &&
+    JSON.stringify(args) === JSON.stringify([24, 24, 912, 492])), 'ground pass excludes every wall band');
+});
+
+test('the mob body pass never recasts its ground shadow, including magical lifts', () => {
+  const c = presentation();
+  const order = [];
+  c.monsterSprites = { test: { image: { complete: true, naturalWidth: 32 },
+    frameWidth: 32, frameHeight: 32, scale: 1, frames: [0] } };
+  c.drawSunSpriteShadow = (...args) => order.push(['shadow', args[5], args[6], args[9]]);
+  c.drawSpriteImage = () => order.push(['body']);
+  c.drawPlayerMagicMark = () => {};
+  loadFunctions(c, 'gameui.js', ['drawEnemy', 'drawEnemyBody']);
+  const enemy = { kind: 'test', x: 200, y: 200, hp: 4, maxHp: 4, radius: 12 };
+  c.drawEnemyShadow(enemy);
+  c.drawEnemy(enemy);
+  assert.deepEqual(order.map(([pass]) => pass), ['shadow', 'body']);
+  const grounded = order[0];
+  order.length = 0;
+  enemy.manaSlam = { timer: 0.5, duration: 1 };
+  c.drawEnemyShadow(enemy);
+  c.drawEnemy(enemy);
+  assert.deepEqual(order.map(([pass]) => pass), ['shadow', 'body']);
+  assert.deepEqual(order[0].slice(1, 3), grounded.slice(1, 3), 'lift keeps the ground anchor stationary');
+  assert.equal(order[0][3], 85, 'only the shadow projection responds to lift height');
 });
 
 test('bat and Road Captain attacks match visible bodies rather than ground circles', () => {
@@ -302,14 +380,14 @@ test('spider shadows project from the abdomen for mobs and companions', () => {
     return monsterSprites;
   })()`, c);
   assert.equal(c.monsterSprites.spider.shadowAnchorY, 0.35);
-  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion']);
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion', 'drawSpriteImage', 'filteredSpriteFrame']);
   const shadows = [];
   c.drawSunSpriteShadow = (...args) => shadows.push(args);
   c.drawEnemyBody({ kind: 'spider', x: 200, y: 240, hp: 4, maxHp: 4, radius: 14 });
   c.drawCompanion({ kind: 'spider', x: 200, y: 240, hp: 4 });
   assert.equal(shadows.length, 2);
   assert.ok(shadows.every((args) => args[12] === 0.35));
-  loadFunctions(c, 'lightingmanager.js', ['drawSunSpriteShadow']);
+  loadFunctions(c, 'lightingmanager.js', ['drawSunSpriteShadow', 'beginWaterReflections']);
   c.calls.length = 0;
   c.drawSunSpriteShadow(c.monsterSprites.spider.image, 0, 0, 35, 35,
     200, 240, 70, 70, 0, 1, 0, 0.35);
@@ -327,14 +405,14 @@ test('mouse mobs and companions anchor their shadows beneath the abdomen', () =>
     return monsterSprites;
   })()`, c);
   assert.equal(c.monsterSprites.ratto.shadowAnchorY, 0.5);
-  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion']);
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion', 'drawSpriteImage', 'filteredSpriteFrame']);
   const shadows = [];
   c.drawSunSpriteShadow = (...args) => shadows.push(args);
   c.drawEnemyBody({ kind: 'ratto', x: 200, y: 240, hp: 4, maxHp: 4, radius: 14 });
   c.drawCompanion({ kind: 'ratto', x: 200, y: 240, hp: 4 });
   assert.equal(shadows.length, 2);
   assert.ok(shadows.every((args) => args[12] === 0.5));
-  loadFunctions(c, 'lightingmanager.js', ['drawSunSpriteShadow']);
+  loadFunctions(c, 'lightingmanager.js', ['drawSunSpriteShadow', 'beginWaterReflections']);
   c.calls.length = 0;
   c.drawSunSpriteShadow(c.monsterSprites.ratto.image, 0, 0, 32, 32,
     200, 272, 64, 64, 0, 1, 0, 0.5);
@@ -574,7 +652,9 @@ test('player body, clothing and head retain their original size and attack pulse
   c.drawHead = (...args) => layers.push(['head', args[4]]);
   c.drawCastingHands = () => {};
   c.wornHat = () => null;
-  loadFunctions(c, 'gameui.js', ['drawPlayer']);
+  c.weaponShape = () => ({ variant: null });
+  c.offhandActive = () => false;
+  loadFunctions(c, 'gameui.js', ['drawPlayer', 'drawSpriteImage', 'filteredSpriteFrame']);
   c.drawPlayer();
   assert.deepEqual(layers, [['body', 1.45], ['clothing', 1.45], ['clothing', 1.45], ['head', 1.45]]);
   const shadow = c.calls.find(({ layer, method }) => layer === 'screen' && method === 'drawImage');
@@ -582,9 +662,62 @@ test('player body, clothing and head retain their original size and attack pulse
   assert.ok(c.calls.some(({ method, args }) => method === 'scale' && args[0] === 1.08 && args[1] === 0.955));
 });
 
+test('lit, flashing and tinted sprites never set a per-draw canvas filter on the screen', () => {
+  const c = presentation();
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawSpriteImage', 'filteredSpriteFrame']);
+  const image = { complete: true, naturalWidth: 208, naturalHeight: 24 };
+  c.monsterSprites = { slime: { image, frameWidth: 52, frameHeight: 24, scale: 1, frames: [0] } };
+  c.collectWorldLights.lights = [{ x: 200, y: 240, radius: 100, strength: 0.5 }];
+  const enemy = { kind: 'slime', x: 200, y: 240, hp: 4, maxHp: 4, radius: 14, hitFlash: 0.1 };
+  c.drawEnemyBody(enemy);
+  c.drawEnemyBody(enemy);
+  assert.ok(!c.styles.some(({ layer, property, value }) => layer === 'screen' && property === 'filter' &&
+    value !== 'none'));
+  assert.equal(c.styles.filter(({ layer, property }) => layer === 'cache' && property === 'filter').length, 1,
+    'the hit-flash tint is baked once per frame and reused');
+  assert.ok(c.styles.some(({ layer, property, value }) => layer === 'screen' &&
+    property === 'globalCompositeOperation' && value === 'lighter'), 'magic light brightens additively');
+});
+
+test('cached desert paving grid matches the reference coverage field for every layout and room size', () => {
+  const c = presentation();
+  const layouts = [{}, { up: true }, { left: true, down: true }, { up: true, down: true, left: true, right: true }];
+  for (const [width, height] of [[960, 540], [1504, 804], [997, 573]]) {
+    for (const [index, links] of layouts.entries()) {
+      Object.assign(c, { ROOM_W: width, ROOM_H: height });
+      c.currentRoom = { x: index + 3, y: 7 - index, type: 'normal', links, lockedDoors: {}, cleared: true };
+      const grid = c.desertPavingGrid();
+      assert.equal(c.desertPavingGrid(), grid, 'one computation per room layout');
+      for (let row = 8; row <= Math.ceil((height - 32) / 4); row += 3) {
+        for (let column = 8; column <= Math.ceil((width - 32) / 4); column += 3) {
+          const expected = c.desertPavingCoverage(column * 4, row * 4);
+          assert.ok(Math.abs(grid.values[row * grid.columns + column] - expected) < 1e-5,
+            `${width}x${height} layout ${index} cell ${column},${row}`);
+        }
+      }
+    }
+  }
+});
+
+test('room floors filter each tileset once instead of every tile draw', () => {
+  const c = presentation();
+  productionTerrain(c);
+  c.region = 'graveyard';
+  c.drawRoomFloor();
+  c.ROOM_W = 1504;
+  c.drawRoomFloor();
+  c.region = 'tulimshar';
+  c.drawRoomFloor();
+  c.currentRoom.links.up = true;
+  c.drawRoomFloor();
+  const filters = c.styles.filter(({ property, value }) => property === 'filter' && value !== 'none');
+  assert.deepEqual(filters.map(({ value }) => value), ['saturate(0.28) brightness(0.52)',
+    'saturate(0.78) brightness(0.97)', 'sepia(1) saturate(0.8) brightness(1.05)']);
+});
+
 test('ordinary mobs, bosses and offspring draw halfway between original and enlarged sizes', () => {
   const c = presentation();
-  loadFunctions(c, 'gameui.js', ['drawEnemyBody']);
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawSpriteImage', 'filteredSpriteFrame']);
   for (const base of [0.45, 1, 1.5, 2, 3.2]) {
     const image = { complete: true, naturalWidth: 208, naturalHeight: 24 };
     c.monsterSprites = { slime: { image, frameWidth: 52, frameHeight: 24, scale: base, frames: [0] } };
@@ -611,7 +744,7 @@ test('both bat atlases crop baked shadows for mobs and companions without shifti
     ${sliceText(game, 'const monsterSprites =', 'const ', 'game')}
     return monsterSprites;
   })()`, c);
-  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion']);
+  loadFunctions(c, 'gameui.js', ['drawEnemyBody', 'drawCompanion', 'drawSpriteImage', 'filteredSpriteFrame']);
   for (const kind of ['bat', 'vampirebat']) {
     const sprite = c.monsterSprites[kind];
     assert.equal(sprite.frameHeight, 58, 'atlas row stride remains unchanged');
@@ -635,7 +768,7 @@ test('both bat atlases crop baked shadows for mobs and companions without shifti
   }
 });
 
-test('fire and lightning illuminate nearby ground and actors; acid and webs do not emit light', () => {
+test('fire, lightning and every enemy attack light the ground; webs and plain arrows do not', () => {
   const c = presentation();
   c.groundHazards = [
     { kind: 'fire', x: 200, y: 180, color: '#ff8042', radius: 24, ttl: 4 },
@@ -644,17 +777,25 @@ test('fire and lightning illuminate nearby ground and actors; acid and webs do n
   ];
   c.projectiles = [
     { type: 'elemental', element: 'lightning', x: 700, y: 180, vx: 200, vy: 0, ttl: 1 },
+    { type: 'elemental', element: 'bubble', x: 600, y: 300, vx: 200, vy: 0, ttl: 1 },
     { type: 'arrow', x: 800, y: 180, vx: 200, vy: 0, ttl: 1 },
   ];
-  c.enemyProjectiles = [{ kind: 'spore-orb', color: '#f8daff', x: 300, y: 400, vx: 100, vy: 0 }];
+  c.enemyProjectiles = [
+    { kind: 'spore-orb', color: '#f8daff', x: 300, y: 400, vx: 100, vy: 0 },
+    { kind: 'ice-orb', color: '#9fe7f3', x: 360, y: 400, vx: 100, vy: 0 },
+    { kind: 'ratto', color: '#e5bd83', x: 420, y: 400, vx: 100, vy: 0 },
+    { kind: 'arrow', x: 480, y: 400, vx: 100, vy: 0 },
+  ];
   c.collectWorldLights();
-  assert.equal(c.collectWorldLights.lights.length, 3);
+  assert.equal(c.collectWorldLights.lights.length, 7, 'magic and enemy attacks emit, while webs and arrows do not');
+  assert.ok(c.collectWorldLights.lights.every(({ dark }) => !dark));
   assert.ok(c.worldLightExposure(200, 180) > 0);
   assert.equal(c.worldLightExposure(500, 180), 0);
   assert.ok(c.sunlightStrength(200, 180) < c.sunlightStrength(500, 180),
     'emission lifts local shadow darkness without removing it');
   c.drawWorldLightSources();
-  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').length, 3);
+  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').length, 14,
+    'each light draws its glow and a coloured pool');
   const reads = c.calls.filter(({ layer }) => layer === 'cache').length;
   c.drawWorldLightSources();
   assert.equal(c.calls.filter(({ layer }) => layer === 'cache').length, reads);
@@ -663,6 +804,30 @@ test('fire and lightning illuminate nearby ground and actors; acid and webs do n
   c.enemyProjectiles = [];
   c.collectWorldLights();
   assert.equal(c.worldLightExposure(200, 180), 0, 'expired effects leave no stale illumination');
+});
+
+test('smothering magic absorbs light: gas, earth, void and miasma darken the ground instead of lighting it', () => {
+  const c = presentation();
+  c.groundHazards = [{ kind: 'miasma', x: 200, y: 180, color: '#a5d64f', radius: 24, ttl: 4 }];
+  c.projectiles = [
+    { type: 'elemental', element: 'gas', x: 300, y: 180, vx: 200, vy: 0, ttl: 1 },
+    { type: 'elemental', element: 'earth', x: 400, y: 180, vx: 200, vy: 0, ttl: 1 },
+  ];
+  c.enemyProjectiles = [{ kind: 'void-orb', color: '#a98be4', x: 500, y: 180, vx: 100, vy: 0 }];
+  c.collectWorldLights();
+  const lights = c.collectWorldLights.lights;
+  assert.equal(lights.length, 4);
+  assert.ok(lights.every(({ dark }) => dark));
+  assert.ok(lights.every(({ color }) => parseInt(color.slice(1, 3), 16) < 0x30), 'shades are deep, not tinted glows');
+  assert.equal(c.worldLightExposure(300, 180), 0, 'darkness never brightens sprites');
+  c.calls.length = 0;
+  const composites = [];
+  const draw = c.ctx.drawImage;
+  c.ctx.drawImage = function (...args) { composites.push(this.globalCompositeOperation); return draw.apply(this, args); };
+  c.drawWorldLightSources();
+  c.ctx.drawImage = draw;
+  assert.ok(composites.length >= 4 && composites.every((value) => value === 'multiply'),
+    'absorbing magic multiplies a shade over the ground and adds no light');
 });
 
 test('ground pools and webs sit on a thin down-right TMW shadow and use Manasource art', () => {
@@ -698,7 +863,7 @@ test('visible local lighting stays capped during busy fights and culls offscreen
   assert.equal(c.collectWorldLights.lights.length, 24);
   assert.ok(c.collectWorldLights.lights.every(({ x }) => x === 400));
   c.drawWorldLightSources();
-  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').length, 24);
+  assert.equal(c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').length, 48);
   assert.equal(c.drawWorldLightSources.textures.size, 1);
   const cachedCalls = c.calls.filter(({ layer }) => layer === 'cache').length;
   c.drawWorldLightSources();
@@ -1313,9 +1478,11 @@ test('regional floor selections reproduce verified TMX interiors in their author
       c.calls.length = 0;
       c.drawRoomFloor();
       const tiles = c.calls.filter(({ layer, method, args }) =>
-        layer === 'cache' && method === 'drawImage' && args[0] === terrain.image);
+        layer === 'cache' && method === 'drawImage' && args.length === 9 &&
+        (args[0].sourceImage || args[0]) === terrain.image);
       const columns = Math.floor(terrain.image.naturalWidth / 32);
-      for (const { args: [image, sx, sy, sw, sh, dx, dy] } of tiles) {
+      for (const { args: [drawn, sx, sy, sw, sh, dx, dy] } of tiles) {
+        const image = drawn.sourceImage || drawn;
         assert.ok(sx >= 0 && sy >= 0 && sx + sw <= image.naturalWidth && sy + sh <= image.naturalHeight);
         const column = (dx - 64) / 32;
         const row = (dy - 64) / 32;
@@ -1332,9 +1499,11 @@ test('desert paving uses the same authored cobblestone motif as Artis, not ornam
   c.currentRoom.links = { up: true, down: true, left: true, right: true };
   c.drawRoomFloor();
   const paving = c.calls.filter(({ layer, method, args }) =>
-    layer === 'cache' && method === 'drawImage' && args[0].name?.endsWith('artis-pavement.png'));
+    layer === 'cache' && method === 'drawImage' && args.length === 9 &&
+    (args[0].sourceImage || args[0]).name?.endsWith('artis-pavement.png'));
   assert.ok(paving.length > 40);
-  for (const { args: [image, sx, sy, sw, sh, x, y, width, height] } of paving) {
+  for (const { args: [drawn, sx, sy, sw, sh, x, y, width, height] } of paving) {
+    const image = drawn.sourceImage || drawn;
     assert.equal(Math.floor(sx / 32) + Math.floor(sy / 32) * (image.naturalWidth / 32),
       c.terrainTileAt(c.terrainTiles.artis, Math.floor((x - c.roomWallBand()) / 32),
         Math.floor((y - c.roomWallBand()) / 32)));
@@ -1469,4 +1638,184 @@ test('wide pulse warns early and gives the dash cue inside the existing invulner
   c.drawGroundHazards();
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'DASH NOW'));
   assert.ok(c.calls.some(({ method, args }) => method === 'fillText' && args[0] === 'HEAVY - 2 HEARTS'));
+});
+
+test('big boss strikes fill their whole area with a red throb that quickens and deepens before impact', () => {
+  const c = presentation();
+  c.groundHazards = [];
+  const fullAreaAlphas = (timer) => {
+    const samples = [];
+    for (let step = 0; step < 40; step += 1) {
+      c.bossStrikes = [{ x: 480, y: 270, radius: 280, duration: 1.6, timer: timer - step * 0.004, damage: 1 }];
+      c.calls.length = 0;
+      c.styles.length = 0;
+      c.drawGroundHazards();
+      const fill = c.calls.find(({ layer, method, args }) => layer === 'screen' && method === 'drawImage' &&
+        args[1] === 200 && args[3] === 560);
+      assert.ok(fill, 'the danger fill covers the full hit circle');
+      const alpha = c.styles.filter(({ property }) => property === 'globalAlpha')[0].value;
+      samples.push(alpha);
+    }
+    return { min: Math.min(...samples), max: Math.max(...samples) };
+  };
+  const early = fullAreaAlphas(1.5);
+  const late = fullAreaAlphas(0.2);
+  assert.ok(late.max > early.max * 2, 'the throb is much stronger near impact');
+  assert.ok(late.max - late.min > 0.1, 'it visibly beats');
+  assert.ok(late.max <= 0.4, 'never fully covers the floor');
+});
+
+test('spinning spells wind up as they near their landing point', () => {
+  const c = vm.createContext({ Math, Number });
+  loadFunctions(c, 'gameui.js', ['spellSpin']);
+  const shot = { ttl: 1 };
+  const rateAt = (ttl) => {
+    shot.ttl = ttl;
+    const before = c.spellSpin(shot, 2);
+    shot.ttl = ttl - 0.01;
+    return (c.spellSpin(shot, 2) - before) / 0.01;
+  };
+  assert.equal((shot.ttl = 1, c.spellSpin(shot, 2)), 0, 'a fresh spell starts unturned');
+  const launch = rateAt(0.99);
+  const landing = rateAt(0.02);
+  assert.ok(Math.abs(launch - 2) < 0.1, 'early flight keeps the base spin');
+  assert.ok(landing > launch * 4, 'the last moments spin several times faster');
+});
+
+test('attack light never reaches more than 24 px past the attack and has nearly faded at that edge', () => {
+  const c = presentation();
+  c.groundHazards = [{ kind: 'fire', x: 200, y: 180, color: '#ff8042', radius: 34, ttl: 4 }];
+  c.projectiles = [
+    { type: 'elemental', element: 'fire', x: 300, y: 180, vx: 200, vy: 0, ttl: 1, radius: 8 },
+    { type: 'elemental', element: 'ice', x: 400, y: 180, vx: 200, vy: 0, ttl: 1, radius: 8, size: 3 },
+    { type: 'charge-beam', color: '#62d9ee', originX: 100, originY: 300, vx: 1, vy: 0, beamRange: 400, beamWidth: 20 },
+  ];
+  c.enemyProjectiles = [{ kind: 'void-orb', color: '#a98be4', x: 500, y: 180, vx: 100, vy: 0, radius: 8 }];
+  c.collectWorldLights();
+  const [hazard, fire, ice, ...rest] = c.collectWorldLights.lights;
+  assert.equal(hazard.radius, 34 + 24);
+  assert.equal(fire.radius, 8 + 24);
+  assert.equal(ice.radius, 8 * 1.5 + 24, 'oversized shots are capped at 1.5x before the reach is added');
+  const beam = rest.filter(({ color }) => color === '#62d9ee');
+  assert.ok(beam.length > 2 && beam.every(({ radius }) => radius === 10 + 24), 'beam light hugs the beam');
+  assert.equal(rest.find(({ dark }) => dark).radius, 8 + 24);
+  assert.ok(c.worldLightExposure(300 + 8 + 20, 180) < fire.strength * 0.05, 'sprite lift has almost faded near the edge');
+});
+
+test('strike waves outline the true hit radius and sweep a cached front out to it', () => {
+  const c = presentation();
+  const draw = (progress) => {
+    c.calls.length = 0;
+    c.drawStrikeWave(300, 200, 96, progress, '#ff5a46');
+    return {
+      arcs: c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'arc').map(({ args }) => args[2]),
+      fronts: c.calls.filter(({ layer, method }) => layer === 'screen' && method === 'drawImage').map(({ args }) => args[3]),
+    };
+  };
+  assert.deepEqual(draw(0), { arcs: [96], fronts: [] }, 'only the outline before the strike starts');
+  assert.deepEqual(draw(0.5), { arcs: [96], fronts: [96] }, 'the front is halfway out');
+  assert.deepEqual(draw(1), { arcs: [96, 96], fronts: [192] }, 'the front reaches the outline, which turns solid');
+  assert.deepEqual(draw(3).fronts, [192], 'the front never passes the hit radius');
+  assert.equal(c.strikeWaveImage.cache.size, 1, 'one cached gradient per colour');
+});
+
+test('a bomb blast flashes first, then burns and smokes: fire light over smoke that absorbs light', () => {
+  const c = presentation();
+  loadFunctions(c, 'playermanager.js', ['bombAftermath']);
+  c.bombs = [{ x: 200, y: 180 }];
+  const lightsAt = (age) => {
+    c.bombScorches = [{ x: 300, y: 180, radius: 110, age, seed: 3 }];
+    c.collectWorldLights();
+    return [...c.collectWorldLights.lights];
+  };
+  const [flash, ...early] = lightsAt(0.02);
+  assert.ok(!flash.dark && flash.strength > 0.4 && flash.radius === 66 + 24, 'a bright blast flash first');
+  assert.ok(early.every(({ dark }) => !dark), 'no smoke yet');
+  const burning = lightsAt(1);
+  const smoke = burning.find(({ dark }) => dark);
+  const fire = burning.find(({ dark }) => !dark);
+  assert.ok(smoke && smoke.strength > 0.3 && smoke.radius === 77 + 24, 'smoke takes light away over the blast');
+  assert.ok(fire && fire.radius < smoke.radius, 'the fire glows inside the smoke');
+  assert.ok(burning.indexOf(fire) > burning.indexOf(smoke), 'the fire is lit over the smoke, not smothered by it');
+  const [lateSmoke, ...rest] = lightsAt(3.5);
+  assert.ok(lateSmoke.dark && lateSmoke.strength < smoke.strength && rest.length === 0, 'fire out, smoke thinning');
+  assert.equal(lightsAt(10).length, 0, 'only the char is left');
+  assert.equal(lightsAt(0).length, 1, 'the bomb sitting on the floor adds no light or darkness');
+  const stages = c.bombAftermath(8);
+  assert.ok(stages.char > 0.9 && stages.fire === 0 && stages.smoke === 0, 'char outlasts fire and smoke');
+  assert.equal(c.bombAftermath(18).char, 0);
+});
+
+test('lightning bolts light a bounded, flickering band', () => {
+  const c = presentation();
+  c.lightningArcs = [{ x1: 100, y1: 260, x2: 400, y2: 260, ttl: 0.18, color: '#cfeaff' }];
+  c.collectWorldLights();
+  const arc = c.collectWorldLights.lights;
+  assert.ok(arc.length >= 2 && arc.length <= 7, 'a bounded band of lights along the bolt');
+  assert.ok(arc.every(({ y, radius, strength, dark }) => !dark && y === 260 && radius === 17 + 24 && strength > 0 && strength <= 0.5));
+  const strengths = [];
+  for (let frame = 0; frame < 12; frame += 1) {
+    c.elapsed += 0.037;
+    c.collectWorldLights();
+    strengths.push(c.collectWorldLights.lights[0].strength);
+  }
+  assert.ok(new Set(strengths.map((value) => value.toFixed(3))).size > 3, 'lightning flickers frame to frame');
+});
+
+test('snow and ice both absorb light around them and glow at their core', () => {
+  const c = presentation();
+  c.projectiles = [{ type: 'elemental', element: 'ice', x: 300, y: 180, vx: 200, vy: 0, ttl: 1, radius: 8 }];
+  c.collectWorldLights();
+  const [ice] = c.collectWorldLights.lights;
+  assert.equal(ice.both, true);
+  assert.ok(parseInt(ice.shade.slice(1, 3), 16) < 0x30, 'the cold shade is deep');
+  assert.ok(c.worldLightExposure(300 + ice.radius * 0.6, 180) === 0 && c.worldLightExposure(300, 180) > 0,
+    'only the core lifts sprites');
+  const composites = [];
+  const draw = c.ctx.drawImage;
+  c.ctx.drawImage = function (...args) { composites.push(this.globalCompositeOperation); return draw.apply(this, args); };
+  c.drawWorldLightSources();
+  c.ctx.drawImage = draw;
+  assert.ok(composites.includes('multiply') && composites.includes('lighter'));
+  assert.ok(composites.indexOf('multiply') < composites.lastIndexOf('lighter'), 'the glow sits over the shade');
+});
+
+test('water pools mirror nearby standing sprites and glint with nearby light, clipped to the pool', () => {
+  const c = presentation();
+  const sprite = { complete: true, naturalWidth: 32, naturalHeight: 32, name: 'mob' };
+  c.groundHazards = [{ kind: 'water', x: 200, y: 200, radius: 54, color: '#4aa8e0', ttl: 4 }];
+  c.projectiles = [{ type: 'elemental', element: 'fire', x: 210, y: 190, vx: 200, vy: 0, ttl: 1, radius: 8 }];
+  c.collectWorldLights();
+  c.beginWaterReflections();
+  c.drawSunSpriteShadow(sprite, 0, 0, 32, 32, 205, 190, 32, 32);
+  c.drawSunSpriteShadow(sprite, 0, 0, 32, 32, 600, 190, 32, 32);
+  c.beginWaterReflections();
+  assert.equal(c.beginWaterReflections.shapes.length, 2);
+  const draws = [];
+  let clipped = 0;
+  const { drawImage, clip, scale } = c.ctx;
+  let flipped = false;
+  c.ctx.clip = function (...args) { clipped += 1; return clip?.apply(this, args); };
+  c.ctx.scale = function (x, y) { if (y < 0) flipped = true; return scale?.call(this, x, y); };
+  c.ctx.drawImage = function (image, ...args) {
+    draws.push({ image, flipped, composite: this.globalCompositeOperation });
+    flipped = false;
+    return drawImage.call(this, image, ...args);
+  };
+  c.drawWaterReflections(c.groundHazards[0]);
+  Object.assign(c.ctx, { drawImage, clip, scale });
+  assert.equal(clipped, 1);
+  const mirrored = draws.filter(({ image }) => image === sprite);
+  assert.equal(mirrored.length, 1, 'only the sprite beside the pool is reflected');
+  assert.ok(mirrored[0].flipped, 'the reflection is flipped upside down');
+  assert.ok(draws.some(({ composite }) => composite === 'lighter'), 'the fire glints off the water');
+});
+
+test('rooms without water record no reflection shapes', () => {
+  const c = presentation();
+  const sprite = { complete: true, naturalWidth: 32, naturalHeight: 32 };
+  c.groundHazards = [];
+  c.beginWaterReflections();
+  c.drawSunSpriteShadow(sprite, 0, 0, 32, 32, 205, 190, 32, 32);
+  assert.equal(c.beginWaterReflections.recording, null);
 });

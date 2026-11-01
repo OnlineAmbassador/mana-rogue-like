@@ -46,33 +46,11 @@ function spawnCurioDrop(x, y, room) {
   return true;
 }
 
-function applyRandomFireMode(item) {
-  const style = item.style;
-  if (!['melee', 'bow', 'magic'].includes(style) ||
-      !['weapon', 'mod', 'element'].includes(item.kind)) return null;
-  // These two mods only speed up charging, so taking one puts its style in charge mode instead of re-rolling it.
-  if (item.id === 'mod-windup' || item.id === 'mod-draw') {
-    fireModes[style] = 'charge';
-    player.meleeCharge = 0;
-    player.bowHold = 0;
-    player.magicHold = 0;
-    player.chargeFraction = 0;
-    return 'charge';
-  }
-  const chargeAlreadyFound = Object.values(fireModes).includes('charge');
-  const chargedModeFound = !chargeAlreadyFound && Math.random() < 0.05;
-  const choices = style === 'bow' ? ['rapid', 'triple'] : ['rapid'];
-  const selected = chargedModeFound ? 'charge' : choices[Math.floor(Math.random() * choices.length)];
-  if (chargedModeFound) {
-    for (const weaponStyle of ['melee', 'bow', 'magic']) fireModes[weaponStyle] = 'charge';
-  } else {
-    fireModes[style] = selected;
-  }
-  player.meleeCharge = 0;
-  player.bowHold = 0;
-  player.magicHold = 0;
-  player.chargeFraction = 0;
-  return selected;
+function branchPickupTag(item) {
+  const result = autoHighlightForItem(item);
+  if (!result) return null;
+  const name = result.branch.name.toUpperCase();
+  return result.active ? `${name} BRANCH ON` : `NEEDS ${name} BRANCH`;
 }
 
 function markAbilityOffered(item) {
@@ -103,6 +81,8 @@ function createGroundHazard(x, y, kind, owner = 'enemy', overrides = {}) {
     water: { radius: 54, duration: 7, slow: 1.2, color: '#4aa8e0' },
     lightning: { radius: 44, duration: 1, damage: 1, damageCooldown: 0.7, color: '#f4ea7a' },
     miasma: { radius: 46, duration: 3.8, damage: 1, color: '#a5d64f' },
+    charged: { radius: 28, duration: 3.5, damage: 1, damageCooldown: 0.6, color: '#f4ea7a' },
+    slush: { radius: 30, duration: 4, slow: 1, color: '#bfe6ff' },
   };
   const spec = specs[kind];
   if (!spec) return;
@@ -113,6 +93,51 @@ function createGroundHazard(x, y, kind, owner = 'enemy', overrides = {}) {
   groundHazards.push({ x, y, kind, owner, ...spec, ...overrides, ttl: overrides.duration ?? spec.duration, damageCooldown: overrides.damageCooldown ?? spec.damageCooldown ?? 0.35 });
 }
 
+const ELEMENT_PUDDLE_CAP = 8;
+const ELEMENT_PUDDLE_MAX_RADIUS = 44;
+
+// Player element puddles (water, charged water, slush) merge into a nearby puddle of the same kind instead of
+// stacking, and the oldest goes once the cap is hit, so a long fight never piles up hazards to draw and light on a
+// phone. Element walls are capped separately and never merge.
+const ELEMENT_PUDDLE_KINDS = ['water', 'charged', 'slush'];
+function leaveElementPuddle(x, y, kind, overrides = {}) {
+  const near = groundHazards.find((hazard) => hazard.kind === kind && hazard.owner === 'player' && !hazard.wall &&
+    distanceBetween(hazard, { x, y }) < hazard.radius);
+  if (near) {
+    near.ttl = Math.max(near.ttl, overrides.duration ?? near.duration);
+    near.radius = Math.min(ELEMENT_PUDDLE_MAX_RADIUS, near.radius + 4);
+    if (overrides.damage) near.damage = Math.max(near.damage || 0, overrides.damage);
+    return near;
+  }
+  const puddles = groundHazards.filter((hazard) => hazard.owner === 'player' && !hazard.wall &&
+    ELEMENT_PUDDLE_KINDS.includes(hazard.kind));
+  if (puddles.length >= ELEMENT_PUDDLE_CAP) groundHazards.splice(groundHazards.indexOf(puddles[0]), 1);
+  createGroundHazard(x, y, kind, 'player', overrides);
+  return groundHazards[groundHazards.length - 1];
+}
+
+// Lightning runs through water: any puddle in range turns into a charged pool that shocks foes standing in it.
+function electrifyPuddles(x, y, range, damage = 1) {
+  let charged = 0;
+  for (const hazard of groundHazards) {
+    if (!['water', 'slush'].includes(hazard.kind) || distanceBetween(hazard, { x, y }) > range + hazard.radius) continue;
+    Object.assign(hazard, { kind: 'charged', owner: 'player', color: '#f4ea7a', slow: 0, damage,
+      ttl: Math.max(hazard.ttl, 2.5), damageCooldown: 0 });
+    charged += 1;
+  }
+  return charged;
+}
+
+// Fire boils water away in steam; ice puts fire out.
+function quenchHazardsNear(x, y, range, kinds, steamColor = '#e8eef2') {
+  for (let index = groundHazards.length - 1; index >= 0; index -= 1) {
+    const hazard = groundHazards[index];
+    if (!kinds.includes(hazard.kind) || distanceBetween(hazard, { x, y }) > range + hazard.radius) continue;
+    groundHazards.splice(index, 1);
+    addParticles(hazard.x, hazard.y, steamColor, 10, 60);
+  }
+}
+
 function updateGroundHazards(dt) {
   for (let index = groundHazards.length - 1; index >= 0; index -= 1) {
     const hazard = groundHazards[index];
@@ -120,8 +145,8 @@ function updateGroundHazards(dt) {
     if (!hazard) continue;
     hazard.ttl -= dt;
     hazard.damageCooldown -= dt;
-    if ((hazard.kind === 'miasma' || hazard.kind === 'fire') && hazard.owner === 'player') {
-      if (hazard.damageCooldown <= 0) {
+    if (hazard.owner === 'player') {
+      if ((hazard.kind === 'miasma' || hazard.kind === 'fire') && hazard.damageCooldown <= 0) {
         for (const enemy of [...enemies]) {
           if (hazard.damage > 0 && distanceBetween(enemy, hazard) <= enemy.radius + hazard.radius) {
             damageEnemy(enemy, hazard.damage, hazard.x, hazard.y, false, !hazard.suppressHitStop);
@@ -129,6 +154,23 @@ function updateGroundHazards(dt) {
           }
         }
         hazard.damageCooldown = hazard.kind === 'fire' ? 0.5 : 0.85;
+      } else if (hazard.kind === 'charged' && hazard.damageCooldown <= 0) {
+        for (const enemy of [...enemies]) {
+          if (hazard.damage > 0 && enemy.hp > 0 && distanceBetween(enemy, hazard) <= enemy.radius + hazard.radius) {
+            damageEnemy(enemy, hazard.damage, hazard.x, hazard.y, false, false);
+          }
+        }
+        hazard.damageCooldown = 0.6;
+      } else if (hazard.kind === 'slush' || hazard.kind === 'water') {
+        // Slush slows and player water soaks (lightning then hits harder); element walls also deal damage.
+        const damaging = hazard.damage > 0 && hazard.damageCooldown <= 0;
+        for (const enemy of damaging ? [...enemies] : enemies) {
+          if (distanceBetween(enemy, hazard) > enemy.radius + hazard.radius) continue;
+          if (hazard.kind === 'slush') enemy.slowTimer = Math.max(enemy.slowTimer || 0, 0.3);
+          else enemy.wetTimer = Math.max(enemy.wetTimer || 0, 1.5);
+          if (damaging && enemy.hp > 0) damageEnemy(enemy, hazard.damage, hazard.x, hazard.y, false, false);
+        }
+        if (damaging) hazard.damageCooldown = 0.6;
       }
     } else if (distanceBetween(player, hazard) < player.radius + hazard.radius) {
       if (hazard.slow) player.groundSlowTimer = Math.max(player.groundSlowTimer, 0.15);
@@ -459,9 +501,8 @@ function generateDungeonAttempt() {
   )[0];
   if (hasElementalShrine) {
     gatedRoom.type = 'elemental-shrine';
-    gatedRoom.shrineElement = randomize(
-      Object.keys(magicElementPalette).filter((element) => element !== activeMagicElement),
-    )[0];
+    const unknown = Object.keys(magicElementPalette).filter((element) => !magicElements.has(element));
+    gatedRoom.shrineElement = randomize(unknown.length ? unknown : Object.keys(magicElementPalette))[0];
   } else {
     gatedRoom.type = 'shrine';
     gatedRoom.rewardUpgrade = createUpgradeReward(`floor-${currentFloor}-optional`, [...occupied.values()]);
@@ -680,7 +721,9 @@ function damageObstacle(obstacle, damage = 1, source = 'projectile') {
     } else if (obstacle.purposeDrop) {
       const hurt = player.hp < player.maxHp;
       const roll = Math.random();
-      if (roll < 0.14 && spawnCurioDrop(obstacle.x, obstacle.y, obstacle.room)) {
+      if (Math.random() < 0.1) {
+        pickups.push({ x: obstacle.x, y: obstacle.y, kind: 'material', material: 'lifeStone', room: obstacle.room });
+      } else if (roll < 0.14 && spawnCurioDrop(obstacle.x, obstacle.y, obstacle.room)) {
         // curio spawned
       } else if (hurt && roll < 0.5) pickups.push({ x: obstacle.x, y: obstacle.y, kind: 'heart', room: obstacle.room });
       else if (roll < 0.8) spawnCoin(obstacle.x, obstacle.y);
@@ -768,12 +811,14 @@ function grantUpgrade(item, source = 'descent') {
     const gainedContainer = lifestoneGainsHeart();
     if (gainedContainer) player.maxHp += 1;
     startLifestoneRegen();
+    // The relic also leaves a Life Stone in the pouch to spend on the Confluence.
+    if (typeof materials !== 'undefined' && 'lifeStone' in materials) materials.lifeStone += 1;
     recordItemDiscovery(item);
     updateHud();
     showMessage(gainedContainer
       ? 'Lifestone: one heart container gained. You recover three hearts over 18 seconds.'
       : 'Lifestone: you recover three hearts over 18 seconds.', 4);
-    showPickupBanner(item.name, [gainedContainer ? '+1 HEART CONTAINER' : 'CONTAINERS FULL', 'RECOVER 3 HEARTS OVER 18 S']);
+    showPickupBanner(item.name, [gainedContainer ? '+1 HEART CONTAINER' : 'CONTAINERS FULL', 'RECOVER 3 HEARTS OVER 18 S', '+1 LIFE STONE']);
     popOverPlayer({ icon: 'heart', color: '#ff7b8e', image: shopItemIconImages[item.id] });
     return true;
   }
@@ -828,7 +873,6 @@ function grantUpgrade(item, source = 'descent') {
     player.bowHold = 0;
   } else if (item.kind === 'element') {
     combatStyles.add('magic');
-    magicElements.add(item.element);
   } else if (item.id === 'frost-rune') {
     frostNovaCooldown = 0;
     frostActive = true;
@@ -837,7 +881,8 @@ function grantUpgrade(item, source = 'descent') {
   }
   ownedItems.add(item.id);
   if (item.id === 'spore-bloom') unlockCharacter('mycelia-sporeling');
-  const sideEffectMode = applyRandomFireMode(item);
+  const branchTag = branchPickupTag(item);
+  resetChargeState();
   recordItemDiscovery(item);
   reservedUpgradeIds.delete(item.id);
   playSound('som:alteration/skillup.ogg', 0.35);
@@ -857,7 +902,7 @@ function grantUpgrade(item, source = 'descent') {
   );
   if (bonusTags.length) showMessage(`${item.name}: ${bonusTags.join(', ')}`, 3.5);
   const effectTags = [...bonusTags];
-  if (sideEffectMode) effectTags.push(`${sideEffectMode.toUpperCase()} MODE`);
+  if (branchTag) effectTags.push(branchTag);
   showPickupBanner(item.name, effectTags);
   popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[item.id] });
   return true;
@@ -893,10 +938,12 @@ function spawnRoom(room) {
   enemies.length = 0;
   projectiles.length = 0;
   enemyProjectiles.length = 0;
+  player.kunaiStream = null;
   particles.length = 0;
   pickups.length = 0;
   bombs.length = 0;
   groundHazards.length = 0;
+  bombScorches.length = 0;
   bossStrikes.length = 0;
   lightningArcs.length = 0;
   sporePods.length = 0;
@@ -942,6 +989,8 @@ function spawnRoom(room) {
   }
   if (room.bombCache && !wasVisited) {
     pickups.push({ x: ROOM_W / 2, y: ROOM_H / 2 + 120, kind: 'bomb', room });
+    rollWeaponCache(ROOM_W / 2 - 90, ROOM_H / 2 + 120, 0.35, 0.05, room);
+    if (Math.random() < 0.25) pickups.push({ x: ROOM_W / 2 + 90, y: ROOM_H / 2 + 120, kind: 'material', material: 'lifeStone', room });
   }
   if (room.keyCache && !wasVisited) {
     pickups.push({ x: ROOM_W / 2 + 70, y: ROOM_H / 2 + 120, kind: 'key', room });
@@ -1138,6 +1187,7 @@ function moveToRoom(room, direction) {
   currentRoom = room;
   placePlayerAtEntry(direction);
   spawnRoom(currentRoom);
+  if (typeof preloadRoomSounds === 'function') preloadRoomSounds();
   saveRunState();
 }
 
@@ -1398,7 +1448,9 @@ function nearestShopSlot() {
   return best;
 }
 
-function canInteract() {
+// includeDoors is false for touch Attack: walking into a doorway already exits, so Attack only turns into
+// Use for shops, menhirs, altars and the like, never for a door you are fighting beside.
+function canInteract(includeDoors = true) {
   if (mode !== 'playing' || !currentRoom) return false;
   if (currentRoom.type === 'trial' && !currentRoom.trialCompleted &&
       (nearestRewardTrialMirror() || nearestRewardTrialNode())) return true;
@@ -1415,7 +1467,7 @@ function canInteract() {
   if (currentRoom.type === 'boss' && currentRoom.cleared &&
       distanceBetween(player, { x: ROOM_W * 0.72, y: ROOM_H / 2 }) < 76) return true;
   if (currentRoom.type === 'shop' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 150) return true;
-  return currentRoom.cleared && directions.some((direction) =>
+  return includeDoors && currentRoom.cleared && directions.some((direction) =>
     isPlayerNearDoor(direction.name) && (currentRoom.links[direction.name] ||
       (currentRoom.secretExit?.direction === direction.name && !currentRoom.secretExit.room.hidden)));
 }
@@ -1499,21 +1551,15 @@ function interact(withdrawFromBank = false) {
   }
   if (currentRoom.type === 'elemental-shrine' && !currentRoom.shrineUsed &&
       distanceBetween(player, elementalShrinePosition()) < 92) {
-    const palette = Object.keys(magicElementPalette);
-    if (currentRoom.shrineElement === activeMagicElement) {
-      const currentIndex = palette.indexOf(activeMagicElement);
-      currentRoom.shrineElement = palette[(currentIndex + 1) % palette.length];
-    }
-    activeMagicElement = currentRoom.shrineElement;
-    magicElements.add(activeMagicElement);
+    const element = currentRoom.shrineElement;
+    const fresh = unlockMagicElement(element);
     currentRoom.shrineUsed = true;
     frostActive = false;
-    const color = magicElementPalette[activeMagicElement];
-    addParticles(ROOM_W / 2, ROOM_H / 2 - 52, color, 28, 100);
-    showPickupBanner(`${activeMagicElement.toUpperCase()} ATTUNEMENT`, ['ELEMENT CHANGED']);
-    showMessage(`The elemental menhir attunes you to ${activeMagicElement}.`, 3);
-    updateHud();
+    const name = magicElementName(element);
+    addParticles(ROOM_W / 2, ROOM_H / 2 - 52, magicElementPalette[element], 28, 100);
+    showPickupBanner(`${name.toUpperCase()} OBELISK`, [fresh ? 'ELEMENT UNLOCKED' : 'ATTUNEMENT']);
     saveRunState();
+    openElementChoice('obelisk');
     return;
   }
   const riskAltar = nearestRiskShrineAltar();
@@ -1622,7 +1668,8 @@ function interact(withdrawFromBank = false) {
     return;
   }
   if (currentRoom.type === 'shop' && distanceBetween(player, { x: ROOM_W / 2, y: ROOM_H / 2 }) < 150) {
-    showMessage('Stand next to an item and press E to buy it. Stand on the left pad and press E to sell ore, or on the right pad to repair.', 3);
+    const use = lastInputMode === 'touch' ? 'tap Use' : `press ${bindLabel('interact')}`;
+    showMessage(`Stand next to an item and ${use} to buy it. Stand on the left pad and ${use} to sell ore, or on the right pad to repair.`, 3);
     return;
   }
 
@@ -2037,6 +2084,7 @@ function grantRewardTrialLoot(room) {
     removeLooseLoreRelic(relic.id);
     pickups.push({ x: ROOM_W / 2 + 54, y: ROOM_H / 2 + 52, kind: 'lore-relic', item: relic, room });
   }
+  rollWeaponCache(ROOM_W / 2, ROOM_H / 2 + 120, 0.3, 0.06, room);
 
   const abilityCount = ownedAbilityCount() + reservedAbilityCount();
   const abilities = shopItemCatalog.filter((item) => item.kind === 'ability' &&

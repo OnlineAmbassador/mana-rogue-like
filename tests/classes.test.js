@@ -44,22 +44,24 @@ function combat(className = 'Mage', style = 'magic') {
   return c;
 }
 
-test('only one character unlock is granted per descent; later floor milestones wait for the next run', () => {
+test('Mage, Rogue and Warrior start unlocked; floor rewards are capped but special discoveries are not', () => {
   const c = combat();
   assert.equal(vm.runInContext('characterRoster.slice(0, 3).map(e => e.className).join(",")', c), 'Mage,Rogue,Warrior');
   const unlocked = (id) => vm.runInContext(`isCharacterUnlocked(characterRoster.find(e => e.id === '${id}'))`, c);
   assert.equal(unlocked('wanderer'), true);
-  assert.equal(unlocked('warden'), false);
-  assert.equal(unlocked('arcanist'), false);
-  c.recordFloorClear(1);
   assert.equal(unlocked('warden'), true);
-  assert.equal(unlocked('arcanist'), false);
+  assert.equal(unlocked('arcanist'), true);
+  c.recordFloorClear(1);
+  assert.equal(c.unlockCharacter('candor-runner', true), true);
   c.recordFloorClear(2);
-  assert.equal(unlocked('arcanist'), false);
+  assert.equal(c.unlockCharacter('ironbound', true), false);
   assert.equal(c.player.characterUnlocksThisRun, 1);
+  assert.equal(c.unlockCharacter('world-edge-pilgrim'), true);
+  assert.equal(c.unlockCharacter('hurnscald-herbalist'), true);
+  assert.equal(c.player.characterUnlocksThisRun, 1, 'special unlocks do not consume floor rewards');
   c.player.characterUnlocksThisRun = 0;
   c.recordFloorClear(2);
-  assert.equal(unlocked('arcanist'), true);
+  assert.equal(c.unlockCharacter('ironbound', true), true);
   c.recordFloorClear(1);
   assert.equal(c.save.highestFloorCleared, 2);
 });
@@ -123,6 +125,7 @@ test('Warrior melee hits harder and recovers slower than Mage and Rogue melee', 
 test('Spore Bloom changes only magic shots and bursts eight non-recursive elemental shards', () => {
   const c = combat();
   c.ownedItems.add('spore-bloom');
+  c.toggleBranch('miasma');
   c.shoot();
   const parent = c.projectiles[0];
   assert.equal(parent.magicCluster, true);
@@ -166,6 +169,7 @@ test('real projectile loops split magic on enemy and object impacts, but not ord
   for (const surface of ['enemy', 'object', 'expiry', 'wall']) {
     const c = combat();
     c.ownedItems.add('spore-bloom');
+    c.toggleBranch('miasma');
     c.shoot();
     const parent = c.projectiles[0];
     Object.assign(c, {

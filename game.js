@@ -51,6 +51,8 @@ function updateQuality(dtSeconds) {
     resizeCanvas();
   }
 }
+// Width of the desktop menu column (54px buttons plus their 8px gap from the view), reserved on both sides.
+const SIDE_MENU_GUTTER = 64;
 // Shows the view as the largest 16:9 box that fits the stage, drawn at device resolution
 // (or at its CSS size in low quality). The backing store itself is resized in applyRenderScale.
 function resizeCanvas() {
@@ -66,7 +68,8 @@ function resizeCanvas() {
       renderScale = quality.low ? cssWidth / VIEW_W : Math.min(cssWidth * ratio / VIEW_W, MAX_RENDER_SCALE);
     }
   } else {
-    const availableWidth = stageEl.clientWidth - frame;
+    // Both sides keep room for the desktop menu column, so the view stays centred and never resizes when it appears.
+    const availableWidth = stageEl.clientWidth - frame - 2 * SIDE_MENU_GUTTER;
     const availableHeight = stageEl.clientHeight - frame;
     if (availableWidth > 0 && availableHeight > 0) {
       const cssWidth = Math.floor(Math.min(availableWidth, availableHeight * VIEW_W / VIEW_H));
@@ -482,6 +485,10 @@ const uniqueItemIconPaths = {
   'bee-companion': 'generic/bentneedle', 'bandit-companion': 'generic/lockpicks', 'zombie-companion': 'generic/zombieear',
   'spore-sower-companion': 'generic/grassseeds',
   'mana-tonic': 'generic/fluopowder', 'bomb-bundle': 'generic/powder', 'mana-burst': 'generic/elemental',
+  'weapon-blade': 'weapons/sword', 'weapon-bow': 'weapons/woodenbow', 'weapon-magic': 'weapons/legendwand',
+  'weapon-axe': 'weapons/blacksmithsaxe', 'weapon-halberd': 'weapons/halberd', 'weapon-scythe': 'weapons/scythe',
+  'weapon-kanabo': 'weapons/kanabo', 'weapon-whip': 'weapons/whip', 'weapon-kunai': 'weapons/kunai',
+  'weapon-scepter': 'weapons/scepter', 'unweaving-rune': 'generic/runestone_n',
 };
 for (const [id, path] of Object.entries(uniqueItemIconPaths)) {
   shopItemIconImages[id] = loadAsset(`items/${path.startsWith('generic/') ? '' : 'equipment/'}${path}.png`);
@@ -490,6 +497,7 @@ for (const [id, path] of Object.entries(uniqueItemIconPaths)) {
 shopItemIconImages.lifestone = loadDyedAsset('items/generic/gemstone-a.png', ['#a0a010', '#ffffa0']);
 shopItemIconImages['dark-crystal'] = loadDyedAsset('items/generic/crystal.png',
   ['#252e6a', '#923eda', '#ba72ec', '#ffffff']);
+shopItemIconImages['life-stone'] = shopItemIconImages.lifestone;
 const sacredRoomTiles = loadAsset('tilesets/desert_castle_interior.png');
 const castleWallTiles = loadAsset('tilesets/desert_castle.png');
 const tulimsharCastleTiles = loadAsset('tilesets/castle1.png');
@@ -641,7 +649,8 @@ const monsterSprites = {
   yetiking: { image: loadDeferredAsset('sprites/monsters/yetiking.png'), frameWidth: 160, frameHeight: 160, scale: 0.55, frames: [3, 20, 31, 20] },
   forestdragon: { image: loadDeferredAsset('sprites/monsters/forestdragon.png'), frameWidth: 256, frameHeight: 128, scale: 0.45, frames: [0, 8, 16, 24] },
   nightdragon: { image: loadDeferredAsset('sprites/monsters/nightdragon.png'), frameWidth: 256, frameHeight: 128, scale: 0.45, frames: [0, 8, 16, 24] },
-  snowman: { image: loadAsset('sprites/monsters/snowman.png'), frameWidth: 128, frameHeight: 128, scale: 0.55, frames: [0, 1, 2, 3, 4, 5, 6, 7] },
+  // 64 px frames (12 columns); snowman-boss is the same sheet at double resolution with 128 px frames.
+  snowman: { image: loadAsset('sprites/monsters/snowman.png'), frameWidth: 64, frameHeight: 64, scale: 1.1, frames: [0, 1, 2, 3, 4, 5, 6, 7] },
   yeti: { image: loadAsset('sprites/monsters/yeti.png'), frameWidth: 80, frameHeight: 80, scale: 0.9, frames: [3, 4, 5, 6] },
   vampirebat: { image: loadAsset('sprites/monsters/vampirebat.png'), frameWidth: 37, frameHeight: 58, cropHeight: 22, scale: 1, hitbox: { y: -18, radius: 17, radiusX: 17, radiusY: 11 }, frames: [1, 2, 3, 4] },
   frostiana: { image: loadAsset('sprites/monsters/frostiana.png'), frameWidth: 32, frameHeight: 32, scale: 1.4, frames: [4, 5, 6, 7] },
@@ -728,7 +737,7 @@ const shopItemCatalog = [
   { id: 'curio-wild-card', name: 'Wild Card', description: 'A random status change every few seconds', cost: 5, kind: 'curio', quip: 'WILD CARD! Fortune changes by the minute.', chaos: 'timed' },
   { id: 'mod-windup', name: 'Wind-Up Wraps', description: 'Melee: switches to charge mode, which builds faster', cost: 7, kind: 'mod', style: 'melee' },
   { id: 'mod-flurry', name: 'Flurry Gauntlets', description: 'Melee: lightning-fast jabs, lighter hits', cost: 7, kind: 'mod', style: 'melee' },
-  { id: 'mod-cinder', name: 'Cinder Edge', description: 'Melee: swings leave a wall of fire', cost: 8, kind: 'mod', style: 'melee', unlockAfterEnemyAbility: 'fire-burst' },
+  { id: 'mod-cinder', name: 'Cinder Edge', description: 'Melee: swings leave a wall of your element', cost: 8, kind: 'mod', style: 'melee', unlockAfterEnemyAbility: 'fire-burst' },
   { id: 'mod-pierce', name: 'Piercing Heads', description: 'Bow: arrows fly through foes', cost: 8, kind: 'mod', style: 'bow' },
   { id: 'mod-draw', name: 'Longbow Draw', description: 'Bow: switches to charge mode, which draws faster', cost: 7, kind: 'mod', style: 'bow' },
   { id: 'mod-quiver', name: 'Rapid Quiver', description: 'Bow: rapid mode fires faster, lighter arrows', cost: 7, kind: 'mod', style: 'bow', unlockAfterEnemyAbility: 'arrow-shot' },
@@ -757,8 +766,8 @@ const shopItemCatalog = [
 
 const characterRoster = [
   { id: 'wanderer', name: 'Mage', className: 'Mage', startingStyle: 'magic', styleLabel: 'Magic tears', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'male', color: '#75d8ff', hue: 0, speed: 235, hp: 6, damage: 1, fireDelay: 0.23, trait: 'Balanced delver', unlock: 'Available' },
-  { id: 'warden', name: 'Rogue', className: 'Rogue', startingStyle: 'bow', styleLabel: 'Rapid light arrows', hairStyle: 'warden', raceHead: 'humanMale', sprite: 'neutral', color: '#fbd96f', hue: 205, speed: 250, hp: 4, damage: 1, fireDelay: 0.23, trait: 'Fast bow, lighter hits', unlock: 'Clear floor 1' },
-  { id: 'arcanist', name: 'Warrior', className: 'Warrior', startingStyle: 'melee', styleLabel: 'Heavy sword', hairStyle: 'arcanist', raceHead: 'humanFemale', sprite: 'female', color: '#d7a8ff', hue: 95, speed: 210, hp: 4, damage: 1, fireDelay: 0.28, trait: 'Heavy sword, slow recovery', unlock: 'Clear floor 2' },
+  { id: 'warden', name: 'Rogue', className: 'Rogue', startingStyle: 'bow', styleLabel: 'Rapid light arrows', hairStyle: 'warden', raceHead: 'humanMale', sprite: 'neutral', color: '#fbd96f', hue: 205, speed: 250, hp: 4, damage: 1, fireDelay: 0.23, trait: 'Fast bow, lighter hits', unlock: 'Available' },
+  { id: 'arcanist', name: 'Warrior', className: 'Warrior', startingStyle: 'melee', styleLabel: 'Heavy sword', hairStyle: 'arcanist', raceHead: 'humanFemale', sprite: 'female', color: '#d7a8ff', hue: 95, speed: 210, hp: 4, damage: 1, fireDelay: 0.28, trait: 'Heavy sword, slow recovery', unlock: 'Available' },
   { id: 'candor-runner', name: 'Candor Runner', className: 'Scout', startingStyle: 'bow', styleLabel: 'Quick arrows', hairStyle: 'candor', raceHead: 'humanFemale', sprite: 'female', color: '#f5b86c', hue: 25, speed: 285, hp: 4, damage: 1, fireDelay: 0.34, trait: 'Very fast, slow draw', unlock: 'Defeat the Pinkie Matriarch' },
   { id: 'world-edge-pilgrim', name: 'World Edge Pilgrim', className: 'Pilgrim', startingStyle: 'magic', styleLabel: 'Patient casting', hairStyle: 'pilgrim', raceHead: 'elfMale', sprite: 'elf', color: '#b9d9a0', hue: 35, speed: 210, hp: 8, damage: 1, fireDelay: 0.3, trait: 'Patient casting, slower pace', unlock: 'Find a secret room' },
   { id: 'hurnscald-herbalist', name: 'Hurnscald Herbalist', className: 'Herbalist', startingStyle: 'magic', styleLabel: 'Frost magic', hairStyle: 'herbalist', raceHead: 'elfFemale', sprite: 'elfFemale', color: '#86d69c', hue: 65, speed: 200, hp: 7, damage: 1, fireDelay: 0.27, startingAbility: 'frost-rune', trait: 'Starts with Frost Rune', unlock: 'Reach Hurnscald' },
@@ -848,6 +857,8 @@ const touchControlsEl = document.getElementById('touch-controls');
 const touchStickEl = document.getElementById('touch-stick');
 const stickKnobEl = document.getElementById('stick-knob');
 const touchAttackEl = document.getElementById('touch-attack');
+const sideMenuEl = document.getElementById('side-menu');
+const sideMenuRightEl = document.getElementById('side-menu-right');
 const pointer = { x: VIEW_W / 2, y: VIEW_H / 2, down: false };
 let mouseAimActive = false;
 // Seconds of mouse inactivity before walking direction takes over facing again.
@@ -872,6 +883,7 @@ function resetTouchInput() {
 }
 
 function updateTouchControls() {
+  updateSideMenu();
   if (!touchControlsEl) return;
   const mobileLayout = isTouchDevice() || lastInputMode === 'touch';
   if (document.body.classList.contains('mobile-layout') !== mobileLayout) {
@@ -887,6 +899,8 @@ function updateTouchControls() {
     for (const [action, count] of [['bomb', bombsHeld], ['item', itemCount]]) {
       const button = touchControlsEl.querySelector(`[data-touch-action="${action}"]`);
       button.disabled = count === 0;
+      // Consumables only drop from broken pots and crates, so Item stays out of the way until you carry one.
+      if (action === 'item' && button.hidden !== (count === 0)) button.hidden = count === 0;
       const badge = button.querySelector('.touch-count');
       if (badge.textContent !== String(count)) badge.textContent = String(count);
     }
@@ -895,7 +909,7 @@ function updateTouchControls() {
     const switchText = switchButton?.querySelector?.('span');
     if (switchButton && switchText) {
       switchButton.disabled = switchWait > 0;
-      const switchLabel = switchWait > 0 ? `${switchWait}s` : 'Switch';
+      const switchLabel = switchWait > 0 ? `${switchWait}s` : 'Swap';
       if (switchText.textContent !== switchLabel) switchText.textContent = switchLabel;
     }
     const defenseButton = touchControlsEl.querySelector('[data-touch-action="shock"]');
@@ -905,6 +919,103 @@ function updateTouchControls() {
     if (defenseButton?.setAttribute) defenseButton.setAttribute('aria-label', defenseName);
     const defenseText = defenseButton?.querySelector?.('span');
     if (defenseText && defenseText.textContent !== defenseLabel) defenseText.textContent = defenseLabel;
+    const defenseBadge = defenseButton?.querySelector?.('.touch-count');
+    if (defenseBadge) {
+      const charges = hasFamiliarSigil ? `${orbitGuardChargeUps}/${ORBIT_GUARD_CHARGE_REQUIREMENT}` : String(blanksHeld);
+      if (defenseBadge.textContent !== charges) defenseBadge.textContent = charges;
+    }
+    const useHere = touchAttackUses();
+    touchAttackEl?.classList?.toggle?.('is-ready', useHere);
+    const attackText = touchAttackEl?.querySelector?.('span');
+    const attackLabel = useHere ? 'Use' : 'Attack';
+    if (attackText && attackText.textContent !== attackLabel) attackText.textContent = attackLabel;
+    updateSkillButton(touchControlsEl.querySelector('[data-touch-action="ability"]'), false);
+  }
+}
+
+// Touch Attack doubles as Use: with no live enemies and a shop, menhir, altar or similar in reach, a tap
+// interacts instead of firing. Doors are excluded because walking into a doorway already goes through it.
+function touchAttackUses() {
+  if (typeof canInteract !== 'function' || !canInteract(false)) return false;
+  return typeof enemies === 'undefined' || !enemies.some((enemy) => enemy.hp > 0);
+}
+
+// Only Sapper, Scribe and Keeper have an active skill; other classes never see a Skill button.
+// The button shows the skill's short name, or its remaining cooldown in seconds.
+function updateSkillButton(button, showKey) {
+  if (!button) return;
+  const sig = typeof classSignature === 'function' ? classSignature() : null;
+  button.hidden = !sig?.active;
+  if (!sig?.active) return;
+  const wait = player.signatureCooldown > 0 ? Math.ceil(player.signatureCooldown) : 0;
+  button.disabled = wait > 0;
+  const text = wait > 0 ? `${wait}s` : sig.short;
+  const label = button.querySelector('span');
+  if (label && label.textContent !== text) label.textContent = text;
+  const title = `${sig.label}: ${sig.desc.replace(/^Key 4: /, '')}`;
+  if (button.title !== title) {
+    button.title = title;
+    button.setAttribute('aria-label', title);
+  }
+  if (showKey) setSideKeyLabel(button, 'ability');
+}
+
+function setSideKeyLabel(button, action) {
+  const keyEl = button.querySelector('em');
+  const text = action === 'pause' ? 'P' : action === 'ability' ? 'R-Click' : bindLabel(action);
+  if (keyEl && keyEl.textContent !== text) keyEl.textContent = text;
+}
+
+// The menu columns show while playing or paused with a mouse, keyboard or controller; touch play has its own
+// buttons. Map, Story, Build and Skill sit left of the view and Pause sits right of it. Touchscreen laptops
+// keep the mobile layout, so the columns also fill its gutters there.
+function sideMenuPanels() {
+  if (typeof sideMenuEl === 'undefined' || !sideMenuEl) return [];
+  return typeof sideMenuRightEl !== 'undefined' && sideMenuRightEl ? [sideMenuEl, sideMenuRightEl] : [sideMenuEl];
+}
+
+function updateSideMenu() {
+  const panels = sideMenuPanels();
+  if (!panels.length) return;
+  const visible = lastInputMode !== 'touch' && (mode === 'playing' || mode === 'paused');
+  for (const panel of panels) if (panel.hidden !== !visible) panel.hidden = !visible;
+  if (!visible) return;
+  const paused = mode === 'paused';
+  for (const button of panels.flatMap((panel) => [...panel.querySelectorAll('[data-side-action]')])) {
+    const action = button.dataset.sideAction;
+    if (action === 'ability') {
+      updateSkillButton(button, true);
+      if (paused) button.disabled = true;
+      continue;
+    }
+    if (action === 'pause') {
+      const label = button.querySelector('span');
+      const text = paused ? 'Resume' : 'Pause';
+      if (label.textContent !== text) label.textContent = text;
+    }
+    button.disabled = paused && action !== 'pause';
+    setSideKeyLabel(button, action);
+  }
+}
+
+function setupSideMenu() {
+  for (const button of sideMenuPanels().flatMap((panel) => [...panel.querySelectorAll('[data-side-action]')])) {
+    // Pointer-down with preventDefault keeps focus on the game, so Space and Enter never re-press the button.
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (button.disabled || event.button !== 0) return;
+      startGameMusic();
+      const action = button.dataset.sideAction;
+      if (action === 'pause') {
+        if (mode === 'paused') resumeGame();
+        else pauseGame();
+      } else {
+        runAction(action);
+      }
+      updateSideMenu();
+    });
+    button.addEventListener('click', (event) => event.preventDefault());
   }
 }
 
@@ -949,10 +1060,9 @@ function setupTouchControls() {
       setInputMode('touch');
       if (touchControlsEl.hidden) return;
       startGameMusic();
-      const attackButton = !moving &&
-        (event.target === touchAttackEl || touchAttackEl?.contains(event.target));
-      if (attackButton && canInteract()) {
-        runAction('interact');
+      if (!moving && touchAttackUses()) {
+        interact();
+        updateTouchControls();
         return;
       }
       touchInput[pointerKey] = event.pointerId;
@@ -997,7 +1107,7 @@ function setupTouchControls() {
       startGameMusic();
       const action = button.dataset.touchAction;
       if (action === 'pause') pauseGame();
-      else runAction(action, { shift: action === 'withdraw' });
+      else runAction(action);
       updateTouchControls();
     });
   }
@@ -1044,16 +1154,19 @@ let newRunConfirmTimer = 0;
 let coins = 0;
 // Enemy drops that are only worth zeny at a shop's sell pad. Carried amounts are lost with the run, like zeny.
 // Rates are per eligible kill: normal, elite and miniboss foes, never summoned, split-off or ambush foes.
+// Life Stones only drop from elites and minibosses (and boss relics and caches); they unlock ability and seal nodes.
 const materialCatalog = {
   ironOre: { id: 'iron-ore', name: 'Iron Ore', price: 1 },
   darkCrystal: { id: 'dark-crystal', name: 'Dark Crystal', price: 3 },
+  lifeStone: { id: 'life-stone', name: 'Life Stone', price: 12 },
 };
 const MATERIAL_DROP_TUNING = {
-  rates: { ironOre: 0.06, darkCrystal: 0.02 },
-  luckBonus: { ironOre: 0.01, darkCrystal: 0.005 },
+  rates: { ironOre: 0.06, darkCrystal: 0.02, lifeStone: 0 },
+  luckBonus: { ironOre: 0.01, darkCrystal: 0.005, lifeStone: 0 },
+  eliteRates: { lifeStone: 0.08 },
   strongFoeMultiplier: 2,
 };
-const materials = { ironOre: 0, darkCrystal: 0 };
+const materials = { ironOre: 0, darkCrystal: 0, lifeStone: 0 };
 function resetMaterials() {
   for (const key of Object.keys(materialCatalog)) materials[key] = 0;
 }
@@ -1209,9 +1322,9 @@ const classSignatures = {
   Rogue: { label: 'Rapid Draw', desc: 'Fast, light bow shots; weaker sword and spells use their own slower cadence' },
   Warrior: { label: 'Heavy Blade', desc: 'Starts with a powerful sword; slow recovery, weaker bows and spells' },
   // active: true gives the class a dedicated key-4 ability on its own cooldown; it never replaces keys 1-3.
-  Sapper: { label: 'Bomb Forge', desc: 'Key 4: forge a free bomb at your feet', active: true, cooldown: 6, color: '#ffad59' },
-  Scribe: { label: 'Laser Quill', desc: 'Key 4: fire a piercing laser beam', active: true, cooldown: 5, color: '#ff7a9c' },
-  Keeper: { label: 'Spirit Nova', desc: 'Key 4: release a spirit blast around you', active: true, cooldown: 9, color: '#b9ffd8' },
+  Sapper: { label: 'Bomb Forge', short: 'Forge', desc: 'Key 4: forge a free bomb at your feet', active: true, cooldown: 6, color: '#ffad59' },
+  Scribe: { label: 'Laser Quill', short: 'Laser', desc: 'Key 4: fire a piercing laser beam', active: true, cooldown: 5, color: '#ff7a9c' },
+  Keeper: { label: 'Spirit Nova', short: 'Nova', desc: 'Key 4: release a spirit blast around you', active: true, cooldown: 9, color: '#b9ffd8' },
   Sporeling: { label: 'Spore Bloom', desc: 'Magic slot fires spore pods that burst into spores' },
   Scout: { label: 'Wind Step', desc: 'Dash recovers twice as fast' },
   Pilgrim: { label: 'Steady Stride', desc: 'Walks 12% faster' },
@@ -1220,12 +1333,13 @@ const classSignatures = {
   Herbalist: { label: 'Frost Bloom', desc: 'Starts with a Frost Rune; kills chill nearby foes' },
 };
 const raceProfiles = {
-  humanMale: {}, humanFemale: {},
-  elfMale: { magic: 1.08 },
-  elfFemale: { magic: 1.08, bowRate: 1.05 },
-  orcMale: { melee: 1.15, magic: 0.9 },
-  tritanMale: { magic: 1.05 },
-  raijinFemale: { bowRate: 1.1, magic: 1.05 },
+  humanMale: { meleeRate: 1.03, bowRate: 1.03, name: 'Human', trait: 'Adaptable craft: sword and bow recovery +3%' },
+  humanFemale: { meleeRate: 1.03, bowRate: 1.03, name: 'Human', trait: 'Adaptable craft: sword and bow recovery +3%' },
+  elfMale: { magic: 1.08, bowRate: 1.05, name: 'Elf', trait: 'Mana affinity: spells +8%, bow recovery +5%' },
+  elfFemale: { magic: 1.08, bowRate: 1.05, name: 'Elf', trait: 'Mana affinity: spells +8%, bow recovery +5%' },
+  orcMale: { melee: 1.15, magic: 0.9, name: 'Orc', trait: 'Stone and bone: sword damage +15%, spells -10%' },
+  tritanMale: { magic: 1.05, name: 'Tritan', trait: 'Tidal study: spell damage +5%' },
+  raijinFemale: { bowRate: 1.1, magic: 1.05, name: 'Raijin', trait: 'Storm touch: bow recovery +10%, spells +5%' },
 };
 
 
@@ -1273,7 +1387,7 @@ const itemEffectTags = {
   'element-fire': ['Fire magic'], 'element-lightning': ['Lightning magic'], 'element-gas': ['Miasma magic'],
   // Reach is measured against bare hands (66): the sword reaches 92; the daggers (53) are built in itemEffectTagsFor.
   'iron-sword': ['+2 Melee attack', '+40% Melee reach'],
-  'mod-cinder': ['Fire wall on swing'], 'mod-pierce': ['Arrows pierce 9 foes'],
+  'mod-cinder': ['Element wall on swing'], 'mod-pierce': ['Arrows pierce 9 foes'],
   'mod-storm-arrows': ['Arrows chain lightning'], 'mod-splash': ['Shots burst on hit'],
   'mod-chain': ['Shots chain lightning'], 'mod-lingering': ['Shots leave a damage cloud'],
   'mana-tonic': ['+2 Hearts'], 'bomb-bundle': ['+2 Bombs'],
@@ -1304,6 +1418,8 @@ const pickups = [];
 const bombs = [];
 const breakables = [];
 const groundHazards = [];
+// Blast aftermaths (fire, smoke, char) left by exploded bombs; visual only.
+const bombScorches = [];
 const bossStrikes = [];
 let playerStillTimer = 0;
 const lightningArcs = [];
@@ -1365,13 +1481,14 @@ const bindingActions = [
   { id: 'item', label: 'Use consumable', desc: 'Drink or use the next stored item', key: 'q', pad: 6 },
   { id: 'shock', label: 'Shockwave / Mana familiars', desc: 'Use Shockwave; discover Betsanc to summon orbiting guards', key: 'r', pad: 3 },
   { id: 'ability', label: 'Class ability', desc: 'Your class signature (also right-click)', key: '4', pad: 15 },
-  { id: 'nextWeapon', label: 'Next weapon', desc: 'Cycle melee, bow, magic (also mouse wheel)', key: 'tab', pad: 4 },
-  { id: 'weapon1', label: 'Select melee', desc: 'Jump straight to melee', key: '1', keyOnly: true },
-  { id: 'weapon2', label: 'Select bow', desc: 'Jump straight to the bow', key: '2', keyOnly: true },
-  { id: 'weapon3', label: 'Select magic', desc: 'Jump straight to magic', key: '3', keyOnly: true },
+  { id: 'nextWeapon', label: 'Swap hands', desc: 'Swap main and off hand weapons (also mouse wheel)', key: 'tab', pad: 4 },
+  { id: 'weapon1', label: 'Select melee', desc: 'Swap to the melee weapon in your off hand', key: '1', keyOnly: true },
+  { id: 'weapon2', label: 'Select bow', desc: 'Swap to the bow weapon in your off hand', key: '2', keyOnly: true },
+  { id: 'weapon3', label: 'Select magic', desc: 'Swap to the magic weapon in your off hand', key: '3', keyOnly: true },
   { id: 'interact', label: 'Interact / buy', desc: 'Buy, talk, open doors (Shift+E: bank withdraw)', key: 'e', pad: 0 },
   { id: 'map', label: 'Map', desc: 'Open or close the full map', key: 'm', pad: 8 },
   { id: 'journal', label: 'Journal', desc: 'Open or close your story notes', key: 'j', pad: 13 },
+  { id: 'branches', label: 'Weapon branches', desc: 'Choose branches and grow them (cleared rooms only)', key: 'b', pad: 12 },
 ];
 const reservedKeys = new Set(['w', 'a', 's', 'd', 'p', 'escape', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright',
   'enter', 'delete', 'backspace']);
@@ -1457,6 +1574,13 @@ function pauseGame() {
 
 function pauseControlLabels() {
   return lastInputMode === 'controller' ? { resume: 'Start/A', exit: 'B' } : { resume: 'P or R', exit: 'X' };
+}
+
+// The pause screen's two buttons; touch players have no keys, so these are their only way out.
+function pauseButtonBounds(which) {
+  const width = 232;
+  const gap = 24;
+  return { x: which === 'resume' ? VIEW_W / 2 - gap / 2 - width : VIEW_W / 2 + gap / 2, y: 236, width, height: 46 };
 }
 
 function resumeGame() {
@@ -1551,6 +1675,8 @@ let enemyLinkSequence = 0;
 
 function beginRun() {
   stopPrologueNarration();
+  if (typeof prewarmItemOutlines === 'function') prewarmItemOutlines();
+  if (typeof prewarmCombatEffects === 'function') prewarmCombatEffects();
   mouseAimActive = false;
   let entry = characterRoster[selectedIndex];
   if (!isCharacterUnlocked(entry)) {
@@ -1571,7 +1697,7 @@ function beginRun() {
   runProgressionSnapshot = createRunProgressionSnapshot();
   storyLog.length = 0;
   canvas.style.cursor = 'crosshair';
-  player.maxHp = startingHearts(entry);
+  player.maxHp = startingHearts(entry) + confluenceStatCount('vigor');
   player.hp = player.maxHp;
   player.speed = entry.speed;
   player.damage = entry.damage;
@@ -1581,8 +1707,12 @@ function beginRun() {
   orbitGuardChargeUps = 0;
   orbitGuards.length = 0;
   nextOrbitGuardId = 1;
-  player.luck = 0;
-  player.damageFlashTimer = 0;
+  player.luck = confluenceStatCount('fortune');
+  player.dashMove = null;
+  player.dashHits = null;
+  player.earthshakerCooldown = 0;
+  player.earthshakerFlash = 0;
+  elementalSummons.length = 0;
   player.attackPulse = 0;
   player.attackAnimationTimer = 0;
   player.attackAnimationStyle = 'hand';
@@ -1618,9 +1748,8 @@ function beginRun() {
   ownedItems.clear();
   runOfferedAbilityIds.clear();
   magicElements.clear();
-  magicElements.add('bubble');
-  activeMagicElement = startingMagicElement(entry);
-  magicElements.add(activeMagicElement);
+  for (const element of availableMagicElements(entry)) magicElements.add(element);
+  activeMagicElement = preferredMagicElement();
   combatStyles.clear();
   meleeWeapons.clear();
   meleeWeapons.add('hands');
@@ -1628,6 +1757,7 @@ function beginRun() {
   reservedUpgradeIds.clear();
   for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
   activeCombatStyle = entry.startingStyle;
+  applyWeaponHands(savedWeaponHands(entry));
   resetStyleHeat();
   resetInputAI();
   if (entry.startingAbility) ownedItems.add(entry.startingAbility);
@@ -1649,12 +1779,15 @@ function beginRun() {
   blanksHeld = 1;
   xpPoints = 0;
   xpLevel = 1;
+  pendingBoonPicks = 0;
+  boonChoices = null;
   player.laserCharge = 0;
   player.signatureCooldown = 0;
   player.powerHat = null;
   sporePods.length = 0;
   bossStrikes.length = 0;
   groundHazards.length = 0;
+  bombScorches.length = 0;
   lightningArcs.length = 0;
   player.classKills = 0;
   laserBeams.length = 0;
@@ -1682,8 +1815,10 @@ function beginRun() {
   recordStory('Ancestry · ' + entry.className, ancestryNotes[entry.raceHead] ||
     'This delver reads the seed through a tradition the field notes have yet to record.');
   spawnRoom(currentRoom);
+  startingWeaponPending = true;
   saveRunState();
   discoverRegion();
+  if (!openAbilityChoice()) openStartingWeaponChoice();
 }
 
 
@@ -1706,7 +1841,7 @@ const attackMorphs = {
 
 
 
-// Cinder Edge: the swing smacks the ground ahead into a short wall of fire (and detonates miasma clouds).
+// Cinder Edge: the swing smacks the ground ahead into a short wall of the run's element (fire also detonates miasma).
 
 // Any melee swing sends enemy shots it touches back toward the nearest foe.
 
@@ -1909,6 +2044,10 @@ function update(dt) {
     cameraShake.phase += dt;
   }
   if (mode === 'playing') {
+    if (boonChoiceReady()) {
+      openBoonChoice();
+      return;
+    }
     save.playtimeSeconds += dt;
     runStats.seconds += dt;
     unlockPlaytimeItems();
@@ -1964,9 +2103,10 @@ function update(dt) {
   weaponSwapCooldown = Math.max(0, weaponSwapCooldown - dt);
   if (dashTimer > 0) {
     dashTimer = Math.max(0, dashTimer - dt);
-    player.x += dashVector.x * 620 * dt;
-    player.y += dashVector.y * 620 * dt;
-    if (Math.random() < 0.6) addParticles(player.x, player.y - 8, '#cfe8ff', 1, 30);
+    const dashSpeed = player.dashMove === 'earthshaker' ? 360 : 620;
+    player.x += dashVector.x * dashSpeed * dt;
+    player.y += dashVector.y * dashSpeed * dt;
+    if (Math.random() < 0.6) addParticles(player.x, player.y - 8, player.dashMove ? '#fff2a0' : '#cfe8ff', 1, 30);
   } else {
     player.x += (moveX / length) * groundSpeed * dt;
     player.y += (moveY / length) * groundSpeed * dt;
@@ -2020,6 +2160,7 @@ function update(dt) {
   lastPlayerSample.y = player.y;
   playerStillTimer = Math.hypot(playerVelocity.x, playerVelocity.y) < 45 ? playerStillTimer + dt : 0;
   updateStyleHeat(dt);
+  updateConfluenceDash(dt);
   updateLifestoneRegen(dt);
   updateInputAI(dt);
   updateBossStrikes(dt);
@@ -2041,6 +2182,8 @@ function update(dt) {
     player.bowHold = 0;
     updateMagicInput(dt);
   }
+  updateOffhand(dt, control);
+  updateKunaiStream(dt);
   if (player.spin) {
     player.spin.timer -= dt;
     if (player.spin.timer <= 0) {
@@ -2078,6 +2221,7 @@ function update(dt) {
     return swing.timer > 0;
   });
   updateCompanions(dt);
+  updateElementalCall(dt);
   updateOrbitGuards(dt);
 
   for (const obstacle of breakables) {
@@ -2101,6 +2245,7 @@ function update(dt) {
     projectile.previousX = projectile.x;
     projectile.previousY = projectile.y;
     updateWildMagicFlight(projectile, dt);
+    if (projectile.homing) steerHomingProjectile(projectile, dt);
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.ttl -= dt;
@@ -2135,7 +2280,7 @@ function update(dt) {
     }
     const rockIndex = breakables.findIndex((rock) => rock !== projectile.ignoreObstacle && !rock.broken &&
       !(projectile.piercesWalls && rock.type === 'solid') &&
-      distanceBetween(projectile, rock) < projectile.radius + rock.radius);
+      projectileHitsCircle(projectile, rock, dt));
     const enemy = enemies.find((candidate) => !candidate.manaRift &&
       !(projectile.hitEnemies && projectile.hitEnemies.includes(candidate)) &&
       projectileHitsEnemy(projectile, candidate, dt));
@@ -2319,11 +2464,29 @@ function update(dt) {
         continue;
       }
     }
+    if (pickup.kind === 'weapon') {
+      const entry = weaponById(pickup.item?.id);
+      const isNew = entry ? findWeapon(entry.id) : false;
+      playPickupSound('gp', 0.3);
+      popOverPlayer({ icon: 'item', color: '#ffe38a', image: shopItemIconImages[`weapon-${pickup.item?.id}`] });
+      if (entry) {
+        showMessage(isNew
+          ? `Found the ${entry.name}! It now hits at ${Math.round(WEAPON_PROFICIENCY.found * 100)}%; learn it on the ${BRANCH_STYLE_NAMES[entry.family]} map in Build for full power (${costLabel(WEAPON_LEARN_COST)}).`
+          : `The ${entry.name} is already on your ${BRANCH_STYLE_NAMES[entry.family]} map.`, 4);
+      }
+    }
+    if (pickup.kind === 'rune') {
+      addUnweavingRune();
+      playPickupSound('gp', 0.3);
+      popOverPlayer({ icon: 'item', color: '#c8a8ff', image: shopItemIconImages['unweaving-rune'] });
+      showMessage('Unweaving Rune: in Build, undo a grown tier, learned weapon, Dual Grip or Confluence node for a full refund.', 4);
+    }
     if (pickup.guaranteedTreasure && pickup.room) pickup.room.treasureClaimed = true;
     pickups.splice(i, 1);
     updateHud();
   }
 
+  updateBombScorches(dt);
   for (let i = bombs.length - 1; i >= 0; i -= 1) {
     const bomb = bombs[i];
     if (!bomb) continue;
@@ -2545,6 +2708,11 @@ function draw() {
   }
   if (showStoryJournal) drawStoryJournal();
   if (mode === 'paused') drawPauseOverlay();
+  if (mode === 'branches') drawBranchScreen();
+  if (mode === 'boon') drawBoonChoice();
+  if (mode === 'element') drawElementChoice();
+  if (mode === 'ability') drawAbilityChoice();
+  if (mode === 'weapon') drawStartingWeaponChoice();
   if (showMap) drawMap();
   if (mode === 'gameover') drawRunSummary('THE SANCTUM CLAIMS YOU');
   if (mode === 'won') drawRunSummary('THE MANA FLOWS AGAIN');
@@ -2557,13 +2725,32 @@ function draw() {
     ctx.textAlign = 'center';
     ctx.font = 'bold 38px Georgia';
     ctx.fillText('DESCENT PAUSED', VIEW_W / 2, VIEW_H / 2 - 50);
-    ctx.font = '17px Arial';
-    ctx.fillText(`${lastInputMode === 'controller' ? 'Start or A' : 'P or R'} · Resume`, VIEW_W / 2, VIEW_H / 2);
-    ctx.fillText(lastInputMode === 'controller' ? 'B · Save and exit  ·  Back · Controls' : 'X · Save and exit  ·  C · Controls',
-      VIEW_W / 2, VIEW_H / 2 + 34);
-    ctx.fillText(lastInputMode === 'controller'
+    const pad = lastInputMode === 'controller';
+    const touch = lastInputMode === 'touch';
+    for (const [which, text, hint] of [['resume', 'Resume', pad ? 'Start or A' : 'P or R'],
+      ['exit', 'Save & exit to menu', pad ? 'B' : 'X']]) {
+      const b = pauseButtonBounds(which);
+      const hovered = !touch && !pad && pointInBounds(b);
+      drawManaPanel(b.x, b.y, b.width, b.height, which === 'resume' ? '#e4c46f' : '#a98e57');
+      if (hovered) {
+        ctx.fillStyle = 'rgba(255, 233, 170, 0.14)';
+        ctx.fillRect(b.x + 3, b.y + 3, b.width - 6, b.height - 6);
+      }
+      ctx.fillStyle = which === 'resume' ? '#fff1c8' : '#e9d9b6';
+      ctx.font = 'bold 18px Georgia';
+      ctx.fillText(text, b.x + b.width / 2, b.y + (touch ? 29 : 22));
+      if (!touch) {
+        ctx.font = '11px Arial';
+        ctx.fillStyle = '#bbb49d';
+        ctx.fillText(hint, b.x + b.width / 2, b.y + 38);
+      }
+    }
+    ctx.fillStyle = '#f1dec1';
+    ctx.font = '15px Arial';
+    ctx.fillText(pad ? 'Back · Controls' : touch ? 'Tap a button above' : 'C · Controls', VIEW_W / 2, VIEW_H / 2 + 46);
+    ctx.fillText(pad
       ? 'Audio & narration: D-pad ▲ to the top-left panel, ◄ ► to adjust'
-      : 'Music and effects volume: click or drag the sliders at top left', VIEW_W / 2, VIEW_H / 2 + 68);
+      : `Music and effects volume: ${touch ? 'tap' : 'click'} or drag the sliders at top left`, VIEW_W / 2, VIEW_H / 2 + 72);
     ctx.fillText('Your rooms and progress are saved automatically.', VIEW_W / 2, VIEW_H / 2 + 98);
     drawPauseEquipment();
     drawAudioPanel();
@@ -2620,6 +2807,7 @@ function runAction(id, options = {}) {
     case 'weapon3': selectCombatStyle('magic'); break;
     case 'map': if (showMap) closeMap(); else openMap(); break;
     case 'journal': showStoryJournal = !showStoryJournal; break;
+    case 'branches': openBranchScreen(); break;
     case 'withdraw': interact(true); break;
     default: break;
   }
@@ -2726,6 +2914,26 @@ window.addEventListener('keydown', (event) => {
     return;
   }
 
+  if (mode === 'boon') {
+    handleBoonKey(event, key);
+    return;
+  }
+  if (mode === 'element') {
+    handleElementKey(event, key);
+    return;
+  }
+  if (mode === 'ability') {
+    handleAbilityKey(event, key);
+    return;
+  }
+  if (mode === 'weapon') {
+    handleStartingWeaponKey(event, key);
+    return;
+  }
+  if (mode === 'branches') {
+    handleBranchKey(event, key);
+    return;
+  }
   if (mode === 'paused') {
     if (key === 'p' || event.key === 'Escape' || key === 'r') resumeGame();
     else if (key === 'x') exitToTitle();
@@ -2821,13 +3029,25 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// Measure from the content box so the canvas border doesn't offset the pointer.
+function canvasPointFromEvent(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left - canvas.clientLeft) / canvas.clientWidth) * VIEW_W,
+    y: ((event.clientY - rect.top - canvas.clientTop) / canvas.clientHeight) * VIEW_H,
+  };
+}
+
 function updatePointerPosition(event) {
   gamepadInput.aimActive = false;
   updateControlsHint();
-  // Measure from the content box so the canvas border doesn't offset the pointer.
-  const rect = canvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left - canvas.clientLeft) / canvas.clientWidth) * VIEW_W;
-  pointer.y = ((event.clientY - rect.top - canvas.clientTop) / canvas.clientHeight) * VIEW_H;
+  const point = canvasPointFromEvent(event);
+  pointer.x = point.x;
+  pointer.y = point.y;
+  if (mode === 'branches') {
+    canvas.style.cursor = branchMapCursor(pointer.x, pointer.y);
+    return;
+  }
   if (mode === 'playing' && showMap) {
     const room = mapRoomAt(pointer.x, pointer.y);
     if (room && event.pointerType === 'mouse') mapCursor = room;
@@ -2855,7 +3075,8 @@ function updatePointerPosition(event) {
     canvas.style.cursor = 'pointer';
     return;
   }
-  if (mode === 'paused' && pointInBounds(adaptiveToggleBounds())) {
+  if (mode === 'paused' && (pointInBounds(adaptiveToggleBounds()) ||
+      pointInBounds(pauseButtonBounds('resume')) || pointInBounds(pauseButtonBounds('exit')))) {
     canvas.style.cursor = 'pointer';
     return;
   }
@@ -2886,10 +3107,24 @@ function updatePointerPosition(event) {
   }
 }
 
-canvas.addEventListener('pointermove', updatePointerPosition);
+canvas.addEventListener('pointermove', (event) => {
+  // The branch map tracks every finger so it can pinch; other screens only follow the primary pointer.
+  if (mode === 'branches') {
+    const point = canvasPointFromEvent(event);
+    handleBranchPointerMove(event.pointerId, point.x, point.y);
+    if (!event.isPrimary) return;
+  }
+  updatePointerPosition(event);
+});
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 let lastWheelSwitch = 0;
 canvas.addEventListener('wheel', (event) => {
+  if (mode === 'branches') {
+    event.preventDefault();
+    const point = canvasPointFromEvent(event);
+    handleBranchWheel(event.deltaY, point.x, point.y);
+    return;
+  }
   if (mode !== 'playing' || deathTimer > 0) return;
   event.preventDefault();
   const now = performance.now();
@@ -2898,6 +3133,19 @@ canvas.addEventListener('wheel', (event) => {
   cycleCombatStyle(event.deltaY > 0 ? 1 : -1);
 }, { passive: false });
 canvas.addEventListener('pointerdown', (event) => {
+  if (mode === 'branches') {
+    event.preventDefault();
+    if (event.isPrimary) updatePointerPosition(event);
+    if (event.button !== 0) return;
+    const point = canvasPointFromEvent(event);
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointers cannot be captured; the window listeners still see them end.
+    }
+    handleBranchPointerDown(event.pointerId, point.x, point.y);
+    return;
+  }
   if (!event.isPrimary) return;
   updatePointerPosition(event);
   if (mode === 'playing' && showMap) {
@@ -2917,13 +3165,29 @@ canvas.addEventListener('pointerdown', (event) => {
     return;
   }
   if (event.button !== 0) return;
+  if (mode === 'boon') {
+    handleBoonPointer();
+    return;
+  }
+  if (mode === 'element') {
+    handleElementPointer();
+    return;
+  }
+  if (mode === 'ability') {
+    handleAbilityPointer();
+    return;
+  }
+  if (mode === 'weapon') {
+    handleStartingWeaponPointer();
+    return;
+  }
   if (mode === 'paused' && pointInBounds(adaptiveToggleBounds())) {
     toggleAdaptiveEnemies();
     return;
   }
   if (mode === 'paused' && !pointerOverAudioPanel()) {
-    if (pointer.y < VIEW_H / 2 + 14) resumeGame();
-    else exitToTitle();
+    if (pointInBounds(pauseButtonBounds('resume'))) resumeGame();
+    else if (pointInBounds(pauseButtonBounds('exit'))) exitToTitle();
     return;
   }
   if (mode === 'codex') {
@@ -3061,12 +3325,22 @@ canvas.addEventListener('pointerdown', (event) => {
   canvas.setPointerCapture(event.pointerId);
   shoot();
 });
-window.addEventListener('pointerup', () => {
+function endBranchPointer(event) {
+  if (mode !== 'branches') return;
+  const point = canvasPointFromEvent(event);
+  handleBranchPointerUp(event.pointerId, point.x, point.y);
+}
+
+window.addEventListener('pointerup', (event) => {
+  endBranchPointer(event);
   pointer.down = false;
   releaseAttackInputSuppressionIfIdle();
   audioSliderDragging = null;
 });
-canvas.addEventListener('pointercancel', clearHeldInputs);
+canvas.addEventListener('pointercancel', (event) => {
+  if (mode === 'branches') cancelBranchPointer(event.pointerId);
+  clearHeldInputs();
+});
 canvas.addEventListener('lostpointercapture', () => {
   pointer.down = false;
 });
@@ -3083,6 +3357,7 @@ window.addEventListener('pointermove', (event) => {
 });
 
 setupTouchControls();
+setupSideMenu();
 // The prologue opens the game until it has been read once.
 if (save.introducedChapters.includes('prologue')) {
   mode = 'select';

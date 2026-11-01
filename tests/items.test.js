@@ -116,15 +116,19 @@ test('Prism Shard is a real three-way fan of 0.4x shots, and an elemental fuse s
   assert.ok(Math.abs(fused - base * 1.6) < 1e-9);
 });
 
-test('Wind-Up Wraps and Longbow Draw switch their style to charge mode when taken', () => {
+test('Wind-Up Wraps and Longbow Draw put their style in charge mode once their branch is highlighted', () => {
   const c = combat();
-  c.Math.random = () => 0.9;
-  assert.equal(c.applyRandomFireMode({ id: 'mod-windup', style: 'melee', kind: 'mod' }), 'charge');
-  assert.equal(c.fireModes.melee, 'charge');
-  assert.equal(c.fireModes.bow, 'rapid', 'only its own style changes');
-  assert.equal(c.applyRandomFireMode({ id: 'mod-draw', style: 'bow', kind: 'mod' }), 'charge');
-  assert.equal(c.fireModes.bow, 'charge');
-  assert.equal(c.applyRandomFireMode({ id: 'mod-pierce', style: 'bow', kind: 'mod' }) === 'charge', false);
+  c.recordItemDiscovery = c.updateHud = c.showMessage = c.showPickupBanner = c.popOverPlayer = c.unlockCharacter = () => {};
+  c.shopItemIconImages = {}; c.itemQuips = {}; c.itemEffectTagsFor = () => [];
+  c.reservedUpgradeIds = new Set(); c.rangeLensItemIds = []; c.isCatalogItemUnlocked = () => true;
+  c.styleSynergy = () => false;
+  assert.equal(c.grantUpgrade({ id: 'mod-windup', name: 'Wind-Up Wraps', kind: 'mod', style: 'melee' }), true);
+  assert.equal(c.fireMode('melee'), 'charge', 'the free Wind-Up slot is highlighted automatically');
+  assert.equal(c.fireMode('bow'), 'rapid', 'only its own style changes');
+  assert.equal(c.grantUpgrade({ id: 'mod-draw', name: 'Longbow Draw', kind: 'mod', style: 'bow' }), true);
+  assert.equal(c.fireMode('bow'), 'charge');
+  assert.equal(c.toggleBranch('longdraw'), 'off');
+  assert.equal(c.fireMode('bow'), 'rapid', 'turning the branch off returns the bow to rapid fire');
 });
 
 test('Mana Burst scales with the floor but does not raise miniboss HP while carried', () => {

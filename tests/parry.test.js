@@ -16,7 +16,7 @@ function combat() {
         weapon: 'hands', angle: 0, damage: 7, reach: 92, timer: 0.2, maxTimer: 0.2,
       }],
     },
-    enemyProjectiles: [], enemies: [], returned: [], damageCalls: [], elapsed: 1, mode: 'playing',
+    enemyProjectiles: [], enemies: [], returned: [], damageCalls: [], elapsed: 1, mode: 'playing', bombScorches: [],
     ROOM_WALL_THICKNESS: 64,
     streakCallout: { duration: 1 }, hearts: 0,
     clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
@@ -243,7 +243,8 @@ test('arrow clashes boost speeds and scatter in varied, bounded directions', () 
   for (const random of [0, 0.5, 0.999999]) {
     const c = combat();
     c.Math = Object.create(Math);
-    c.Math.random = () => random;
+    let rolls = 0;
+    c.Math.random = () => (rolls++ === 0 ? 0 : random);
     const a = arrow();
     c.deflectArrowTipProjectile(a, { x: 314, y: 200, vx: -500, vy: 0, radius: 4 });
     const returned = c.returned[0];
@@ -258,6 +259,25 @@ test('arrow clashes boost speeds and scatter in varied, bounded directions', () 
     results.push(angle);
   }
   assert.equal(new Set(results).size, 3);
+});
+
+test('arrows deflect 50 percent of the time, charged arrows 75, rolling once per enemy shot', () => {
+  for (const [charged, random, expected] of [
+    [false, 0.499999, true], [false, 0.5, false], [true, 0.749999, true], [true, 0.75, false],
+  ]) {
+    const c = combat();
+    c.Math.random = () => random;
+    const incoming = { x: 332, y: 212, vx: -250, vy: 0, radius: 4, damage: 2 };
+    assert.equal(c.deflectArrowTipProjectile(arrow({ charged }), incoming), expected, `${charged} ${random}`);
+  }
+  const c = combat();
+  const a = arrow();
+  const incoming = { x: 332, y: 212, vx: -250, vy: 0, radius: 4, damage: 2 };
+  c.Math.random = () => 0.9;
+  assert.equal(c.deflectArrowTipProjectile(a, incoming), false);
+  c.Math.random = () => 0;
+  assert.equal(c.deflectArrowTipProjectile(a, incoming), false, 'a missed roll is not retried next frame');
+  assert.equal(c.deflectArrowTipProjectile(a, { ...incoming }), true, 'a different shot gets its own roll');
 });
 
 test('only a damaging returned arrow-parry hit restores half a heart, once', () => {

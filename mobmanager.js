@@ -237,6 +237,16 @@ const tmwEnemySounds = {
   wisp: tmwSpecies(null, null, 'monsters/ghost/ghost-die1.ogg'),
 };
 
+// Slam hit radii, shared by the attack and its ground warning so the drawn circle is always the real one.
+const JACKO_POUND_RADIUS = 90;
+function golemSlamRadius(enemy) {
+  return enemy.phase >= 3 ? 120 : enemy.phase >= 2 ? 96 : 64;
+}
+
+function yetiSlamRadius(enemy) {
+  return enemy.phase >= 2 ? 120 : 88;
+}
+
 // Source of Mana's cue for the species, else its TMW cue, else the shared hit/dodge cue.
 // Attack and death return null when nothing matches so the caller's generic cue plays.
 function enemySound(enemy, event) {
@@ -560,6 +570,7 @@ function throwEnemyBomb(enemy) {
     flightDuration,
     flightTimer: flightDuration,
     fuse: enemy.bombFuse,
+    fuseTotal: enemy.bombFuse,
     radius: enemy.bombRadius,
   });
   addParticles(enemy.x, enemy.y, '#ffad59', 8, 60);
@@ -758,7 +769,7 @@ function updateGolemBoss(enemy, dt, directionX, directionY, distance, visible) {
   if (enemy.behavior === 'golem-slam-windup') {
     if (enemy.stateTimer <= 0) {
       const slamTarget = enemy.slamTarget || player;
-      const slamRadius = phaseThree ? 120 : phaseTwo ? 96 : 64;
+      const slamRadius = golemSlamRadius(enemy);
       triggerCameraShake('golemSlam');
       if (distanceBetween(slamTarget, player) <= slamRadius) damagePlayer(enemy.boss ? 2 : 1, enemy);
       fireEnemyProjectile(enemy);
@@ -1025,7 +1036,7 @@ function resolveUniqueBossAttack(enemy, phaseTwo) {
     return;
   } else if (signature === 'yeti-slam') {
     triggerCameraShake('groundPound');
-    const radius = phaseTwo ? 120 : 88;
+    const radius = yetiSlamRadius(enemy);
     if (distanceBetween(target, player) < radius) damagePlayer(enemy.boss ? 2 : 1, enemy);
     createGroundHazard(target.x, target.y, 'web');
     fireBossVolley(enemy, target, phaseTwo ? 8 : 5, Math.PI / 3, 190, 'ice-orb', '#9fe7f3');
@@ -1569,7 +1580,7 @@ function updateArenaBoss(enemy, dt, directionX, directionY, distance, visible) {
       enemy.behavior = 'jacko-ground-pound-land';
       enemy.stateTimer = 0.34;
       triggerCameraShake('groundPound');
-      if (distanceBetween(player, enemy) < player.radius + 90) damagePlayer(2, enemy);
+      if (distanceBetween(player, enemy) < player.radius + JACKO_POUND_RADIUS) damagePlayer(2, enemy);
       fireJackoBurst(enemy, phaseThree ? 16 : phaseTwo ? 12 : 8);
     }
     return;
@@ -1605,7 +1616,8 @@ function materialDropsAllowed(enemy) {
 function materialDropChance(key, enemy) {
   const strong = enemy.elite || enemy.miniBoss ? MATERIAL_DROP_TUNING.strongFoeMultiplier : 1;
   const luck = Math.max(0, player.luck || 0);
-  return (MATERIAL_DROP_TUNING.rates[key] + luck * MATERIAL_DROP_TUNING.luckBonus[key]) * strong;
+  const eliteRate = enemy.elite || enemy.miniBoss ? MATERIAL_DROP_TUNING.eliteRates?.[key] || 0 : 0;
+  return (MATERIAL_DROP_TUNING.rates[key] + luck * MATERIAL_DROP_TUNING.luckBonus[key]) * strong + eliteRate;
 }
 
 function rollMaterialDrops(x, y, enemy) {
@@ -1618,7 +1630,26 @@ function rollMaterialDrops(x, y, enemy) {
   }
 }
 
+// Weapon caches hold a weapon this profile has not found yet; Unweaving Runes are rarer still.
+function rollWeaponCache(x, y, weaponChance, runeChance, room = currentRoom) {
+  const pool = weaponDropPool();
+  if (pool.length > 0 && Math.random() < weaponChance) {
+    const entry = pool[Math.floor(Math.random() * pool.length)];
+    pickups.push({ x, y, kind: 'weapon', item: { id: entry.id, name: entry.name, icon: `weapon-${entry.id}` }, room });
+  }
+  if (Math.random() < runeChance) {
+    pickups.push({ x: x + 40, y, kind: 'rune', item: { id: 'unweaving-rune', name: 'Unweaving Rune', icon: 'unweaving-rune' }, room });
+  }
+}
+
 function dropLoot(x, y, boss = false, bossSummoned = false, foe = null) {
+  if (boss) {
+    // Leave room for the whole reward cluster and its pickup radius, away from the descent interaction.
+    x = clamp(x, 100, ROOM_W - 100);
+    y = clamp(y, 100, ROOM_H - 100);
+    const descentX = ROOM_W * 0.72;
+    if (Math.hypot(x - descentX, y - ROOM_H / 2) < 180) x = descentX - 180;
+  }
   const gems = boss ? 8 : 1 + (Math.random() < 0.35 ? 1 : 0);
   for (let gem = 0; gem < gems; gem += 1) {
     pickups.push({ x: x + (Math.random() - 0.5) * 36, y: y + (Math.random() - 0.5) * 36, kind: 'xp' });
@@ -1643,6 +1674,7 @@ function dropLoot(x, y, boss = false, bossSummoned = false, foe = null) {
     // Every guardian leaves a Lifestone; it never counts as owned, so each boss drops another.
     const lifestone = shopItemCatalog.find((item) => item.id === 'lifestone');
     if (lifestone) pickups.push({ x: x + 44, y, kind: 'upgrade', item: lifestone, room: currentRoom });
+    rollWeaponCache(x - 44, y + 36, 0.6, 0.15);
     return;
   }
   if (foe) rollMaterialDrops(x, y, foe);
@@ -1812,7 +1844,7 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
         'snowman-boss': 'nivalis-oracle', yetiking: 'frostia-reclaimer',
         forestdragon: 'candor-keeper', nightdragon: 'world-edge-veteran',
       })[enemy.kind];
-      const newlyUnlocked = unlockedId ? unlockCharacter(unlockedId) : false;
+      const newlyUnlocked = unlockedId ? unlockCharacter(unlockedId, true) : false;
       const unlockedName = characterRoster.find((entry) => entry.id === unlockedId)?.name;
       recordStory(`${enemy.title} defeated`, `${enemy.title} has fallen, and the Kaore in this land begins to thin.${newlyUnlocked && unlockedName ? ` ${unlockedName} is now available.` : ''}`);
       recordStory(`${currentFloorTheme().name} · echo`, regionalBossClues[currentRegionId()]);
@@ -1823,8 +1855,8 @@ function damageEnemy(enemy, damage, impactX = player.x, impactY = player.y, igno
         : `${enemy.title} falls.${unlockNotice} Clear the remaining monsters to open the seal.`, 5);
     } else if (wasMiniBoss) {
       const regionalUnlockId = ({ bosspinkie: 'candor-runner', 'spider-queen': 'glass-quill' })[enemy.kind];
-      const regionalUnlock = regionalUnlockId ? unlockCharacter(regionalUnlockId) : false;
-      const newlyUnlocked = unlockCharacter('ironbound');
+      const regionalUnlock = regionalUnlockId ? unlockCharacter(regionalUnlockId, true) : false;
+      const newlyUnlocked = unlockCharacter('ironbound', true);
       const regionalName = characterRoster.find((entry) => entry.id === regionalUnlockId)?.name;
       const unlocks = [regionalUnlock && regionalName, newlyUnlocked && 'Ironbound'].filter(Boolean);
       showMessage(`${enemy.title || 'The sentinel'} defeated.${unlocks.length ? ` ${unlocks.join(' and ')} now selectable.` : ''}`, 4);
@@ -2215,6 +2247,11 @@ function updateEnemyBehavior(enemy, dt) {
   if (enemy.freezeTimer > 0) {
     enemy.freezeTimer = Math.max(0, enemy.freezeTimer - dt);
     if (enemy.freezeTimer > 0) return;
+  }
+  // A Kanabo blow dazes a foe: it stands still and holds its attack until the stun wears off.
+  if (enemy.stunTimer > 0) {
+    enemy.stunTimer = Math.max(0, enemy.stunTimer - dt);
+    if (enemy.stunTimer > 0) return;
   }
   if (enemy.slowTimer > 0) {
     enemy.slowTimer = Math.max(0, enemy.slowTimer - dt);

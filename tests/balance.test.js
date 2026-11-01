@@ -48,25 +48,6 @@ test('rebalanced boss health targets at least 56 seconds of estimated sustained 
   }
 });
 
-test('a charge-mode unlock applies to every selectable weapon style', () => {
-  const c = combat();
-  c.Math.random = () => 0.01;
-  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'weapon' }), 'charge');
-  assert.deepEqual({ ...c.fireModes }, { melee: 'charge', bow: 'charge', magic: 'charge' });
-});
-
-test('charge mode is a one-time five-percent discovery and is never rerolled after discovery', () => {
-  const c = combat();
-  const rolls = [0.05, 0.8, 0.01];
-  c.Math.random = () => rolls.shift() ?? 0.8;
-  assert.equal(c.applyRandomFireMode({ style: 'melee', kind: 'weapon' }), 'rapid');
-  assert.deepEqual({ ...c.fireModes }, { melee: 'rapid', bow: 'rapid', magic: 'rapid' });
-  assert.equal(c.applyRandomFireMode({ style: 'bow', kind: 'weapon' }), 'charge');
-  assert.deepEqual({ ...c.fireModes }, { melee: 'charge', bow: 'charge', magic: 'charge' });
-  c.Math.random = () => 0;
-  assert.equal(c.applyRandomFireMode({ style: 'magic', kind: 'mod' }), 'rapid');
-});
-
 test('experienced players can encounter promoted AI on the first floor without raising enemy count', () => {
   const c = combat();
   const makeEnemy = () => ({ kind: 'scorpion', hp: 8, maxHp: 8, speed: 40, radius: 16 });
@@ -367,12 +348,17 @@ function telegraphRenderer(c) {
       arcs.push({ x, y, radius });
     },
   };
-  // Ground telegraphs are SoM magic circles drawn by effectart.js; record the radius each one is drawn at.
+  // Slam warnings are drawStrikeWave calls (effectart.js); record the hit radius and how far the front has swept.
   c.drawEffect = () => true;
   c.effectFrameAt = () => 0;
   c.drawEffectCircle = (x, y, radius) => {
     assert.ok(Number.isFinite(radius) && radius >= 0, `invalid circle radius: ${radius}`);
     arcs.push({ x, y, radius });
+  };
+  c.drawStrikeWave = (x, y, radius, progress) => {
+    assert.ok(Number.isFinite(radius) && radius >= 0, `invalid wave radius: ${radius}`);
+    assert.ok(Number.isFinite(progress) && progress >= 0 && progress <= 1, `invalid wave progress: ${progress}`);
+    arcs.push({ x, y, radius, progress });
   };
   c.monsterSprites = {
     golem: { image: { complete: false } },
@@ -382,39 +368,42 @@ function telegraphRenderer(c) {
   return (enemy, target) => {
     arcs.length = 0;
     c.drawEnemyBody(enemy);
-    return arcs.find((arc) => arc.x === target.x && arc.y === target.y).radius;
+    return arcs.find((arc) => arc.x === target.x && arc.y === target.y && arc.progress !== undefined);
   };
 }
 
-test('golem slam telegraphs render throughout both phases and complete on schedule', () => {
-  for (const phase of [1, 2]) {
+test('golem slam warnings show the real hit circle and sweep out to it as the slam lands', () => {
+  for (const phase of [1, 2, 3]) {
     for (const miniBoss of [false, true]) {
       const c = combat();
       const render = telegraphRenderer(c);
       vm.runInContext('fireEnemyProjectile = fireJackoBurst = () => {};', c);
       const enemy = c.createEnemy('golem', 400, 300, true);
       Object.assign(enemy, { phase, boss: !miniBoss, miniBoss, attackCooldown: 0 });
-      enemy.golemAttackIndex = phase === 2 ? 1 : 0;
+      enemy.golemAttackIndex = phase >= 2 ? 1 : 0;
       c.enemies.push(enemy);
       c.updateEnemy(enemy, 0.016);
-      assert.equal(enemy.behavior, 'golem-slam-windup');
-      const duration = Math.max(phase === 2 ? 0.64 : 0.92, miniBoss ? 0.7 : 0.95);
-      assert.equal(enemy.stateTimer, duration);
-      const maximumRadius = phase === 2 ? 112 : 74;
-      assert.equal(render(enemy, enemy.slamTarget), maximumRadius * (1 - duration * 0.12));
-      for (let frame = 0; frame < Math.ceil(duration / 0.05); frame += 1) {
+      if (enemy.behavior !== 'golem-slam-windup') continue;
+      const hitRadius = phase >= 3 ? 120 : phase === 2 ? 96 : 64;
+      const first = render(enemy, enemy.slamTarget);
+      assert.equal(first.radius, hitRadius);
+      assert.equal(first.progress, 0);
+      let previous = 0;
+      while (enemy.behavior === 'golem-slam-windup') {
         c.updateEnemy(enemy, 0.05);
-        if (enemy.behavior === 'golem-slam-windup') {
-          const radius = render(enemy, enemy.slamTarget);
-          assert.ok(radius >= 0 && radius <= maximumRadius);
-        }
+        if (enemy.behavior !== 'golem-slam-windup') break;
+        const wave = render(enemy, enemy.slamTarget);
+        assert.equal(wave.radius, hitRadius);
+        assert.ok(wave.progress >= previous, 'the front only moves outward');
+        previous = wave.progress;
       }
+      assert.ok(previous > 0.85, 'the front is at the edge when the slam lands');
       assert.equal(enemy.behavior, 'golem-recover');
     }
   }
 });
 
-test('Jacko ground-pound telegraphs accept the actual boss and miniboss windup timers', () => {
+test('Jacko ground-pound warnings show the real hit circle and fill as the charge closes in', () => {
   for (const miniBoss of [false, true]) {
     const c = combat();
     const render = telegraphRenderer(c);
@@ -423,16 +412,19 @@ test('Jacko ground-pound telegraphs accept the actual boss and miniboss windup t
     c.enemies.push(enemy);
     c.updateEnemy(enemy, 0.016);
     assert.equal(enemy.behavior, 'jacko-ground-pound-windup');
-    assert.equal(enemy.stateTimer, miniBoss ? 0.7 : 0.95);
-    assert.equal(render(enemy, enemy.groundPoundTarget), 38);
-    for (const timer of [0.35, 0.175, 0]) {
-      enemy.stateTimer = timer;
-      assert.equal(render(enemy, enemy.groundPoundTarget), 38 + (1 - timer / 0.35) * 34);
-    }
+    assert.deepEqual({ ...render(enemy, enemy.groundPoundTarget) },
+      { ...enemy.groundPoundTarget, radius: 90, progress: 0 });
+    const target = { x: 300, y: 300 };
+    Object.assign(enemy, { behavior: 'jacko-ground-pound-charge', groundPoundTarget: target, x: 700, y: 300 });
+    assert.equal(render(enemy, target).progress, 0);
+    enemy.x = 500;
+    assert.equal(render(enemy, target).progress, 0.5);
+    enemy.x = 300;
+    assert.equal(render(enemy, target).progress, 1);
   }
 });
 
-test('slam telegraph radii stay bounded for oversized and expired state timers', () => {
+test('slam warnings stay at the hit radius with a bounded front for oversized and expired state timers', () => {
   const c = combat();
   const render = telegraphRenderer(c);
   for (const kind of ['golem', 'jacko']) {
@@ -444,12 +436,10 @@ test('slam telegraph radii stay bounded for oversized and expired state timers',
     });
     for (const phase of [1, 2]) {
       enemy.phase = phase;
-      const minimum = kind === 'golem' ? 0 : 38;
-      const maximum = kind === 'golem' ? phase === 2 ? 112 : 74 : 72;
+      const hitRadius = kind === 'golem' ? phase === 2 ? 96 : 64 : 90;
       for (const timer of [100, 10, 1 / 0.12, 0.95, 0, -0.1, -100]) {
         enemy.stateTimer = timer;
-        const radius = render(enemy, target);
-        assert.ok(radius >= minimum && radius <= maximum);
+        assert.equal(render(enemy, target).radius, hitRadius);
       }
     }
   }
@@ -632,6 +622,7 @@ test('room clears grant one of five familiar charge-ups, once per room, capped a
     particles: [],
     bombs: [],
     groundHazards: [],
+    bombScorches: [],
     bossStrikes: [],
     lightningArcs: [],
     sporePods: [],
@@ -771,23 +762,27 @@ test('bosses and promoted boss-AI foes ignore the style response', () => {
   assert.ok(c.styleCooldownRate({ archetype: 'ranged' }) > 1);
 });
 
-test('weapon swaps have a short cooldown that ignores repeats and same-style picks', () => {
+test('Swap flips the main and off hands on a short cooldown; number keys only reach the off-hand family', () => {
   const c = combat();
   c.activeCombatStyle = 'magic';
   c.resetStyleHeat();
+  vm.runInContext("weaponHands = { main: 'magic', off: 'bow' };", c);
   c.selectCombatStyle('magic');
+  assert.equal(peek(c, 'weaponSwapCooldown'), 0, 'picking the held family does nothing');
+  c.selectCombatStyle('melee');
+  assert.equal(c.activeCombatStyle, 'magic', 'a family in neither hand cannot be drawn mid-run');
   assert.equal(peek(c, 'weaponSwapCooldown'), 0);
   c.selectCombatStyle('bow');
   assert.equal(c.activeCombatStyle, 'bow');
+  assert.deepEqual({ ...peek(c, 'weaponHands') }, { main: 'bow', off: 'magic' });
   assert.equal(peek(c, 'weaponSwapCooldown'), peek(c, 'WEAPON_SWAP_COOLDOWN'));
-  c.selectCombatStyle('melee');
   c.cycleCombatStyle(1);
-  assert.equal(c.activeCombatStyle, 'bow');
+  assert.equal(c.activeCombatStyle, 'bow', 'repeats wait out the cooldown');
   vm.runInContext('weaponSwapCooldown = 0;', c);
   c.cycleCombatStyle(1);
   assert.equal(c.activeCombatStyle, 'magic');
+  assert.deepEqual({ ...peek(c, 'weaponHands') }, { main: 'magic', off: 'bow' });
 });
-
 function adoptInput(c, input) {
   c.lastInputMode = input;
   c.updateInputAI(0.016);

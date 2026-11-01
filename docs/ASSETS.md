@@ -63,6 +63,7 @@ Each open line names a visual that is still drawn in code, what it looks like an
 - [ ] **Room sunlight tint and wall-cast shadows**: a diagonal gradient and shadow polygons along the upper walls (`drawRoomSunlight`, `lightingmanager.js`). Partial candidates: TMW `tilesets/evol/shadow.png` (Reid), SoM `tilesets/aemil/aurora/artis/shadows.png` (Mikko).
 - [ ] **Desert wind wisps**: curved streaks (`drawDesertWind`, `desertart.js`). Partial candidate: TMW `images/ambient/desertclouds.png` (Saulc).
 - [ ] **Desert edge haze**: four edge gradients under the human-made sandstorm (`drawRegionAtmosphere`, `desertart.js`). Candidates: TMW `images/ambient/light_fog.png` (jesusalva, CC0), `images/ambient/fog.png` (Crush).
+- [ ] **Magic relief light falloff**: a radial gradient in the light's colour that shapes where magic catches the ground and wall relief (`normalLightFalloff`, `lightingmanager.js`). The relief itself is a hybrid: normal-light masks computed at runtime from the credited floor and wall tilesets, kept in memory only (no image file). The TMW glow particle was tried as the falloff and was too faint to show the relief.
 
 ### Replaced with Manasource art (2026-10-31)
 
