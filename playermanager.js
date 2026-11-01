@@ -2783,18 +2783,28 @@ function swapWeaponHands() {
   return true;
 }
 
-function cycleCombatStyle() {
-  swapWeaponHands();
+function cycleCombatStyle(direction = 1) {
+  const index = STARTING_WEAPON_STYLES.indexOf(activeCombatStyle);
+  selectCombatStyle(STARTING_WEAPON_STYLES[
+    (index + (direction < 0 ? -1 : 1) + STARTING_WEAPON_STYLES.length) % STARTING_WEAPON_STYLES.length
+  ]);
 }
 
-// The number keys pick a family: the one in the off hand swaps in; any other has to be set in Build first.
+// Draw a held weapon when possible; every other family has a base weapon ready.
 function selectCombatStyle(style) {
+  const baseWeapon = BASE_WEAPON_FOR_STYLE[style];
+  if (!baseWeapon) {
+    showMessage(`Unknown weapon style: ${style}.`, 2);
+    return;
+  }
   if (style === activeCombatStyle || weaponSwapCooldown > 0) return;
   if (weaponById(weaponHands.off)?.family === style) {
     swapWeaponHands();
-    return;
+  } else {
+    if (!setWeaponHand('main', baseWeapon)) return;
+    weaponSwapCooldown = WEAPON_SWAP_COOLDOWN;
   }
-  if (typeof showMessage === 'function') showMessage(`Set a ${BRANCH_STYLE_NAMES[style] || style} weapon in a hand from Build first.`, 2);
+  if (style === 'melee') meleeWeapons.add('sword');
 }
 
 function addParticles(x, y, color, count = 4, speed = 80) {

@@ -762,7 +762,7 @@ test('bosses and promoted boss-AI foes ignore the style response', () => {
   assert.ok(c.styleCooldownRate({ archetype: 'ranged' }) > 1);
 });
 
-test('Swap flips the main and off hands on a short cooldown; number keys only reach the off-hand family', () => {
+test('weapon selection reaches all families while hand swaps retain their short cooldown', () => {
   const c = combat();
   c.activeCombatStyle = 'magic';
   c.resetStyleHeat();
@@ -770,18 +770,23 @@ test('Swap flips the main and off hands on a short cooldown; number keys only re
   c.selectCombatStyle('magic');
   assert.equal(peek(c, 'weaponSwapCooldown'), 0, 'picking the held family does nothing');
   c.selectCombatStyle('melee');
-  assert.equal(c.activeCombatStyle, 'magic', 'a family in neither hand cannot be drawn mid-run');
-  assert.equal(peek(c, 'weaponSwapCooldown'), 0);
+  assert.equal(c.activeCombatStyle, 'melee', 'an unheld family draws its base weapon');
+  assert.equal(c.meleeWeapons.has('sword'), true);
+  assert.equal(peek(c, 'weaponSwapCooldown'), peek(c, 'WEAPON_SWAP_COOLDOWN'));
+  vm.runInContext('weaponSwapCooldown = 0;', c);
   c.selectCombatStyle('bow');
   assert.equal(c.activeCombatStyle, 'bow');
-  assert.deepEqual({ ...peek(c, 'weaponHands') }, { main: 'bow', off: 'magic' });
+  assert.deepEqual({ ...peek(c, 'weaponHands') }, { main: 'bow', off: 'blade' });
   assert.equal(peek(c, 'weaponSwapCooldown'), peek(c, 'WEAPON_SWAP_COOLDOWN'));
   c.cycleCombatStyle(1);
   assert.equal(c.activeCombatStyle, 'bow', 'repeats wait out the cooldown');
   vm.runInContext('weaponSwapCooldown = 0;', c);
   c.cycleCombatStyle(1);
   assert.equal(c.activeCombatStyle, 'magic');
-  assert.deepEqual({ ...peek(c, 'weaponHands') }, { main: 'magic', off: 'bow' });
+  assert.deepEqual({ ...peek(c, 'weaponHands') }, { main: 'magic', off: 'blade' });
+  vm.runInContext('weaponSwapCooldown = 0;', c);
+  assert.equal(c.swapWeaponHands(), true);
+  assert.equal(c.activeCombatStyle, 'melee', 'explicit hand swaps remain available');
 });
 function adoptInput(c, input) {
   c.lastInputMode = input;

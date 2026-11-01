@@ -1481,10 +1481,10 @@ const bindingActions = [
   { id: 'item', label: 'Use consumable', desc: 'Drink or use the next stored item', key: 'q', pad: 6 },
   { id: 'shock', label: 'Shockwave / Mana familiars', desc: 'Use Shockwave; discover Betsanc to summon orbiting guards', key: 'r', pad: 3 },
   { id: 'ability', label: 'Class ability', desc: 'Your class signature (also right-click)', key: '4', pad: 15 },
-  { id: 'nextWeapon', label: 'Swap hands', desc: 'Swap main and off hand weapons (also mouse wheel)', key: 'tab', pad: 4 },
-  { id: 'weapon1', label: 'Select melee', desc: 'Swap to the melee weapon in your off hand', key: '1', keyOnly: true },
-  { id: 'weapon2', label: 'Select bow', desc: 'Swap to the bow weapon in your off hand', key: '2', keyOnly: true },
-  { id: 'weapon3', label: 'Select magic', desc: 'Swap to the magic weapon in your off hand', key: '3', keyOnly: true },
+  { id: 'nextWeapon', label: 'Cycle weapons', desc: 'Cycle Sword, Arrows and Magic (also mouse wheel)', key: 'tab', pad: 4 },
+  { id: 'weapon1', label: 'Select melee', desc: 'Draw your held melee weapon or a base sword', key: '1', keyOnly: true },
+  { id: 'weapon2', label: 'Select bow', desc: 'Draw your held bow weapon or a base bow', key: '2', keyOnly: true },
+  { id: 'weapon3', label: 'Select magic', desc: 'Draw your held magic weapon or base magic', key: '3', keyOnly: true },
   { id: 'interact', label: 'Interact / buy', desc: 'Buy, talk, open doors (Shift+E: bank withdraw)', key: 'e', pad: 0 },
   { id: 'map', label: 'Map', desc: 'Open or close the full map', key: 'm', pad: 8 },
   { id: 'journal', label: 'Journal', desc: 'Open or close your story notes', key: 'j', pad: 13 },
@@ -3320,6 +3320,13 @@ canvas.addEventListener('pointerdown', (event) => {
       if (!isCharacterUnlocked(entry)) showMessage(`${entry.name} is locked: ${entry.unlock}.`, 3);
     }
     return;
+  }
+  if (mode === 'playing') {
+    const index = STARTING_WEAPON_STYLES.findIndex((style, slot) => pointInBounds(styleSlotBounds(slot)));
+    if (index >= 0) {
+      selectCombatStyle(STARTING_WEAPON_STYLES[index]);
+      return;
+    }
   }
   pointer.down = true;
   canvas.setPointerCapture(event.pointerId);

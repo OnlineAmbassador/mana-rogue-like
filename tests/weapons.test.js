@@ -37,6 +37,60 @@ test('weapon saves keep only real, found weapons and clamp runes', () => {
     { found: [], learned: [], grip: false, runes: 0, hands: {} });
 });
 
+test('every class can select an unheld base family mid-run without Build or elemental unlocks', () => {
+  const c = weaponContext();
+  const magicElements = peek(c, 'magicElements');
+  magicElements.clear();
+  magicElements.add('bubble');
+  for (const className of Object.keys(peek(c, 'classProfiles'))) {
+    c.character.className = className;
+    for (const [style, id, main, off] of [
+      ['melee', 'blade', 'bow', 'magic'],
+      ['bow', 'bow', 'magic', 'blade'],
+      ['magic', 'magic', 'bow', 'blade'],
+    ]) {
+      vm.runInContext('weaponSwapCooldown = 0;', c);
+      c.applyWeaponHands({ main, off });
+      c.selectCombatStyle(style);
+      assert.equal(c.activeCombatStyle, style, `${className}: ${style}`);
+      assert.deepEqual(hands(c), { main: id, off }, 'the other hand is preserved');
+      assert.deepEqual([...magicElements], ['bubble'], 'switching cannot unlock elements');
+      assert.equal(peek(c, 'weaponSwapCooldown'), peek(c, 'WEAPON_SWAP_COOLDOWN'));
+      assert.equal(c.weaponProficiency(id), 1, 'base weapons never require finding or learning');
+    }
+  }
+});
+
+test('cycling reaches all three families in both directions and preserves held variants when selecting them', () => {
+  const c = weaponContext();
+  c.applyWeaponHands({ main: 'kunai', off: 'scepter' });
+  c.selectCombatStyle('magic');
+  assert.deepEqual(hands(c), { main: 'scepter', off: 'kunai' }, 'held variants swap instead of becoming base weapons');
+  c.selectCombatStyle('melee');
+  assert.equal(c.activeCombatStyle, 'magic', 'switch cooldown prevents immediate changes');
+  for (const direction of [1, -1]) {
+    const visited = new Set();
+    for (let i = 0; i < 3; i += 1) {
+      vm.runInContext('weaponSwapCooldown = 0;', c);
+      c.cycleCombatStyle(direction);
+      visited.add(c.activeCombatStyle);
+    }
+    assert.deepEqual([...visited].sort(), ['bow', 'magic', 'melee']);
+  }
+});
+
+test('HUD family slots use the rendered geometry for both signature layouts', () => {
+  const c = weaponContext();
+  loadFunctions(c, 'gameui.js', ['styleSlotBounds']);
+  for (const active of [false, true]) {
+    c.classSignature = () => ({ active });
+    for (let slot = 0; slot < 3; slot += 1) {
+      const bounds = c.styleSlotBounds(slot);
+      assert.deepEqual({ ...bounds }, { x: (active ? 256 : 300) + slot * 44, y: 2, width: 36, height: 36 });
+    }
+  }
+});
+
 test('found weapons are learned past the XP gate for a Life Stone, and leave the drop pool once found', () => {
   const c = weaponContext();
   assert.equal(c.learnWeapon('axe'), 'unknown', 'a weapon has to be found first');

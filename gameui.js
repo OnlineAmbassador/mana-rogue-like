@@ -4864,6 +4864,14 @@ function drawActionBar() {
   ctx.restore();
 }
 
+function styleSlotBounds(index) {
+  const size = 36;
+  const gap = 8;
+  const slotCount = 3 + (classSignature()?.active ? 1 : 0);
+  return { x: 424 - (slotCount * size + (slotCount - 1) * gap) + index * (size + gap),
+    y: 2, width: size, height: size };
+}
+
 function drawStyleSlots() {
   const styles = [
     { id: 'melee', key: '1', label: 'SWORD' },
@@ -4879,10 +4887,8 @@ function drawStyleSlots() {
   ctx.save();
   styles.forEach((style, index) => {
     const selected = style.id === active;
-    const locked = !styleUnlocked(style.id) ||
-      ![weaponHands.main, weaponHands.off].some((id) => weaponById(id)?.family === style.id);
-    const x = baseX + index * (size + gap);
-    const y = baseY;
+    const locked = !styleUnlocked(style.id);
+    const { x, y } = styleSlotBounds(index);
     ctx.save();
     ctx.globalAlpha = selected ? 1 : locked ? 0.4 : 0.85;
     if (selected) {
