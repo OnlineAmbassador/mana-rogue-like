@@ -177,6 +177,7 @@ test('saved branch data is sanitised: unknown ids, wrong styles, overfull slots 
   const c = branchContext();
   loadFunctions(c, 'dbmanager.js', ['sanitizeBranchSave', 'sanitizeWeaponSave', 'sanitizePlaySave', 'sanitizeConfluenceSave']);
   const clean = c.sanitizeBranchSave({
+    gridVersion: 1,
     xp: 12.7,
     unlocks: { prism: 3, conduit: 9, bogus: 2, focus: 1, cleave: 'x' },
     loadouts: { magic: ['prism', 'prism', 'volley', 'conduit', 'focus', 'impact'], bow: 'nope' },
@@ -194,8 +195,11 @@ test('saved branch data is sanitised: unknown ids, wrong styles, overfull slots 
   assert.deepEqual([...c.sanitizeBranchSave({ elements: ['fire', 'Fire', 7, 'gas'] }).elements], ['fire', 'gas']);
   assert.deepEqual([...empty.elements], []);
   assert.equal(empty.guided, false, 'the first-visit tour has not run');
-  assert.equal(c.sanitizeBranchSave({ guided: true }).guided, true);
+  assert.equal(c.sanitizeBranchSave({ gridVersion: 1, guided: true }).guided, true);
   assert.equal(c.sanitizeBranchSave({ guided: 'yes' }).guided, false);
+  assert.equal(empty.buildPromptSeen, false);
+  assert.equal(c.sanitizeBranchSave({ gridVersion: 1, buildPromptSeen: true }).buildPromptSeen, true);
+  assert.equal(c.sanitizeBranchSave({ buildPromptSeen: 'yes' }).buildPromptSeen, false);
 });
 
 test('the element picker shows every element, picks only unlocked ones and skips locked cards', () => {
@@ -364,6 +368,7 @@ test('the starting ability pick is kept on the profile only as a known id', () =
 });
 function branchMapContext() {
   const c = branchContext();
+  c.keys = {};
   loadBetween(c, 'gameui.js', '// ---- Weapon branch screen', 'function boonCardBounds(index) {');
   vm.runInContext(`var VIEW_W = 960, VIEW_H = 540, clock = 0, sounds = 0;
     performance = { now: () => clock };
@@ -382,6 +387,18 @@ const screenOf = (c, id) => {
   return c.branchWorldToScreen(node.x, node.y);
 };
 
+test('Close exits Build during the first tour without consuming another tour step', () => {
+  const c = branchMapContext();
+  c.mode = 'branches';
+  c.suppressHeldAttackInput = c.saveRunState = c.persistSave = () => {};
+  c.startBranchTour();
+  const close = c.branchMapLayout().close;
+  c.handleBranchPointerDown(1, close.x + 4, close.y + 4);
+  assert.equal(c.mode, 'playing');
+  assert.equal(c.branchTourActive(), false);
+  assert.equal(peek(c, 'branchGuide'), null);
+});
+
 test('each weapon map has a heart, three-node paths per branch and a synergy gem between partners', () => {
   const c = branchMapContext();
   for (const style of ['melee', 'bow', 'magic']) {
@@ -389,12 +406,14 @@ test('each weapon map has a heart, three-node paths per branch and a synergy gem
     const branches = peek(c, 'skillBranches').filter((branch) => branch.style === style);
     const synergies = peek(c, 'branchSynergies').filter((synergy) => synergy.style === style);
     const weapons = peek(c, 'weaponCatalog').filter((entry) => entry.family === style && !entry.base);
-    assert.equal(nodes.length, 2 + branches.length * 3 + synergies.length + weapons.length, `${style}: heart, grip, paths, gems and weapons`);
-    assert.deepEqual([...c.branchMapNode('grip', style).links], ['heart']);
+    const stats = c.skillStatNodes().filter((node) => node.style === style && node.target.kind !== 'confluence');
+    assert.equal(nodes.length, 2 + branches.length * 3 + synergies.length + weapons.length + stats.length, `${style}: heart, grip, paths, gems, weapons and stat forks`);
+    if (style === 'melee') assert.ok(c.branchMapNode('grip', style).links.every((id) => id.startsWith('stat:grip:')));
     assert.equal(nodes.filter((node) => node.kind === 'weapon').length, weapons.length, 'every weapon is on its map, found or not');
     for (const branch of branches) {
-      assert.deepEqual([...c.branchMapNode(`${branch.id}:1`, style).links], ['heart']);
-      assert.deepEqual([...c.branchMapNode(`${branch.id}:3`, style).links], [`${branch.id}:2`]);
+      const firstLinks = c.branchMapNode(`${branch.id}:1`, style).links;
+      assert.ok(firstLinks.every((id) => id === 'heart' || id.startsWith(`stat:tier:${branch.id}:1:`)));
+      assert.ok(c.branchMapNode(`${branch.id}:3`, style).links.every((id) => id.startsWith(`stat:tier:${branch.id}:3:`)));
     }
     for (const synergy of synergies) {
       const gem = c.branchMapNode(`syn:${synergy.id}`, style);
@@ -403,7 +422,8 @@ test('each weapon map has a heart, three-node paths per branch and a synergy gem
     const everyNode = c.allBranchMapNodes(style);
     for (const [index, a] of everyNode.entries()) {
       for (const b of everyNode.slice(index + 1)) {
-        assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 44, `${style}: ${a.id} and ${b.id} overlap`);
+        assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= c.branchNodeRadius(a) + c.branchNodeRadius(b) + 4,
+          `${style}: ${a.id} and ${b.id} overlap`);
       }
     }
   }
@@ -419,7 +439,8 @@ test('walking the map moves the character node to node, and on/off and grow act 
   assert.equal(peek(c, 'branchMapFocus'), 'prism:1', 'up from the heart walks onto the top branch');
   assert.equal(peek(c, 'branchToken').t, 0, 'the character starts walking');
   c.moveBranchMapFocus(0, -1);
-  assert.equal(peek(c, 'branchMapFocus'), 'prism:2');
+  assert.match(peek(c, 'branchMapFocus'), /^stat:tier:prism:2:/, 'a stat fork comes before tier II');
+  c.focusBranchNode('prism:2');
   c.toggleFocusedBranch();
   assert.deepEqual([...c.save.branches.loadouts.magic], ['prism']);
   c.save.branches.xp = 100;
@@ -427,8 +448,7 @@ test('walking the map moves the character node to node, and on/off and grow act 
   c.unlockFocusedBranch();
   assert.equal(c.branchTier('prism'), 2);
   assert.equal(peek(c, 'branchMapFocus'), 'prism:2');
-  c.moveBranchMapFocus(0, 1);
-  c.moveBranchMapFocus(0, 1);
+  c.focusBranchNode('heart');
   assert.equal(peek(c, 'branchMapFocus'), 'heart');
   c.handleBranchKey({ key: 'e' }, 'e');
   assert.equal(peek(c, 'branchTab'), 'confluence', 'Q/E change tab now that A/D walk; Magic is followed by the Confluence');
@@ -440,7 +460,13 @@ test('walking the map moves the character node to node, and on/off and grow act 
 test('tapping a node focuses it, dragging pans without selecting, and pinch or wheel zoom around the fingers', () => {
   const c = branchMapContext();
   const fit = peek(c, 'branchCam').zoom;
-  assert.ok(fit >= 0.6, 'the fitted map stays readable on a phone');
+  assert.ok(fit >= 0.35, 'the larger branching grid fits; pinch and focus provide detail');
+  const view = peek(c, 'BRANCH_MAP_VIEW');
+  for (const node of c.branchMapNodes()) {
+    const point = c.branchWorldToScreen(node.x, node.y);
+    assert.ok(point.x >= view.x && point.x <= view.x + view.width &&
+      point.y >= view.y && point.y <= view.y + view.height, `${node.id} fits in the map viewport`);
+  }
   const conduit = screenOf(c, 'conduit:1');
   c.handleBranchPointerDown(1, conduit.x, conduit.y);
   c.handleBranchPointerUp(1, conduit.x + 2, conduit.y + 2);
@@ -525,10 +551,13 @@ test('the first visit runs a tap-through tour once, and failures spotlight what 
   assert.equal(c.branchTourActive(), false);
 
   c.save.branches.guided = false;
+  c.mode = 'branches';
+  c.suppressHeldAttackInput = c.saveRunState = c.persistSave = () => {};
   c.startBranchTour();
   c.handleBranchKey({ key: 'Escape' }, 'escape');
-  assert.equal(c.branchTourActive(), false, 'Escape skips it');
-  assert.equal(c.save.branches.guided, true);
+  assert.equal(c.branchTourActive(), false, 'Escape closes the tour');
+  assert.equal(c.mode, 'playing', 'Escape exits Build immediately, even during its first tour');
+  assert.equal(c.save.branches.guided, false, 'an unfinished tour remains available next visit');
 
   c.focusBranchNode('prism:1');
   c.toggleFocusedBranch();
@@ -663,11 +692,11 @@ test('the suggested path follows play style but never blocks other choices', () 
   const c = branchContext();
   const path = c.suggestedPath('melee');
   assert.equal(path.length, 3);
-  assert.ok(path.every((step) => step.kind === 'tier' && step.reason));
+  assert.ok(path.every((step) => ['tier', 'stat'].includes(step.kind) && step.reason));
   for (let i = 0; i < 30; i += 1) c.recordPlaystyle('melee', true);
-  assert.equal(c.suggestedPath('melee')[0].id, 'windup', 'holding to charge suggests the charge branch');
+  assert.match(c.suggestedPath('melee')[0].id, /^stat:tier:windup:/, 'holding to charge suggests stats leading to the charge branch');
   c.save.branches.play.melee = { use: 30, charge: 0, tap: 30 };
-  assert.equal(c.suggestedPath('melee')[0].id, 'flurry', 'quick taps suggest attack speed');
+  assert.match(c.suggestedPath('melee')[0].id, /^stat:tier:flurry:/, 'quick taps suggest attack-speed routes');
   c.toggleBranch('riposte');
   c.save.branches.unlocks.riposte = 2;
   const steps = c.suggestedPath('melee').map((step) => step.mapId);
@@ -678,12 +707,12 @@ test('the suggested path follows play style but never blocks other choices', () 
   assert.equal(c.unlockBranchTier('cleave'), 'unlocked', 'an unsuggested branch can still be grown');
 
   const cf = c.suggestedPath('confluence');
-  assert.equal(cf[0].kind, 'tier', 'with no bridge open, it first leads to a bridge end');
-  assert.equal(cf[0].mapId, 'melee/cleave:3');
-  assert.ok(cf.slice(1).every((step) => step.id.startsWith('cf:edge-string:')), 'then walks the bridge it opened');
+  assert.equal(cf[0].kind, 'stat', 'with no bridge open, stats lead to a bridge end');
+  assert.equal(cf[0].mapId, 'melee/stat:tier:cleave:3:0');
+  assert.equal(cf[1].mapId, 'melee/cleave:3', 'then upgrades its bridge root');
   assert.ok(cf[0].mapId.startsWith('melee/') || cf[0].mapId.startsWith('bow/') || cf[0].mapId.startsWith('magic/'));
   for (const id of ['cleave', 'stormstring']) c.save.branches.unlocks[id] = 3;
   const bridge = c.suggestedPath('confluence');
-  assert.equal(bridge[0].kind, 'confluence');
-  assert.ok(bridge[0].id.startsWith('cf:edge-string:'), 'an open bridge is walked');
+  assert.equal(bridge[0].kind, 'stat');
+  assert.ok(bridge[0].id.includes('cf:edge-string:'), 'an open bridge first offers its prerequisite stat');
 });

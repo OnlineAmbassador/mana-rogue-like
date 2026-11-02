@@ -75,17 +75,27 @@ function getSave() {
 // Weapon branches: persistent XP, tier unlocks (2-3) and up to three highlighted branches per weapon style.
 function sanitizeBranchSave(stored) {
   const source = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  const currentGrid = source.gridVersion === SKILL_GRID_VERSION;
   const known = new Map(skillBranches.map((branch) => [branch.id, branch]));
   const unlocks = {};
-  for (const [id, tier] of Object.entries(source.unlocks && typeof source.unlocks === 'object' ? source.unlocks : {})) {
+  for (const [id, tier] of Object.entries(currentGrid && source.unlocks && typeof source.unlocks === 'object' ? source.unlocks : {})) {
     if (known.has(id) && Number.isFinite(tier) && tier >= 2) unlocks[id] = Math.min(3, Math.floor(tier));
   }
   const loadouts = {};
   for (const style of BRANCH_STYLES) {
-    const list = Array.isArray(source.loadouts?.[style]) ? source.loadouts[style] : [];
+    const list = currentGrid && Array.isArray(source.loadouts?.[style]) ? source.loadouts[style] : [];
     loadouts[style] = [...new Set(list.filter((id) => known.get(id)?.style === style))].slice(0, BRANCH_SLOTS);
   }
+  const weapons = sanitizeWeaponSave(source.weapons);
+  if (!currentGrid) {
+    weapons.learned = [];
+    weapons.grip = false;
+  }
+  const statIds = new Set(skillStatNodes().map((node) => node.id));
   return {
+    gridVersion: SKILL_GRID_VERSION,
+    statNodes: currentGrid && Array.isArray(source.statNodes)
+      ? [...new Set(source.statNodes.filter((id) => statIds.has(id)))] : [],
     xp: Number.isFinite(source.xp) ? Math.max(0, Math.floor(source.xp)) : 0,
     unlocks,
     loadouts,
@@ -93,10 +103,11 @@ function sanitizeBranchSave(stored) {
     elements: Array.isArray(source.elements)
       ? [...new Set(source.elements.filter((element) => typeof element === 'string' && /^[a-z]+$/.test(element)))].slice(0, 16)
       : [],
-    weapons: sanitizeWeaponSave(source.weapons),
-    confluence: sanitizeConfluenceSave(source.confluence),
+    weapons,
+    confluence: currentGrid ? sanitizeConfluenceSave(source.confluence) : [],
     play: sanitizePlaySave(source.play),
-    guided: source.guided === true,
+    guided: currentGrid && source.guided === true,
+    buildPromptSeen: currentGrid && source.buildPromptSeen === true,
     startAbility: typeof source.startAbility === 'string' && /^[a-z-]+$/.test(source.startAbility) ? source.startAbility : null,
   };
 }

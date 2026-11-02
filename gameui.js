@@ -5901,17 +5901,21 @@ function openBranchScreen() {
     showMessage('Clear the room before changing weapon branches.', 2);
     return false;
   }
+  acknowledgeBuildPrompt();
   showMap = false;
   showStoryJournal = false;
-  const style = currentAttackStyle();
-  branchTab = BRANCH_STYLES.includes(style) ? style : 'magic';
+  const available = affordableSkillGrowth();
+  const style = available?.style || currentAttackStyle();
+  branchTab = BRANCH_TABS.includes(style) ? style : 'magic';
   resetBranchMap();
+  if (available) focusBranchNode(available.mapId, true);
   branchNotice = '';
   for (const key of Object.keys(keys)) keys[key] = false;
   pointer.down = false;
   mode = 'branches';
   branchGuide = null;
   startBranchTour();
+  updateTouchControls();
   return true;
 }
 
@@ -5930,7 +5934,7 @@ function closeBranchScreen() {
 // The branch map: each weapon is a cross-section of growth rings. The weapon's heart sits in the middle, its five
 // branches swirl outward as root paths of three tier nodes, synergy gems sit between the branches they join, and
 // the character walks node to node. Drag or pinch to look around, wheel or +/- to zoom.
-const BRANCH_MAP_RINGS = [0, 72, 128, 184];
+const BRANCH_MAP_RINGS = [0, 72, 180, 288];
 const BRANCH_MAP_SWIRL = 0.1;
 // Spoke order keeps synergy partners side by side; Flurry + Cinder is the one pair that has to reach around Riposte.
 const BRANCH_MAP_ORDER = {
@@ -5941,14 +5945,14 @@ const BRANCH_MAP_ORDER = {
 const BRANCH_HEART_ICONS = { melee: '⚔', bow: '➶', magic: '✦' };
 const BRANCH_HEART_COLORS = { melee: '#e58a64', bow: '#94d47e' };
 const BRANCH_MAP_VIEW = { x: 34, y: 72, width: 620, height: 404 };
-const BRANCH_ZOOM_MIN = 0.5;
+const BRANCH_ZOOM_MIN = 0.35;
 const BRANCH_ZOOM_MAX = 2.4;
 const BRANCH_DRAG_SLOP = 7;
 // The Confluence tab lays the three weapon maps out as one, bridged through the middle toward the Trinity.
 // Same order as BRANCH_STYLES in playermanager.js (a literal so gameui can load without it in tests).
 const BRANCH_TABS = ['melee', 'bow', 'magic', 'confluence'];
-const CONFLUENCE_HEARTS = { magic: { x: 0, y: -416 }, melee: { x: -360, y: 208 }, bow: { x: 360, y: 208 } };
-const CONFLUENCE_ZOOM_MIN = 0.25;
+const CONFLUENCE_HEARTS = { magic: { x: 0, y: -700 }, melee: { x: -606, y: 350 }, bow: { x: 606, y: 350 } };
+const CONFLUENCE_ZOOM_MIN = 0.12;
 const CONFLUENCE_START_ZOOM = 0.7;
 const CONFLUENCE_PART_ORDER = ['g1', 's1', 's2', 'fusion', 's3', 's4', 'g2'];
 const branchMapCache = new Map();
@@ -5968,7 +5972,7 @@ function branchMapNodes(style = branchTab) {
 // Every weapon hangs on an outer rack in the gaps between the spokes, turned against the gem swirl so their paths
 // clear the synergy gems; Dual Grip is a small node just below the heart.
 const BRANCH_WEAPON_GAPS = [-0.3, 0.1, 0.9, 1.3, 0.5];
-const BRANCH_WEAPON_RING = 236;
+const BRANCH_WEAPON_RING = 350;
 
 function allBranchMapNodes(style = branchTab) {
   if (branchMapCache.has(style)) return branchMapCache.get(style);
@@ -5981,7 +5985,7 @@ function allBranchMapNodes(style = branchTab) {
   const spoke = (index) => -Math.PI / 2 + index * (Math.PI * 2 / order.length);
   const at = (angle, radius) => ({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
   const nodes = [{ id: 'heart', kind: 'heart', x: 0, y: 0, links: [] }];
-  nodes.push({ id: 'grip', kind: 'grip', ...at(Math.PI / 2, 45), links: ['heart'] });
+  nodes.push({ id: 'grip', kind: 'grip', ...at(Math.PI / 2, 110), links: ['heart'] });
   weaponCatalog.filter((entry) => entry.family === style && !entry.base).forEach((entry, index) => {
     const angle = BRANCH_WEAPON_GAPS[index % BRANCH_WEAPON_GAPS.length] * Math.PI - 0.12;
     nodes.push({ id: `weapon:${entry.id}`, kind: 'weapon', weapon: entry, angle,
@@ -5992,10 +5996,33 @@ function allBranchMapNodes(style = branchTab) {
     if (!branch) return;
     for (let tier = 1; tier <= 3; tier += 1) {
       const angle = spoke(index) + BRANCH_MAP_SWIRL * (tier - 1);
+      const statLinks = skillStatNodes().filter((stat) =>
+        stat.target.kind === 'tier' && stat.target.id === id && stat.tier === tier).map((stat) => stat.id);
       nodes.push({ id: `${id}:${tier}`, kind: 'tier', branch, tier, angle, ...at(angle, BRANCH_MAP_RINGS[tier]),
-        links: [tier === 1 ? 'heart' : `${id}:${tier - 1}`] });
+        links: statLinks.length ? statLinks : ['heart'] });
     }
   });
+  for (const stat of skillStatNodes()) {
+    if (stat.target.kind === 'confluence' || stat.style !== style) continue;
+    const targetId = stat.target.kind === 'tier' ? `${stat.target.id}:${stat.tier}`
+      : stat.target.kind === 'weapon' ? `weapon:${stat.target.id}` : 'grip';
+    const target = nodes.find((node) => node.id === targetId);
+    if (!target) continue;
+    const previousId = stat.target.kind === 'tier' && stat.tier > 1 ? `${stat.target.id}:${stat.tier - 1}` : 'heart';
+    const previous = nodes.find((node) => node.id === previousId);
+    const choice = Number(stat.id.split(':').pop());
+    const side = (choice - (SKILL_ROUTE_STATS[style].length - 1) / 2) * 36;
+    const dx = target.x - previous.x, dy = target.y - previous.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const statNode = { id: stat.id, kind: 'stat', stat,
+      x: (target.x + previous.x) / 2 - dy / length * side,
+      y: (target.y + previous.y) / 2 + dx / length * side, links: [previousId] };
+    placeBranchMapNode(nodes, statNode);
+    if (stat.target.kind !== 'tier') {
+      if (target.links.includes('heart')) target.links = [];
+      target.links.push(stat.id);
+    }
+  }
   for (const synergy of branchSynergies.filter((entry) => entry.style === style)) {
     const [a, b] = synergy.branches.map((id) => order.indexOf(id));
     if (a < 0 || b < 0) continue;
@@ -6005,11 +6032,27 @@ function allBranchMapNodes(style = branchTab) {
     // Neighbours meet between their second rings; a pair that has to reach around another branch sits outside it.
     const point = adjacent ? at(mid + BRANCH_MAP_SWIRL, 158) : at(mid - 0.16, 250);
     const tier = adjacent ? 2 : 3;
-    nodes.push({ id: `syn:${synergy.id}`, kind: 'synergy', synergy, ...point, outer: !adjacent,
+    placeBranchMapNode(nodes, { id: `syn:${synergy.id}`, kind: 'synergy', synergy, ...point, outer: !adjacent,
       links: synergy.branches.map((id) => `${id}:${tier}`) });
   }
   branchMapCache.set(style, nodes);
   return nodes;
+}
+
+function placeBranchMapNode(nodes, node) {
+  const origin = { x: node.x, y: node.y };
+  for (let attempt = 0; attempt < 160; attempt += 1) {
+    const radius = attempt === 0 ? 0 : 20 * Math.sqrt(attempt);
+    const angle = attempt * 2.399963;
+    node.x = origin.x + Math.cos(angle) * radius;
+    node.y = origin.y + Math.sin(angle) * radius;
+    if (nodes.every((other) => Math.hypot(node.x - other.x, node.y - other.y) >=
+        branchNodeRadius(node) + branchNodeRadius(other) + 8)) {
+      nodes.push(node);
+      return;
+    }
+  }
+  throw new Error(`Could not place skill tree node: ${node.id}`);
 }
 
 // Map id of a node on the current tab: on the Confluence tab weapon-map nodes carry their style as a prefix.
@@ -6025,7 +6068,6 @@ function confluenceMapNodes() {
   for (const style of BRANCH_STYLES) {
     const center = CONFLUENCE_HEARTS[style];
     for (const node of allBranchMapNodes(style)) {
-      if (node.kind === 'grip') continue;
       nodes.push({ ...node, id: `${style}/${node.id}`, style, x: node.x + center.x, y: node.y + center.y,
         links: node.links.map((link) => `${style}/${link}`) });
     }
@@ -6051,6 +6093,22 @@ function confluenceMapNodes() {
   }
   nodes.push({ id: 'cf:trinity', kind: 'cf', cf: confluenceNode('cf:trinity'), x: 0, y: 0,
     links: CONFLUENCE_BRIDGES.map((bridge) => `cf:${bridge.id}:fusion`) });
+  for (const stat of skillStatNodes().filter((node) => node.target.kind === 'confluence')) {
+    const target = nodes.find((node) => node.id === stat.target.id);
+    if (!target) continue;
+    const choice = Number(stat.id.split(':').pop());
+    if (!target.statPrerequisiteLinks) {
+      target.statPrerequisiteLinks = [...target.links];
+      target.links = [];
+    }
+    const originalLinks = target.statPrerequisiteLinks;
+    const first = nodes.find((node) => node.id === originalLinks[0]);
+    if (!first) continue;
+    placeBranchMapNode(nodes, { id: stat.id, kind: 'stat', stat, style: stat.style,
+      x: (first.x + target.x) / 2 + (choice ? 22 : -22), y: (first.y + target.y) / 2 + 18,
+      links: [...originalLinks] });
+    target.links.push(stat.id);
+  }
   return nodes;
 }
 
@@ -6196,6 +6254,7 @@ function branchMapLayout() {
 }
 
 function branchNodeRadius(node) {
+  if (node.kind === 'stat') return 11;
   if (node.kind === 'cf') return { stat: 11, seal: 12, fusion: 16, move: 15, trinity: 24 }[node.cf.kind] || 12;
   return node.kind === 'heart' ? 22 : node.kind === 'synergy' ? 11 : node.kind === 'grip' ? 12
     : node.kind === 'weapon' ? 16 : node.tier === 1 ? 16 : 13;
@@ -6252,16 +6311,16 @@ function dismissBranchGuide() {
   branchGuide = null;
 }
 
-// First visit: the token, the suggested path, the highlight button and the grow button, one tap at a time.
+// First visit: the token, the suggested path, activation and upgrade buttons, one tap at a time.
 function branchTourSteps() {
   const layout = branchMapLayout();
-  const first = branchSuggestion[0] || suggestedPath(branchTab)[0];
+  const first = affordableSkillGrowth() || branchSuggestion[0] || suggestedPath(branchTab)[0];
   return [
     { node: branchMapFocus, label: 'This is you. Tap a node (or walk) to look at it.' },
     first ? { node: first.mapId, label: 'Gold numbers are a suggested path for how you play. Any other node is fine too.' } : null,
-    { rect: layout.toggle, label: 'ON/OFF highlights a branch. Only highlighted branches (up to 3) work.' },
-    { rect: layout.unlock, label: 'Grow: stats cost ore, crystal or zeny. Padlocked abilities cost Life Stones.' },
-    { rect: BRANCH_GUIDE_RECTS.status, label: 'Your career XP, bank and pouch. Growing needs enough XP first.' },
+    { rect: layout.toggle, label: 'Activate or Deactivate a branch. Only active branches (up to 3) work.' },
+    { rect: layout.unlock, label: 'Upgrade: stats cost ore, crystal or zeny. Padlocked abilities cost Life Stones.' },
+    { rect: BRANCH_GUIDE_RECTS.status, label: 'Your career XP, bank and pouch. Upgrading needs enough XP first.' },
   ].filter(Boolean);
 }
 
@@ -6367,11 +6426,28 @@ function learnFocusedWeapon() {
   } else if (result === 'gate' || result === 'short') {
     setBranchNotice(growthBlockedNotice(WEAPON_LEARN_COST, `Learning the ${entry.name}`));
     guideGrowthBlock(WEAPON_LEARN_COST);
+  } else if (result === 'locked') {
+    guideSkillStatPrerequisite('weapon', entry.id);
   }
+}
+
+function guideSkillStatPrerequisite(kind, id, tier = null) {
+  const stat = skillStatNodes().find((node) => node.target.kind === kind && node.target.id === id && node.tier === tier);
+  setBranchNotice('Upgrade a stat rune on this path first.');
+  if (!stat) return;
+  if (kind === 'confluence') setBranchTab('confluence');
+  else if (branchTab !== 'confluence' && branchTab !== stat.style) setBranchTab(stat.style);
+  const mapId = kind === 'confluence' ? stat.id : branchMapId(stat.style, stat.id);
+  focusBranchNode(mapId, true);
+  pointBranchGuide({ node: mapId }, 'Upgrade a stat first');
 }
 
 function toggleFocusedBranch() {
   const node = branchMapNode(branchMapFocus);
+  if (node?.kind === 'stat') {
+    setBranchNotice('Stat bonuses stay active once bought. Use Upgrade to purchase this rune.');
+    return;
+  }
   if (focusedWeaponId()) return setFocusedWeaponHand('main');
   if (node?.kind === 'grip') {
     setBranchNotice(dualGripOwned() ? 'Dual Grip grown: your off hand attacks on its own.' : 'Grow Dual Grip to wield both hands at once.');
@@ -6387,9 +6463,11 @@ function toggleFocusedBranch() {
     return;
   }
   const result = toggleBranch(branch.id);
-  if (result === 'full') {
+  if (result === 'locked') {
+    guideSkillStatPrerequisite('tier', branch.id, 1);
+  } else if (result === 'full') {
     setBranchNotice(`All ${BRANCH_SLOTS} ${BRANCH_STYLE_NAMES[branch.style]} slots are in use. Turn one off first.`);
-    pointBranchGuide({ rect: BRANCH_GUIDE_RECTS.sockets }, 'Slots full: tap one here, then turn it OFF');
+    pointBranchGuide({ rect: BRANCH_GUIDE_RECTS.sockets }, 'Slots full: tap one here, then Deactivate it');
   } else if (result === 'on') {
     setBranchNotice(branchPowered(branch) ? `${branch.name} highlighted.`
       : `${branch.name} highlighted. Dormant until you find ${branchItemNames(branch).join(' or ')}.`);
@@ -6447,10 +6525,14 @@ function growFocusedConfluence(cf) {
     playSound('som:alteration/skillup.ogg', 0.3);
   } else if (result === 'known') setBranchNotice(`${name} is already grown.`);
   else if (result === 'locked') {
+    if (confluenceReachable(cf) && !hasSkillStatPrerequisite('confluence', cf.id)) {
+      guideSkillStatPrerequisite('confluence', cf.id);
+      return;
+    }
     setBranchNotice(cf.kind === 'trinity' ? 'The Trinity needs all three fusions grown.'
-      : `Grow a linked node first. Bridges start from a tier III ${cf.bridge.styles.map((style) => BRANCH_STYLE_NAMES[style]).join(' or ')} branch.`);
+      : `Upgrade a linked node first. Bridges start from a tier III ${cf.bridge.styles.map((style) => BRANCH_STYLE_NAMES[style]).join(' or ')} branch.`);
     const blocker = confluenceBlockerMapId(cf);
-    if (blocker) pointBranchGuide({ node: blocker }, cf.kind === 'trinity' ? 'Grow this fusion first' : 'Grow this first');
+    if (blocker) pointBranchGuide({ node: blocker }, cf.kind === 'trinity' ? 'Upgrade this fusion first' : 'Upgrade this first');
   } else if (result === 'gate' || result === 'short') {
     setBranchNotice(growthBlockedNotice(cf.cost, name));
     guideGrowthBlock(cf.cost);
@@ -6459,6 +6541,17 @@ function growFocusedConfluence(cf) {
 
 function unlockFocusedBranch() {
   const node = branchMapNode(branchMapFocus);
+  if (node?.kind === 'stat') {
+    const result = upgradeSkillStat(node.stat.id);
+    if (result === 'upgraded') {
+      setBranchNotice(`${node.stat.name} upgraded: ${node.stat.text}.`);
+      playSound('som:alteration/skillup.ogg', 0.3);
+    } else if (result === 'gate' || result === 'short') {
+      setBranchNotice(growthBlockedNotice(node.stat.cost, node.stat.name));
+      guideGrowthBlock(node.stat.cost);
+    } else setBranchNotice(result === 'known' ? 'This stat is already upgraded.' : 'Upgrade the linked prerequisite first.');
+    return;
+  }
   if (node?.kind === 'cf') return growFocusedConfluence(node.cf);
   const weaponId = focusedWeaponId();
   if (weaponId) return setFocusedWeaponHand('off');
@@ -6470,6 +6563,8 @@ function unlockFocusedBranch() {
     } else if (result === 'gate' || result === 'short') {
       setBranchNotice(growthBlockedNotice(DUAL_GRIP_COST, 'Dual Grip'));
       guideGrowthBlock(DUAL_GRIP_COST);
+    } else if (result === 'locked') {
+      guideSkillStatPrerequisite('grip', 'grip');
     } else {
       setBranchNotice('Dual Grip is already grown.');
     }
@@ -6477,7 +6572,7 @@ function unlockFocusedBranch() {
   }
   const branch = focusedMapBranch();
   if (!branch) {
-    setBranchNotice('Walk onto a branch to grow it.');
+    setBranchNotice('Walk onto a branch to upgrade it.');
     return;
   }
   const cost = nextBranchTierCost(branch.id);
@@ -6490,6 +6585,8 @@ function unlockFocusedBranch() {
   } else if (result === 'gate' || result === 'short') {
     setBranchNotice(growthBlockedNotice(cost, `${branch.name} tier ${BRANCH_TIER_NUMERALS[branchTier(branch.id)]}`));
     guideGrowthBlock(cost);
+  } else if (result === 'locked') {
+    guideSkillStatPrerequisite('tier', branch.id, branchTechniqueReady(branch) ? branchTier(branch.id) + 1 : 1);
   } else {
     setBranchNotice(`${branch.name} is fully grown.`);
   }
@@ -6507,6 +6604,7 @@ function focusedUnweave() {
     const found = unweaveTarget(kind, id);
     return found ? { kind, id, name, blocked: Boolean(found.blocked) } : null;
   };
+  if (node?.kind === 'stat') return target('stat', node.stat.id, node.stat.name);
   if (node?.kind === 'tier') return target('tier', node.branch.id, node.branch.name);
   if (node?.kind === 'weapon') return target('weapon', node.weapon.id, node.weapon.name);
   if (node?.kind === 'grip') return target('grip', 'grip', 'Dual Grip');
@@ -6549,14 +6647,16 @@ function skipBranchTour() {
 }
 
 function handleBranchKey(event, key) {
+  if (event.key === 'Escape' || actionForKey(key) === 'branches') {
+    closeBranchScreen();
+    return;
+  }
   if (branchTour) {
-    if (event.key === 'Escape') skipBranchTour();
-    else advanceBranchTour();
+    advanceBranchTour();
     return;
   }
   branchGuide = null;
-  if (event.key === 'Escape' || actionForKey(key) === 'branches') closeBranchScreen();
-  else if (event.key === 'ArrowUp' || key === 'w') moveBranchMapFocus(0, -1);
+  if (event.key === 'ArrowUp' || key === 'w') moveBranchMapFocus(0, -1);
   else if (event.key === 'ArrowDown' || key === 's') moveBranchMapFocus(0, 1);
   else if (event.key === 'ArrowLeft' || key === 'a') moveBranchMapFocus(-1, 0);
   else if (event.key === 'ArrowRight' || key === 'd') moveBranchMapFocus(1, 0);
@@ -6572,6 +6672,7 @@ function handleBranchKey(event, key) {
 
 // Buttons act on press; inside the map a press starts a drag that becomes a tap if it barely moves.
 function handleBranchPointerDown(id, x, y) {
+  if (pointInBounds(branchMapLayout().close, x, y)) return closeBranchScreen();
   if (branchTour) {
     if (branchPointers.size === 0) advanceBranchTour();
     return;
@@ -6821,6 +6922,10 @@ function branchHeartColor(style = branchTab) {
 function branchNodeState(node, loadout) {
   const style = node.style || branchTab;
   if (node.style) loadout = branchLoadout(node.style);
+  if (node.kind === 'stat') {
+    const owned = skillStatOwned(node.stat.id);
+    return { owned, lit: owned, next: !owned && skillStatReachable(node.stat), color: branchHeartColor(node.stat.style) };
+  }
   if (node.kind === 'cf') {
     const owned = confluenceOwned(node.cf.id);
     const working = node.cf.kind === 'fusion' ? confluenceFusionActive(node.cf.fusion.id) : owned;
@@ -6842,10 +6947,11 @@ function branchNodeState(node, loadout) {
     const awake = activeBranchSynergies(style).includes(node.synergy);
     return { owned: awake, lit: awake, half: on > 0 && !awake, color: '#c9a0ff' };
   }
-  const owned = node.tier <= branchTier(node.branch.id);
+  const owned = node.tier <= branchTier(node.branch.id) && branchTechniqueReady(node.branch);
   const on = loadout.includes(node.branch.id);
   const powered = branchPowered(node.branch);
-  return { owned, lit: owned && on, dormant: on && !powered, next: node.tier === branchTier(node.branch.id) + 1,
+  return { owned, lit: owned && on, dormant: on && !powered, next: node.tier === branchTier(node.branch.id) + 1 &&
+    hasSkillStatPrerequisite('tier', node.branch.id, node.tier),
     color: on ? (powered ? '#f0c75a' : '#c98a3c') : '#8fae86' };
 }
 
@@ -6973,6 +7079,14 @@ function drawBranchMap(loadout, now) {
         ctx.fillStyle = state.lit ? '#fff0c0' : state.owned ? '#cfc6aa' : '#8c866f';
         ctx.fillText(cf.kind === 'stat' ? CONFLUENCE_STATS[cf.stat].short : cf.kind === 'seal' ? 'SEAL' : confluenceNodeName(cf), x, y + radius + 11);
       }
+    } else if (node.kind === 'stat') {
+      const badge = branchFxBadge(node.stat.fx);
+      ctx.font = 'bold 11px Georgia';
+      ctx.fillText(badge.icon, x, y + 1);
+      if (zoom >= 0.8 || focused) {
+        ctx.font = '9px Arial';
+        ctx.fillText(node.stat.name, x, y + radius + 11);
+      }
     } else if (node.kind === 'grip') {
       ctx.font = 'bold 13px Georgia';
       ctx.fillStyle = state.owned ? '#21170a' : '#9fd8e8';
@@ -7042,6 +7156,7 @@ function drawBranchMap(loadout, now) {
 // Ability nodes are Life Stone locks until grown: behaviour tiers, learning a weapon, Dual Grip, and the Confluence's
 // seals, fusions, moves and Trinity.
 function branchNodeLocked(node) {
+  if (node.kind === 'tier' && node.tier === 1) return !branchTechniqueReady(node.branch);
   if (node.kind === 'tier') return node.tier > 1 && branchTierIsAbility(node.branch.id, node.tier) && branchTier(node.branch.id) < node.tier;
   if (node.kind === 'weapon') return !weaponLearned(node.weapon.id);
   if (node.kind === 'grip') return !dualGripOwned();
@@ -7183,7 +7298,21 @@ function drawBranchInfo(layout, loadout) {
     return y + lines * 15;
   };
   const branch = node?.branch;
-  if (branch) {
+  if (node?.kind === 'stat') {
+    const owned = skillStatOwned(node.stat.id);
+    const reachable = skillStatReachable(node.stat);
+    const affordable = !owned && reachable && canAfford(node.stat.cost);
+    line(`${node.stat.name} stat rune`, 98, 'bold 17px Georgia', '#fff4d5');
+    wrap(node.stat.text, 134, 'bold 13px Arial', '#e6dcc0', 3);
+    wrap(`Route toward ${BRANCH_STYLE_NAMES[node.stat.style]}. Upgrade either stat fork before its ability rune; both forks can be upgraded for their bonuses.`,
+      200, '12px Arial', '#bbb49d', 5);
+    wrap(owned ? 'Upgraded and always working for this weapon family.'
+      : reachable ? `Costs ${costLabel(node.stat.cost)} and ${growthXpRequirement()} career XP.`
+        : 'Upgrade the linked previous tier first.', 294, '12px Arial', '#d9c796', 4);
+    drawBranchButton(layout.toggle, owned ? 'Active' : 'Stat rune', owned ? 'permanent bonus' : 'choose a route', '#796b47', false);
+    drawBranchButton(layout.unlock, owned ? 'MAX' : 'Upgrade', costLabel(node.stat.cost, true),
+      affordable ? '#f0d486' : '#796b47', affordable);
+  } else if (branch) {
     const tier = branchTier(branch.id);
     const on = loadout.includes(branch.id);
     const powered = branchPowered(branch);
@@ -7211,7 +7340,8 @@ function drawBranchInfo(layout, loadout) {
       }
     });
     y += 10;
-    const status = !on ? 'Off. Highlight it to use it.'
+    const status = !branchTechniqueReady(branch) ? 'Locked: upgrade a stat rune before activating this ability.'
+      : !on ? 'Inactive. Activate it to use it.'
       : powered ? (branch.items.length ? `Powered by ${branchItemNames(branch).filter((_, i) => ownedItems.has(branch.items[i])).join(', ')}` : 'Highlighted and working.')
         : `Dormant: find ${branchItemNames(branch).join(' or ')}.`;
     wrap(status, y + 8, 'bold 11px Arial', !on ? '#9c967f' : powered ? '#8fdca6' : '#e0a868', 2);
@@ -7219,15 +7349,16 @@ function drawBranchInfo(layout, loadout) {
     if (partners.length) {
       wrap(`Synergies: ${partners.map((synergy) => synergy.name).join(', ')}`, y + 42, '11px Arial', '#b9a3d8', 2);
     }
-    drawBranchButton(layout.toggle, on ? 'ON' : 'OFF', on ? 'highlighted' : `${loadout.length}/${BRANCH_SLOTS} slots`,
+    drawBranchButton(layout.toggle, on ? 'Deactivate' : 'Activate', on ? 'active' : `${loadout.length}/${BRANCH_SLOTS} slots`,
       on ? '#7fd29a' : '#796b47', true);
     const cost = nextBranchTierCost(branch.id);
     if (cost && growthBlock(cost) === 'gate') {
-      line(`Career XP ${Math.floor(branchState().xp)}/${growthXpRequirement()} to grow`, y + 74, 'bold 11px Arial', '#e0a868');
+      line(`Career XP ${Math.floor(branchState().xp)}/${growthXpRequirement()} to upgrade`, y + 74, 'bold 11px Arial', '#e0a868');
     }
-    const affordable = cost && canAfford(cost);
-    drawBranchButton(layout.unlock, cost ? `Grow ${BRANCH_TIER_NUMERALS[tier]}` : 'MAX',
-      cost ? costLabel(cost, true) : 'fully grown',
+    const prerequisite = branchTechniqueReady(branch) && hasSkillStatPrerequisite('tier', branch.id, tier + 1);
+    const affordable = cost && prerequisite && canAfford(cost);
+    drawBranchButton(layout.unlock, cost ? `Upgrade ${BRANCH_TIER_NUMERALS[tier]}` : 'MAX',
+      cost ? prerequisite ? costLabel(cost, true) : 'upgrade a stat first' : 'fully upgraded',
       affordable ? '#f0d486' : '#796b47', Boolean(affordable));
   } else if (node?.kind === 'cf') {
     drawConfluenceInfo(node.cf, layout, line, wrap);
@@ -7262,7 +7393,7 @@ function drawBranchInfo(layout, loadout) {
     y = wrap(power, y + 10, 'bold 11px Arial', rank === 'learned' ? '#8fdca6' : '#e0a868', 3);
     drawWeaponHandButtons(layout, entry.id, y - 4);
     if (rank === 'found') {
-      const affordable = canAfford(WEAPON_LEARN_COST);
+      const affordable = hasSkillStatPrerequisite('weapon', entry.id) && canAfford(WEAPON_LEARN_COST);
       drawBranchButton(layout.unweave, `Learn · ${costLabel(WEAPON_LEARN_COST, true)}`, '', affordable ? '#f0d486' : '#796b47', affordable);
     }
   } else if (node?.kind === 'grip') {
@@ -7273,13 +7404,15 @@ function drawBranchInfo(layout, loadout) {
       '12px Arial', '#e6dcc0', 5);
     y = wrap('The off hand follows its own map: with Wind-Up, Longdraw or Focus highlighted it charges and releases, otherwise it taps at a slower pace and hits a little lighter.',
       y + 10, '11px Arial', '#bbb49d', 5);
-    drawBranchButton(layout.toggle, owned ? 'ON' : 'OFF', owned ? 'grown' : 'not grown', owned ? '#7fd0e8' : '#796b47', true);
-    const affordable = !owned && canAfford(DUAL_GRIP_COST);
-    drawBranchButton(layout.unlock, owned ? 'MAX' : 'Grow', owned ? 'grown' : costLabel(DUAL_GRIP_COST, true),
+    drawBranchButton(layout.toggle, owned ? 'Active' : 'Inactive', owned ? 'upgraded' : 'not upgraded', owned ? '#7fd0e8' : '#796b47', true);
+    const prerequisite = hasSkillStatPrerequisite('grip', 'grip');
+    const affordable = !owned && prerequisite && canAfford(DUAL_GRIP_COST);
+    drawBranchButton(layout.unlock, owned ? 'MAX' : 'Upgrade',
+      owned ? 'upgraded' : prerequisite ? costLabel(DUAL_GRIP_COST, true) : 'upgrade a stat first',
       affordable ? '#f0d486' : '#796b47', affordable);
   } else {
     line(`${BRANCH_HEART_ICONS[style]} ${BRANCH_STYLE_NAMES[style]} heart`, 98, 'bold 17px Georgia', branchHeartColor(style));
-    let y = wrap(`Highlight up to ${BRANCH_SLOTS} branches. Walk out along a branch to grow it. Found items only work in a highlighted branch.`,
+    let y = wrap(`Activate up to ${BRANCH_SLOTS} branches. Walk out along a branch to upgrade it. Found items only work in an active branch.`,
       120, '11px Arial', '#bbb49d', 4);
     line(`Highlighted ${loadout.length}/${BRANCH_SLOTS}`, y + 16, 'bold 12px Georgia', '#e9d39f');
     loadout.forEach((id, index) => {
@@ -7304,6 +7437,7 @@ function drawBranchInfo(layout, loadout) {
 function drawConfluenceInfo(cf, layout, line, wrap) {
   const owned = confluenceOwned(cf.id);
   const reachable = confluenceReachable(cf);
+  const prerequisite = cf.kind === 'stat' || hasSkillStatPrerequisite('confluence', cf.id);
   const color = cf.bridge?.color || '#fff2a0';
   const bridgeNames = cf.bridge ? cf.bridge.styles.map((style) => BRANCH_STYLE_NAMES[style]).join(' + ') : 'Blade + Bow + Magic';
   const kindName = { stat: 'Stat', seal: 'Lock', fusion: 'Fusion · ability lock', move: 'Move · ability lock', trinity: 'Capstone · lock' }[cf.kind];
@@ -7324,23 +7458,26 @@ function drawConfluenceInfo(cf, layout, line, wrap) {
     y = wrap('Always ready once grown, whatever you hold.', y + 10, '11px Arial', '#bbb49d', 2);
   }
   if (!owned) {
-    const how = reachable ? `${cf.kind === 'seal' ? 'Unseal' : 'Grow'} for ${costLabel(cf.cost)}.`
-      : cf.kind === 'trinity' ? 'Grow all three fusions first.'
-        : 'Grow a linked node first. Each bridge starts from a tier III branch.';
+    const how = reachable && !prerequisite ? 'Upgrade a stat rune on this path first.'
+      : reachable ? `${cf.kind === 'seal' ? 'Unseal' : 'Upgrade'} for ${costLabel(cf.cost)}.`
+      : cf.kind === 'trinity' ? 'Upgrade all three fusions first.'
+        : 'Upgrade a linked node first. Each bridge starts from a tier III branch.';
     y = wrap(how, y + 12, 'bold 11px Arial', reachable ? '#f0d486' : '#9c967f', 3);
     if (reachable && growthBlock(cf.cost) === 'gate') {
-      line(`Career XP ${Math.floor(branchState().xp)}/${growthXpRequirement()} to grow`, y + 14, 'bold 11px Arial', '#e0a868');
+      line(`Career XP ${Math.floor(branchState().xp)}/${growthXpRequirement()} to upgrade`, y + 14, 'bold 11px Arial', '#e0a868');
     }
   }
   drawBranchButton(layout.toggle, '—', owned ? 'always on' : 'no slot needed', owned ? color : '#4a4536', owned);
-  const affordable = !owned && reachable && canAfford(cf.cost);
-  drawBranchButton(layout.unlock, owned ? 'MAX' : cf.kind === 'seal' ? 'Unseal' : 'Grow', owned ? 'grown' : costLabel(cf.cost, true),
+  const affordable = !owned && reachable && prerequisite && canAfford(cf.cost);
+  drawBranchButton(layout.unlock, owned ? 'MAX' : cf.kind === 'seal' ? 'Unseal' : 'Upgrade', owned ? 'upgraded' : costLabel(cf.cost, true),
     affordable ? '#f0d486' : '#796b47', affordable);
 }
 
 // A tier's stat as an icon and a short label for its node on the map.
 function branchFxBadge(fx = {}) {
   const percent = (value) => `${Math.round(Math.abs(value - 1) * 100)}%`;
+  if (fx.moveSpeed) return { icon: '»', label: `+${percent(fx.moveSpeed)} MOVE` };
+  if (fx.splashChance) return { icon: '✸', label: `+${Math.round(fx.splashChance * 100)}% SPLASH` };
   if (fx.shots) return { icon: '⋔', label: `+${fx.shots} SHOT` };
   if (fx.chain) return { icon: 'ϟ', label: `+${fx.chain} ARC` };
   if (fx.pierce) return { icon: '➶', label: `PIERCE +${fx.pierce}` };
@@ -7452,10 +7589,10 @@ function drawBranchScreen() {
   ctx.font = '11px Arial';
   ctx.fillStyle = '#bbb49d';
   const hint = lastInputMode === 'controller'
-    ? 'Stick/D-pad: walk · A: on/off or main hand · Y: grow or off hand · X: learn or unweave · LB/RB: tab · LT/RT: zoom · B: close'
+    ? 'Stick/D-pad: walk · A: activate/deactivate or main hand · Y: upgrade or off hand · X: learn or unweave · LB/RB: tab · LT/RT: zoom · B: close'
     : lastInputMode === 'touch'
       ? 'Drag to look around, pinch or +/− to zoom. Tap a node, then use the buttons on the right. Gold numbers suggest a path.'
-      : 'WASD: walk · Enter: on/off or main · U: grow or off · R: learn or unweave · Q/E: tab · wheel: zoom · Esc: close';
+      : 'WASD: walk · Enter: activate/deactivate or main · U: upgrade or off · R: learn or unweave · Q/E: tab · wheel: zoom · Esc: close';
   ctx.fillText(hint, 42, 514, 876);
   drawBranchGuide(now);
   ctx.restore();

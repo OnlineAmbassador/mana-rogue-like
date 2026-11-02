@@ -32,6 +32,11 @@ function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {
     touchAttackEl: { classList: { add() {}, remove() {} } },
     gamepadInput: { connected: false },
     lastInputMode: 'touch', lastNonControllerInputMode: 'touch', mode: 'playing', showMap: false,
+    currentRoom: null,
+    branchEditAllowed: () => true,
+    hasAffordableSkillGrowth: () => false,
+    branchState: () => ({}),
+    performance: { now: () => 0 },
     resizeCanvas() {}, VIEW_W: 960, VIEW_H: 540,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
@@ -89,6 +94,107 @@ function controllerContext() {
   };
   return context;
 }
+
+test('Build arrow follows real growth readiness only in cleared, editable playing rooms on desktop and touch', () => {
+  const context = inputContext();
+  const makeButton = () => {
+    const classes = new Set();
+    const attributes = new Map();
+    return {
+      classes,
+      classList: { toggle(name, on) { if (on) classes.add(name); else classes.delete(name); } },
+      getAttribute: (name) => attributes.get(name),
+      setAttribute: (name, value) => attributes.set(name, value),
+    };
+  };
+  const desktop = makeButton();
+  const touch = makeButton();
+  context.sideMenuEl = { querySelector: () => desktop };
+  const query = context.touchControlsEl.querySelector;
+  context.touchControlsEl.querySelector = (selector) => selector.includes('"branches"') ? touch
+    : query.call(context.touchControlsEl, selector);
+  context.currentRoom = { cleared: true };
+  const state = {};
+  context.branchState = () => state;
+  let now = 0;
+  context.performance.now = () => now;
+  let persisted = 0;
+  context.persistBranchState = () => { persisted += 1; };
+  let affordable = false;
+  context.hasAffordableSkillGrowth = () => affordable;
+  const check = (ready) => {
+    context.updateBuildPrompt();
+    assert.equal(context.document.body.classList.contains('build-prompt-active'), ready,
+      'the game defocuses only while pointing to an available Build move');
+    for (const button of [desktop, touch]) {
+      assert.equal(button.classes.has('build-ready'), ready);
+      assert.equal(button.getAttribute('aria-label').includes('upgrade available'), ready);
+    }
+  };
+  check(false);
+  affordable = true;
+  for (const mode of ['keyboard', 'controller', 'touch']) {
+    context.lastInputMode = mode;
+    check(true);
+  }
+  context.currentRoom.cleared = false;
+  check(false);
+  context.currentRoom.cleared = true;
+  context.branchEditAllowed = () => false;
+  check(false);
+  context.branchEditAllowed = () => true;
+  for (const mode of ['paused', 'branches', 'ability', 'gameover']) {
+    context.mode = mode;
+    check(false);
+  }
+  context.mode = 'playing';
+  context.showMap = true;
+  check(false);
+  context.showMap = false;
+  check(true);
+  affordable = false;
+  check(false);
+  context.acknowledgeBuildPrompt();
+  assert.equal(persisted, 0, 'opening Build before a first affordable prompt does not dismiss it');
+  affordable = true;
+  context.acknowledgeBuildPrompt();
+  assert.equal(state.buildPromptSeen, true, 'opening Build before the next UI refresh still acknowledges the first available upgrade');
+  state.buildPromptSeen = false;
+  persisted = 0;
+  check(true);
+  context.acknowledgeBuildPrompt();
+  assert.equal(state.buildPromptSeen, true);
+  assert.equal(persisted, 1, 'first-use acknowledgement is saved to the profile');
+  context.mode = 'branches';
+  context.updateBuildPrompt();
+  assert.equal(context.document.body.classList.contains('build-prompt-active'), false);
+  context.mode = 'playing';
+  context.updateBuildPrompt();
+  assert.equal(desktop.classes.has('build-pulse'), false, 'closing Build in the same room does not repeat the reminder');
+  context.currentRoom = { cleared: true };
+  context.updateBuildPrompt();
+  for (const button of [desktop, touch]) {
+    assert.equal(button.classes.has('build-pulse'), true, 'later cleared rooms pulse both Build surfaces');
+    assert.equal(button.classes.has('build-ready'), false, 'no repeated arrow');
+  }
+  assert.equal(context.document.body.classList.contains('build-prompt-active'), false, 'no repeated defocus');
+  now = 1800;
+  context.updateBuildPrompt();
+  assert.equal(desktop.classes.has('build-pulse'), false, 'pulse expires after 1.8 seconds');
+  now = 2000;
+  context.updateBuildPrompt();
+  assert.equal(desktop.classes.has('build-pulse'), false, 'the same cleared room never restarts its pulse');
+  const visitedRoom = context.currentRoom;
+  context.currentRoom = { cleared: false };
+  context.updateBuildPrompt();
+  assert.equal(desktop.classes.has('build-pulse'), false, 'uncleared rooms do not pulse');
+  context.currentRoom.cleared = true;
+  context.updateBuildPrompt();
+  assert.equal(desktop.classes.has('build-pulse'), true, 'clearing a room triggers its pulse');
+  context.currentRoom = visitedRoom;
+  context.updateBuildPrompt();
+  assert.equal(desktop.classes.has('build-pulse'), false, 'revisiting an already reminded room does not inherit another room pulse');
+});
 
 test('phone touch controls hide for keyboard and return for touch', () => {
   const context = inputContext();

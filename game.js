@@ -883,6 +883,7 @@ function resetTouchInput() {
 }
 
 function updateTouchControls() {
+  updateBuildPrompt();
   updateSideMenu();
   if (!touchControlsEl) return;
   const mobileLayout = isTouchDevice() || lastInputMode === 'touch';
@@ -972,6 +973,46 @@ function setSideKeyLabel(button, action) {
 function sideMenuPanels() {
   if (typeof sideMenuEl === 'undefined' || !sideMenuEl) return [];
   return typeof sideMenuRightEl !== 'undefined' && sideMenuRightEl ? [sideMenuEl, sideMenuRightEl] : [sideMenuEl];
+}
+
+const buildPromptRooms = new WeakSet();
+let buildPulseUntil = 0;
+let buildPulseRoom = null;
+
+function acknowledgeBuildPrompt() {
+  if (branchState().buildPromptSeen || !currentRoom?.cleared || !branchEditAllowed() || !hasAffordableSkillGrowth()) return;
+  branchState().buildPromptSeen = true;
+  buildPromptRooms.add(currentRoom);
+  persistBranchState();
+}
+
+function updateBuildPrompt() {
+  const ready = mode === 'playing' && !showMap && currentRoom?.cleared &&
+    branchEditAllowed() && hasAffordableSkillGrowth();
+  const firstPrompt = ready && !branchState().buildPromptSeen;
+  const now = performance.now();
+  if (currentRoom !== buildPulseRoom) buildPulseUntil = 0;
+  if (ready && !buildPromptRooms.has(currentRoom)) {
+    buildPromptRooms.add(currentRoom);
+    if (!firstPrompt) {
+      buildPulseRoom = currentRoom;
+      buildPulseUntil = now + 1800;
+    }
+  }
+  if (!ready) buildPulseUntil = 0;
+  document.body.classList.toggle('build-prompt-active', Boolean(firstPrompt));
+  const buttons = sideMenuPanels().map((panel) => panel.querySelector('[data-side-action="branches"]'));
+  if (touchControlsEl) buttons.push(touchControlsEl.querySelector('[data-touch-action="branches"]'));
+  for (const button of buttons) {
+    if (!button) continue;
+    button.classList.toggle('build-ready', Boolean(firstPrompt));
+    button.classList.toggle('build-pulse', Boolean(ready && !firstPrompt && now < buildPulseUntil));
+    const label = ready ? 'Build: skill tree upgrade available' : 'Build: weapon branches (cleared rooms only)';
+    if (button.getAttribute('aria-label') !== label) {
+      button.setAttribute('aria-label', label);
+      button.title = label;
+    }
+  }
 }
 
 function updateSideMenu() {

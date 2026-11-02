@@ -203,7 +203,9 @@ function pollGamepad() {
   } else if (mode === 'branches') {
     // While the first-visit tour or a guidance spotlight shows, any press moves it on.
     const anyPress = [0, 1, 2, 3, 4, 5, 6, 7, 9].some((button) => wasButtonPressed(button));
-    if (branchTourActive()) {
+    if (wasButtonPressed(1) || wasButtonPressed(9)) {
+      closeBranchScreen();
+    } else if (branchTourActive()) {
       if (anyPress || (mapStep && mapStepKey !== lastMapStep)) advanceBranchTour();
     } else {
       if (anyPress || (mapStep && mapStepKey !== lastMapStep)) dismissBranchGuide();

@@ -121,10 +121,10 @@ test('unweaving never strands a node: the chain and its tier III root are protec
 test('saved Confluence ids are de-duplicated and unknown ids are dropped', () => {
   const c = confluenceContext();
   loadFunctions(c, 'dbmanager.js', ['sanitizeBranchSave', 'sanitizeWeaponSave', 'sanitizePlaySave', 'sanitizeConfluenceSave']);
-  const clean = c.sanitizeBranchSave({ confluence: ['cf:trinity', 'cf:trinity', 'cf:bogus', 7, 'cf:spell-edge:move'] });
+  const clean = c.sanitizeBranchSave({ gridVersion: 1, confluence: ['cf:trinity', 'cf:trinity', 'cf:bogus', 7, 'cf:spell-edge:move'] });
   assert.deepEqual([...clean.confluence], ['cf:trinity', 'cf:spell-edge:move']);
   assert.deepEqual([...c.sanitizeBranchSave(null).confluence], []);
-  const old = c.sanitizeBranchSave({ confluence: ['cf:edge-string:s1', 'cf:string-spell:s4', 'cf:string-spell:s3'] });
+  const old = c.sanitizeBranchSave({ gridVersion: 1, confluence: ['cf:edge-string:s1', 'cf:string-spell:s4', 'cf:string-spell:s3'] });
   assert.deepEqual([...old.confluence],
     ['cf:edge-string:s1', 'cf:string-spell:s4', 'cf:string-spell:s3', 'cf:edge-string:g1', 'cf:string-spell:g2'],
     'saves from before Bridge Seals keep their stat nodes connected');
@@ -185,19 +185,24 @@ test('the Confluence tab joins all three maps, with every bridge linked into its
   c.setBranchTab('confluence');
   const nodes = c.branchMapNodes('confluence');
   const weaponNodes = ['melee', 'bow', 'magic'].reduce((sum, style) =>
-    sum + c.branchMapNodes(style).filter((node) => node.kind !== 'grip').length, 0);
-  assert.equal(nodes.length, weaponNodes + peek(c, 'confluenceNodes()').length);
+    sum + c.branchMapNodes(style).length, 0);
+  const bridgeStats = c.skillStatNodes().filter((node) => node.target.kind === 'confluence').length;
+  assert.equal(nodes.length, weaponNodes + peek(c, 'confluenceNodes()').length + bridgeStats);
   const byId = new Map(nodes.map((node) => [node.id, node]));
   for (const node of nodes) {
     for (const link of node.links) assert.ok(byId.has(link), `${node.id} links to missing ${link}`);
   }
-  assert.deepEqual([...byId.get('cf:edge-string:g1').links], ['melee/cleave:3']);
+  assert.ok(byId.get('cf:edge-string:g1').links.every((id) => id.startsWith('stat:confluence:')));
+  const entryStat = byId.get(byId.get('cf:edge-string:g1').links[0]);
+  assert.deepEqual([...entryStat.links], ['melee/cleave:3']);
   assert.deepEqual([...byId.get('cf:edge-string:s1').links], ['cf:edge-string:g1']);
-  assert.deepEqual([...byId.get('cf:edge-string:g2').links], ['cf:edge-string:s4', 'bow/stormstring:3']);
+  const exitStat = byId.get(byId.get('cf:edge-string:g2').links[0]);
+  assert.deepEqual([...exitStat.links], ['cf:edge-string:s4', 'bow/stormstring:3']);
   assert.equal(byId.get('cf:trinity').x, 0);
   for (const [index, a] of nodes.entries()) {
     for (const b of nodes.slice(index + 1)) {
-      assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 40, `${a.id} and ${b.id} overlap`);
+      assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= c.branchNodeRadius(a) + c.branchNodeRadius(b) + 4,
+        `${a.id} and ${b.id} overlap`);
     }
   }
   assert.equal(peek(c, 'branchMapFocus'), 'magic/heart', 'the camera starts on the main hand heart');

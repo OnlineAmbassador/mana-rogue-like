@@ -182,6 +182,79 @@ body.mobile-layout {
 .side-menu button:hover:not(:disabled) { background: #5a5639; }
 .side-menu button:disabled { opacity: 0.4; cursor: default; }
 
+.side-menu button.build-ready,
+.touch-utilities button.build-ready {
+  position: relative;
+  z-index: 2;
+  border-color: #ffe38a;
+  box-shadow: 0 0 14px #ffe38a99, inset 0 0 8px #ffe38a44;
+}
+
+.build-prompt-active #game {
+  filter: blur(4px) brightness(0.45);
+}
+
+.side-menu button.build-pulse,
+.touch-utilities button.build-pulse {
+  animation: build-reminder-pulse 0.6s ease-in-out 3;
+}
+
+@keyframes build-reminder-pulse {
+  50% {
+    border-color: #ffe38a;
+    box-shadow: 0 0 18px #ffe38acc, inset 0 0 8px #ffe38a66;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-menu button.build-pulse,
+  .touch-utilities button.build-pulse {
+    animation: none;
+    border-color: #ffe38a;
+    box-shadow: 0 0 14px #ffe38a99;
+  }
+}
+
+.build-ready::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 18px);
+  left: calc(50% - 4px);
+  width: 8px;
+  height: 32px;
+  background: #ffe38a;
+  box-shadow: 0 0 12px #ffe38a99;
+  pointer-events: none;
+}
+
+.build-ready::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: calc(50% - 14px);
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 16px solid #ffe38a;
+  pointer-events: none;
+}
+
+.side-menu .build-ready::before {
+  bottom: auto;
+  top: calc(50% - 4px);
+  left: calc(100% + 18px);
+  width: 48px;
+  height: 8px;
+}
+
+.side-menu .build-ready::after {
+  top: calc(50% - 14px);
+  left: calc(100% + 2px);
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  border-left: 0;
+  border-right: 16px solid #ffe38a;
+}
+
 .side-menu span {
   font-size: 0.55rem;
   text-transform: uppercase;

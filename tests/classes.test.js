@@ -125,6 +125,7 @@ test('Warrior melee hits harder and recovers slower than Mage and Rogue melee', 
 test('Spore Bloom changes only magic shots and bursts eight non-recursive elemental shards', () => {
   const c = combat();
   c.ownedItems.add('spore-bloom');
+  c.skillStatState().push(c.skillStatNodes().find((node) => node.target.id === 'miasma' && node.tier === 1).id);
   c.toggleBranch('miasma');
   c.shoot();
   const parent = c.projectiles[0];
@@ -169,6 +170,7 @@ test('real projectile loops split magic on enemy and object impacts, but not ord
   for (const surface of ['enemy', 'object', 'expiry', 'wall']) {
     const c = combat();
     c.ownedItems.add('spore-bloom');
+    c.skillStatState().push(c.skillStatNodes().find((node) => node.target.id === 'miasma' && node.tier === 1).id);
     c.toggleBranch('miasma');
     c.shoot();
     const parent = c.projectiles[0];

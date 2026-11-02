@@ -198,6 +198,7 @@ function highlightStartBranch(item) {
   const style = startAbilityStyle(item);
   const branch = branchesForItem(item.id).find((entry) => entry.style === style);
   if (!branch) return null;
+  if (!branchTechniqueReady(branch)) return { branch, replaced: null, locked: true };
   const loadout = branchState().loadouts[style] ||= [];
   if (loadout.includes(branch.id)) return { branch, replaced: null };
   const replaced = loadout.length >= BRANCH_SLOTS ? branchById(loadout.pop()) : null;
@@ -226,7 +227,8 @@ function grantStartAbility(item, rolled = false) {
   branchState().startAbility = item.id;
   persistBranchState();
   const notes = [];
-  if (highlight?.replaced) notes.push(`${highlight.branch.name} replaces ${highlight.replaced.name}.`);
+  if (highlight?.locked) notes.push(`Upgrade a stat rune in Build to activate ${highlight.branch.name}.`);
+  else if (highlight?.replaced) notes.push(`${highlight.branch.name} replaces ${highlight.replaced.name}.`);
   else if (highlight) notes.push(`${highlight.branch.name} branch on.`);
   if (held) notes.push(`${held.name} in hand.`);
   showMessage(`${rolled ? 'The element chose ' : ''}${item.name} for this run. ${notes.join(' ')}`.trim(), 4);
@@ -411,12 +413,99 @@ const branchSynergies = [
   { id: 'counterflow', style: 'melee', branches: ['riposte', 'flurry'], name: 'Counterflow', text: 'Parry longer, +30% parry hits', fx: { parryWindow: 0.12, parryDamage: 1.3 } },
   { id: 'molten-guard', style: 'melee', branches: ['riposte', 'cinder'], name: 'Molten Guard', text: '+25% parry hits, +10% damage', fx: { parryDamage: 1.25, damage: 1.1 } },
 ];
-const BRANCH_MULTIPLIED_FX = new Set(['damage', 'rate', 'chargeSpeed', 'reach', 'parryDamage']);
+const BRANCH_MULTIPLIED_FX = new Set(['damage', 'rate', 'chargeSpeed', 'reach', 'parryDamage', 'moveSpeed']);
 const fallbackBranchState = createBranchState();
 
 function createBranchState() {
   return { xp: 0, unlocks: {}, loadouts: { melee: [], bow: [], magic: [] }, element: null, elements: [],
-    weapons: createWeaponState(), confluence: [], play: null, startAbility: null };
+    weapons: createWeaponState(), confluence: [], play: null, startAbility: null, gridVersion: 1, statNodes: [] };
+}
+
+const SKILL_GRID_VERSION = 1;
+const SKILL_ROUTE_STATS = {
+  melee: [
+    { name: 'Strength', text: 'Sword damage +4%', fx: { damage: 1.04 }, cost: { darkCrystal: 1 } },
+    { name: 'Reach', text: 'Sword reach +3%', fx: { reach: 1.03 }, cost: { ironOre: 2 } },
+  ],
+  bow: [
+    { name: 'Quickness', text: 'Arrow attack recovery +3%', fx: { rate: 0.97 }, cost: { zeny: 15 } },
+    { name: 'Draw', text: 'Arrow charge speed +4%', fx: { chargeSpeed: 1.04 }, cost: { ironOre: 2 } },
+  ],
+  magic: [
+    { name: 'Stride', text: 'Character movement speed +1%', fx: { moveSpeed: 1.01 }, cost: { zeny: 15 } },
+    { name: 'Splash', text: 'Magic splash chance +2% (maximum 30%)', fx: { splashChance: 0.02 }, cost: { darkCrystal: 1 } },
+    { name: 'Attunement', text: 'Spell damage +4%', fx: { damage: 1.04 }, cost: { darkCrystal: 1 } },
+  ],
+};
+let skillStatNodeCache = null;
+const skillStatEffectCache = new Map();
+
+function skillStatNodes() {
+  if (skillStatNodeCache) return skillStatNodeCache;
+  const nodes = [];
+  const add = (target, style, tier = null) => {
+    SKILL_ROUTE_STATS[style].forEach((stat, choice) => {
+      nodes.push({ ...stat, id: `stat:${target.kind}:${target.id}:${tier || 0}:${choice}`, style, tier, target });
+    });
+  };
+  for (const branch of skillBranches) {
+    if (isAbilityFx(branch.tiers[0].fx)) add({ kind: 'tier', id: branch.id }, branch.style, 1);
+    for (let tier = 2; tier <= 3; tier += 1) add({ kind: 'tier', id: branch.id }, branch.style, tier);
+  }
+  for (const weapon of weaponCatalog) if (!weapon.base) add({ kind: 'weapon', id: weapon.id }, weapon.family);
+  add({ kind: 'grip', id: 'grip' }, 'melee');
+  for (const node of confluenceNodes()) {
+    if (node.kind !== 'stat') add({ kind: 'confluence', id: node.id }, node.bridge?.styles[0] || 'magic');
+  }
+  skillStatNodeCache = nodes;
+  return nodes;
+}
+
+function skillStatState() {
+  return branchState().statNodes ||= [];
+}
+
+function skillStatOwned(id) {
+  return skillStatState().includes(id);
+}
+
+function skillStatReachable(node) {
+  const { kind, id } = node.target;
+  if (kind === 'tier') return branchTier(id) >= node.tier - 1 &&
+    (node.tier === 1 || branchTechniqueReady(branchById(id)));
+  if (kind === 'weapon') return weaponFound(id);
+  if (kind === 'grip') return true;
+  return confluenceReachable(confluenceNode(id));
+}
+
+function hasSkillStatPrerequisite(kind, id, tier = null) {
+  return skillStatNodes().some((node) => node.target.kind === kind && node.target.id === id &&
+    node.tier === tier && skillStatOwned(node.id));
+}
+
+function upgradeSkillStat(id) {
+  const node = skillStatNodes().find((entry) => entry.id === id);
+  if (!node) return 'missing';
+  if (skillStatOwned(id)) return 'known';
+  if (!skillStatReachable(node)) return 'locked';
+  const paid = spendBranchCost(node.cost);
+  if (paid !== true) return paid;
+  skillStatState().push(id);
+  persistBranchState();
+  return 'upgraded';
+}
+
+function skillStatEffects(style) {
+  const owned = skillStatState();
+  const cached = skillStatEffectCache.get(style);
+  if (cached?.owned === owned && cached.length === owned.length) return cached.fx;
+  const fx = emptyBranchFx();
+  for (const node of skillStatNodes()) {
+    if (!skillStatOwned(node.id)) continue;
+    if (node.style === style) mergeBranchFx(fx, node.fx);
+  }
+  skillStatEffectCache.set(style, { owned, length: owned.length, fx });
+  return fx;
 }
 
 function createWeaponState() {
@@ -444,6 +533,7 @@ function emptyBranchFx() {
   return {
     mode: null, triple: false, damage: 1, rate: 1, chargeSpeed: 1, pierce: 0, chain: 0, explode: 0, linger: null,
     shots: 0, reach: 1, arc: 0, burn: false, fireWall: false, parryWindow: 0, parryDamage: 1,
+    moveSpeed: 1, splashChance: 0,
   };
 }
 
@@ -459,7 +549,11 @@ function mergeBranchFx(target, fx) {
 // Branches that list items stay dormant until one of those items is found this run; item-less branches are
 // pure technique and always work once highlighted.
 function branchPowered(branch) {
-  return branch.items.length === 0 || branch.items.some((id) => ownedItems.has(id));
+  return branchTechniqueReady(branch) && (branch.items.length === 0 || branch.items.some((id) => ownedItems.has(id)));
+}
+
+function branchTechniqueReady(branch) {
+  return !isAbilityFx(branch.tiers[0].fx) || hasSkillStatPrerequisite('tier', branch.id, 1);
 }
 
 function activeBranchSynergies(style) {
@@ -470,6 +564,7 @@ function activeBranchSynergies(style) {
 
 function branchEffects(style) {
   const fx = emptyBranchFx();
+  mergeBranchFx(fx, skillStatEffects(style));
   for (const id of branchLoadout(style)) {
     const branch = branchById(id);
     if (!branch || branch.style !== style || !branchPowered(branch)) continue;
@@ -493,7 +588,7 @@ function itemActive(id, style = currentAttackStyle()) {
   if (!ownedItems.has(id)) return false;
   const gates = branchesForItem(id);
   if (gates.length === 0 || id === character?.startingAbility) return true;
-  return gates.some((branch) => branch.style === style && branchLoadout(style).includes(branch.id));
+  return gates.some((branch) => branch.style === style && branchLoadout(style).includes(branch.id) && branchTechniqueReady(branch));
 }
 
 function persistBranchState() {
@@ -508,6 +603,7 @@ function autoHighlightForItem(item) {
   if (highlighted) return { branch: highlighted, active: true };
   const ordered = [...gates].sort((a, b) => Number(b.style === activeCombatStyle) - Number(a.style === activeCombatStyle));
   for (const branch of ordered) {
+    if (!branchTechniqueReady(branch)) continue;
     const loadout = branchState().loadouts[branch.style] ||= [];
     if (loadout.length >= BRANCH_SLOTS) continue;
     loadout.push(branch.id);
@@ -523,6 +619,7 @@ function toggleBranch(id) {
   const loadout = branchState().loadouts[branch.style] ||= [];
   const index = loadout.indexOf(id);
   if (index >= 0) loadout.splice(index, 1);
+  else if (!branchTechniqueReady(branch)) return 'locked';
   else if (loadout.length >= BRANCH_SLOTS) return 'full';
   else loadout.push(id);
   resetChargeState();
@@ -572,6 +669,8 @@ function bankedZenyBalance() {
 function unlockBranchTier(id) {
   const cost = nextBranchTierCost(id);
   if (!branchById(id) || !cost) return 'maxed';
+  if (!branchTechniqueReady(branchById(id))) return 'locked';
+  if (!hasSkillStatPrerequisite('tier', id, branchTier(id) + 1)) return 'locked';
   const paid = spendBranchCost(cost);
   if (paid !== true) return paid;
   branchState().unlocks[id] = branchTier(id) + 1;
@@ -589,10 +688,9 @@ function growthCount() {
   let count = 0;
   for (const id of Object.keys(state.unlocks)) if (branchById(id)) count += branchTier(id) - 1;
   const weapons = weaponState();
-  return count + weapons.learned.length + (weapons.grip ? 1 : 0) + confluenceState().length;
+  return count + weapons.learned.length + (weapons.grip ? 1 : 0) + confluenceState().length + skillStatState().length;
 }
 
-// A slow career curve: 30 XP for the first growth, about 1,000 by the fifteenth, about 14,000 for the last.
 function growthXpRequirement(count = growthCount()) {
   return 30 * (count + 1) + 4 * count * count;
 }
@@ -602,6 +700,48 @@ function growthBlock(cost) {
   const pouch = carriedMaterials();
   if (GROWTH_MATERIAL_KEYS.some((key) => (cost[key] || 0) > (pouch?.[key] || 0))) return 'short';
   return bankedZenyBalance() < (cost.zeny || 0) ? 'short' : null;
+}
+
+function affordableSkillGrowth() {
+  if (branchState().xp < growthXpRequirement()) return null;
+  // Stat choices steer the suggested route, without ever hiding affordable alternatives.
+  const routeCounts = Object.fromEntries(BRANCH_STYLES.map((style) => [style, 0]));
+  for (const node of skillStatNodes()) if (skillStatOwned(node.id)) routeCounts[node.style] += 1;
+  const routes = [...BRANCH_STYLES].sort((a, b) => routeCounts[b] - routeCounts[a]);
+  for (const style of routes) {
+    for (const node of skillStatNodes()) {
+      if (node.style === style && !skillStatOwned(node.id) && skillStatReachable(node) && !growthBlock(node.cost)) {
+        return { kind: 'stat', id: node.id, style: node.target.kind === 'confluence' ? 'confluence' : style, mapId: node.id };
+      }
+    }
+  }
+  for (const branch of skillBranches) {
+    const cost = nextBranchTierCost(branch.id);
+    const tier = branchTier(branch.id) + 1;
+    if (cost && branchTechniqueReady(branch) && hasSkillStatPrerequisite('tier', branch.id, tier) && !growthBlock(cost)) {
+      return { kind: 'tier', id: branch.id, style: branch.style, tier, mapId: `${branch.id}:${tier}` };
+    }
+  }
+  const weapons = weaponState();
+  if (!weapons.grip && hasSkillStatPrerequisite('grip', 'grip') && !growthBlock(DUAL_GRIP_COST)) {
+    return { kind: 'grip', id: 'grip', style: 'melee', mapId: 'grip' };
+  }
+  for (const id of weapons.found) {
+    if (!weapons.learned.includes(id) && hasSkillStatPrerequisite('weapon', id) && !growthBlock(WEAPON_LEARN_COST)) {
+      return { kind: 'weapon', id, style: weaponById(id).family, mapId: `weapon:${id}` };
+    }
+  }
+  for (const node of confluenceNodes()) {
+    if (!confluenceOwned(node.id) && confluenceReachable(node) &&
+        (node.kind === 'stat' || hasSkillStatPrerequisite('confluence', node.id)) && !growthBlock(node.cost)) {
+      return { kind: 'confluence', id: node.id, style: 'confluence', mapId: node.id };
+    }
+  }
+  return null;
+}
+
+function hasAffordableSkillGrowth() {
+  return Boolean(affordableSkillGrowth());
 }
 
 function addBranchXp(amount) {
@@ -701,6 +841,7 @@ function growConfluenceNode(id) {
   if (!node) return 'missing';
   if (confluenceOwned(id)) return 'known';
   if (!confluenceReachable(node)) return 'locked';
+  if (node.kind !== 'stat' && !hasSkillStatPrerequisite('confluence', id)) return 'locked';
   const paid = spendBranchCost(node.cost);
   if (paid !== true) return paid;
   confluenceState().push(id);
@@ -861,11 +1002,26 @@ function scoreConfluenceStep(node) {
 function suggestedPath(tab, steps = 3) {
   const tiers = {};
   const owned = new Set(confluenceState());
+  const statOwned = new Set(skillStatState());
   const path = [];
   const tierOf = (id) => tiers[id] || branchTier(id);
   for (let step = 0; step < steps; step += 1) {
     let best = null;
     const consider = (entry, scored) => {
+      let prerequisiteNodes = skillStatNodes().filter((node) => node.target.kind === entry.kind &&
+        node.target.id === entry.id && node.tier === (entry.tier || null));
+      if (entry.kind === 'tier') {
+        const firstStats = skillStatNodes().filter((node) => node.target.kind === 'tier' &&
+          node.target.id === entry.id && node.tier === 1);
+        if (firstStats.length && !firstStats.some((node) => statOwned.has(node.id))) prerequisiteNodes = firstStats;
+      }
+      if (prerequisiteNodes.length && !prerequisiteNodes.some((node) => statOwned.has(node.id))) {
+        const stat = prerequisiteNodes[0];
+        entry = { kind: 'stat', id: stat.id,
+          mapId: tab === 'confluence' && stat.target.kind !== 'confluence' ? `${stat.style}/${stat.id}` : stat.id,
+          reason: `${stat.name} leads toward ${BRANCH_STYLE_NAMES[stat.style]}` };
+        scored = { ...scored, reason: entry.reason };
+      }
       if (!best || scored.score > best.score) best = { ...entry, ...scored };
     };
     if (tab === 'confluence') {
@@ -894,7 +1050,8 @@ function suggestedPath(tab, steps = 3) {
       }
     }
     if (!best) break;
-    if (best.kind === 'tier') tiers[best.id] = best.tier;
+    if (best.kind === 'stat') statOwned.add(best.id);
+    else if (best.kind === 'tier') tiers[best.id] = best.tier;
     else owned.add(best.id);
     delete best.score;
     path.push(best);
@@ -1067,6 +1224,7 @@ function refundBranchCost(cost) {
 function learnWeapon(id) {
   if (!weaponFound(id)) return 'unknown';
   if (weaponLearned(id)) return 'known';
+  if (!hasSkillStatPrerequisite('weapon', id)) return 'locked';
   const paid = spendBranchCost(WEAPON_LEARN_COST);
   if (paid !== true) return paid;
   weaponState().learned.push(id);
@@ -1076,6 +1234,7 @@ function learnWeapon(id) {
 
 function growDualGrip() {
   if (dualGripOwned()) return 'known';
+  if (!hasSkillStatPrerequisite('grip', 'grip')) return 'locked';
   const paid = spendBranchCost(DUAL_GRIP_COST);
   if (paid !== true) return paid;
   weaponState().grip = true;
@@ -1092,9 +1251,27 @@ function addUnweavingRune() {
 // What an Unweaving Rune would undo on a map node: the newest grown tier, a learned weapon, Dual Grip or a Confluence
 // node. A node something else still grows from is `blocked` until that is unwoven first.
 function unweaveTarget(kind, id) {
+  if (kind === 'stat') {
+    const node = skillStatNodes().find((entry) => entry.id === id);
+    if (!node || !skillStatOwned(id)) return null;
+    const targetOwned = node.target.kind === 'tier' ? branchTier(node.target.id) >= Math.max(2, node.tier)
+      : node.target.kind === 'weapon' ? weaponLearned(node.target.id)
+        : node.target.kind === 'grip' ? dualGripOwned() : confluenceOwned(node.target.id);
+    const alternative = skillStatNodes().some((entry) => entry.id !== id && entry.target.kind === node.target.kind &&
+      entry.target.id === node.target.id && entry.tier === node.tier && skillStatOwned(entry.id));
+    const dependentStats = node.target.kind === 'tier' && node.tier === 1 &&
+      skillStatNodes().some((entry) => entry.target.kind === 'tier' && entry.target.id === node.target.id &&
+        entry.tier > 1 && skillStatOwned(entry.id));
+    return (targetOwned || dependentStats) && !alternative ? { blocked: true } : { cost: node.cost };
+  }
   if (kind === 'tier') {
     if (!branchById(id) || branchTier(id) < 2) return null;
     const tier = branchTier(id);
+    if (skillStatNodes().some((node) => node.target.kind === 'tier' && node.target.id === id &&
+        node.tier > tier && skillStatOwned(node.id))) return { blocked: true };
+    if (tier === 3 && skillStatNodes().some((node) => node.target.kind === 'confluence' &&
+        skillStatOwned(node.id) && !confluenceReachable(confluenceNode(node.target.id),
+          (linked) => linked === `tier:${id}` ? false : confluenceOwned(linked)))) return { blocked: true };
     if (tier === 3 && !confluenceConnectedWithout(null, { id, tier: 2 })) return { blocked: true };
     return { cost: branchTierCost(id, tier) };
   }
@@ -1103,6 +1280,10 @@ function unweaveTarget(kind, id) {
   if (kind === 'confluence') {
     const node = confluenceNode(id);
     if (!node || !confluenceOwned(id)) return null;
+    if (skillStatNodes().some((stat) => stat.target.kind === 'confluence' && skillStatOwned(stat.id) &&
+        !confluenceReachable(confluenceNode(stat.target.id), (linked) => linked !== id && confluenceOwned(linked)))) {
+      return { blocked: true };
+    }
     return confluenceConnectedWithout(id) ? { cost: node.cost } : { blocked: true };
   }
   return null;
@@ -1116,7 +1297,9 @@ function unweaveNode(kind, id) {
   const state = weaponState();
   if (!(state.runes > 0)) return 'no-rune';
   state.runes -= 1;
-  if (kind === 'confluence') {
+  if (kind === 'stat') {
+    branchState().statNodes = skillStatState().filter((entry) => entry !== id);
+  } else if (kind === 'confluence') {
     branchState().confluence = confluenceState().filter((entry) => entry !== id);
     applyConfluenceRunBonus(confluenceNode(id), -1);
   } else if (kind === 'tier') {
@@ -1920,6 +2103,11 @@ function chainLightningFrom(origin, damage, links, suppressHitStop = false, colo
 }
 
 function applyMorphLanding(projectile, primaryTarget, suppressHitStop = false) {
+  const splashChance = Math.min(0.3, skillStatEffects('magic').splashChance);
+  if (projectile.type === 'tear' && primaryTarget && !projectile.explode &&
+      splashChance > 0 && Math.random() < splashChance) {
+    projectile.explode = 36;
+  }
   if (projectile.owner === 'companion') return;
   if (projectile.explode) {
     addParticles(projectile.x, projectile.y, projectile.color, 14, 130);
@@ -3070,7 +3258,8 @@ const PLAYER_HIT_INVULN_SECONDS = 0.9;
 
 // Walking speed before temporary slows: what an enemy telegraph has to out-range to require a dash.
 function baseGroundSpeed() {
-  return player.speed * curioMultiplier('speed') * (character?.className === 'Pilgrim' ? 1.12 : 1) * confluenceSpeedMultiplier();
+  return player.speed * curioMultiplier('speed') * (character?.className === 'Pilgrim' ? 1.12 : 1) *
+    confluenceSpeedMultiplier() * skillStatEffects('magic').moveSpeed;
 }
 
 function startDash() {

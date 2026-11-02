@@ -83,6 +83,8 @@ Art sources: the desert uses bundled TMW art and CC BY-SA 4.0 Source of Mana art
 
 ## Recent changes
 
+- **Branching stat grid and affordable Build guidance.** Stat forks now precede branch upgrades, first-tier behavior abilities, weapon learning, Dual Grip and Confluence abilities. Blade routes focus on damage/reach, Bow on attack/charge speed, Magic on character movement, capped splash chance and spell damage. Stat investments steer the next affordable route; the Build reminder opens on an actually affordable node, not an unaffordable ability. The first reminder blurs/dims the game and points to Build; entry acknowledges it persistently, and subsequent rooms only pulse. Close/Esc/controller B always exit the tree, including during onboarding. Controls read Activate/Deactivate and Upgrade. The user explicitly requested a one-time reset to the new grid while keeping XP, resources and other unlocks; migration lives in `sanitizeBranchSave`, versioned by `SKILL_GRID_VERSION`. Real-grid tests live in `tests/grid.test.js`; old combat fixtures isolate already-available techniques.
+
 Covers up to: `a491b0e` (2026-11-01), plus the uncommitted changes in the first twelve entries. Commit IDs from before the port onto upstream's module split are kept on the `backup/main-pre-improvements` and `backup/hidpi-pre-improvements` tags.
 
 - **Run-start ability picker, element look and feel on every weapon (uncommitted).**

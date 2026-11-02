@@ -21,6 +21,73 @@ function weaponContext() {
 
 const hands = (c) => ({ ...peek(c, 'weaponHands') });
 
+function completedGrowthContext() {
+  const c = weaponContext();
+  for (const branch of peek(c, 'skillBranches')) c.branchState().unlocks[branch.id] = 3;
+  c.weaponState().grip = true;
+  c.confluenceState().push(...c.confluenceNodes().map((node) => node.id));
+  c.skillStatState().push(...c.skillStatNodes().map((node) => node.id));
+  c.branchState().xp = c.growthXpRequirement();
+  for (const key of Object.keys(peek(c, 'materials'))) peek(c, 'materials')[key] = 0;
+  return c;
+}
+
+test('Build readiness requires both the exact career XP threshold and an affordable unfinished tier', () => {
+  const c = completedGrowthContext();
+  assert.equal(c.hasAffordableSkillGrowth(), false, 'a completed tree has no growth to offer');
+  const branch = peek(c, 'skillBranches')[0];
+  c.branchState().unlocks[branch.id] = 1;
+  const cost = c.nextBranchTierCost(branch.id);
+  c.branchState().xp = c.growthXpRequirement();
+  assert.equal(c.hasAffordableSkillGrowth(), false, 'XP alone cannot pay the material price');
+  for (const [key, amount] of Object.entries(cost)) {
+    if (key === 'zeny') c.save.bankedZeny = amount;
+    else peek(c, 'materials')[key] = amount;
+  }
+  c.branchState().xp -= 1;
+  assert.equal(c.hasAffordableSkillGrowth(), false, 'one XP below the threshold is not ready');
+  c.branchState().xp += 1;
+  assert.equal(c.hasAffordableSkillGrowth(), true, 'the exact XP and price are sufficient');
+  assert.equal(c.unlockBranchTier(branch.id), 'unlocked', 'the advertised move really succeeds');
+  assert.equal(c.hasAffordableSkillGrowth(), false, 'spent resources or the next XP gate remove readiness');
+});
+
+test('Build readiness includes weapon learning and Dual Grip but not free weapon selection', () => {
+  const c = completedGrowthContext();
+  c.weaponState().found.push('axe');
+  peek(c, 'materials').lifeStone = 1;
+  assert.equal(c.hasAffordableSkillGrowth(), true);
+  assert.equal(c.learnWeapon('axe'), 'learned');
+  c.branchState().xp = c.growthXpRequirement();
+  assert.equal(c.hasAffordableSkillGrowth(), false);
+  c.weaponState().grip = false;
+  c.branchState().xp = c.growthXpRequirement();
+  peek(c, 'materials').lifeStone = 1;
+  assert.equal(c.hasAffordableSkillGrowth(), false, 'Dual Grip needs two stones');
+  peek(c, 'materials').lifeStone = 2;
+  assert.equal(c.hasAffordableSkillGrowth(), true);
+  assert.equal(c.growDualGrip(), 'learned');
+  c.branchState().xp = c.growthXpRequirement();
+  assert.equal(c.hasAffordableSkillGrowth(), false);
+});
+
+test('Build readiness includes only reachable, unowned and affordable Confluence nodes', () => {
+  const c = completedGrowthContext();
+  const seal = c.confluenceNodes().find((node) => node.kind === 'seal');
+  c.confluenceState().splice(0);
+  for (const branch of peek(c, 'skillBranches')) c.branchState().unlocks[branch.id] = 1;
+  // Paid tiers use other resources here; only the bridge seal price is carried.
+  c.nextBranchTierCost = () => ({ ironOre: 999 });
+  Object.assign(peek(c, 'materials'), seal.cost);
+  c.branchState().xp = c.growthXpRequirement();
+  assert.equal(c.hasAffordableSkillGrowth(), false, 'affording a locked bridge is not enough');
+  c.branchState().unlocks[seal.bridge.ends[0]] = 3;
+  c.branchState().xp = c.growthXpRequirement();
+  assert.equal(c.hasAffordableSkillGrowth(), true);
+  assert.equal(c.growConfluenceNode(seal.id), 'grown', 'the advertised bridge seal can be grown');
+  assert.equal(c.hasAffordableSkillGrowth(), false);
+});
+
 test('weapon saves keep only real, found weapons and clamp runes', () => {
   const c = weaponContext();
   loadFunctions(c, 'dbmanager.js', ['sanitizeWeaponSave']);

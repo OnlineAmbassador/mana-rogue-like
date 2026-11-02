@@ -7,7 +7,7 @@ const { sliceText } = require('./load');
 
 const source = (file) => fs.readFileSync(path.join(__dirname, '..', '..', file), 'utf8');
 
-function combat() {
+function combat({ skillPrerequisitesOpen = true } = {}) {
   const c = vm.createContext({
     monsterSprites: {},
     Math: Object.assign(Object.create(Math), { random: () => 0.05 }),
@@ -49,6 +49,8 @@ function combat() {
   vm.runInContext(sliceText(game, 'const classProfiles =', '// Every weapon style', 'game'), c);
   vm.runInContext(sliceText(game, 'const materialCatalog =', 'let keysHeld =', 'game'), c);
   for (const file of ['playermanager.js', 'mobmanager.js', 'worldmanager.js']) vm.runInContext(source(file), c);
+  // Most combat tests exercise already available techniques, independently of grid purchases.
+  if (skillPrerequisitesOpen) c.hasSkillStatPrerequisite = () => true;
   c.moveEnemyWithCollision = c.moveEnemy;
   vm.runInContext(`
     recordEnemyDiscovery = recordEnemyAbilityDiscovery = addParticles = addEffectBurst = playSound = showMessage = updateHud = () => {};
