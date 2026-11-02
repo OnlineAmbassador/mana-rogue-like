@@ -130,6 +130,7 @@ Human-made bitmaps with draw-time treatment only. Not on the replacement list.
 Code-drawn by design (rule 2). Listed for completeness.
 
 - Panels: `drawManaPanel` and everything built on it (HUD, minimap, slots, messages, pause, codex, controls, tutorial, journal, shop cards).
+- Controller focus: contrasting gold fill, bright framed outline and triangular pointer (`drawControllerFocus`); journal pause/close footer uses the existing panel chrome.
 - HUD glyphs: armour, zeny, key, bomb and familiar icons (`drawGameHud`), action-slot glyphs and cooldowns (`drawActionBar`), weapon-style glyphs (`drawStyleSlots`). The coin and key glyphs could now reuse the TMW gold pieces and copper key that the pickups use.
 - Map and minimap shapes, padlock and legend (`drawMap`, `drawMinimap`).
 - Damage numbers, text and outlines (`drawDamageNumbers`, `withTextOutline`), menus and screens (`drawPrologue`, `drawCharacterSelect`, `drawCodex`, `drawControls`, `drawRunSummary` and the rest).

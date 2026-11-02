@@ -9,13 +9,15 @@ Reference for anyone changing enemy tuning, in particular the input-adaptive tac
 3. If a rule has to change, change it here, in the test and in the code together. A test fails when this file and `tests/tuning.test.js` list different rule IDs.
 4. Record the change in the Recent changes section of [HANDOFF.md](HANDOFF.md).
 
-Every new adaptive effect must be gated behind `adaptiveEnemiesEnabled()` (see T1).
+Adaptive enemies are always enabled. New effects must retain the input-learning, pacing and safety gates documented below; there is no user opt-out (see T1-T2).
 
 ## Four weapon families
 
 Sword retains power, reach and timed projectile parries; Brawler combines shorter-range power with faster recovery, but cannot parry. Baseline fists use a 0.36 s recovery and 2.2 damage scale, before class/species/tree/gear modifiers. Brawler's class bonuses are 15% fist power and 15% recovery speed; Rogue retains its faster native bow cadence and Warrior its heavier native sword hits.
 
 Meteor Rush uses the same 0.24 s dash invulnerability and 0.85 s cooldown as other non-Scout classes, not permanent immunity. It hits each crossed target once, using swept collision, and follows the normal melee scenery immunity rules. Its recovery guard lasts 0.18 s, subtracts at most half a heart without reducing a hit below half a heart, and cannot refresh for 3 s. Ordinary and boss heavy hits still matter.
+
+Brawler's class passive rolls a 45% complete block against mob/boss hits and hostile projectile damage, regardless of selected weapon. An unblocked hit then independently has a 40% chance to deal only half a heart, including heavy hits. For hits above half a heart this yields 45% blocked, 22% reduced and 33% normal damage before clothing/brace. A block consumes no clothing, causes no knockback and grants the normal 0.9-second hit immunity so sustained contact cannot reroll every frame. Existing Aegis/familiar interception runs first. This passive is not granted to other fist users or Echo, and does not affect self-inflicted bombs or environmental damage.
 
 The optional Fist/Bow Confluence bridge adds 5% fist/bow recovery through Swift Draw and 4% walking speed through Flow Step. It adds no parry, invulnerability or extra dash hits. Its seals, fusion and move retain resource costs and stat prerequisites; neither Brawler bridge changes Trinity's original three-fusion requirement.
 
@@ -71,11 +73,11 @@ Shot lead is the floor-based lead (up to 0.45 s, unchanged) plus `shotShare` of 
 ### R10 - Controller >= keyboard/mouse >= touch on threat
 On each threat axis (`attackSlots`, `tempoFloors`, `dodgeBonus`, `flankLead`, lower `beatScale`, lower `warning`) the order is controller, then keyboard/mouse, then touch, and every input is above `neutral`. Three axes are counters rather than threat tiers and are exempt: `strafe` (analog movers draw more lateral pressure), `nearDodgeBonus` (touch auto-aims, so touch draws more close-range evasion instead of more threat) and `shotShare` (R9).
 
-### T1 - Adaptive enemies off restores the earlier behavior
-With the pause-menu setting off: the input profile is `neutral`, tempo is 1, there are no extra attack slots, spacing and shot lead use the original floor-based values, no wide pulses start, and major bosses skip path-marker pressure again (minibosses always used it). Obstacle steering is a movement fix and stays on. Any new adaptive effect must check `adaptiveEnemiesEnabled()` or `adaptiveActive()`.
+### T1 - Adaptive enemies are mandatory
+Input adaptation, faster attack tempo, wide pulses and major-boss path pressure cannot be disabled by menus or shortcuts. Existing input-learning and safety conditions still apply. `adaptiveEnemiesEnabled()` always returns true; `adaptiveActive()` still waits for an input profile.
 
-### T2 - The setting defaults on and survives a bad store
-`gameSettings.adaptiveEnemies` is `true` unless the stored value is exactly `false`. A missing, malformed or wrongly typed entry falls back to on.
+### T2 - Legacy preferences cannot disable adaptation
+The old `mana-hollow-sanctum-settings` preference is no longer read. A previously saved `adaptiveEnemies: false`, missing data or unavailable browser storage cannot turn adaptation off. Audio, controls and Help preferences remain independent.
 
 ## Playtest-tunable values
 

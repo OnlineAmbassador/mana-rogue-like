@@ -740,8 +740,8 @@ function growthBlock(cost) {
   return bankedZenyBalance() < (cost.zeny || 0) ? 'short' : null;
 }
 
-function affordableSkillGrowth() {
-  if (branchState().xp < growthXpRequirement()) return null;
+function* affordableSkillGrowthOptions() {
+  if (branchState().xp < growthXpRequirement()) return;
   // Stat choices steer the suggested route, without ever hiding affordable alternatives.
   const routeCounts = Object.fromEntries(BRANCH_STYLES.map((style) => [style, 0]));
   for (const node of skillStatNodes()) if (skillStatOwned(node.id)) routeCounts[node.style] += 1;
@@ -749,7 +749,7 @@ function affordableSkillGrowth() {
   for (const style of routes) {
     for (const node of skillStatNodes()) {
       if (node.style === style && !skillStatOwned(node.id) && skillStatReachable(node) && !growthBlock(node.cost)) {
-        return { kind: 'stat', id: node.id, style: node.target.kind === 'confluence' ? 'confluence' : style, mapId: node.id };
+        yield { kind: 'stat', id: node.id, style: node.target.kind === 'confluence' ? 'confluence' : style, mapId: node.id };
       }
     }
   }
@@ -757,25 +757,34 @@ function affordableSkillGrowth() {
     const cost = nextBranchTierCost(branch.id);
     const tier = branchTier(branch.id) + 1;
     if (cost && branchTechniqueReady(branch) && hasSkillStatPrerequisite('tier', branch.id, tier) && !growthBlock(cost)) {
-      return { kind: 'tier', id: branch.id, style: branch.style, tier, mapId: `${branch.id}:${tier}` };
+      yield { kind: 'tier', id: branch.id, style: branch.style, tier, mapId: `${branch.id}:${tier}` };
     }
   }
   const weapons = weaponState();
   if (!weapons.grip && hasSkillStatPrerequisite('grip', 'grip') && !growthBlock(DUAL_GRIP_COST)) {
-    return { kind: 'grip', id: 'grip', style: 'melee', mapId: 'grip' };
+    yield { kind: 'grip', id: 'grip', style: 'melee', mapId: 'grip' };
   }
   for (const id of weapons.found) {
     if (!weapons.learned.includes(id) && hasSkillStatPrerequisite('weapon', id) && !growthBlock(WEAPON_LEARN_COST)) {
-      return { kind: 'weapon', id, style: weaponById(id).family, mapId: `weapon:${id}` };
+      yield { kind: 'weapon', id, style: weaponById(id).family, mapId: `weapon:${id}` };
     }
   }
   for (const node of confluenceNodes()) {
     if (!confluenceOwned(node.id) && confluenceReachable(node) &&
         (node.kind === 'stat' || hasSkillStatPrerequisite('confluence', node.id)) && !growthBlock(node.cost)) {
-      return { kind: 'confluence', id: node.id, style: 'confluence', mapId: node.id };
+      yield { kind: 'confluence', id: node.id, style: 'confluence', mapId: node.id };
     }
   }
-  return null;
+}
+
+function affordableSkillGrowth() {
+  return affordableSkillGrowthOptions().next().value || null;
+}
+
+function soleAffordableSkillGrowth() {
+  const options = affordableSkillGrowthOptions();
+  const first = options.next().value;
+  return first && options.next().done ? first : null;
 }
 
 function hasAffordableSkillGrowth() {
@@ -3941,6 +3950,24 @@ function knockPlayerBack(source, incomingDamage) {
   dashTimer = 0;
 }
 
+const BRAWLER_BLOCK_CHANCE = 0.45;
+const BRAWLER_HALF_HEART_CHANCE = 0.4;
+
+function brawlerDefenseApplies(source) {
+  return typeof character !== 'undefined' && character?.className === 'Brawler' &&
+    Boolean(source && (source.owner === 'enemy' || enemies.includes(source) || enemyProjectiles.includes(source)));
+}
+
+function blockBrawlerHit(source) {
+  if (!brawlerDefenseApplies(source) || Math.random() >= BRAWLER_BLOCK_CHANCE) return false;
+  player.invuln = PLAYER_HIT_INVULN_SECONDS;
+  addParticles(player.x, player.y - 20, '#ffc56b', 9, 100);
+  showMessage('Brawler blocked the hit!', 1.2);
+  playSound('punch.ogg', 0.2);
+  updateHud();
+  return true;
+}
+
 function damagePlayer(damageAmount = 1, source) {
   if (player.invuln > 0 || mode !== 'playing' || deathTimer > 0) return;
   if (source === undefined) {
@@ -3964,8 +3991,10 @@ function damagePlayer(damageAmount = 1, source) {
     updateHud();
     return;
   }
+  if (blockBrawlerHit(source)) return false;
+  const halfHeart = brawlerDefenseApplies(source) && Math.random() < BRAWLER_HALF_HEART_CHANCE;
   const braced = elapsed < (player.brawlerBraceUntil || 0) && (currentAttackStyle() === 'brawl' || echoArsenalActive());
-  const incomingDamage = Math.max(0.5, Math.round(damageAmount * 2) / 2 - (braced ? 0.5 : 0));
+  const incomingDamage = halfHeart ? 0.5 : Math.max(0.5, Math.round(damageAmount * 2) / 2 - (braced ? 0.5 : 0));
   player.damageFlashTimer = 0.28;
   hurtVignetteTimer = HURT_VIGNETTE_DURATION;
   hurtVignetteStrength = Math.min(1, 0.7 + incomingDamage * 0.15);

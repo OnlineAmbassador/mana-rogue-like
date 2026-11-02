@@ -272,3 +272,64 @@ test('opening Build focuses an actually affordable stat node even when the held 
   c.unlockFocusedBranch();
   assert.equal(c.skillStatOwned(node.stat.id), true);
 });
+
+test('affordable map pulses cover every real option and clear immediately after resources or XP change', () => {
+  const c = gridContext();
+  loadBetween(c, 'gameui.js', '// ---- Weapon branch screen', 'function boonCardBounds(index) {');
+  payFor(c, { darkCrystal: 1 });
+  const options = [...c.affordableSkillGrowthOptions()];
+  assert.ok(options.length > 1);
+  assert.equal(c.soleAffordableSkillGrowth(), null);
+  assert.equal(c.affordableSkillGrowth().id, options[0].id);
+  for (const style of ['melee', 'bow', 'magic', 'brawl']) {
+    assert.deepEqual([...c.affordableBranchMapNodeIds(style)], options.filter(node => node.style === style).map(node => node.mapId));
+  }
+  assert.deepEqual([...c.affordableBranchMapNodeIds('confluence')],
+    options.map(node => node.style === 'confluence' ? node.mapId : `${node.style}/${node.mapId}`));
+  const selected = options[0];
+  assert.equal(c.upgradeSkillStat(selected.id), 'upgraded');
+  assert.equal(c.affordableBranchMapNodeIds('confluence').size, 0, 'spent resources and next XP gate remove every pulse');
+  payFor(c, { darkCrystal: 1 });
+  assert.ok(!c.affordableBranchMapNodeIds('confluence').has(`${selected.style}/${selected.mapId}`), 'purchased nodes never pulse');
+  c.branchState().xp = 0;
+  assert.equal(c.affordableBranchMapNodeIds('confluence').size, 0);
+});
+
+test('a sole affordable upgrade is pointed out immediately on first Build entry, including previously toured profiles', () => {
+  for (const guided of [false, true]) {
+    const c = gridContext();
+    loadBetween(c, 'gameui.js', '// ---- Weapon branch screen', 'function boonCardBounds(index) {');
+    Object.assign(c, {
+      VIEW_W: 960, VIEW_H: 540, deathTimer: 0, keys: {}, showMap: false,
+      acknowledgeBuildPrompt() { c.branchState().buildPromptSeen = true; }, updateTouchControls() {},
+      suppressHeldAttackInput() {}, updateHud() {}, saveRunState() {},
+    });
+    c.branchState().guided = guided;
+    payFor(c, { darkCrystal: 1 });
+    const option = c.affordableSkillGrowth();
+    c.affordableSkillGrowthOptions = function* () { yield option; };
+    assert.equal(c.soleAffordableSkillGrowth().id, option.id);
+    assert.equal(c.openBranchScreen(), true);
+    assert.equal(peek(c, 'branchGuide').node, option.mapId);
+    assert.match(peek(c, 'branchGuide').label, /afford this upgrade/);
+    assert.equal(peek(c, 'branchMapFocus'), option.mapId);
+    c.closeBranchScreen();
+    assert.equal(peek(c, 'branchGuide'), null);
+    c.branchState().guided = true;
+    c.openBranchScreen();
+    assert.equal(peek(c, 'branchGuide'), null, 'the first-affordability arrow is not repeated');
+  }
+});
+
+test('affordable bubble halos repeat every two seconds without mutating map state', () => {
+  const c = gridContext();
+  const circles = [];
+  c.ctx = { save() {}, restore() {}, beginPath() {}, stroke() {},
+    arc(...args) { circles.push(args); } };
+  loadFunctions(c, 'gameui.js', ['drawAffordableBranchPulse']);
+  for (const now of [0, 500, 1000, 1500, 2000, 2500]) c.drawAffordableBranchPulse(20, 40, 11, now);
+  assert.ok(circles[1][2] > circles[3][2], 'halo visibly expands and contracts');
+  assert.equal(circles[0][2], circles[4][2]);
+  assert.equal(circles[1][2], circles[5][2]);
+  assert.ok(circles.every(([x, y]) => x === 20 && y === 40));
+});

@@ -94,7 +94,7 @@ function pollGamepad() {
     gamepadInput.aimX = aimX / aimLength;
     gamepadInput.aimY = aimY / aimLength;
   }
-  if (mode === 'playing' && lastInputMode === 'controller') {
+  if (mode === 'playing' && !showStoryJournal && lastInputMode === 'controller') {
     if (aimingWithRightStick) {
       mouseAimActive = false;
       player.lookX = gamepadInput.aimX;
@@ -105,7 +105,7 @@ function pollGamepad() {
   const menuDirection = dpadX || (Math.abs(horizontalAxis) > 0.6 ? Math.sign(horizontalAxis) : 0);
   const menuVertical = dpadY || (Math.abs(verticalAxis) > 0.6 ? Math.sign(verticalAxis) : 0);
   if (mode !== pollGamepad.lastMode) {
-    audioFocus = mode === 'select' && AUDIO_FOCUS_ORDER.includes(menuFocus) ? menuFocus : null;
+    audioFocus = mode === 'settings' && AUDIO_FOCUS_ORDER.includes(settingsFocus) ? settingsFocus : null;
     pollGamepad.lastMode = mode;
   }
   if (ttsPromptActive()) {
@@ -118,16 +118,17 @@ function pollGamepad() {
     return;
   }
   let audioConsumed = false;
-  if (mode === 'select' || mode === 'prologue' || mode === 'paused') {
-    if (mode !== 'select' && menuVertical !== 0 && menuVertical !== previousMenuVertical) {
-      stepAudioFocus(menuVertical);
+  if (mode === 'settings' || mode === 'prologue') {
+    if (menuVertical !== 0 && menuVertical !== previousMenuVertical) {
+      if (mode === 'settings') moveSettingsFocus(menuVertical);
+      else stepAudioFocus(menuVertical);
       audioConsumed = true;
     }
     if (handleAudioPanelPad(menuDirection, wasButtonPressed(0))) audioConsumed = true;
   } else {
     handleAudioPanelPad.previousHorizontal = 0;
   }
-  const audioFocused = audioFocus !== null && (mode === 'select' || mode === 'prologue' || mode === 'paused');
+  const audioFocused = audioFocus !== null && (mode === 'settings' || mode === 'prologue');
   if (!audioFocused && !audioConsumed) {
     if (mode === 'prologue' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
       advancePrologue(menuDirection);
@@ -135,11 +136,16 @@ function pollGamepad() {
       chooseCharacter(menuDirection > 0 ? 'ArrowRight' : 'ArrowLeft');
     } else if (mode === 'tutorial' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
       stepTutorial(menuDirection);
+    } else if (mode === 'paused' && menuDirection !== 0 && menuDirection !== previousMenuDirection) {
+      movePauseMenuFocus(menuDirection);
     }
   }
-  previousMenuDirection = mode === 'select' || mode === 'prologue' || mode === 'tutorial' ? menuDirection : 0;
+  previousMenuDirection = ['select', 'prologue', 'tutorial', 'paused'].includes(mode) ? menuDirection : 0;
   if (mode === 'select' && menuVertical !== 0 && menuVertical !== previousMenuVertical) moveMenuFocus(menuVertical);
-  previousMenuVertical = mode === 'select' || mode === 'prologue' || mode === 'paused' ? menuVertical : 0;
+  if (mode === 'paused' && menuVertical !== 0 && menuVertical !== previousMenuVertical) {
+    pauseMenuFocus = menuVertical > 0 ? 'settings' : 'resume';
+  }
+  previousMenuVertical = ['select', 'prologue', 'paused', 'settings'].includes(mode) ? menuVertical : 0;
   // Tracked every frame, so a direction already held when the map opens does not move its cursor.
   const mapX = (isButtonDown(15) ? 1 : 0) - (isButtonDown(14) ? 1 : 0) ||
     (Math.abs(horizontalAxis) > 0.6 ? Math.sign(horizontalAxis) : 0);
@@ -162,7 +168,7 @@ function pollGamepad() {
     else if (!audioFocused && (wasButtonPressed(0) || wasButtonPressed(2) || wasButtonPressed(9))) activateMenuFocus();
     if (wasButtonPressed(5)) openCodex();
     if (wasButtonPressed(3)) openTutorial();
-    if (wasButtonPressed(8)) openControls('select');
+    if (wasButtonPressed(8)) openSettings();
     if (wasButtonPressed(4)) openPrologue();
   } else if (mode === 'tutorial') {
     if (wasButtonPressed(1) || wasButtonPressed(9)) closeTutorial();
@@ -178,13 +184,16 @@ function pollGamepad() {
     if (wasButtonPressed(0) || wasButtonPressed(1) || wasButtonPressed(9)) closeChapter();
   } else if (mode === 'controls') {
     updateControlsPad(wasButtonPressed);
+  } else if (mode === 'settings') {
+    if (wasButtonPressed(1) || wasButtonPressed(8) || wasButtonPressed(9)) closeSettings();
+    else if (!audioFocused && !audioConsumed && wasButtonPressed(0)) activateSettingsEntry();
   } else if (mode === 'paused') {
-    if (wasButtonPressed(9) || (!audioFocused && wasButtonPressed(0))) resumeGame();
+    if (wasButtonPressed(9)) resumeGame();
+    else if (!audioFocused && !audioConsumed && wasButtonPressed(0)) confirmPauseMenuFocus();
     else if (wasButtonPressed(1)) {
       if (audioFocused) audioFocus = null;
       else exitToTitle();
-    } else if (wasButtonPressed(8)) openControls('paused');
-    else if (wasButtonPressed(3)) toggleAdaptiveEnemies();
+    } else if (wasButtonPressed(8)) openSettings();
   } else if (mode === 'gameover' || mode === 'won') {
     if (wasButtonPressed(0) || wasButtonPressed(9)) returnToCharacterSelect();
   } else if (mode === 'boon') {
@@ -218,6 +227,17 @@ function pollGamepad() {
       if (wasButtonPressed(3)) unlockFocusedBranch();
       if (wasButtonPressed(2)) unweaveFocusedNode();
       if (wasButtonPressed(1) || wasButtonPressed(9)) closeBranchScreen();
+    }
+  } else if (mode === 'playing' && showStoryJournal) {
+    if (wasButtonPressed(9)) pauseGame();
+    else if (wasButtonPressed(1)) toggleStoryJournal();
+    else {
+      for (let button = 0; button < 16; button += 1) {
+        if (wasButtonPressed(button) && actionForPad(button) === 'journal') {
+          toggleStoryJournal();
+          break;
+        }
+      }
     }
   } else if (mode === 'playing' && showMap) {
     // Map-only navigation (an approved exception to the controller lock): gameplay is paused while the map is open.

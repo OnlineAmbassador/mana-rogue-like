@@ -291,19 +291,6 @@ const gameMusic = {
   step: 0,
   nextBeat: 0,
 };
-const SETTINGS_STORAGE_KEY = 'mana-hollow-sanctum-settings';
-const gameSettings = (() => {
-  // adaptiveEnemies: enemies adapt to the active input method and use dash-check pulses (see docs/BALANCE.md).
-  const defaults = { adaptiveEnemies: true };
-  try {
-    const stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || '{}');
-    return {
-      adaptiveEnemies: typeof stored.adaptiveEnemies === 'boolean' ? stored.adaptiveEnemies : defaults.adaptiveEnemies,
-    };
-  } catch (error) {
-    return defaults;
-  }
-})();
 const AUDIO_STORAGE_KEY = 'mana-hollow-sanctum-audio';
 const audioSettings = (() => {
   // volume = music, sfxVolume = shots/monsters, tts = null until the player is asked.
@@ -324,7 +311,6 @@ let audioSliderDragging = null;
 // Controller focus inside the audio panel: null | 'music' | 'sfx' | 'tts'.
 let audioFocus = null;
 let audioAdjustRepeatAt = 0;
-const AUDIO_FOCUS_ORDER = ['music', 'sfx', 'tts'];
 
 
 
@@ -341,7 +327,7 @@ const AUDIO_FOCUS_ORDER = ['music', 'sfx', 'tts'];
 
 
 // D-pad/stick vertical step through the audio panel for screens without their own focus list
-// (pause, prologue). Up from "nothing" enters at the bottom (TTS); down past TTS leaves the panel.
+// (prologue). Up from "nothing" enters at the bottom; down past the last entry leaves the panel.
 
 // Left/right on a focused slider adjusts it (with hold-to-repeat); confirm toggles TTS.
 // Returns true when the input was consumed by the audio panel.
@@ -354,6 +340,7 @@ const musicMelody = [57, 60, 64, 60, 55, 60, 64, 60, 57, 60, 65, 62, 55, 59, 62,
 const musicChords = [[45, 48, 52], [41, 45, 48], [48, 52, 55], [43, 47, 50]];
 // Voice narration is off until the recordings are redone to match the current text.
 const NARRATION_ENABLED = false;
+const AUDIO_FOCUS_ORDER = NARRATION_ENABLED ? ['music', 'sfx', 'tts'] : ['music', 'sfx'];
 
 const prologueNarrations = NARRATION_ENABLED ? [1, 2, 3].map((segment) => {
   const audio = new Audio(versionedAssetUrl(`assets/audio/prologue-0${segment}.ogg`));
@@ -786,7 +773,7 @@ const characterRoster = [
   { id: 'wanderer', name: 'Mage', className: 'Mage', startingStyle: 'magic', styleLabel: 'Magic tears', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'male', color: '#75d8ff', hue: 0, speed: 235, hp: 6, damage: 1, fireDelay: 0.23, trait: 'Balanced delver', unlock: 'Available' },
   { id: 'warden', name: 'Rogue', className: 'Rogue', startingStyle: 'bow', styleLabel: 'Rapid light arrows', hairStyle: 'warden', raceHead: 'humanMale', sprite: 'neutral', color: '#fbd96f', hue: 205, speed: 250, hp: 4, damage: 1, fireDelay: 0.23, trait: 'Fast bow, lighter hits', unlock: 'Available' },
   { id: 'arcanist', name: 'Warrior', className: 'Warrior', startingStyle: 'melee', styleLabel: 'Heavy sword', hairStyle: 'arcanist', raceHead: 'humanFemale', sprite: 'female', color: '#d7a8ff', hue: 95, speed: 210, hp: 4, damage: 1, fireDelay: 0.28, trait: 'Heavy sword, slow recovery', unlock: 'Available' },
-  { id: 'brawler', name: 'Brawler', className: 'Brawler', startingStyle: 'brawl', styleLabel: 'Fists and gauntlets', hairStyle: 'ironbound', raceHead: 'humanMale', sprite: 'male', color: '#ffc56b', hue: 20, speed: 240, hp: 5, damage: 1, fireDelay: 0.26, trait: 'Swift powerful fists, damaging dash, brief guard', unlock: 'Available' },
+  { id: 'brawler', name: 'Brawler', className: 'Brawler', startingStyle: 'brawl', styleLabel: 'Fists and gauntlets', hairStyle: 'ironbound', raceHead: 'humanMale', sprite: 'male', color: '#ffc56b', hue: 20, speed: 240, hp: 5, damage: 1, fireDelay: 0.26, trait: '45% block; unblocked hits: 40% chance of half-heart damage', unlock: 'Available' },
   { id: 'candor-runner', name: 'Candor Runner', className: 'Scout', startingStyle: 'bow', styleLabel: 'Quick arrows', hairStyle: 'candor', raceHead: 'humanFemale', sprite: 'female', color: '#f5b86c', hue: 25, speed: 285, hp: 4, damage: 1, fireDelay: 0.34, trait: 'Very fast, slow draw', unlock: 'Defeat the Pinkie Matriarch' },
   { id: 'world-edge-pilgrim', name: 'World Edge Pilgrim', className: 'Pilgrim', startingStyle: 'magic', styleLabel: 'Patient casting', hairStyle: 'pilgrim', raceHead: 'elfMale', sprite: 'elf', color: '#b9d9a0', hue: 35, speed: 210, hp: 8, damage: 1, fireDelay: 0.3, trait: 'Patient casting, slower pace', unlock: 'Find a secret room' },
   { id: 'hurnscald-herbalist', name: 'Hurnscald Herbalist', className: 'Herbalist', startingStyle: 'magic', styleLabel: 'Frost magic', hairStyle: 'herbalist', raceHead: 'elfFemale', sprite: 'elfFemale', color: '#86d69c', hue: 65, speed: 200, hp: 7, damage: 1, fireDelay: 0.27, startingAbility: 'frost-rune', trait: 'Starts with Frost Rune', unlock: 'Reach Hurnscald' },
@@ -910,7 +897,7 @@ function updateTouchControls() {
     document.body.classList.toggle('mobile-layout', mobileLayout);
     resizeCanvas();
   }
-  const visible = lastInputMode === 'touch' && mode === 'playing';
+  const visible = lastInputMode === 'touch' && mode === 'playing' && !showStoryJournal;
   touchControlsEl.hidden = !visible;
   touchControlsEl.classList?.toggle('map-open', visible && showMap);
   if (!visible) resetTouchInput();
@@ -1006,7 +993,7 @@ function acknowledgeBuildPrompt() {
 }
 
 function updateBuildPrompt() {
-  const ready = mode === 'playing' && !showMap && currentRoom?.cleared &&
+  const ready = mode === 'playing' && !showMap && !showStoryJournal && currentRoom?.cleared &&
     branchEditAllowed() && hasAffordableSkillGrowth();
   const firstPrompt = ready && !branchState().buildPromptSeen;
   const now = performance.now();
@@ -1624,19 +1611,37 @@ const rangeLensItemIds = ['range-lens', 'range-lens-ii', 'range-lens-iii'];
 
 
 
+let pauseMenuFocus = 'resume';
+
 function pauseGame() {
   if (mode !== 'playing' || deathTimer > 0) return;
   for (const key of Object.keys(keys)) keys[key] = false;
   pointer.down = false;
   saveRunState();
   closeMap();
+  pauseMenuFocus = 'resume';
+  audioFocus = null;
   mode = 'paused';
   const labels = pauseControlLabels();
   showMessage(`Paused. Press ${labels.resume} to resume or ${labels.exit} to save and exit.`, 9999);
 }
 
 function pauseControlLabels() {
-  return lastInputMode === 'controller' ? { resume: 'Start/A', exit: 'B' } : { resume: 'P or R', exit: 'X' };
+  if (lastInputMode !== 'controller') return { resume: 'P or R', exit: 'X' };
+  const confirm = gamepadInput.family === 'ps' ? 'Cross' : 'A';
+  return { resume: `Start or select Resume + ${confirm}`, exit: `select Save & exit + ${confirm}` };
+}
+
+function movePauseMenuFocus(direction) {
+  if (mode !== 'paused' || audioFocus !== null || !direction) return;
+  pauseMenuFocus = direction < 0 ? 'resume' : 'exit';
+}
+
+function confirmPauseMenuFocus() {
+  if (mode !== 'paused' || audioFocus !== null) return;
+  if (pauseMenuFocus === 'settings') openSettings();
+  else if (pauseMenuFocus === 'exit') exitToTitle();
+  else resumeGame();
 }
 
 // The pause screen's two buttons; touch players have no keys, so these are their only way out.
@@ -2089,6 +2094,7 @@ function updateParticles(dt) {
 
 
 function update(dt) {
+  if (mode === 'playing' && showStoryJournal) return;
   if (hitStopTimer > 0) {
     const stoppedTime = Math.min(dt, hitStopTimer);
     hitStopTimer -= stoppedTime;
@@ -2444,6 +2450,9 @@ function update(dt) {
       enemyProjectiles.splice(i, 1);
     } else if (shieldWithCompanion(projectile)) {
       enemyProjectiles.splice(i, 1);
+    } else if (hitsPlayer && (specialHazard || projectile.kind === 'hook') &&
+        blockBrawlerHit(projectile)) {
+      enemyProjectiles.splice(i, 1);
     } else if (specialHazard && (hitsPlayer || projectileExpired)) {
       const withinRoom = projectile.x >= 48 && projectile.x <= ROOM_W - 48 &&
         projectile.y >= 48 && projectile.y <= ROOM_H - 48;
@@ -2744,6 +2753,10 @@ function draw() {
     drawCharacterSelect();
     return;
   }
+  if (mode === 'settings') {
+    drawSettings();
+    return;
+  }
   if (mode === 'codex') {
     drawCodex();
     return;
@@ -2795,16 +2808,19 @@ function draw() {
     ctx.fillText('DESCENT PAUSED', VIEW_W / 2, VIEW_H / 2 - 50);
     const pad = lastInputMode === 'controller';
     const touch = lastInputMode === 'touch';
-    for (const [which, text, hint] of [['resume', 'Resume', pad ? 'Start or A' : 'P or R'],
-      ['exit', 'Save & exit to menu', pad ? 'B' : 'X']]) {
+    const confirm = gamepadInput.family === 'ps' ? 'Cross' : 'A';
+    for (const [which, text, hint] of [['resume', 'Resume', pad ? `${confirm}: select · Start: resume` : 'P or R'],
+      ['exit', 'Save & exit to menu', pad ? `${confirm}: select` : 'X']]) {
       const b = pauseButtonBounds(which);
       const hovered = !touch && !pad && pointInBounds(b);
-      drawManaPanel(b.x, b.y, b.width, b.height, which === 'resume' ? '#e4c46f' : '#a98e57');
-      if (hovered) {
+      const focused = pad && audioFocus === null && pauseMenuFocus === which;
+      drawManaPanel(b.x, b.y, b.width, b.height, focused || which === 'resume' ? '#e4c46f' : '#a98e57');
+      if (hovered || focused) {
         ctx.fillStyle = 'rgba(255, 233, 170, 0.14)';
         ctx.fillRect(b.x + 3, b.y + 3, b.width - 6, b.height - 6);
       }
-      ctx.fillStyle = which === 'resume' ? '#fff1c8' : '#e9d9b6';
+      if (focused) drawControllerFocus(b);
+      ctx.fillStyle = focused || which === 'resume' ? '#fff1c8' : '#e9d9b6';
       ctx.font = 'bold 18px Georgia';
       ctx.fillText(text, b.x + b.width / 2, b.y + (touch ? 29 : 22));
       if (!touch) {
@@ -2815,14 +2831,15 @@ function draw() {
     }
     ctx.fillStyle = '#f1dec1';
     ctx.font = '15px Arial';
-    ctx.fillText(pad ? 'Back · Controls' : touch ? 'Tap a button above' : 'C · Controls', VIEW_W / 2, VIEW_H / 2 + 46);
-    ctx.fillText(pad
-      ? 'Audio & narration: D-pad ▲ to the top-left panel, ◄ ► to adjust'
-      : `Music and effects volume: ${touch ? 'tap' : 'click'} or drag the sliders at top left`, VIEW_W / 2, VIEW_H / 2 + 72);
+    const settings = pauseSettingsBounds();
+    drawManaPanel(settings.x, settings.y, settings.width, settings.height,
+      pad && pauseMenuFocus === 'settings' ? '#ffe38a' : '#a98e57');
+    if (pad && pauseMenuFocus === 'settings') drawControllerFocus(settings);
+    ctx.fillText('Settings', VIEW_W / 2, settings.y + 24);
+    ctx.fillText(pad ? `Left / Right: select · Down: Settings · ${confirm}: confirm`
+      : touch ? 'Tap a button above' : 'C · Settings', VIEW_W / 2, VIEW_H / 2 + 80);
     ctx.fillText('Your rooms and progress are saved automatically.', VIEW_W / 2, VIEW_H / 2 + 98);
     drawPauseEquipment();
-    drawAudioPanel();
-    drawAdaptiveToggle();
   }
 
 }
@@ -2853,6 +2870,10 @@ function loop(timestamp) {
 
 function runAction(id, options = {}) {
   if (deathTimer > 0) return;
+  if (mode === 'playing' && showStoryJournal) {
+    if (id === 'journal') toggleStoryJournal();
+    return;
+  }
   // While the full map is open, only the map toggle works and interact travels to the selected room.
   if (showMap && mode === 'playing' && id !== 'map') {
     if (id === 'interact') travelToMapCursor();
@@ -2875,11 +2896,22 @@ function runAction(id, options = {}) {
     case 'weapon3': selectCombatStyle('magic'); break;
     case 'weapon4': selectCombatStyle('brawl'); break;
     case 'map': if (showMap) closeMap(); else openMap(); break;
-    case 'journal': showStoryJournal = !showStoryJournal; break;
+    case 'journal': toggleStoryJournal(); break;
     case 'branches': openBranchScreen(); break;
     case 'withdraw': interact(true); break;
     default: break;
   }
+}
+
+function toggleStoryJournal() {
+  if (mode !== 'playing') return;
+  suppressHeldAttackInput();
+  for (const key of Object.keys(keys)) keys[key] = false;
+  pointer.down = false;
+  resetTouchInput();
+  showStoryJournal = !showStoryJournal;
+  updateTouchControls();
+  updateHud();
 }
 
 function openMap() {
@@ -2949,6 +2981,10 @@ window.addEventListener('keydown', (event) => {
     handleControlsKey(event, key);
     return;
   }
+  if (mode === 'settings') {
+    handleSettingsKey(event, key);
+    return;
+  }
   if (NARRATION_ENABLED && key === 't' && (mode === 'prologue' || mode === 'select' || mode === 'paused' || mode === 'chapter')) {
     setTextToSpeech(audioSettings.tts !== true);
     return;
@@ -3006,8 +3042,7 @@ window.addEventListener('keydown', (event) => {
   if (mode === 'paused') {
     if (key === 'p' || event.key === 'Escape' || key === 'r') resumeGame();
     else if (key === 'x') exitToTitle();
-    else if (key === 'c') openControls('paused');
-    else if (key === 'e') toggleAdaptiveEnemies();
+    else if (key === 'c') openSettings();
     return;
   }
   if (mode === 'playing' && showMap) {
@@ -3020,6 +3055,11 @@ window.addEventListener('keydown', (event) => {
     else if (key === 'p') pauseGame();
     return;
   }
+  if (mode === 'playing' && showStoryJournal) {
+    if (event.key === 'Escape' || actionForKey(key) === 'journal') toggleStoryJournal();
+    else if (key === 'p') pauseGame();
+    return;
+  }
   if (mode === 'playing' && (key === 'p' || event.key === 'Escape')) {
     pauseGame();
     return;
@@ -3029,9 +3069,8 @@ window.addEventListener('keydown', (event) => {
     if (key === 'r' && hasSavedRun()) restoreRun();
     if (key === 'k') openCodex();
     if (key === 'h') openTutorial();
-    if (key === 'c') openControls('select');
+    if (key === 'c') openSettings();
     if (key === 'p') openPrologue();
-    if (event.key === 'Delete') requestProgressReset();
     if (event.key === 'Enter') requestNewRun();
     return;
   }
@@ -3117,6 +3156,10 @@ function updatePointerPosition(event) {
     canvas.style.cursor = branchMapCursor(pointer.x, pointer.y);
     return;
   }
+  if (mode === 'playing' && showStoryJournal) {
+    canvas.style.cursor = pointInBounds(storyJournalCloseBounds()) ? 'pointer' : 'default';
+    return;
+  }
   if (mode === 'playing' && showMap) {
     const room = mapRoomAt(pointer.x, pointer.y);
     if (room && event.pointerType === 'mouse') mapCursor = room;
@@ -3140,13 +3183,18 @@ function updatePointerPosition(event) {
     }) ? 'pointer' : 'default';
     return;
   }
-  if ((mode === 'prologue' || mode === 'select' || mode === 'paused') && (audioSliderDragging || pointerOverAudioPanel())) {
+  if ((mode === 'prologue' || mode === 'settings') && (audioSliderDragging || pointerOverAudioPanel())) {
     canvas.style.cursor = 'pointer';
     return;
   }
-  if (mode === 'paused' && (pointInBounds(adaptiveToggleBounds()) ||
+  if (mode === 'paused' && (pointInBounds(pauseSettingsBounds()) ||
       pointInBounds(pauseButtonBounds('resume')) || pointInBounds(pauseButtonBounds('exit')))) {
     canvas.style.cursor = 'pointer';
+    return;
+  }
+  if (mode === 'settings') {
+    canvas.style.cursor = settingsEntries().filter(id => !AUDIO_FOCUS_ORDER.includes(id))
+      .some(id => pointInBounds(settingsButtonBounds(id))) ? 'pointer' : 'default';
     return;
   }
   if (mode === 'prologue') {
@@ -3168,7 +3216,7 @@ function updatePointerPosition(event) {
     const codex = codexButtonBounds();
     const overCodex = pointer.x >= codex.x && pointer.x <= codex.x + codex.width &&
       pointer.y >= codex.y && pointer.y <= codex.y + codex.height;
-    const overButton = pointInBounds(prologueReplayBounds()) ||
+    const overButton = pointInBounds(settingsMenuBounds()) || pointInBounds(prologueReplayBounds()) ||
       [-1, 1].some((direction) => pointInBounds(rosterPageButtonBounds(direction)));
     canvas.style.cursor = overCard || overStart || overCodex || overButton ? 'pointer' : 'default';
   } else {
@@ -3194,7 +3242,7 @@ canvas.addEventListener('wheel', (event) => {
     handleBranchWheel(event.deltaY, point.x, point.y);
     return;
   }
-  if (mode !== 'playing' || deathTimer > 0) return;
+  if (mode !== 'playing' || deathTimer > 0 || showStoryJournal) return;
   event.preventDefault();
   const now = performance.now();
   if (now - lastWheelSwitch < 180 || event.deltaY === 0) return;
@@ -3217,6 +3265,10 @@ canvas.addEventListener('pointerdown', (event) => {
   }
   if (!event.isPrimary) return;
   updatePointerPosition(event);
+  if (mode === 'playing' && showStoryJournal) {
+    if (event.button === 0 && pointInBounds(storyJournalCloseBounds())) toggleStoryJournal();
+    return;
+  }
   if (mode === 'playing' && showMap) {
     event.preventDefault();
     if (event.button !== 0) return;
@@ -3250,13 +3302,10 @@ canvas.addEventListener('pointerdown', (event) => {
     handleStartingWeaponPointer();
     return;
   }
-  if (mode === 'paused' && pointInBounds(adaptiveToggleBounds())) {
-    toggleAdaptiveEnemies();
-    return;
-  }
-  if (mode === 'paused' && !pointerOverAudioPanel()) {
+  if (mode === 'paused') {
     if (pointInBounds(pauseButtonBounds('resume'))) resumeGame();
     else if (pointInBounds(pauseButtonBounds('exit'))) exitToTitle();
+    else if (pointInBounds(pauseSettingsBounds())) openSettings();
     return;
   }
   if (mode === 'codex') {
@@ -3301,8 +3350,17 @@ canvas.addEventListener('pointerdown', (event) => {
     }
     return;
   }
-  if ((mode === 'prologue' || mode === 'select' || mode === 'paused') && handleAudioPanelPointerDown(pointer.x, pointer.y)) {
+  if ((mode === 'prologue' || mode === 'settings') && handleAudioPanelPointerDown(pointer.x, pointer.y)) {
+    if (mode === 'settings') {
+      resetConfirmTimer = 0;
+      settingsFocus = audioSliderDragging || 'tts';
+      audioFocus = settingsFocus;
+    }
     canvas.setPointerCapture(event.pointerId);
+    return;
+  }
+  if (mode === 'settings') {
+    handleSettingsPointer();
     return;
   }
   if (mode === 'prologue') {
@@ -3323,8 +3381,8 @@ canvas.addEventListener('pointerdown', (event) => {
     return;
   }
   if (mode === 'select') {
-    if (pointInBounds(helpButtonBounds())) {
-      toggleControlsHelp();
+    if (pointInBounds(settingsMenuBounds())) {
+      openSettings();
       return;
     }
     if (pointInBounds(prologueReplayBounds())) {
@@ -3347,16 +3405,6 @@ canvas.addEventListener('pointerdown', (event) => {
     if (pointer.x >= tutorialBtn.x && pointer.x <= tutorialBtn.x + tutorialBtn.width &&
         pointer.y >= tutorialBtn.y && pointer.y <= tutorialBtn.y + tutorialBtn.height) {
       openTutorial();
-      return;
-    }
-    if (pointInBounds(controlsButtonBounds())) {
-      openControls('select');
-      return;
-    }
-    const reset = resetButtonBounds();
-    if (pointer.x >= reset.x && pointer.x <= reset.x + reset.width &&
-        pointer.y >= reset.y && pointer.y <= reset.y + reset.height) {
-      requestProgressReset();
       return;
     }
     const resume = resumeRunBounds();

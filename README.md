@@ -32,7 +32,9 @@ Hollow Sanctum is built from a mix of Manasource assets and is inspired by The M
 
 ### Enemies that adapt
 
-Enemies react to how you play. They respond to the weapon you have been using, and they notice whether you are on keyboard, touch or a controller and adjust to that without changing your aim or controls. If you would rather not have this, switch off **Adaptive enemies** on the pause screen.
+Enemies always react to how you play. They respond to the weapon you have been using, and they notice whether you are on keyboard, touch or a controller and adjust to that without changing your aim or controls.
+
+Open **Settings** from character selection or Pause for Help, Controls and Music/SFX volume. Settings opened from character selection also offers **Reset all progress**, with confirmation; audio and control preferences are kept.
 
 ## Controls
 

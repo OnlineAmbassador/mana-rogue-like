@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { sliceText } = require('./helpers/load');
+const { sliceText, loadFunctions, loadBetween } = require('./helpers/load');
 
 function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {}) {
   const classes = new Set();
@@ -31,7 +31,7 @@ function inputContext({ touch = true, coarse = true, userAgent = 'Android' } = {
     stickKnobEl: { style: {} },
     touchAttackEl: { classList: { add() {}, remove() {} } },
     gamepadInput: { connected: false },
-    lastInputMode: 'touch', lastNonControllerInputMode: 'touch', mode: 'playing', showMap: false,
+    lastInputMode: 'touch', lastNonControllerInputMode: 'touch', mode: 'playing', showMap: false, showStoryJournal: false,
     currentRoom: null,
     branchEditAllowed: () => true,
     hasAffordableSkillGrowth: () => false,
@@ -62,6 +62,7 @@ function controllerContext() {
     touchInput: { attack: false },
     mode: 'playing',
     showMap: false,
+    showStoryJournal: false,
     lastInputMode: 'keyboard',
     lastNonControllerInputMode: 'keyboard',
     mouseAimActive: true,
@@ -94,6 +95,203 @@ function controllerContext() {
   };
   return context;
 }
+
+function pauseControllerContext() {
+  const c = controllerContext();
+  c.gamepad.axes = [0, 0, 0, 0];
+  Object.assign(c, {
+    keys: {}, deathTimer: 0, messageTimer: 0, messageEl: { textContent: '' },
+    saves: 0, closeMap() {}, saveRunState() { c.saves++; },
+    defaultMenuFocus: () => 'resume', updateHud() {},
+    AUDIO_FOCUS_ORDER: ['music', 'sfx', 'tts'], audioSettings: { tts: false },
+    performance: { now: () => 0 }, audioAdjustRepeatAt: 0,
+    adjustAudioVolume() {}, setTextToSpeech() {},
+    resetConfirmTimer: 0, audioSliderDragging: null, hasSavedRun: () => false,
+  });
+  const game = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
+  vm.runInContext(sliceText(game, "let pauseMenuFocus = 'resume';", 'const floorThemes ='), c);
+  const ui = fs.readFileSync(path.join(__dirname, '..', 'gameui.js'), 'utf8');
+  vm.runInContext(sliceText(ui, 'function stepAudioFocus(', 'function drawTtsPrompt('), c);
+  vm.runInContext(sliceText(ui, 'function characterCardBounds(', 'function codexButtonBounds('), c);
+  c.pauseGame();
+  c.pollGamepad();
+  c.press = index => { c.gamepad.buttons[index] = { pressed: true, value: 1 }; c.pollGamepad(); };
+  c.release = () => {
+    c.gamepad.buttons = c.gamepad.buttons.map(() => ({ pressed: false, value: 0 }));
+    c.gamepad.axes = [0, 0, 0, 0];
+    c.pollGamepad();
+  };
+  return c;
+}
+
+test('pause controller selects left/right with D-pad or stick and confirms either action', () => {
+  for (const stick of [false, true]) {
+    const c = pauseControllerContext();
+    assert.equal(vm.runInContext('pauseMenuFocus', c), 'resume');
+    if (stick) { c.gamepad.axes[0] = 0.9; c.pollGamepad(); } else c.press(15);
+    assert.equal(vm.runInContext('pauseMenuFocus', c), 'exit');
+    c.release();
+    if (stick) { c.gamepad.axes[0] = -0.9; c.pollGamepad(); } else c.press(14);
+    assert.equal(vm.runInContext('pauseMenuFocus', c), 'resume');
+    c.release();
+    c.press(0);
+    assert.equal(c.mode, 'playing');
+    c.release();
+    c.pauseGame();
+    c.release();
+    c.press(15);
+    c.release();
+    c.press(0);
+    assert.equal(c.mode, 'select');
+    assert.equal(c.saves, 3, 'both pauses and exiting save the run');
+  }
+});
+
+test('pause Settings opens with the controller and audio cannot trigger pause actions', () => {
+  const c = pauseControllerContext();
+  c.press(15);
+  c.release();
+  c.press(13);
+  assert.equal(vm.runInContext('pauseMenuFocus', c), 'settings');
+  c.release();
+  c.press(0);
+  assert.equal(c.mode, 'settings');
+  assert.equal(c.audioFocus, 'music');
+  c.release();
+  c.press(14);
+  assert.equal(vm.runInContext('pauseMenuFocus', c), 'settings', 'audio adjustment cannot move pause selection');
+  c.release();
+  c.press(0);
+  assert.equal(c.mode, 'settings', 'audio confirm cannot activate Save & exit');
+  c.release();
+  c.press(1);
+  assert.equal(c.audioFocus, null);
+  assert.equal(c.mode, 'paused');
+  c.release();
+  c.press(9);
+  assert.equal(c.mode, 'playing', 'Start always resumes even with Exit selected');
+  c.release();
+  c.pauseGame();
+  assert.equal(vm.runInContext('pauseMenuFocus', c), 'resume', 'each pause starts safely on Resume');
+  c.release();
+  c.press(1);
+  assert.equal(c.mode, 'select', 'existing B exit shortcut is preserved');
+});
+
+function journalContext() {
+  const c = vm.createContext({
+    mode: 'playing', showStoryJournal: false, showMap: false, deathTimer: 0, attackInputSuppressed: false,
+    keys: { w: true }, pointer: { down: true }, player: { meleeCharge: 1, bowHold: 1, magicHold: 1 },
+    touchInput: { attack: true }, gamepadInput: { shoot: true },
+    updateTouchControls() {}, updateHud() {}, resetTouchInput() { c.touchInput.attack = false; },
+    actions: [],
+  });
+  for (const name of ['placeBomb', 'startDash', 'useConsumable', 'useOrbitGuard', 'useClassSignature',
+    'cycleCombatStyle', 'selectCombatStyle', 'interact', 'openBranchScreen']) {
+    c[name] = () => c.actions.push(name);
+  }
+  loadBetween(c, 'game.js', 'function runAction(', 'function openMap(');
+  loadFunctions(c, 'game.js', ['suppressHeldAttackInput', 'update']);
+  return c;
+}
+
+test('journal freezes the entire simulation and blocks every gameplay action until closed', () => {
+  const c = journalContext();
+  c.runAction('journal');
+  assert.equal(c.showStoryJournal, true);
+  assert.equal(c.keys.w, false);
+  assert.equal(c.pointer.down, false);
+  assert.equal(c.touchInput.attack, false);
+  assert.equal(c.player.bowHold, 0);
+  assert.equal(c.player.magicHold, 0);
+  assert.equal(vm.runInContext('attackInputSuppressed', c), true);
+  for (let frame = 0; frame < 60; frame++) c.update(1 / 60);
+  // The early pause guard needs no world/timer state: none may be touched.
+  for (const action of ['bomb', 'dash', 'item', 'shock', 'ability', 'nextWeapon', 'weapon1',
+    'weapon2', 'weapon3', 'weapon4', 'interact', 'withdraw', 'map', 'branches']) c.runAction(action);
+  assert.deepEqual([...c.actions], []);
+  c.runAction('journal');
+  assert.equal(c.showStoryJournal, false);
+  c.runAction('bomb');
+  assert.deepEqual([...c.actions], ['placeBomb']);
+});
+
+test('journal ignores mouse and touch combat but its close button remains usable', () => {
+  for (const pointerType of ['mouse', 'touch']) {
+    const c = journalContext();
+    let pointerDown;
+    Object.assign(c, {
+      VIEW_W: 960, VIEW_H: 540,
+      canvas: { addEventListener(type, handler) { if (type === 'pointerdown') pointerDown = handler; } },
+      updatePointerPosition(event) { c.pointer.x = event.clientX; c.pointer.y = event.clientY; },
+      pointInBounds(b) {
+        return c.pointer.x >= b.x && c.pointer.x <= b.x + b.width &&
+          c.pointer.y >= b.y && c.pointer.y <= b.y + b.height;
+      },
+    });
+    loadFunctions(c, 'gameui.js', ['storyJournalCloseBounds']);
+    loadBetween(c, 'game.js', "canvas.addEventListener('pointerdown',", 'function endBranchPointer(');
+    c.runAction('journal');
+    for (const button of [0, 2]) pointerDown({ isPrimary: true, button, pointerType, clientX: 100, clientY: 100 });
+    assert.equal(c.showStoryJournal, true);
+    assert.equal(c.pointer.down, false);
+    assert.deepEqual([...c.actions], []);
+    const b = c.storyJournalCloseBounds();
+    pointerDown({ isPrimary: true, button: 0, pointerType, clientX: b.x + 10, clientY: b.y + 10 });
+    assert.equal(c.showStoryJournal, false);
+  }
+});
+
+test('journal keyboard blocks bombs and closes with Escape or a rebound journal key', () => {
+  for (const closeKey of ['Escape', 'n']) {
+    const c = journalContext();
+    let keyDown;
+    Object.assign(c, {
+      window: { addEventListener(type, handler) { if (type === 'keydown') keyDown = handler; } },
+      NARRATION_ENABLED: false, setInputMode() {}, updateControlsHint() {}, startGameMusic() {},
+      ttsPromptActive: () => false,
+      actionForKey: key => ({ n: 'journal', b: 'bomb' })[key],
+    });
+    loadBetween(c, 'game.js', 'function chooseCharacter(', "window.addEventListener('keyup',");
+    c.runAction('journal');
+    keyDown({ key: 'b' });
+    assert.deepEqual([...c.actions], []);
+    assert.equal(c.showStoryJournal, true);
+    keyDown({ key: closeKey });
+    assert.equal(c.showStoryJournal, false);
+    assert.equal(c.keys.b, false);
+  }
+});
+
+test('controller journal blocks bombs and vault shortcuts and closes with B or the journal binding', () => {
+  for (const closeButton of [1, 13]) {
+    const c = pauseControllerContext();
+    c.mode = 'playing';
+    c.showStoryJournal = true;
+    let closed = 0;
+    let actions = 0;
+    c.toggleStoryJournal = () => { c.showStoryJournal = false; closed++; };
+    c.runAction = () => actions++;
+    c.interact = () => actions++;
+    c.hasVault = () => true;
+    c.actionForPad = button => ({ 3: 'bomb', 13: 'journal' })[button];
+    c.press(3);
+    assert.equal(actions, 0);
+    assert.equal(c.showStoryJournal, true);
+    c.release();
+    c.press(closeButton);
+    assert.equal(closed, 1);
+    assert.equal(c.showStoryJournal, false);
+  }
+});
+
+test('touch gameplay controls hide and release held attacks while reading the journal', () => {
+  const c = inputContext();
+  c.showStoryJournal = true;
+  c.updateTouchControls();
+  assert.equal(c.touchControlsEl.hidden, true);
+  assert.equal(c.touchInput.attack, false);
+});
 
 test('Build arrow follows real growth readiness only in cleared, editable playing rooms on desktop and touch', () => {
   const context = inputContext();

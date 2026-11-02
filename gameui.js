@@ -89,7 +89,7 @@ function pointerOverAudioPanel() {
 
 function stepAudioFocus(vertical) {
   const index = AUDIO_FOCUS_ORDER.indexOf(audioFocus);
-  if (audioFocus === null) audioFocus = vertical < 0 ? 'tts' : null;
+  if (audioFocus === null) audioFocus = vertical < 0 ? AUDIO_FOCUS_ORDER[AUDIO_FOCUS_ORDER.length - 1] : null;
   else if (index + vertical >= AUDIO_FOCUS_ORDER.length) audioFocus = null;
   else audioFocus = AUDIO_FOCUS_ORDER[Math.max(0, index + vertical)];
 }
@@ -110,47 +110,6 @@ function handleAudioPanelPad(horizontal, confirmPressed) {
     audioAdjustRepeatAt = now + (fresh ? 380 : 90);
   }
   return true;
-}
-
-// Pause-screen switch for input-adaptive enemy tactics (see docs/BALANCE.md).
-function adaptiveToggleBounds() {
-  return { x: 24, y: ttsButtonBounds().y + (NARRATION_ENABLED ? 32 : 0), width: 190, height: 22 };
-}
-
-function toggleAdaptiveEnemies() {
-  gameSettings.adaptiveEnemies = !gameSettings.adaptiveEnemies;
-  try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(gameSettings));
-  } catch (error) {
-    // Storage may be unavailable; the choice then lasts for this session only.
-  }
-}
-
-function adaptiveToggleKeyLabel() {
-  if (lastInputMode !== 'controller') return 'E';
-  return gamepadInput.family === 'ps' ? '△' : 'Y';
-}
-
-function drawAdaptiveToggle() {
-  const bounds = adaptiveToggleBounds();
-  const on = gameSettings.adaptiveEnemies;
-  const reading = { touch: 'touch', keyboard: 'keyboard and mouse', controller: 'gamepad' }[inputAI.mode];
-  ctx.save();
-  ctx.fillStyle = on ? '#30443b' : '#4a2f2f';
-  ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-  ctx.strokeStyle = on ? '#a5c79b' : '#c98a8a';
-  ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-  ctx.fillStyle = '#f0f0e0';
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 11px Arial';
-  ctx.fillText(`ADAPTIVE ENEMIES [${adaptiveToggleKeyLabel()}]: ${on ? 'ON' : 'OFF'}`,
-    bounds.x + bounds.width / 2, bounds.y + 15);
-  ctx.textAlign = 'left';
-  ctx.font = '10px Arial';
-  ctx.fillStyle = '#d6d0be';
-  ctx.fillText(on ? (reading ? `Enemies are adapting to ${reading} play` : 'Enemies adapt to how you play')
-    : 'Original enemy tactics', bounds.x, bounds.y + bounds.height + 13);
-  ctx.restore();
 }
 
 function drawTtsPrompt() {
@@ -202,23 +161,19 @@ function drawAudioPanel() {
     ctx.fillStyle = '#fff0d1';
     ctx.fillRect(bounds.x + bounds.width * value - 4, bounds.y, 8, bounds.height);
   }
-  if (!NARRATION_ENABLED) {
-    ctx.restore();
-    return;
+  if (NARRATION_ENABLED) {
+    const ttsOn = audioSettings.tts === true;
+    ctx.fillStyle = ttsOn ? '#30443b' : '#4a2f2f';
+    ctx.fillRect(tts.x, tts.y, tts.width, tts.height);
+    ctx.strokeStyle = ttsOn ? '#a5c79b' : '#c98a8a';
+    ctx.strokeRect(tts.x, tts.y, tts.width, tts.height);
+    ctx.fillStyle = '#f0f0e0';
+    ctx.textAlign = 'center';
+    ctx.fillText(`NARRATION (TTS) [T]: ${ttsOn ? 'ON' : 'OFF'}`, tts.x + tts.width / 2, tts.y + 15);
   }
-  const ttsOn = audioSettings.tts === true;
-  ctx.fillStyle = ttsOn ? '#30443b' : '#4a2f2f';
-  ctx.fillRect(tts.x, tts.y, tts.width, tts.height);
-  ctx.strokeStyle = ttsOn ? '#a5c79b' : '#c98a8a';
-  ctx.strokeRect(tts.x, tts.y, tts.width, tts.height);
-  ctx.fillStyle = '#f0f0e0';
-  ctx.textAlign = 'center';
-  ctx.fillText(`NARRATION (TTS) [T]: ${ttsOn ? 'ON' : 'OFF'}`, tts.x + tts.width / 2, tts.y + 15);
   if (lastInputMode === 'controller' && audioFocus) {
     const focused = { music: sliderHitBounds(slider), sfx: sliderHitBounds(sfxSlider), tts }[audioFocus];
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(focused.x - 3, focused.y - 3, focused.width + 6, focused.height + 6);
+    drawControllerFocus(focused);
     ctx.fillStyle = '#fff0d1';
     ctx.textAlign = 'left';
     ctx.font = '11px Arial';
@@ -934,6 +889,10 @@ function updateControlsHint() {
     lines = lastInputMode === 'controller'
       ? ['D-Pad Move · A Rebind · X Clear · LB/RB Switch Tab · B Back']
       : ['↑/↓ Choose · Enter Rebind · Del Clear · ←/→ Switch Tab · Esc Back'];
+  } else if (mode === 'settings') {
+    lines = lastInputMode === 'controller'
+      ? ['D-Pad / LS Choose · Left/Right Volume · A/Cross Confirm · B/Circle Back']
+      : ['↑/↓ Choose · ←/→ Volume · Enter Confirm · Esc Back'];
   } else if (mode === 'prologue') {
     lines = lastInputMode === 'controller'
       ? ['D-Pad / LS Read · A/Start Continue']
@@ -952,8 +911,8 @@ function updateControlsHint() {
       : ['←/→ Change Page · H/ESC Back'];
   } else {
     lines = lastInputMode === 'controller'
-      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex · Y How to Play · Back Controls · LB Prologue']
-      : ['←/→ Select · Enter Descend · K Codex · H How to Play · C Controls · P Prologue'];
+      ? ['D-Pad ←/→ Delver · ↑/↓ Menu · X Select · RB Codex · Y How to Play · Back Settings · LB Prologue']
+      : ['←/→ Select · Enter Descend · K Codex · H How to Play · C Settings · P Prologue'];
   }
   const hintText = lines.join('\n');
   if (controlsEl.textContent !== hintText) controlsEl.textContent = hintText;
@@ -1051,6 +1010,27 @@ function drawManaPanel(x, y, width, height, accent = '#c9a65a') {
       ctx.fill();
     }
   }
+  ctx.restore();
+}
+
+function drawControllerFocus(bounds) {
+  const { x, y, width, height } = bounds;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 218, 112, 0.22)';
+  ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
+  ctx.strokeStyle = '#171a15';
+  ctx.lineWidth = 7;
+  ctx.strokeRect(x - 3, y - 3, width + 6, height + 6);
+  ctx.strokeStyle = '#fff2ad';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x - 3, y - 3, width + 6, height + 6);
+  ctx.fillStyle = '#fff2ad';
+  ctx.beginPath();
+  ctx.moveTo(x - 17, y + height / 2 - 7);
+  ctx.lineTo(x - 8, y + height / 2);
+  ctx.lineTo(x - 17, y + height / 2 + 7);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 
@@ -5319,7 +5299,7 @@ function characterStartBounds() {
 }
 
 function menuFocusEntries() {
-  return [...AUDIO_FOCUS_ORDER, 'help', ...(hasSavedRun() ? ['resume', 'start', 'reset'] : ['start', 'reset'])];
+  return ['settings', ...(hasSavedRun() ? ['resume', 'start'] : ['start'])];
 }
 
 function moveMenuFocus(delta) {
@@ -5334,9 +5314,8 @@ function activateMenuFocus() {
     if (menuFocus === 'tts') setTextToSpeech(audioSettings.tts !== true);
     return;
   }
-  if (menuFocus === 'help') toggleControlsHelp();
+  if (menuFocus === 'settings') openSettings();
   else if (menuFocus === 'resume' && hasSavedRun()) restoreRun();
-  else if (menuFocus === 'reset') requestProgressReset();
   else requestNewRun();
 }
 
@@ -5380,18 +5359,120 @@ function changeRosterPage(direction) {
   updateHud();
 }
 
-function resetButtonBounds() {
-  return { x: 29, y: 498, width: 190, height: 28 };
-}
-
 function requestProgressReset() {
-  if (mode !== 'select') return;
+  if (mode !== 'settings' || settingsReturnMode !== 'select') return;
   if (resetConfirmTimer > 0) {
     resetAllProgress();
     return;
   }
   resetConfirmTimer = 5;
-  showMessage('Click RESET again within 5 seconds to erase every unlock, coin, and saved run.', 5);
+  showMessage('Select Reset all progress again within 5 seconds to erase progression and saved runs. Audio and controls are kept.', 5);
+}
+
+let settingsReturnMode = 'select';
+let settingsFocus = 'music';
+
+function settingsEntries() {
+  return [...AUDIO_FOCUS_ORDER, 'help', 'controls', ...(settingsReturnMode === 'select' ? ['reset'] : []), 'back'];
+}
+
+function settingsButtonBounds(id) {
+  return { x: VIEW_W / 2 - 150, y: { help: 174, controls: 232, reset: 290, back: 418 }[id], width: 300, height: 44 };
+}
+
+function settingsMenuBounds() {
+  return { x: VIEW_W - 334, y: 114, width: 150, height: 28 };
+}
+
+function pauseSettingsBounds() {
+  return { x: VIEW_W / 2 - 90, y: 296, width: 180, height: 36 };
+}
+
+function openSettings() {
+  if (mode !== 'select' && mode !== 'paused') return;
+  settingsReturnMode = mode;
+  settingsFocus = 'music';
+  audioFocus = 'music';
+  resetConfirmTimer = 0;
+  audioSliderDragging = null;
+  pointer.down = false;
+  mode = 'settings';
+  updateHud();
+}
+
+function closeSettings() {
+  if (mode !== 'settings') return;
+  mode = settingsReturnMode;
+  audioFocus = null;
+  audioSliderDragging = null;
+  resetConfirmTimer = 0;
+  messageTimer = 0;
+  messageEl.textContent = '';
+  updateHud();
+}
+
+function moveSettingsFocus(delta) {
+  resetConfirmTimer = 0;
+  const entries = settingsEntries();
+  settingsFocus = entries[(entries.indexOf(settingsFocus) + delta + entries.length) % entries.length];
+  audioFocus = AUDIO_FOCUS_ORDER.includes(settingsFocus) ? settingsFocus : null;
+}
+
+function activateSettingsEntry(id = settingsFocus) {
+  if (mode !== 'settings' || !settingsEntries().includes(id)) return;
+  if (id !== 'reset') resetConfirmTimer = 0;
+  if (id === 'help') toggleControlsHelp();
+  else if (id === 'controls') openControls('settings');
+  else if (id === 'reset') requestProgressReset();
+  else if (id === 'back') closeSettings();
+  else if (id === 'tts') setTextToSpeech(audioSettings.tts !== true);
+}
+
+function handleSettingsKey(event, key) {
+  if (key === 'escape' || key === 'backspace') closeSettings();
+  else if (key === 'arrowup' || key === 'w') moveSettingsFocus(-1);
+  else if (key === 'arrowdown' || key === 's') moveSettingsFocus(1);
+  else if ((key === 'arrowleft' || key === 'arrowright') && ['music', 'sfx'].includes(settingsFocus)) {
+    adjustAudioVolume(settingsFocus, key === 'arrowleft' ? -0.05 : 0.05);
+  } else if (key === 'enter' || key === ' ') activateSettingsEntry();
+}
+
+function handleSettingsPointer() {
+  for (const id of settingsEntries().filter(id => !AUDIO_FOCUS_ORDER.includes(id))) {
+    if (pointInBounds(settingsButtonBounds(id))) {
+      settingsFocus = id;
+      audioFocus = null;
+      activateSettingsEntry(id);
+      return;
+    }
+  }
+}
+
+function drawSettings() {
+  ctx.fillStyle = '#20221d';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  drawManaPanel(12, 12, VIEW_W - 24, VIEW_H - 24);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#efd4a0';
+  ctx.font = 'bold 29px Georgia';
+  ctx.fillText('SETTINGS', VIEW_W / 2, 64);
+  drawAudioPanel();
+  for (const id of settingsEntries().filter(id => !AUDIO_FOCUS_ORDER.includes(id))) {
+    const b = settingsButtonBounds(id);
+    const selected = settingsFocus === id;
+    drawManaPanel(b.x, b.y, b.width, b.height, selected ? '#ffe38a' : '#a98e57');
+    if (selected && lastInputMode === 'controller') drawControllerFocus(b);
+    ctx.fillStyle = '#fff0d1';
+    ctx.font = 'bold 16px Arial';
+    const label = { help: `Help: ${controlsHelpVisible ? 'On' : 'Off'}`, controls: 'Controls',
+      reset: resetConfirmTimer > 0 ? 'Confirm: erase all progress' : 'Reset all progress', back: 'Back' }[id];
+    ctx.fillText(label, b.x + b.width / 2, b.y + 28);
+  }
+  if (resetConfirmTimer > 0) {
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#ffd0c0';
+    ctx.fillText('Erases progression and saved runs. Audio and controls are kept.', VIEW_W / 2, 360);
+  }
 }
 
 function codexButtonBounds() {
@@ -5686,23 +5767,15 @@ function drawCharacterSelect() {
   ctx.fillStyle = '#fff1c9';
   ctx.fillText(lastInputMode === 'controller' ? `HOW TO PLAY  [${padLabels().y}]` : 'HOW TO PLAY  [H]',
     tutorialButton.x + tutorialButton.width / 2, tutorialButton.y + 20);
-  const controlsBtn = controlsButtonBounds();
+  const controlsBtn = settingsMenuBounds();
   ctx.fillStyle = pointInBounds(controlsBtn) ? '#52664f' : '#30443b';
   ctx.fillRect(controlsBtn.x, controlsBtn.y, controlsBtn.width, controlsBtn.height);
   ctx.strokeStyle = '#a5c79b';
   ctx.strokeRect(controlsBtn.x, controlsBtn.y, controlsBtn.width, controlsBtn.height);
   ctx.fillStyle = '#e4f0d7';
   ctx.font = 'bold 12px Arial';
-  ctx.fillText(lastInputMode === 'controller' ? `CONTROLS  [${padLabels().back || 'Back'}]` : 'CONTROLS  [C]',
+  ctx.fillText(lastInputMode === 'controller' ? `SETTINGS  [${padLabels().back || 'Back'}]` : 'SETTINGS  [C]',
     controlsBtn.x + controlsBtn.width / 2, controlsBtn.y + 19);
-  const helpBtn = helpButtonBounds();
-  ctx.fillStyle = pointInBounds(helpBtn) ? '#52664f' : '#30443b';
-  ctx.fillRect(helpBtn.x, helpBtn.y, helpBtn.width, helpBtn.height);
-  ctx.strokeStyle = '#a5c79b';
-  ctx.strokeRect(helpBtn.x, helpBtn.y, helpBtn.width, helpBtn.height);
-  ctx.fillStyle = '#e4f0d7';
-  ctx.font = 'bold 12px Arial';
-  ctx.fillText(`HELP: ${controlsHelpVisible ? 'ON' : 'OFF'}`, helpBtn.x + helpBtn.width / 2, helpBtn.y + 19);
 
   characterRoster.slice(pageStart, pageStart + rosterPageSize).forEach((entry, pageIndex) => {
     const index = pageStart + pageIndex;
@@ -5760,11 +5833,6 @@ function drawCharacterSelect() {
     ctx.fillStyle = '#fff0d1';
     ctx.font = 'bold 13px Arial';
     ctx.fillText('RESUME SAVED DESCENT', VIEW_W / 2, resume.y + 21);
-    if (lastInputMode === 'controller' && menuFocus === 'resume') {
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(resume.x - 3, resume.y - 3, resume.width + 6, resume.height + 6);
-    }
   } else {
     ctx.fillStyle = '#c5b9a6';
     ctx.font = '12px Arial';
@@ -5783,25 +5851,10 @@ function drawCharacterSelect() {
   ctx.fillText(newRunConfirmTimer > 0 ? 'CONFIRM NEW DESCENT' : 'DESCEND', VIEW_W / 2, start.y + 25);
   const focusBounds = {
     start,
-    reset: resetButtonBounds(),
     resume: resumeRunBounds(),
-    help: helpButtonBounds(),
+    settings: settingsMenuBounds(),
   }[menuFocus];
-  if (lastInputMode === 'controller' && focusBounds && menuFocus !== 'resume') {
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(focusBounds.x - 3, focusBounds.y - 3, focusBounds.width + 6, focusBounds.height + 6);
-  }
-  const reset = resetButtonBounds();
-  ctx.fillStyle = resetConfirmTimer > 0 ? '#6b2b2b' : '#2b2f2c';
-  ctx.fillRect(reset.x, reset.y, reset.width, reset.height);
-  ctx.strokeStyle = resetConfirmTimer > 0 ? '#e08a8a' : '#68776b';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(reset.x, reset.y, reset.width, reset.height);
-  ctx.fillStyle = '#f0d8d8';
-  ctx.font = 'bold 11px Arial';
-  ctx.fillText(resetConfirmTimer > 0 ? 'SELECT AGAIN TO ERASE ALL' : 'RESET ALL PROGRESS  [Del]', reset.x + reset.width / 2, reset.y + 18);
-  drawAudioPanel();
+  if (lastInputMode === 'controller' && focusBounds) drawControllerFocus(focusBounds);
 }
 
 function drawCodex() {
@@ -5906,14 +5959,6 @@ function controlsBackBounds() {
   return { x: VIEW_W / 2 - 65, y: 468, width: 130, height: 28 };
 }
 
-function controlsButtonBounds() {
-  return { x: VIEW_W - 334, y: 114, width: 150, height: 28 };
-}
-
-function helpButtonBounds() {
-  return { x: VIEW_W - 494, y: 114, width: 150, height: 28 };
-}
-
 function pointInBounds(bounds, x = pointer.x, y = pointer.y) {
   return x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height;
 }
@@ -5934,6 +5979,7 @@ function openBranchScreen() {
     showMessage('Clear the room before changing weapon branches.', 2);
     return false;
   }
+  const firstAffordable = !branchState().buildPromptSeen ? soleAffordableSkillGrowth() : null;
   acknowledgeBuildPrompt();
   showMap = false;
   showStoryJournal = false;
@@ -5947,7 +5993,7 @@ function openBranchScreen() {
   pointer.down = false;
   mode = 'branches';
   branchGuide = null;
-  startBranchTour();
+  startBranchTour(firstAffordable);
   updateTouchControls();
   return true;
 }
@@ -6347,21 +6393,26 @@ function dismissBranchGuide() {
 }
 
 // First visit: the token, the suggested path, activation and upgrade buttons, one tap at a time.
-function branchTourSteps() {
+function branchTourSteps(soleGrowth = null) {
   const layout = branchMapLayout();
   const first = affordableSkillGrowth() || branchSuggestion[0] || suggestedPath(branchTab)[0];
   return [
-    { node: branchMapFocus, label: 'This is you. Tap a node (or walk) to look at it.' },
-    first ? { node: first.mapId, label: 'Gold numbers are a suggested path for how you play. Any other node is fine too.' } : null,
+    soleGrowth ? { node: soleGrowth.mapId, label: 'You can afford this upgrade. Select Upgrade to unlock it.' }
+      : { node: branchMapFocus, label: 'This is you. Tap a node (or walk) to look at it.' },
+    !soleGrowth && first ? { node: first.mapId, label: 'Gold numbers are a suggested path for how you play. Any other node is fine too.' } : null,
     { rect: layout.toggle, label: 'Activate or Deactivate a branch. Only active branches (up to 3) work.' },
     { rect: layout.unlock, label: 'Upgrade: stats cost ore, crystal or zeny. Padlocked abilities cost Life Stones.' },
     { rect: BRANCH_GUIDE_RECTS.status, label: 'Your career XP, bank and pouch. Upgrading needs enough XP first.' },
   ].filter(Boolean);
 }
 
-function startBranchTour() {
-  if (branchState().guided) return;
-  branchTour = { step: -1, steps: branchTourSteps() };
+function startBranchTour(soleGrowth = null) {
+  if (branchState().guided) {
+    if (soleGrowth) pointBranchGuide({ node: soleGrowth.mapId, hold: true },
+      'You can afford this upgrade. Select Upgrade to unlock it.');
+    return;
+  }
+  branchTour = { step: -1, steps: branchTourSteps(soleGrowth) };
   advanceBranchTour();
 }
 
@@ -6994,11 +7045,33 @@ function branchNodeState(node, loadout) {
     color: on ? (powered ? '#f0c75a' : '#c98a3c') : '#8fae86' };
 }
 
+function affordableBranchMapNodeIds(style = branchTab) {
+  const ids = new Set();
+  for (const option of affordableSkillGrowthOptions()) {
+    if (style === 'confluence') {
+      ids.add(option.style === 'confluence' ? option.mapId : `${option.style}/${option.mapId}`);
+    } else if (option.style === style) ids.add(option.mapId);
+  }
+  return ids;
+}
+
+function drawAffordableBranchPulse(x, y, radius, now) {
+  const pulse = 0.5 + Math.sin(now * Math.PI / 1000) * 0.5;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 214, 110, ${0.4 + pulse * 0.5})`;
+  ctx.lineWidth = 2 + pulse;
+  ctx.beginPath();
+  ctx.arc(x, y, radius + 5 + pulse * 5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawBranchMap(loadout, now) {
   const view = BRANCH_MAP_VIEW;
   const nodes = branchMapNodes();
   const zoom = branchCam.zoom;
   const pulse = 0.5 + Math.sin(now / 260) * 0.5;
+  const affordable = affordableBranchMapNodeIds();
   ctx.save();
   ctx.beginPath();
   ctx.rect(view.x, view.y, view.width, view.height);
@@ -7068,6 +7141,7 @@ function drawBranchMap(loadout, now) {
     if (x < view.x - 60 || x > view.x + view.width + 60 || y < view.y - 40 || y > view.y + view.height + 40) continue;
     const state = states.get(node.id);
     const focused = node.id === branchMapFocus;
+    if (affordable.has(node.id)) drawAffordableBranchPulse(x, y, radius, now);
     if (state.lit) drawEffect('glow', 0, x, y, { width: radius * 4.2, tint: state.color, alpha: 0.32 + pulse * 0.12, smooth: true });
     ctx.beginPath();
     if (node.kind === 'synergy' || node.cf?.kind === 'fusion') {
@@ -7082,7 +7156,8 @@ function drawBranchMap(loadout, now) {
     ctx.fill();
     ctx.lineWidth = focused ? 3 : 2;
     ctx.strokeStyle = focused ? '#fff4d5' : node.kind === 'heart' ? state.color
-      : state.lit ? '#ffe9a8' : state.next ? `rgba(240, 212, 134, ${0.45 + pulse * 0.4})` : state.owned ? state.color : '#4a4536';
+      : state.lit ? '#ffe9a8' : affordable.has(node.id) ? `rgba(240, 212, 134, ${0.45 + pulse * 0.4})`
+        : state.next ? '#9a895e' : state.owned ? state.color : '#4a4536';
     ctx.stroke();
     const nodeStyle = node.style || branchTab;
     const named = zoom >= 0.6 || focused;
@@ -7697,6 +7772,7 @@ function drawBoonChoice() {
     const hovered = lastInputMode === 'keyboard' && pointInBounds(bounds);
     const focused = index === boonFocus || hovered;
     drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#7ee8ff' : '#796b47');
+    if (lastInputMode === 'controller' && index === boonFocus) drawControllerFocus(bounds);
     const centerX = bounds.x + bounds.width / 2;
     ctx.font = 'bold 44px Georgia';
     ctx.fillStyle = focused ? '#bff4ff' : '#d8cfb2';
@@ -7800,6 +7876,7 @@ function drawElementChoice() {
     const hovered = unlocked && lastInputMode === 'keyboard' && pointInBounds(bounds);
     const focused = unlocked && (element === focusedElement || hovered);
     drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#ffe38a' : unlocked ? color : '#3f3b30');
+    if (lastInputMode === 'controller' && unlocked && element === focusedElement) drawControllerFocus(bounds);
     const centerX = bounds.x + bounds.width / 2;
     if (unlocked) {
       drawEffect('glow', 0, centerX, bounds.y + 50, { width: focused ? 120 : 90, tint: color, alpha: focused ? 0.5 : 0.28, smooth: true });
@@ -7869,6 +7946,7 @@ function drawStartingWeaponChoice() {
     const bounds = startingWeaponBounds(index);
     const focused = index === startingWeaponFocus || pointInBounds(bounds);
     drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#7ee8ff' : '#796b47');
+    if (lastInputMode === 'controller' && index === startingWeaponFocus) drawControllerFocus(bounds);
     const centerX = bounds.x + bounds.width / 2;
     const item = weaponById(BASE_WEAPON_FOR_STYLE[style]);
     drawShopItemIcon({ id: `weapon-${item.id}`, icon: `weapon-${item.id}`, kind: 'weapon' }, centerX, bounds.y + 48);
@@ -7972,6 +8050,7 @@ function drawAbilityChoice() {
     const focused = index === abilityFocus || hovered;
     const accent = slot.kind === 'random' ? elementColor : slot.kind === 'skip' ? '#5f5a4a' : '#796b47';
     drawManaPanel(bounds.x, bounds.y, bounds.width, bounds.height, focused ? '#ffe38a' : accent);
+    if (lastInputMode === 'controller' && index === abilityFocus) drawControllerFocus(bounds);
     const midY = bounds.y + bounds.height / 2;
     if (slot.kind === 'skip') {
       ctx.textAlign = 'center';
@@ -8022,7 +8101,7 @@ function drawAbilityChoice() {
 }
 
 function openControls(from) {
-  if (mode !== 'select' && mode !== 'paused') return;
+  if (mode !== 'settings') return;
   controlsReturnMode = from;
   controlsTab = lastInputMode === 'controller' ? 'pad' : 'key';
   controlsRow = 0;
@@ -8035,6 +8114,8 @@ function closeControls() {
   if (mode !== 'controls') return;
   controlsCapture = false;
   mode = controlsReturnMode;
+  audioFocus = null;
+  settingsFocus = 'controls';
   updateHud();
 }
 
@@ -8168,6 +8249,7 @@ function drawControls() {
     if (selected) {
       ctx.strokeStyle = '#a5c79b';
       ctx.strokeRect(b.x, b.y, b.width, b.height);
+      if (lastInputMode === 'controller') drawControllerFocus(b);
     }
     ctx.textAlign = 'left';
     ctx.font = 'bold 13px Arial';
@@ -8195,6 +8277,7 @@ function drawControls() {
   if (controlsRow === actions.length) {
     ctx.strokeStyle = '#e0c77c';
     ctx.strokeRect(resetBounds.x, resetBounds.y, resetBounds.width, resetBounds.height);
+    if (lastInputMode === 'controller') drawControllerFocus(resetBounds);
   }
   ctx.fillStyle = '#f0d9a8';
   ctx.font = 'bold 13px Arial';
@@ -8311,7 +8394,7 @@ function tutorialPages() {
       ['Doors', 'A shut door is locked until the room is clear, or needs a key. An open door is free to use. Bombed entrances stay hidden until you find them.'],
       ['Enemies', 'Foes adapt to your input after about 2.5 seconds: touch draws close-range jukes, gamepads draw stronger flanking and staggered overlaps, and mouse/keyboard draws more predictive aim. Enemies steer around cover. Ranged windups show a locked aim line: change direction after they commit. Later floors also mix in mini boss moves.'],
       ['Bosses', 'Bosses have three distinct phases. Reaching a new phase restores up to TWO hearts. Watch fixed ground warnings: heavy slams cost TWO hearts. Bosses also mark your path and use wide pulses in later phases. Bosses resist slowing, but have readable windups and recovery windows. When defeated, their summoned attacks clear and the descent opens.'],
-      ['Wide pulses', `A large marked circle warns before the blast and is too wide to walk out of in time. Ordinary mobs can use it too. Press ${b('dash')} at DASH NOW to use your brief invulnerability. Dashing too early may leave you exposed. These checks only begin from the second floor, with Dash ready and no competing hostile shots or nearby ground hazards. They can be turned off with Adaptive enemies on the pause screen.`],
+      ['Wide pulses', `A large marked circle warns before the blast and is too wide to walk out of in time. Ordinary mobs can use it too. Press ${b('dash')} at DASH NOW to use your brief invulnerability. Dashing too early may leave you exposed. These checks only begin from the second floor, with Dash ready and no competing hostile shots or nearby ground hazards. Adaptive enemies are always enabled.`],
       ['Altar rooms', `Some floors have an unlocked side room with two altars (R on the map). Stand at one and press ${b('interact')}. The left altar takes one heart container for an upgrade. The right altar seals the doors and starts an ambush; clearing it gives a heart vessel. Each room allows one choice.`],
       ['Optional trials', 'Key-locked trial rooms are enemy-free mini-games: route light with mirrors, repeat a rune sequence, or chase moving sparks. Complete one for a collectible reward; an uncollected regional Codex appears most of the time.'],
     ] },
@@ -8443,6 +8526,10 @@ function returnToCharacterSelect() {
   updateHud();
 }
 
+function storyJournalCloseBounds() {
+  return { x: VIEW_W / 2 - 200, y: VIEW_H - 88, width: 400, height: 32 };
+}
+
 function drawStoryJournal() {
   ctx.save();
   drawManaPanel(72, 35, VIEW_W - 144, VIEW_H - 70);
@@ -8478,9 +8565,14 @@ function drawStoryJournal() {
     const lines = wrapCanvasText(entry.text, 106, y, textWidth, 20);
     y += lines * 20 + 18;
   }
-  ctx.fillStyle = '#b9c8b3';
+  const close = storyJournalCloseBounds();
+  drawManaPanel(close.x, close.y, close.width, close.height);
+  ctx.fillStyle = '#fff0d1';
   ctx.font = '12px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('J / left-stick click · Close journal', VIEW_W / 2, VIEW_H - 68);
+  const closeHint = lastInputMode === 'touch' ? 'Tap here' : lastInputMode === 'controller'
+    ? `${padButtonLabel(bindings.pad.journal)} / ${gamepadInput.family === 'ps' ? 'Circle' : 'B'}`
+    : `${keyLabel(bindings.key.journal)} / Esc`;
+  ctx.fillText(`PAUSED · ${closeHint} · Close journal`, VIEW_W / 2, VIEW_H - 68);
   ctx.restore();
 }

@@ -98,6 +98,116 @@ test('invulnerability and Aegis still block half-heart damage', () => {
   assert.equal(c.player.aegisCharges, 0);
 });
 
+test('Brawler blocks exactly 45% of roll pairs and halves 40% of the remaining hits', () => {
+  const c = combat();
+  c.character = { id: 'brawler', className: 'Brawler' };
+  const enemy = { x: 120, y: 100, boss: true };
+  c.enemies.push(enemy);
+  const outcomes = { blocked: 0, half: 0, full: 0 };
+  for (let block = 0; block < 100; block++) {
+    for (let half = 0; half < 100; half++) {
+      const rolls = [(block + 0.5) / 100, (half + 0.5) / 100];
+      c.Math = Object.assign(Object.create(Math), { random: () => rolls.shift() });
+      Object.assign(c.player, { hp: 4, invuln: 0, armor: 0 });
+      c.damagePlayer(2, enemy);
+      if (c.player.hp === 4) {
+        outcomes.blocked++;
+        assert.equal(rolls.length, 1, 'a successful block does not roll damage reduction');
+      } else if (c.player.hp === 3.5) outcomes.half++;
+      else {
+        outcomes.full++;
+        assert.equal(c.player.hp, 2, 'failed defense preserves the original heavy hit');
+      }
+      assert.equal(c.player.invuln, vm.runInContext('PLAYER_HIT_INVULN_SECONDS', c));
+    }
+  }
+  assert.deepEqual(outcomes, { blocked: 4500, half: 2200, full: 3300 });
+});
+
+test('Brawler defense covers mobs, bosses and hostile projectiles with any selected weapon, not other classes or self damage', () => {
+  const c = combat();
+  c.character = { className: 'Brawler' };
+  c.Math = Object.assign(Object.create(Math), { random: () => 0 });
+  const mob = { x: 120, y: 100 };
+  const boss = { x: 120, y: 100, boss: true };
+  const projectile = { x: 120, y: 100, vx: -100 };
+  c.enemies.push(mob, boss);
+  c.enemyProjectiles.push(projectile);
+  for (const style of ['melee', 'bow', 'magic', 'brawl']) {
+    c.activeCombatStyle = style;
+    for (const source of [mob, boss, projectile, { owner: 'enemy', knockFrom: {}, damage: 2 }]) {
+      Object.assign(c.player, { hp: 4, armor: 1, invuln: 0, knockback: null });
+      assert.equal(c.damagePlayer(2, source), false);
+      assert.equal(c.player.hp, 4);
+      assert.equal(c.player.armor, 1, 'a block does not consume clothing');
+      assert.equal(c.player.knockback, null);
+    }
+  }
+  for (const source of [null, { owner: 'player', fuse: 0 }]) {
+    Object.assign(c.player, { hp: 4, armor: 0, invuln: 0 });
+    c.damagePlayer(1, source);
+    assert.equal(c.player.hp, 3, 'self/environment damage is unchanged');
+  }
+  for (const className of ['Mage', 'Warrior', 'Delver', 'Echo Warden']) {
+    c.character = { className };
+    Object.assign(c.player, { hp: 4, armor: 0, invuln: 0 });
+    c.damagePlayer(1, mob);
+    assert.equal(c.player.hp, 3, `${className} does not gain the Brawler passive`);
+  }
+});
+
+test('Brawler block thresholds are exclusive and a blocked boss strike cannot shove the player', () => {
+  const c = combat();
+  c.character = { className: 'Brawler' };
+  const enemy = { x: 100, y: 100 };
+  c.enemies.push(enemy);
+  let rolls = [0.45, 0.4];
+  c.Math = Object.assign(Object.create(Math), { random: () => rolls.shift() });
+  c.damagePlayer(1, enemy);
+  assert.equal(c.player.hp, 3, '45% and 40% are outside the successful ranges');
+  rolls = [0.45, 0.399999];
+  c.player.invuln = 0;
+  c.damagePlayer(2, enemy);
+  assert.equal(c.player.hp, 2.5, 'the reduction caps even a heavy hit at half a heart');
+  c.ROOM_W = 960;
+  c.ROOM_H = 540;
+  c.spawnBossStrike(100, 100, 90, 0.1, 2, enemy);
+  c.player.invuln = 0;
+  rolls = [0.449999];
+  c.updateBossStrikes(0.2);
+  assert.equal(c.player.hp, 2.5);
+  assert.deepEqual([c.player.x, c.player.y], [100, 100]);
+});
+
+test('Brawler can block hook and hazard projectiles before their secondary effects apply', () => {
+  const c = combat();
+  c.character = { className: 'Brawler' };
+  Object.assign(c, {
+    ROOM_W: 960, ROOM_H: 540, projectiles: [], companions: [],
+    strikeBombWithProjectile: () => false, updateMeleeProjectileParry: () => false,
+  });
+  const source = fs.readFileSync(path.join(__dirname, '..', 'game.js'), 'utf8');
+  const loop = sliceText(source, '  for (let i = enemyProjectiles.length - 1;', '  updateParticles(dt);');
+  vm.runInContext(`function updateTestShots(dt) { ${loop} }`, c);
+  for (const kind of ['hook', 'venom', 'web-glob', 'ice-orb', 'void-orb', 'normal']) {
+    const projectile = { x: 100, y: 100, vx: 0, vy: 0, radius: 5, ttl: 3, kind, ownerKind: 'spider' };
+    c.enemyProjectiles.push(projectile);
+    c.player.invuln = 0;
+    c.player.hook = null;
+    c.Math = Object.assign(Object.create(Math), { random: () => 0 });
+    c.updateTestShots(0.01);
+    assert.equal(c.enemyProjectiles.length, 0);
+    assert.equal(c.groundHazards.length, 0, `${kind} is stopped before leaving a hazard`);
+    assert.equal(c.player.hook, null);
+    assert.equal(c.player.hp, 4);
+  }
+  c.Math = Object.assign(Object.create(Math), { random: () => 0.99 });
+  c.player.invuln = 0;
+  c.enemyProjectiles.push({ x: 100, y: 100, vx: 0, vy: 0, radius: 5, ttl: 3, kind: 'hook', ownerKind: 'spider' });
+  c.updateTestShots(0.01);
+  assert.equal(c.player.hook.kind, 'spider', 'failed blocks preserve the existing hook effect');
+});
+
 test('five room clears summon three individual weapon familiars after unlock', () => {
   const c = combat();
   Object.assign(c, {

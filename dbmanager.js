@@ -731,6 +731,7 @@ function resetAllProgress() {
       localStorage.removeItem(key);
     } catch (error) {
       messageEl.textContent = 'Some saved data could not be cleared by this browser.';
+      return false;
     }
   }
   stopChapterNarration();

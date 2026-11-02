@@ -197,50 +197,30 @@ test('R10: controller >= keyboard/mouse >= touch on every threat axis, and every
   }
 });
 
-test('T1: with Adaptive enemies off, combat matches the behavior from before input adaptation', () => {
+test('T1: adaptive enemies stay active even when an old profile opted out', () => {
   const c = adopt(combat(), 'controller', 3);
   c.updateInputAI(6);
+  const before = { ...c.aiInputProfile() };
   c.gameSettings = { adaptiveEnemies: false };
   const profile = c.aiInputProfile();
-  assert.deepEqual({ ...profile }, { strafe: 0, flankLead: 0, dodgeBonus: 0, nearDodgeBonus: 0, shotShare: 0,
-    beatScale: 1, tempo: 1, attackSlots: 0, warning: 1.1 });
-  const enemy = { x: 500, y: 300, hp: 6, radius: 15, behavior: 'hover', attackCooldown: 0, phase: 1 };
-  c.enemies.push(enemy);
-  assert.equal(c.dashPressureBlocker(enemy), 'adaptive-off');
-  assert.equal(c.tryDashPressure(enemy), false);
-  const windup = windupEnemy(c, 200);
-  assert.equal(windup.attackSpacingTimer, 0.55, 'floor-three spacing is unchanged');
-  assert.equal(windup.shotTarget.x, c.player.x, 'a still player is aimed at directly');
-  c.playerVelocity = { x: 100, y: 0 };
-  const moving = windupEnemy(c, 200);
-  assert.ok(Math.abs((moving.shotTarget.x - c.player.x) / 100 - 0.2) < 1e-9, 'floor lead alone: (3 - 1) * 0.1 seconds');
+  assert.deepEqual({ ...profile }, before);
+  assert.equal(c.adaptiveEnemiesEnabled(), true);
+  assert.ok(profile.tempo > 1);
+  assert.ok(profile.attackSlots > 0);
   const boss = { x: 700, y: 300, hp: 100, boss: true, phase: 1, radius: 40,
     behavior: 'jacko-idle', pressureCooldown: 0, smackCooldown: 10, speed: 150 };
   c.enemies.push(boss);
   c.applyBossPressure(boss, 0.016, -1, 0, 400);
-  assert.equal(c.bossStrikes.length, 0, 'major bosses go back to skipping path-marker pressure');
-  const mini = { ...boss, boss: false, miniBoss: true };
-  c.enemies.push(mini);
-  c.applyBossPressure(mini, 0.016, -1, 0, 400);
-  assert.equal(c.bossStrikes.length, 1, 'minibosses always used it');
-  c.gameSettings = { adaptiveEnemies: true };
-  c.bossStrikes.length = 0;
-  boss.pressureCooldown = 0;
-  c.applyBossPressure(boss, 0.016, -1, 0, 400);
-  assert.equal(c.bossStrikes.length, 1, 'switching it back on restores the new boss pressure');
+  assert.equal(c.bossStrikes.length, 1, 'major-boss path pressure stays enabled');
 });
 
-test('T2: the Adaptive enemies setting defaults on and survives a missing or broken store', () => {
-  const run = (stored) => {
-    const context = vm.createContext({ localStorage: { getItem: () => stored }, console });
-    loadBetween(context, 'game.js', 'const SETTINGS_STORAGE_KEY', 'const AUDIO_STORAGE_KEY');
-    return vm.runInContext('gameSettings', context);
-  };
-  assert.equal(run(null).adaptiveEnemies, true);
-  assert.equal(run('{}').adaptiveEnemies, true);
-  assert.equal(run('{"adaptiveEnemies":false}').adaptiveEnemies, false);
-  assert.equal(run('{"adaptiveEnemies":"no"}').adaptiveEnemies, true);
-  assert.equal(run('not json').adaptiveEnemies, true);
+test('T2: adaptive enemy behavior no longer depends on stored preferences', () => {
+  const c = combat();
+  for (const stored of [null, '{}', '{"adaptiveEnemies":false}', 'not json']) {
+    c.localStorage = { getItem() { throw new Error(`Should not read legacy setting: ${stored}`); } };
+    assert.equal(c.adaptiveEnemiesEnabled(), true);
+  }
+  assert.ok(!source('game.js').includes('mana-hollow-sanctum-settings'));
 });
 
 test('wide-pulse blockers are named, independent and evaluated in a fixed order', () => {
@@ -367,34 +347,9 @@ test('BALANCE.md and this file describe the same set of rules', () => {
   assert.match(source('mobmanager.js'), /BALANCE\.md/, 'the tuning table points at the document');
 });
 
-test('the pause toggle flips the setting, persists it, and labels the state and the input being read', () => {
-  const stored = {};
-  const texts = [];
-  const ctx = new Proxy({}, {
-    get: (target, method) => (method === 'fillText' ? (text) => texts.push(text) : () => {}),
-    set: () => true,
-  });
-  const context = vm.createContext({
-    ctx, gameSettings: { adaptiveEnemies: true }, SETTINGS_STORAGE_KEY: 'settings-key', NARRATION_ENABLED: false,
-    localStorage: { setItem: (key, value) => { stored[key] = value; } },
-    lastInputMode: 'keyboard', gamepadInput: { family: 'xbox' }, inputAI: { mode: 'touch' },
-    ttsButtonBounds: () => ({ x: 24, y: 100, width: 170, height: 22 }),
-  });
-  loadFunctions(context, 'gameui.js',
-    ['adaptiveToggleBounds', 'toggleAdaptiveEnemies', 'adaptiveToggleKeyLabel', 'drawAdaptiveToggle']);
-  context.drawAdaptiveToggle();
-  assert.deepEqual(texts, ['ADAPTIVE ENEMIES [E]: ON', 'Enemies are adapting to touch play']);
-  context.toggleAdaptiveEnemies();
-  assert.equal(JSON.parse(stored['settings-key']).adaptiveEnemies, false);
-  texts.length = 0;
-  context.drawAdaptiveToggle();
-  assert.deepEqual(texts, ['ADAPTIVE ENEMIES [E]: OFF', 'Original enemy tactics']);
-  context.lastInputMode = 'controller';
-  assert.equal(context.adaptiveToggleKeyLabel(), 'Y');
-  context.gamepadInput.family = 'ps';
-  assert.equal(context.adaptiveToggleKeyLabel(), '△');
-  context.localStorage = { setItem: () => { throw new Error('blocked'); } };
-  context.toggleAdaptiveEnemies();
-  assert.equal(context.gameSettings.adaptiveEnemies, true, 'a blocked store still lets the choice apply this session');
-  assert.ok(context.adaptiveToggleBounds().y >= 100, 'the button sits below the audio panel');
+test('no menu, keyboard or controller surface can disable adaptive enemies', () => {
+  for (const file of ['game.js', 'gameui.js', 'controllermanager.js']) {
+    assert.ok(!source(file).includes('toggleAdaptiveEnemies'), file);
+    assert.ok(!source(file).includes('drawAdaptiveToggle'), file);
+  }
 });

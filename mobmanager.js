@@ -132,9 +132,8 @@ function updateInputAI(dt) {
   Object.assign(inputAI, stepInputAI(inputAI, lastInputMode, dt, currentRoom));
 }
 
-// The pause-menu "Adaptive enemies" setting. Off restores the combat behavior from before input adaptation.
 function adaptiveEnemiesEnabled() {
-  return typeof gameSettings === 'undefined' || gameSettings.adaptiveEnemies !== false;
+  return true;
 }
 
 function adaptiveActive() {
@@ -2098,7 +2097,7 @@ function spawnBossStrike(x, y, radius, duration, damage, knockFrom = null) {
   bossStrikes.push({
     x: clamp(x, 70, ROOM_W - 70),
     y: clamp(y, 70, ROOM_H - 70),
-    radius, duration, timer: duration, damage, knockFrom,
+    radius, duration, timer: duration, damage, knockFrom, owner: 'enemy',
   });
 }
 
@@ -2164,8 +2163,8 @@ function updateBossStrikes(dt) {
     addParticles(strike.x, strike.y, '#ff6a4a', 14, 150);
     triggerCameraShake('groundPound');
     if (distanceBetween(player, strike) < strike.radius + player.radius * 0.6) {
-      damagePlayer(strike.damage, strike);
-      if (strike.knockFrom && mode === 'playing') {
+      const hit = damagePlayer(strike.damage, strike);
+      if (hit !== false && strike.knockFrom && mode === 'playing') {
         const angle = Math.atan2(player.y - strike.y, player.x - strike.x);
         player.x = clamp(player.x + Math.cos(angle) * 90, 12, ROOM_W - 12);
         player.y = clamp(player.y + Math.sin(angle) * 90, 12, ROOM_H - 12);
