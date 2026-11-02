@@ -194,7 +194,7 @@ test('every guardian drops a Lifestone, which is never a normal reward and never
 });
 
 test('baseline real sword, arrow, and magic attacks need over 40 seconds of uninterrupted hits', () => {
-  for (const cls of ['Mage', 'Rogue', 'Warrior']) {
+  for (const cls of ['Mage', 'Rogue', 'Warrior', 'Brawler']) {
     const c = combat();
     c.character = { className: cls, startingStyle: cls === 'Warrior' ? 'melee' : cls === 'Rogue' ? 'bow' : 'magic',
       fireDelay: cls === 'Warrior' ? 0.28 : 0.23 };
@@ -205,6 +205,12 @@ test('baseline real sword, arrow, and magic attacks need over 40 seconds of unin
     c.performMeleeAttack(false);
     const swordDps = c.player.meleeSwings[0].damage / c.player.fireCooldown;
     assert.ok(boss.hp / swordDps > 40, `${cls} sword`);
+    c.activeCombatStyle = 'brawl';
+    c.player.fireCooldown = 0;
+    c.player.meleeSwings.length = 0;
+    c.performMeleeAttack(false);
+    const fistDps = c.player.meleeSwings[0].damage / c.player.fireCooldown;
+    assert.ok(boss.hp / fistDps > 40, `${cls} fists`);
     for (const style of ['bow', 'magic']) {
       c.activeCombatStyle = style;
       c.player.fireCooldown = 0;

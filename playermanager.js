@@ -91,22 +91,23 @@ function chooseElement(index) {
 
 // ---- Starting ability: after the element, a run can open with one weapon ability the profile has found ----
 const START_ABILITY_IDS = {
-  melee: ['mod-windup', 'mod-flurry', 'mod-cinder'],
+  melee: ['mod-cinder'],
+  brawl: ['mod-windup', 'mod-flurry'],
   bow: ['mod-pierce', 'mod-draw', 'mod-quiver', 'mod-storm-arrows'],
   magic: ['mod-splash', 'mod-chain', 'mod-lingering', 'spore-bloom'],
 };
 // The random card leans on the run's element: each weapon has one ability that suits it.
 const ELEMENT_ABILITY_AFFINITY = {
-  bubble: { melee: 'mod-flurry', bow: 'mod-pierce', magic: 'mod-lingering' },
-  fire: { melee: 'mod-cinder', bow: 'mod-draw', magic: 'mod-splash' },
-  lightning: { melee: 'mod-flurry', bow: 'mod-storm-arrows', magic: 'mod-chain' },
-  gas: { melee: 'mod-cinder', bow: 'mod-quiver', magic: 'mod-lingering' },
-  spore: { melee: 'mod-flurry', bow: 'mod-pierce', magic: 'spore-bloom' },
-  ice: { melee: 'mod-windup', bow: 'mod-pierce', magic: 'mod-splash' },
-  wind: { melee: 'mod-flurry', bow: 'mod-quiver', magic: 'mod-chain' },
-  earth: { melee: 'mod-windup', bow: 'mod-draw', magic: 'mod-splash' },
+  bubble: { melee: 'mod-cinder', bow: 'mod-pierce', magic: 'mod-lingering', brawl: 'mod-flurry' },
+  fire: { melee: 'mod-cinder', bow: 'mod-draw', magic: 'mod-splash', brawl: 'mod-flurry' },
+  lightning: { melee: 'mod-cinder', bow: 'mod-storm-arrows', magic: 'mod-chain', brawl: 'mod-flurry' },
+  gas: { melee: 'mod-cinder', bow: 'mod-quiver', magic: 'mod-lingering', brawl: 'mod-flurry' },
+  spore: { melee: 'mod-cinder', bow: 'mod-pierce', magic: 'spore-bloom', brawl: 'mod-flurry' },
+  ice: { melee: 'mod-cinder', bow: 'mod-pierce', magic: 'mod-splash', brawl: 'mod-windup' },
+  wind: { melee: 'mod-cinder', bow: 'mod-quiver', magic: 'mod-chain', brawl: 'mod-flurry' },
+  earth: { melee: 'mod-cinder', bow: 'mod-draw', magic: 'mod-splash', brawl: 'mod-windup' },
 };
-const BASE_WEAPON_FOR_STYLE = { melee: 'blade', bow: 'bow', magic: 'magic' };
+const BASE_WEAPON_FOR_STYLE = { melee: 'blade', bow: 'bow', magic: 'magic', brawl: 'fists' };
 const START_ABILITY_ROWS = 4;
 let abilitySlots = null;
 let abilityFocus = 0;
@@ -210,6 +211,7 @@ function highlightStartBranch(item) {
 // Puts a weapon of the ability's family in the main hand (the old main moves to the off hand) unless one is
 // already ready to use. Returns the weapon now held, or null when nothing changed.
 function holdStartAbilityWeapon(style) {
+  if (echoArsenalActive()) return null;
   const family = (id) => weaponById(id)?.family;
   if (family(weaponHands.main) === style || (offhandActive() && family(weaponHands.off) === style)) return null;
   const previous = weaponHands.main;
@@ -256,12 +258,16 @@ function chooseStartAbility(index = abilityFocus) {
   return true;
 }
 
-const STARTING_WEAPON_STYLES = ['melee', 'bow', 'magic'];
+const STARTING_WEAPON_STYLES = ['melee', 'bow', 'magic', 'brawl'];
 let startingWeaponPending = false;
 let startingWeaponFocus = 0;
 let startingWeaponGuardUntil = 0;
 
 function openStartingWeaponChoice() {
+  if (echoArsenalActive()) {
+    startingWeaponPending = false;
+    return false;
+  }
   startingWeaponPending = true;
   startingWeaponFocus = Math.max(0, STARTING_WEAPON_STYLES.indexOf(activeCombatStyle));
   for (const key of Object.keys(keys)) keys[key] = false;
@@ -273,6 +279,7 @@ function openStartingWeaponChoice() {
 }
 
 function chooseStartingWeapon(index = startingWeaponFocus) {
+  if (echoArsenalActive()) return false;
   const style = STARTING_WEAPON_STYLES[index];
   if (mode !== 'weapon' || !startingWeaponPending || !style) return false;
   if (!setWeaponHand('main', BASE_WEAPON_FOR_STYLE[style])) return false;
@@ -335,8 +342,8 @@ const STAT_COST_RULES = {
   parryWindow: ['zeny', (value) => value * 600],
 };
 const ABILITY_TIER_COST = { lifeStone: 1 };
-const BRANCH_STYLES = ['melee', 'bow', 'magic'];
-const BRANCH_STYLE_NAMES = { melee: 'Blade', bow: 'Bow', magic: 'Magic' };
+const BRANCH_STYLES = ['melee', 'bow', 'magic', 'brawl'];
+const BRANCH_STYLE_NAMES = { melee: 'Sword', bow: 'Bow', magic: 'Magic', brawl: 'Brawler' };
 const skillBranches = [
   { id: 'prism', style: 'magic', name: 'Prism', icon: '◇', items: ['prism'], tiers: [
     { fx: { shots: 1 }, text: '+1 shot in a fan' },
@@ -382,12 +389,12 @@ const skillBranches = [
     { fx: { reach: 1.1 }, text: '+10% reach' },
     { fx: { arc: 0.3 }, text: 'Wider swings' },
     { fx: { damage: 1.15 }, text: '+15% damage' }] },
-  { id: 'flurry', style: 'melee', name: 'Flurry', icon: '≋', items: ['mod-flurry'], tiers: [
+  { id: 'flurry', style: 'melee', name: 'Blade Tempo', icon: '≋', items: [], tiers: [
     { fx: { rate: 0.9 }, text: 'Swing 10% faster' },
     { fx: { rate: 0.9 }, text: 'Swing 10% faster again' },
     { fx: { damage: 1.1 }, text: '+10% damage' }] },
-  { id: 'windup', style: 'melee', name: 'Wind-Up', icon: '◎', items: ['mod-windup'], tiers: [
-    { fx: { mode: 'charge' }, text: 'Hold to charge a spin' },
+  { id: 'windup', style: 'melee', name: 'Heavy Slash', icon: '◎', items: [], tiers: [
+    { fx: { mode: 'charge' }, text: 'Hold to charge a heavy sword slash' },
     { fx: { chargeSpeed: 1.3 }, text: 'Charge 30% faster' },
     { fx: { damage: 1.2 }, text: '+20% damage' }] },
   { id: 'cinder', style: 'melee', name: 'Cinder', icon: '♨', items: ['mod-cinder'], tiers: [
@@ -398,8 +405,30 @@ const skillBranches = [
     { fx: { parryWindow: 0.1 }, text: 'Longer parry window' },
     { fx: { parryDamage: 1.4 }, text: 'Parried shots hit 40% harder' },
     { fx: { damage: 1.1, parryWindow: 0.06 }, text: '+10% damage, even longer parry' }] },
+  { id: 'brawl-flurry', style: 'brawl', name: 'Flurry', icon: '≋', items: ['mod-flurry'], tiers: [
+    { fx: { rate: 0.92 }, text: 'Punch 8% faster' },
+    { fx: { rate: 0.94 }, text: 'Punch 6% faster again' },
+    { fx: { damage: 1.1 }, text: '+10% fist damage' }] },
+  { id: 'brawl-windup', style: 'brawl', name: 'Twisting Fist', icon: '◎', items: ['mod-windup'], tiers: [
+    { fx: { mode: 'charge' }, text: 'Hold and release a twisting fist sweep' },
+    { fx: { chargeSpeed: 1.2 }, text: 'Wind up 20% faster' },
+    { fx: { damage: 1.15 }, text: '+15% fist damage' }] },
+  { id: 'brawl-power', style: 'brawl', name: 'Heavy Hands', icon: '✸', items: [], tiers: [
+    { fx: { damage: 1.08 }, text: '+8% fist damage' },
+    { fx: { reach: 1.08 }, text: '+8% fist reach' },
+    { fx: { damage: 1.12 }, text: '+12% fist damage' }] },
+  { id: 'brawl-rush', style: 'brawl', name: 'Meteor Rush', icon: '»', items: [], tiers: [
+    { fx: { dashStrike: true }, text: 'Brawler dash hits each foe and breakable once' },
+    { fx: { dashDamage: 0.2 }, text: '+20% rush damage' },
+    { fx: { dashDamage: 0.2 }, text: '+20% rush damage again' }] },
+  { id: 'brawl-guard', style: 'brawl', name: 'Iron Guard', icon: '◇', items: [], tiers: [
+    { fx: { brace: true }, text: 'Brief half-heart protection after a rush; 3 s recovery' },
+    { fx: { damage: 1.08 }, text: '+8% fist damage' },
+    { fx: { reach: 1.06 }, text: '+6% fist reach' }] },
 ];
 const branchSynergies = [
+  { id: 'swift-power', style: 'brawl', branches: ['brawl-flurry', 'brawl-power'], name: 'Swift Power', text: '+5% fist damage and recovery', fx: { damage: 1.05, rate: 0.95 } },
+  { id: 'iron-comet', style: 'brawl', branches: ['brawl-rush', 'brawl-guard'], name: 'Iron Comet', text: '+15% rush damage', fx: { dashDamage: 0.15 } },
   { id: 'fork-storm', style: 'magic', branches: ['prism', 'conduit'], name: 'Fork Storm', text: 'Split shots arc +1', fx: { chain: 1 } },
   { id: 'firedamp', style: 'magic', branches: ['impact', 'miasma'], name: 'Firedamp', text: 'Bursts grow and leave clouds', fx: { explode: 16, linger: 'short' } },
   { id: 'supernova', style: 'magic', branches: ['focus', 'impact'], name: 'Supernova', text: '+20% damage, +20 burst', fx: { damage: 1.2, explode: 20 } },
@@ -417,12 +446,16 @@ const BRANCH_MULTIPLIED_FX = new Set(['damage', 'rate', 'chargeSpeed', 'reach', 
 const fallbackBranchState = createBranchState();
 
 function createBranchState() {
-  return { xp: 0, unlocks: {}, loadouts: { melee: [], bow: [], magic: [] }, element: null, elements: [],
+  return { xp: 0, unlocks: {}, loadouts: { melee: [], bow: [], magic: [], brawl: [] }, element: null, elements: [],
     weapons: createWeaponState(), confluence: [], play: null, startAbility: null, gridVersion: 1, statNodes: [] };
 }
 
 const SKILL_GRID_VERSION = 1;
 const SKILL_ROUTE_STATS = {
+  brawl: [
+    { name: 'Swiftness', text: 'Fist recovery +3%', fx: { rate: 0.97 }, cost: { zeny: 15 } },
+    { name: 'Power', text: 'Fist damage +4%', fx: { damage: 1.04 }, cost: { darkCrystal: 1 } },
+  ],
   melee: [
     { name: 'Strength', text: 'Sword damage +4%', fx: { damage: 1.04 }, cost: { darkCrystal: 1 } },
     { name: 'Reach', text: 'Sword reach +3%', fx: { reach: 1.03 }, cost: { ironOre: 2 } },
@@ -533,7 +566,7 @@ function emptyBranchFx() {
   return {
     mode: null, triple: false, damage: 1, rate: 1, chargeSpeed: 1, pierce: 0, chain: 0, explode: 0, linger: null,
     shots: 0, reach: 1, arc: 0, burn: false, fireWall: false, parryWindow: 0, parryDamage: 1,
-    moveSpeed: 1, splashChance: 0,
+    moveSpeed: 1, splashChance: 0, dashDamage: 0, dashStrike: false, brace: false,
   };
 }
 
@@ -576,6 +609,11 @@ function branchEffects(style) {
     const nodeFx = node?.kind === 'stat' ? CONFLUENCE_STATS[node.stat]?.fx : node?.kind === 'trinity' ? CONFLUENCE_TRINITY.fx : null;
     if (nodeFx) mergeBranchFx(fx, nodeFx);
   }
+  if (confluenceFusionActive('battle-rhythm')) {
+    if (style === 'brawl') fx.damage *= 1.08;
+    if (style === 'melee') fx.rate *= 0.95;
+  }
+  if (confluenceFusionActive('swift-draw') && (style === 'brawl' || style === 'bow')) fx.rate *= 0.95;
   return fx;
 }
 
@@ -775,6 +813,14 @@ const CONFLUENCE_BRIDGES = [
     stats: ['tempo', 'might', 'vigor', 'haste'],
     fusion: { id: 'spellblade', name: 'Spellblade', icon: 'ϟ', text: 'Charged swings release a wave of your element.' },
     move: { id: 'earthshaker', name: 'Earthshaker', icon: '⛰', text: 'Dash while holding attack to leap and smash the ground: a shockwave that stuns and throws foes back.' } },
+  { id: 'fist-edge', styles: ['brawl', 'melee'], ends: ['brawl-power', 'cleave'], color: '#ffc56b', optional: true,
+    stats: ['haste', 'might', 'vigor', 'reach'],
+    fusion: { id: 'battle-rhythm', name: 'Battle Rhythm', icon: '»', text: 'Fists deal 8% more damage; swords recover 5% faster.' },
+    move: { id: 'comet-strike', name: 'Comet Strike', icon: '»', text: 'Fist dashes strike every foe and breakable on the path once.' } },
+  { id: 'fist-string', styles: ['brawl', 'bow'], ends: ['brawl-flurry', 'quickdraw'], color: '#c6cf75', optional: true,
+    stats: ['haste', 'stride', 'vigor', 'might'],
+    fusion: { id: 'swift-draw', name: 'Swift Draw', icon: '»', text: 'Fists and arrows recover 5% faster.' },
+    move: { id: 'flow-step', name: 'Flow Step', icon: '»', text: 'Walk 4% faster with every weapon.' } },
 ];
 const CONFLUENCE_TRINITY = { name: 'Trinity', icon: '❂', fx: { damage: 1.25, rate: 0.9 },
   text: '+25% damage, 10% faster attacks, and every fusion works whatever you hold.' };
@@ -812,11 +858,11 @@ function confluenceNodes() {
     });
     nodes.push({ id: part('g2'), kind: 'seal', bridge, cost: CONFLUENCE_COSTS.seal, links: linksAt(7) });
     nodes.push({ id: part('fusion'), kind: 'fusion', bridge, fusion: bridge.fusion, cost: CONFLUENCE_COSTS.fusion,
-      links: [...linksAt(4), part('move')] });
+      links: [...linksAt(4), part('move'), ...(bridge.optional ? ['cf:trinity'] : [])] });
     nodes.push({ id: part('move'), kind: 'move', bridge, move: bridge.move, cost: CONFLUENCE_COSTS.move, links: [part('fusion')] });
   }
   nodes.push({ id: 'cf:trinity', kind: 'trinity', cost: CONFLUENCE_COSTS.trinity,
-    links: CONFLUENCE_BRIDGES.map((bridge) => `cf:${bridge.id}:fusion`) });
+    links: CONFLUENCE_BRIDGES.filter((bridge) => !bridge.optional).map((bridge) => `cf:${bridge.id}:fusion`) });
   confluenceNodeCache = nodes;
   return nodes;
 }
@@ -830,7 +876,7 @@ function confluenceOwned(id) {
   return confluenceState().includes(id);
 }
 
-// The Trinity needs every fusion; any other node needs one owned neighbour.
+// The Trinity needs the original three fusions; other nodes need one owned neighbour.
 function confluenceReachable(node, owned = confluenceOwned) {
   if (node.kind === 'trinity') return node.links.every(owned);
   return node.links.some(owned);
@@ -866,7 +912,7 @@ function confluenceStatCount(stat) {
 }
 
 function confluenceSpeedMultiplier() {
-  return Math.pow(1.04, confluenceStatCount('stride'));
+  return Math.pow(1.04, confluenceStatCount('stride')) * (confluenceMoveOwned('flow-step') ? 1.04 : 1);
 }
 
 // Whether every owned node would still reach a tier III root without `removedId`, or with one branch's tier lowered.
@@ -894,7 +940,7 @@ function confluenceFusionActive(fusionId) {
   const bridge = CONFLUENCE_BRIDGES.find((entry) => entry.fusion.id === fusionId);
   if (!bridge || !confluenceOwned(`cf:${bridge.id}:fusion`)) return false;
   if (confluenceOwned('cf:trinity')) return true;
-  return bridge.styles.includes(weaponById(weaponHands.main)?.family);
+  return bridge.styles.includes(offhandContext ? currentAttackStyle() : weaponById(weaponHands.main)?.family);
 }
 
 function confluenceMoveOwned(moveId) {
@@ -933,7 +979,7 @@ function recordPlaystyle(style, charged) {
 function playstyleShare(style) {
   const play = playState();
   const total = BRANCH_STYLES.reduce((sum, key) => sum + play[key].use, 0);
-  return total > 0 ? play[style].use / total : 1 / 3;
+  return total > 0 ? play[style].use / total : 1 / BRANCH_STYLES.length;
 }
 
 // Fraction of a family's attacks that were charged; null until there are enough to judge.
@@ -1070,9 +1116,12 @@ const OFFHAND_DAMAGE_SCALE = 0.6;
 const OFFHAND_RATE_SCALE = 1.35;
 const OFFHAND_RANGED_RANGE = 380;
 const weaponCatalog = [
-  { id: 'blade', family: 'melee', name: 'Blade', icon: '⚔', base: true, text: 'Your fists and any blade you find.' },
+  { id: 'blade', family: 'melee', name: 'Sword', icon: '⚔', base: true, text: 'Hack-and-slash sword strikes and timed parries.' },
   { id: 'bow', family: 'bow', name: 'Bow', icon: '➶', base: true, text: 'Tap for arrows; Longdraw holds for a beam.' },
   { id: 'magic', family: 'magic', name: 'Magic', icon: '✦', base: true, text: 'Shots of your chosen element.' },
+  { id: 'fists', family: 'brawl', name: 'Fists', icon: '»', base: true, text: 'Swift punches and twisting charged fists; no projectile parries.' },
+  { id: 'leather-gloves', family: 'brawl', name: 'Leather Gloves', icon: '»', text: 'Light gloves: quicker punches with a little less power.', fx: { rate: 0.9, damage: 0.95 } },
+  { id: 'iron-gauntlets', family: 'brawl', name: 'Iron Gauntlets', icon: '◇', text: 'Heavy gauntlets: stronger fists with slower recovery.', fx: { rate: 1.12, damage: 1.18 } },
   { id: 'axe', family: 'melee', name: 'Axe', icon: '🪓', text: 'Slow, wide chops that knock foes back.',
     fx: { damage: 1.35, rate: 1.3, arc: 0.35, knockback: 1.8 } },
   { id: 'halberd', family: 'melee', name: 'Halberd', icon: '⍿', text: 'A long, narrow thrust.',
@@ -1091,6 +1140,10 @@ const weaponCatalog = [
 let weaponHands = { main: 'magic', off: 'blade' };
 // Set only while the off hand attacks, so the shared attack code aims and shapes for that weapon.
 let offhandContext = null;
+
+function echoArsenalActive(entry = character) {
+  return entry?.id === 'echo-bound-delver';
+}
 
 function weaponById(id) {
   return weaponCatalog.find((entry) => entry.id === id) || null;
@@ -1117,7 +1170,7 @@ function dualGripOwned() {
 }
 
 function heldWeaponId() {
-  return offhandContext ? weaponHands.off : weaponHands.main;
+  return offhandContext ? offhandContext.weaponId || weaponHands.off : weaponHands.main;
 }
 
 function weaponHandOf(id) {
@@ -1142,7 +1195,7 @@ function weaponShape(style) {
   const fx = held?.family === style ? held.fx || {} : {};
   const shape = { damage: 1, rate: 1, reach: 1, arc: 0, knockback: 0, stun: 0, speed: 1, range: 1, size: 1, homing: 0, ...fx };
   if (held?.family === style) shape.damage *= weaponProficiency(held.id);
-  if (offhandContext) {
+  if (offhandContext && !offhandContext.echo) {
     shape.damage *= OFFHAND_DAMAGE_SCALE;
     shape.rate *= OFFHAND_RATE_SCALE;
   }
@@ -1166,14 +1219,25 @@ function savedWeaponHands(entry = character) {
 }
 
 function applyWeaponHands(hands) {
-  weaponHands = { main: hands.main, off: hands.off };
-  activeCombatStyle = weaponById(hands.main)?.family || activeCombatStyle;
+  weaponHands = echoArsenalActive() ? { main: 'magic', off: 'blade' } : { main: hands.main, off: hands.off };
+  activeCombatStyle = weaponById(weaponHands.main)?.family || activeCombatStyle;
+  if (echoArsenalActive()) {
+    meleeWeapons.add('sword');
+    startingWeaponPending = false;
+  }
   resetChargeState();
-  if (player) player.offhand = { cooldown: 0, charge: 0 };
+  if (player) {
+    player.offhand = { cooldown: 0, charge: 0 };
+    player.echoWeapons = {};
+  }
 }
 
 // Setting a weapon into the hand the other one holds swaps them.
 function setWeaponHand(slot, id) {
+  if (echoArsenalActive()) {
+    showMessage('Echo-Bound Delver always wields Sword, Arrows, Magic and Fists together.', 3);
+    return false;
+  }
   if (!['main', 'off'].includes(slot) || !weaponById(id)) return false;
   const other = slot === 'main' ? 'off' : 'main';
   const next = { ...weaponHands };
@@ -1318,13 +1382,14 @@ function unweaveNode(kind, id) {
 }
 
 function offhandActive() {
+  if (echoArsenalActive()) return false;
   const off = weaponHands.off;
   return dualGripOwned() && Boolean(weaponById(off)) && off !== weaponHands.main;
 }
 
 function offhandRange(style) {
-  if (style !== 'melee') return OFFHAND_RANGED_RANGE * weaponShape(style).range;
-  return 92 * weaponShape('melee').reach * branchEffects('melee').reach + 12;
+  if (!isCloseCombatStyle(style)) return OFFHAND_RANGED_RANGE * weaponShape(style).range;
+  return (style === 'brawl' ? 64 : 92) * weaponShape(style).reach * branchEffects(style).reach + 12;
 }
 
 // The foe nearest to where the player is looking, inside the cone and range; null when the player looks away.
@@ -1353,33 +1418,45 @@ function offhandTargetAngle(range) {
 }
 
 function offhandChargeTime(style) {
-  if (style === 'melee') return meleeChargeTime();
+  if (isCloseCombatStyle(style)) return meleeChargeTime(style);
   if (style === 'bow') return BOW_TAP_WINDOW + bowChargeTime();
   return 0.9 / branchEffects('magic').chargeSpeed;
 }
 
-// Runs one off-hand attack through the main attack code, then restores everything the main hand owns.
-function performOffhandAttack(angle, action) {
-  const family = weaponById(weaponHands.off).family;
+// Shares attack code without sharing cooldowns or input buffers with the main weapon.
+function performOffhandAttack(angle, action, echoWeapon = null, echoState = null) {
+  const family = weaponById(echoWeapon || weaponHands.off).family;
   const saved = {
     style: activeCombatStyle, cooldown: player.fireCooldown, lookX: player.lookX, lookY: player.lookY,
     spin: player.spin, pulse: player.attackPulse, animStyle: player.attackAnimationStyle, animTimer: player.attackAnimationTimer,
     swapCooldown: weaponSwapCooldown,
     meleeCharge: player.meleeCharge, bowHold: player.bowHold, magicHold: player.magicHold, chargeFraction: player.chargeFraction,
+    meleeBuffer: player.meleeBuffer, bowBuffer: player.bowBuffer,
   };
-  offhandContext = { angle };
+  offhandContext = { angle, weaponId: echoWeapon || weaponHands.off, echo: Boolean(echoWeapon) };
   activeCombatStyle = family;
-  player.fireCooldown = 0;
+  player.fireCooldown = echoState ? echoState.cooldown : 0;
+  if (echoState) {
+    player.meleeCharge = echoState.meleeCharge || 0;
+    player.bowHold = echoState.bowHold || 0;
+    player.meleeBuffer = echoState.meleeBuffer || null;
+    player.bowBuffer = echoState.bowBuffer || 0;
+  }
   try {
     action(family);
-    player.offhand.cooldown = player.fireCooldown;
+    if (echoState) {
+      Object.assign(echoState, {
+        cooldown: player.fireCooldown, meleeCharge: player.meleeCharge, bowHold: player.bowHold,
+        meleeBuffer: player.meleeBuffer, bowBuffer: player.bowBuffer,
+      });
+    } else player.offhand.cooldown = player.fireCooldown;
   } finally {
     offhandContext = null;
     activeCombatStyle = saved.style;
     player.fireCooldown = saved.cooldown;
     player.lookX = saved.lookX;
     player.lookY = saved.lookY;
-    player.spin = saved.spin;
+    if (!echoWeapon || !isCloseCombatStyle(family)) player.spin = saved.spin;
     player.attackPulse = saved.pulse;
     player.attackAnimationStyle = saved.animStyle;
     player.attackAnimationTimer = saved.animTimer;
@@ -1388,12 +1465,36 @@ function performOffhandAttack(angle, action) {
     player.bowHold = saved.bowHold;
     player.magicHold = saved.magicHold;
     player.chargeFraction = saved.chargeFraction;
+    player.meleeBuffer = saved.meleeBuffer;
+    player.bowBuffer = saved.bowBuffer;
+  }
+}
+
+function updateEchoWeapons(dt, control) {
+  const states = player.echoWeapons ||= {};
+  const angle = currentAimAngle();
+  for (const style of ['melee', 'bow', 'brawl']) {
+    const state = states[style] ||= { cooldown: 0 };
+    state.cooldown = Math.max(0, state.cooldown - dt * curioMultiplier('fire'));
+    if (!control || mode !== 'playing') {
+      state.meleeCharge = state.bowHold = state.bowBuffer = 0;
+      state.meleeBuffer = null;
+      continue;
+    }
+    performOffhandAttack(angle, () => {
+      if (isCloseCombatStyle(style)) updateMeleeInput(dt);
+      else updateBowInput(dt);
+    }, BASE_WEAPON_FOR_STYLE[style], state);
   }
 }
 
 // The off hand follows its own family tree: with that family's charge branch highlighted it charges while a foe
 // stays in the cone and releases a charged attack; otherwise it taps at its own, slower rate.
 function updateOffhand(dt, control = true) {
+  if (echoArsenalActive()) {
+    updateEchoWeapons(dt, control);
+    return;
+  }
   const state = player.offhand ||= { cooldown: 0, charge: 0 };
   state.cooldown = Math.max(0, state.cooldown - dt * (typeof curioMultiplier === 'function' ? curioMultiplier('fire') : 1));
   if (!control || mode !== 'playing' || !offhandActive()) {
@@ -1417,7 +1518,7 @@ function updateOffhand(dt, control = true) {
     if (state.charge < needed) return;
     state.charge = 0;
     performOffhandAttack(angle, (style) => {
-      if (style === 'melee') performMeleeAttack(true);
+      if (isCloseCombatStyle(style)) performMeleeAttack(true);
       else if (style === 'bow') shoot({ charge: 1 });
       else shoot({ magicCharge: 1 });
     });
@@ -1425,7 +1526,7 @@ function updateOffhand(dt, control = true) {
   }
   if (state.cooldown > 0) return;
   performOffhandAttack(angle, (style) => {
-    if (style === 'melee') performMeleeAttack(false);
+    if (isCloseCombatStyle(style)) performMeleeAttack(false);
     else if (style === 'bow') shoot({ quick: true });
     else shoot();
   });
@@ -1468,6 +1569,10 @@ function resetChargeState() {
   player.bowHold = 0;
   player.magicHold = 0;
   player.chargeFraction = 0;
+  for (const state of Object.values(player.echoWeapons || {})) {
+    state.meleeCharge = state.bowHold = state.bowBuffer = 0;
+    state.meleeBuffer = null;
+  }
 }
 
 // Prism's fan only exists while a highlighted branch carries it; otherwise its damage split is undone.
@@ -1488,7 +1593,7 @@ function characterProfile(entry = character) {
   const pick = (key) => (cls[key] ?? 1) * (race[key] ?? 1);
   return {
     melee: pick('melee'), meleeRate: pick('meleeRate'), bow: pick('bow'), bowRate: pick('bowRate'),
-    magic: pick('magic'),
+    magic: pick('magic'), brawl: pick('brawl'), brawlRate: pick('brawlRate'),
   };
 }
 
@@ -1502,7 +1607,8 @@ function styleUnlocked() {
 
 function styleSynergy(style) {
   const profile = characterProfile();
-  const strong = style === 'melee' ? profile.melee >= 1.2 : style === 'bow' ? profile.bow >= 1.2 || profile.bowRate >= 1.2 : profile.magic >= 1.2;
+  const strong = isCloseCombatStyle(style) ? profile[style] >= 1.2
+    : style === 'bow' ? profile.bow >= 1.2 || profile.bowRate >= 1.2 : profile.magic >= 1.2;
   return strong && Boolean(activeWeaponMod(style));
 }
 
@@ -1511,7 +1617,7 @@ function styleSynergy(style) {
 const STYLE_HEAT_HALF_LIFE = 4;
 const STYLE_HEAT_MIN = 2;
 const STYLE_HEAT_LEAD = 1.25;
-const styleHeat = { melee: 0, bow: 0, magic: 0 };
+const styleHeat = { melee: 0, bow: 0, magic: 0, brawl: 0 };
 let dominantAIStyle = null;
 let styleShiftAnnounced = false;
 // Swapping weapons is free but not instant, so rapid swapping cannot sidestep the mob response above.
@@ -2137,18 +2243,20 @@ function spawnPlayerProjectile(projectile) {
 
 function performMeleeSwing(baseAngle, damageScale = 1, charged = false) {
   const originY = attackOriginY();
-  const ownedWeapons = [...meleeWeapons];
-  const fx = branchEffects('melee');
-  const shape = weaponShape('melee');
+  const style = currentAttackStyle() === 'brawl' ? 'brawl' : 'melee';
+  const brawling = style === 'brawl';
+  const ownedWeapons = brawling ? ['hands'] : meleeWeapons.has('daggers') ? ['daggers'] : ['sword'];
+  const fx = branchEffects(style);
+  const shape = weaponShape(style);
   const reachBoost = (charged ? 1.25 : 1) * fx.reach * shape.reach;
   const arc = clamp((charged ? Math.PI : 0.95) + fx.arc + shape.arc, 0.3, Math.PI);
   const lensReach = 1 + MELEE_REACH_PER_LENS * (weapon.rangeLevel || 0);
   const reachOf = (item) => (item === 'sword' ? 92 : item === 'daggers' ? 53 : 66) * reachBoost * lensReach;
   const strikeRange = Math.max(...ownedWeapons.map(reachOf));
-  const meleeProfile = characterProfile().melee * (styleSynergy('melee') ? 1.2 : 1) * fx.damage * shape.damage;
+  const meleeProfile = characterProfile()[style] * (styleSynergy(style) ? 1.2 : 1) * fx.damage * shape.damage;
   const damage = Math.max(1, Math.round((player.damage + weapon.damageBonus +
-    ownedWeapons.reduce((bonus, item) => bonus + (item === 'sword' ? 2 : item === 'daggers' ? 1 : 0), 0)) * damageScale * meleeProfile));
-  if (!offhandContext) {
+    ownedWeapons.reduce((bonus, item) => bonus + (item === 'sword' ? 2 : 1), 0)) * damageScale * meleeProfile));
+  if (!brawling && (!offhandContext || offhandContext.echo)) {
     player.swordParryDamage = damage;
     player.swordParryRewarded = false;
     player.swordParryTimer = Math.max(player.swordParryTimer, 0.28 + fx.parryWindow);
@@ -2209,20 +2317,23 @@ function performMeleeSwing(baseAngle, damageScale = 1, charged = false) {
       arc,
       weapon: item,
       variant: shape.variant,
-      offhand: Boolean(offhandContext),
+      offhand: Boolean(offhandContext && !offhandContext.echo),
       charged,
-      spin: charged && !offhandContext,
+      spin: charged && brawling && (!offhandContext || offhandContext.echo),
       damage,
       hitEnemies: item === 'sword' ? new Set(hitEnemies) : null,
       element: getActiveAttackElement(),
+      slashSign: brawling ? 0 : (player.swordSlashCount || 0) % 2 ? -1 : 1,
     });
+    if (!brawling) player.swordSlashCount = (player.swordSlashCount || 0) + 1;
   });
-  if (charged) {
+  if (charged && brawling) {
     player.spin = { angle: baseAngle, timer: 0.38, duration: 0.38 };
     triggerCameraShake?.('charge');
-    if (!offhandContext && confluenceFusionActive('spellblade')) releaseSpellbladeWave(baseAngle, damage);
   }
-  if (activeWeaponMod('melee')?.id === 'mod-cinder' || fx.fireWall) spawnElementWall(baseAngle, damage, charged);
+  if (charged && !brawling && (!offhandContext || offhandContext.echo) &&
+      confluenceFusionActive('spellblade')) releaseSpellbladeWave(baseAngle, damage);
+  if (!brawling && (activeWeaponMod('melee')?.id === 'mod-cinder' || fx.fireWall)) spawnElementWall(baseAngle, damage, charged);
   addParticles(player.x + Math.cos(baseAngle) * 44, originY + Math.sin(baseAngle) * 44,
     elementAccent(charged ? '#fff2a0' : combatPalette.melee), 7 + ownedWeapons.length * 3, 100);
   updateHud();
@@ -2306,7 +2417,7 @@ function spawnElementWall(angle, swingDamage, charged) {
 }
 
 function updateMeleeProjectileParry(projectileIndex = null, dt = 0) {
-  const swordSwing = player.meleeSwings.find((swing) => swing.weapon === 'sword') || player.meleeSwings[0];
+  const swordSwing = player.meleeSwings.find((swing) => swing.weapon === 'sword' || swing.weapon === 'daggers');
   if (!swordSwing && player.swordParryTimer <= 0) return;
   const parryAngle = swordSwing?.angle ?? Math.atan2(player.lookY, player.lookX);
   const parryDamageBase = swordSwing?.damage || player.swordParryDamage;
@@ -2559,19 +2670,23 @@ function meleeInputHeld() {
   return held && !attackInputSuppressed;
 }
 
-function meleeChargeTime() {
-  return MELEE_CHARGE_TIME / (activeWeaponMod('melee')?.id === 'mod-windup' ? ITEM_TUNING.chargeSpeed : 1) /
-    branchEffects('melee').chargeSpeed;
+function isCloseCombatStyle(style) {
+  return style === 'melee' || style === 'brawl';
+}
+
+function meleeChargeTime(style = currentAttackStyle()) {
+  return MELEE_CHARGE_TIME / (activeWeaponMod(style)?.id === 'mod-windup' ? ITEM_TUNING.chargeSpeed : 1) /
+    branchEffects(style).chargeSpeed;
 }
 
 function updateMeleeInput(dt) {
-  if (currentAttackStyle() !== 'melee') {
+  if (!isCloseCombatStyle(currentAttackStyle())) {
     player.meleeCharge = 0;
     player.meleeBuffer = null;
     player.chargeFraction = 0;
     return;
   }
-  const canCharge = fireMode('melee') === 'charge';
+  const canCharge = fireMode(currentAttackStyle()) === 'charge';
   const chargeTime = meleeChargeTime();
   if (player.meleeBuffer) {
     player.meleeBuffer.timer -= dt;
@@ -2612,28 +2727,31 @@ function performMeleeAttack(charged) {
   player.lookX = Math.cos(aimAngle);
   player.lookY = Math.sin(aimAngle);
   player.attackPulse = 0.14;
-  player.attackAnimationStyle = 'hand';
+  const style = currentAttackStyle() === 'brawl' ? 'brawl' : 'melee';
+  const brawling = style === 'brawl';
+  player.attackAnimationStyle = brawling ? 'hand' : 'sword';
   player.attackAnimationTimer = 0.32;
-  const flurry = activeWeaponMod('melee')?.id === 'mod-flurry';
-  const flurryCooldown = flurry ? FLURRY_COOLDOWN_SCALE : 1;
-  const daggerCooldown = meleeWeapons.has('daggers') ? DAGGER_COOLDOWN_SCALE : 1;
-  const meleeRate = branchEffects('melee').rate * weaponShape('melee').rate;
-  const normalCooldown = Math.max(0.5, (nativeStyle() === 'melee' ? character.fireDelay || 0.3 : 0.3) * FIRE_RATE_SCALE * 2.4) *
-    flurryCooldown * daggerCooldown * meleeRate / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
-  const normalScale = flurry ? 1.0 : MELEE_BASE_SCALE;
+  const flurry = brawling && activeWeaponMod(style)?.id === 'mod-flurry';
+  const flurryCooldown = flurry ? 0.82 : 1;
+  const daggerCooldown = !brawling && meleeWeapons.has('daggers') ? DAGGER_COOLDOWN_SCALE : 1;
+  const meleeRate = branchEffects(style).rate * weaponShape(style).rate;
+  const baseCooldown = brawling ? 0.36
+    : Math.max(0.5, (nativeStyle() === 'melee' ? character.fireDelay || 0.3 : 0.3) * FIRE_RATE_SCALE * 2.4);
+  const profileRate = brawling ? characterProfile().brawlRate : characterProfile().meleeRate;
+  const normalCooldown = baseCooldown * flurryCooldown * daggerCooldown * meleeRate / profileRate;
+  const normalScale = brawling ? 2.2 * (flurry ? 0.85 : 1) : MELEE_BASE_SCALE;
   // A charged swing deals the damage of every normal swing it replaces (hold time plus recovery), so DPS stays equal.
   const chargedScale = normalScale * clamp((meleeChargeTime() + normalCooldown * 1.3) / normalCooldown, 1, MAX_CHARGE_SHOTS);
   performMeleeSwing(baseAngle, charged ? chargedScale : normalScale, charged);
-  if (charged && !offhandContext) {
+  if (!brawling && charged && (!offhandContext || offhandContext.echo)) {
     player.swordParryTimer = Math.max(player.swordParryTimer, 0.38);
     player.swordParryRadius = 92 * 1.25;
     player.swordParryFlash = Math.max(player.swordParryFlash, 0.24);
   }
   // Heavy, deliberate swings (Diablo-style); only Flurry Gauntlets speed them up.
-  player.fireCooldown = Math.max(0.5, (nativeStyle() === 'melee' ? character.fireDelay || 0.3 : 0.3) * FIRE_RATE_SCALE * 2.4) *
-    (charged ? 1.3 : flurryCooldown) * daggerCooldown * meleeRate / (characterProfile().meleeRate * (styleSynergy('melee') && flurry ? 1.2 : 1));
-  recordStyleUse('melee', player.fireCooldown);
-  if (!offhandContext) recordPlaystyle('melee', charged);
+  player.fireCooldown = normalCooldown * (charged ? 1.3 : 1);
+  recordStyleUse(style, player.fireCooldown);
+  if (!offhandContext || offhandContext.echo) recordPlaystyle(style, charged);
   playSound('weapons/barehands/hit1.ogg', 0.2);
 }
 
@@ -2783,7 +2901,7 @@ function shoot(options = null) {
   if (mode !== 'playing') return;
   const style = currentAttackStyle();
   // Melee swings are driven by updateMeleeInput so shooting and swinging never overlap.
-  if (style === 'melee') return;
+  if (isCloseCombatStyle(style)) return;
   // Bow shots come from updateBowInput: tap for a quick arrow, hold for a charged one.
   if (style === 'bow' && !options) return;
   const learnedStyles = [style];
@@ -2925,7 +3043,7 @@ function shoot(options = null) {
   }
   player.fireCooldown = attackDelay * morph.delayMul * FIRE_RATE_SCALE * bowDelayMul * fx.rate * shape.rate;
   recordStyleUse(style, player.fireCooldown);
-  if (!offhandContext) recordPlaystyle(style, bowCharge >= 0.3 || magicCharge >= 0.25);
+  if (!offhandContext || offhandContext.echo) recordPlaystyle(style, bowCharge >= 0.3 || magicCharge >= 0.25);
   if (activeCombatStyle === 'bow' && rangedStyles.includes('bow')) {
     playSound('weapons/bow/shoot.ogg', 0.22);
   } else if (activeCombatStyle === 'magic' && rangedStyles.includes('magic')) {
@@ -2961,6 +3079,10 @@ function fireCompanionsWithPlayer(angle, styles) {
 
 // Swap flips the main and off hand. Without Dual Grip the off hand is simply the sheathed second weapon.
 function swapWeaponHands() {
+  if (echoArsenalActive()) {
+    showMessage('All four weapons are already active.', 2);
+    return false;
+  }
   if (weaponSwapCooldown > 0 || !weaponHands.off || weaponHands.off === weaponHands.main) return false;
   weaponSwapCooldown = WEAPON_SWAP_COOLDOWN;
   applyWeaponHands({ main: weaponHands.off, off: weaponHands.main });
@@ -2980,6 +3102,10 @@ function cycleCombatStyle(direction = 1) {
 
 // Draw a held weapon when possible; every other family has a base weapon ready.
 function selectCombatStyle(style) {
+  if (echoArsenalActive()) {
+    showMessage('All four weapons are already active.', 2);
+    return;
+  }
   const baseWeapon = BASE_WEAPON_FOR_STYLE[style];
   if (!baseWeapon) {
     showMessage(`Unknown weapon style: ${style}.`, 2);
@@ -3274,6 +3400,17 @@ function startDash() {
   player.invuln = Math.max(player.invuln, DASH_INVULN_SECONDS);
   player.dashMove = null;
   player.dashHits = null;
+  const brawling = currentAttackStyle() === 'brawl' || echoArsenalActive();
+  if (brawling && (character?.className === 'Brawler' || echoArsenalActive() ||
+      branchEffects('brawl').dashStrike || confluenceMoveOwned('comet-strike'))) {
+    player.dashMove = 'brawler-rush';
+    player.dashHits = new Set();
+    player.dashObstacleHits = new Set();
+    player.dashFrom = { x: player.x, y: player.y };
+    addParticles(player.x, player.y, '#ffc56b', 8, 90);
+    playSound('weapons/barehands/hit1.ogg', 0.2);
+    return;
+  }
   if (confluenceMoveOwned('earthshaker') && meleeInputHeld() && !(player.earthshakerCooldown > 0)) {
     // A short, slower leap that lands as a smash (updateConfluenceDash).
     player.dashMove = 'earthshaker';
@@ -3404,6 +3541,25 @@ function weaponFormDamage() {
 function updateConfluenceDash(dt) {
   player.earthshakerCooldown = Math.max(0, (player.earthshakerCooldown || 0) - dt);
   player.earthshakerFlash = Math.max(0, (player.earthshakerFlash || 0) - dt);
+  if (player.dashMove === 'brawler-rush' && player.dashHits) {
+    const from = player.dashFrom || player;
+    const fx = branchEffects('brawl');
+    const damage = Math.max(1, Math.round((player.damage + weapon.damageBonus + 1) *
+      characterProfile().brawl * fx.damage * weaponShape('brawl').damage * (1 + fx.dashDamage) * 1.8));
+    for (const enemy of enemies) {
+      if (!(enemy.hp > 0) || enemy.manaRift || player.dashHits.has(enemy) ||
+          distanceToSegment(enemy, from, player) > player.radius + enemy.radius + 12 || !hasLineOfSight(player, enemy)) continue;
+      player.dashHits.add(enemy);
+      damageEnemy(enemy, damage, player.x, player.y);
+    }
+    for (const obstacle of [...breakables]) {
+      if (obstacle.broken || player.dashObstacleHits.has(obstacle) ||
+          distanceToSegment(obstacle, from, player) > player.radius + obstacle.radius + 8) continue;
+      player.dashObstacleHits.add(obstacle);
+      damageObstacle(obstacle, 1, 'melee');
+    }
+    player.dashFrom = { x: player.x, y: player.y };
+  }
   if (player.dashMove === 'weapon-form' && player.dashHits) {
     const element = getActiveAttackElement();
     for (const enemy of [...enemies]) {
@@ -3418,9 +3574,16 @@ function updateConfluenceDash(dt) {
     }
   }
   if (dashTimer > 0 || !player.dashMove) return;
+  if (player.dashMove === 'brawler-rush' && elapsed >= (player.brawlerBraceReadyAt || 0) &&
+      (character?.className === 'Brawler' || echoArsenalActive() || branchEffects('brawl').brace)) {
+    player.brawlerBraceUntil = elapsed + 0.18;
+    player.brawlerBraceReadyAt = elapsed + 3;
+  }
   if (player.dashMove === 'earthshaker') earthshakerSmash();
   player.dashMove = null;
   player.dashHits = null;
+  player.dashObstacleHits = null;
+  player.dashFrom = null;
 }
 
 function earthshakerSmash() {
@@ -3801,7 +3964,8 @@ function damagePlayer(damageAmount = 1, source) {
     updateHud();
     return;
   }
-  const incomingDamage = Math.max(0.5, Math.round(damageAmount * 2) / 2);
+  const braced = elapsed < (player.brawlerBraceUntil || 0) && (currentAttackStyle() === 'brawl' || echoArsenalActive());
+  const incomingDamage = Math.max(0.5, Math.round(damageAmount * 2) / 2 - (braced ? 0.5 : 0));
   player.damageFlashTimer = 0.28;
   hurtVignetteTimer = HURT_VIGNETTE_DURATION;
   hurtVignetteStrength = Math.min(1, 0.7 + incomingDamage * 0.15);
@@ -3863,11 +4027,11 @@ function consumeOrbitGuard(target) {
 
 function orbitGuardStyle() {
   const style = currentAttackStyle();
-  const kind = style === 'bow' ? 'arrow' : style === 'melee' ? 'sword' : 'mana';
+  const kind = style === 'bow' ? 'arrow' : style === 'melee' ? 'sword' : style === 'brawl' ? 'fists' : 'mana';
   return {
     kind,
     color: kind === 'arrow' ? '#d8b577'
-      : kind === 'sword' ? '#c4e8ff' : magicElementPalette[activeMagicElement] || '#62d9ee',
+      : kind === 'sword' ? '#c4e8ff' : kind === 'fists' ? '#ffc56b' : magicElementPalette[activeMagicElement] || '#62d9ee',
   };
 }
 

@@ -2055,7 +2055,8 @@ function drawCompanion(companion, shadowOnly = null) {
 }
 
 function drawPlayer(shadowOnly = null) {
-  if (player.dashMove === 'weapon-form' && typeof dashTimer !== 'undefined' && dashTimer > 0) {
+  if (player.dashMove === 'weapon-form' && currentAttackStyle() !== 'brawl' &&
+      typeof dashTimer !== 'undefined' && dashTimer > 0) {
     if (shadowOnly !== true) drawWeaponForm();
     return;
   }
@@ -2095,6 +2096,11 @@ function drawPlayer(shadowOnly = null) {
     Math.floor(bodyFrameIndex / bodyColumns) * 64, 64, 64,
     player.x, player.y + 6 * pulseY, 64 * 1.45 * pulseX, 64 * 1.45 * pulseY);
   if (shadowOnly === true) return;
+  if (['brawler-rush', 'weapon-form'].includes(player.dashMove) &&
+      typeof dashTimer !== 'undefined' && dashTimer > 0) {
+    drawEffect('swipe', Math.min(5, Math.floor((1 - dashTimer / 0.16) * 6)), player.x, player.y - 34,
+      { height: 100, rotation: Math.atan2(dashVector.y, dashVector.x), tint: '#ffc56b', alpha: 0.7 });
+  }
   if (player.chargeFraction > 0.02) {
     // A dark SoM magic circle, revealed in colour clockwise from the top as the charge builds.
     const chargeColor = player.chargeFraction >= 1 ? '#fff2a0' : '#7fd8ff';
@@ -2143,11 +2149,18 @@ function drawPlayer(shadowOnly = null) {
   }
   const heldStyle = currentAttackStyle();
   const glowColor = styleGlowColor(heldStyle);
+  if (heldStyle === 'brawl' || character.id === 'echo-bound-delver' ||
+      (player.attackAnimationTimer > 0 && player.attackAnimationStyle === 'hand')) {
+    const gloveVariant = weaponShape('brawl').variant;
+    const gloveSprite = gloveVariant === 'iron-gauntlets' ? 'ironGauntlets'
+      : activeWeaponMod('brawl')?.id === 'mod-flurry' ? 'flurryGloves' : 'leatherGloves';
+    drawClothing({ sprite: gloveSprite }, bodyFrameIndex, 0, 0, 1.45);
+  }
   // Found weapons have no worn sprite; they show as icons in the HUD weapon slots instead of on the character.
   const mainVariant = weaponShape(heldStyle).variant;
   const visibleWeapon = mainVariant ? null : meleeWeapons.has('sword') ? 'ironSword'
     : meleeWeapons.has('daggers') ? 'daggers' : nativeStyle() === 'melee' ? 'ironSword' : null;
-  if (heldStyle === 'melee' && visibleWeapon) {
+  if (heldStyle === 'melee' && visibleWeapon && !(player.attackAnimationTimer > 0)) {
     ctx.save();
     ctx.shadowColor = glowColor || (visibleWeapon === 'ironSword' ? '#c4e8ff' : '#fff0b0');
     ctx.shadowBlur = player.swordParryFlash > 0
@@ -2160,20 +2173,13 @@ function drawPlayer(shadowOnly = null) {
     drawClothing({ sprite: visibleWeapon }, bodyFrameIndex, 0, 0, 1.45);
     ctx.restore();
   }
-  if (heldStyle === 'bow' && !mainVariant && banditBowImage.complete && banditBowImage.naturalWidth >= 128) {
-    const rowStart = { down: 0, left: 18, up: 36, right: 54 }[direction];
-    const drawing = player.attackAnimationTimer > 0 && player.attackAnimationStyle === 'bow';
-    const bowFrame = drawing
-      ? rowStart + 13 + Math.min(4, Math.floor((1 - player.attackAnimationTimer / 0.4) * 5))
-      : rowStart + 1;
-    const bowColumns = Math.floor(banditBowImage.naturalWidth / 128);
+  if (heldStyle === 'bow' && !mainVariant) {
     ctx.save();
     if (glowColor) {
       ctx.shadowColor = glowColor;
       ctx.shadowBlur = 16;
     }
-    drawSpriteImage(banditBowImage, (bowFrame % bowColumns) * 128,
-      Math.floor(bowFrame / bowColumns) * 128, 128, 128, -60, -96, 120, 120);
+    drawClothing({ sprite: 'woodenBow' }, bodyFrameIndex, 0, 0, 1.45);
     ctx.restore();
   }
   if (heldStyle === 'magic') drawCastingHands(direction, glowColor || magicElementPalette.bubble);
@@ -2184,7 +2190,8 @@ function drawPlayer(shadowOnly = null) {
 
 // Weapon Form: while dashing the player becomes their main weapon, a glowing streak along the dash.
 function drawWeaponForm() {
-  const art = shopItemIconImages[`weapon-${weaponHands.main}`];
+  const id = weaponHands.main;
+  const art = shopItemIconImages[`weapon-${id}`];
   const angle = Math.atan2(dashVector.y, dashVector.x);
   const glow = styleGlowColor(currentAttackStyle()) || '#fff2a0';
   ctx.save();
@@ -2273,7 +2280,19 @@ function drawClothing(clothing, frameIndex, x, y, scale) {
     y - height + 6,
     width,
     height,
+    sprite.filter ? { ...drawSpriteImage.effect,
+      filter: [sprite.filter, drawSpriteImage.effect?.filter].filter(Boolean).join(' ') } : drawSpriteImage.effect,
   );
+}
+
+function drawBrawlerSwing(swing) {
+  const progress = clamp(1 - swing.timer / swing.maxTimer, 0, 1);
+  const angle = swing.angle + (swing.spin ? progress * Math.PI * 2 : (progress - 0.5) * swing.arc * 2);
+  const reach = swing.reach * (0.55 + Math.sin(progress * Math.PI) * 0.25);
+  drawEffect('swipe', Math.min(5, Math.floor(progress * 6)),
+    player.x + Math.cos(angle) * reach * 0.5, player.y - 34 + Math.sin(angle) * reach * 0.5,
+    { height: reach * 1.8, rotation: angle, tint: swing.element ? magicElementPalette[swing.element] : '#ffc56b',
+      alpha: 0.9 * (1 - progress) });
 }
 
 function correctSkinTone(context, width, height) {
@@ -4009,6 +4028,10 @@ function drawWorld() {
     const progress = 1 - swing.timer / swing.maxTimer;
     const frame = Math.min(5, Math.floor(progress * 6));
     const centerY = player.y - 34;
+    if (swing.weapon === 'hands') {
+      drawBrawlerSwing(swing);
+      continue;
+    }
     if (!markedAngles.has(swing.angle)) {
       markedAngles.add(swing.angle);
       // Hit marker: a faint TMW swipe the size of the area the swing can strike, and a star where it deflects.
@@ -4023,10 +4046,18 @@ function drawWorld() {
       : swing.offhand ? '#9fd8ff'
         : swing.weapon === 'sword' ? combatPalette.sword
           : swing.weapon === 'daggers' ? combatPalette.daggers : combatPalette.melee;
-    const ribbonAngle = swing.spin ? swing.angle + progress * Math.PI * 2 - 0.9 : swing.angle;
+    const ribbonAngle = swing.angle + (progress - 0.5) * swing.arc * 2 * (swing.slashSign || 1);
     const reach = swing.reach + progress * 12;
     drawEffect('swipe', frame, player.x + Math.cos(ribbonAngle) * reach * 0.55, centerY + Math.sin(ribbonAngle) * reach * 0.55,
       { height: reach * 1.8, rotation: ribbonAngle, tint: swingColor, alpha: 0.9 * (1 - progress) });
+    const bladeArt = shopItemIconImages[`weapon-${swing.variant || 'blade'}`];
+    if (bladeArt?.complete && bladeArt.naturalWidth) {
+      ctx.save();
+      ctx.translate(player.x + Math.cos(ribbonAngle) * reach * 0.65, centerY + Math.sin(ribbonAngle) * reach * 0.65);
+      ctx.rotate(ribbonAngle + Math.PI / 4);
+      ctx.drawImage(bladeArt, -28, -28, 56, 56);
+      ctx.restore();
+    }
   }
   for (const arc of lightningArcs) {
     // TMW bolt image stretched between the two points; its length runs down the file.
@@ -4682,7 +4713,7 @@ function drawMinimap() {
   }
 }
 
-// Bottom-left 1/2/3 weapon slots; the active one is enlarged, glowing and tagged.
+// Bottom-left weapon slots; the active one is enlarged, glowing and tagged.
 // Bottom action bar: every non-weapon button, with its key, live count and cooldown.
 // Mirrors the page's text lines (message + controls hint) into the canvas so they are visible without scrolling.
 function drawInGameCommentary() {
@@ -4867,7 +4898,7 @@ function drawActionBar() {
 function styleSlotBounds(index) {
   const size = 36;
   const gap = 8;
-  const slotCount = 3 + (classSignature()?.active ? 1 : 0);
+  const slotCount = 4 + (classSignature()?.active ? 1 : 0);
   return { x: 424 - (slotCount * size + (slotCount - 1) * gap) + index * (size + gap),
     y: 2, width: size, height: size };
 }
@@ -4877,16 +4908,17 @@ function drawStyleSlots() {
     { id: 'melee', key: '1', label: 'SWORD' },
     { id: 'bow', key: '2', label: 'BOW' },
     { id: 'magic', key: '3', label: 'MAGIC' },
+    { id: 'brawl', key: '4', label: 'FISTS' },
   ];
   const size = 36;
   const gap = 8;
-  const slotCount = 3 + (classSignature()?.active ? 1 : 0);
+  const slotCount = 4 + (classSignature()?.active ? 1 : 0);
   const baseX = 424 - (slotCount * size + (slotCount - 1) * gap);
   const baseY = 2;
   const active = currentAttackStyle();
   ctx.save();
   styles.forEach((style, index) => {
-    const selected = style.id === active;
+    const selected = echoArsenalActive() || style.id === active;
     const locked = !styleUnlocked(style.id);
     const { x, y } = styleSlotBounds(index);
     ctx.save();
@@ -4909,7 +4941,8 @@ function drawStyleSlots() {
     ctx.lineCap = 'round';
     ctx.beginPath();
     // The weapon each hand holds shows as its icon here, instead of being drawn on the walking character.
-    const slotHand = [weaponHands.main, weaponHands.off].find((id) => weaponById(id)?.family === style.id);
+    const slotHand = echoArsenalActive() ? BASE_WEAPON_FOR_STYLE[style.id]
+      : [weaponHands.main, weaponHands.off].find((id) => weaponById(id)?.family === style.id);
     const slotArt = slotHand && shopItemIconImages[`weapon-${slotHand}`];
     if (slotArt?.complete && slotArt.naturalWidth) {
       ctx.imageSmoothingEnabled = false;
@@ -4966,11 +4999,11 @@ function drawStyleSlots() {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillStyle = selected ? '#ffe38a' : '#bdb59f';
-    ctx.fillText(style.key, x + 4, y + 3);
+    ctx.fillText(echoArsenalActive() ? 'ALL' : style.key, x + 4, y + 3);
     const handId = [weaponHands.main, weaponHands.off].find((id) => weaponById(id)?.family === style.id);
     const handVariant = handId && !weaponById(handId).base ? weaponById(handId) : null;
     const hand = handId ? weaponHandOf(handId) : null;
-    if (hand) {
+    if (hand && !echoArsenalActive()) {
       // Hand tag: gold M for the main hand; blue O for the off hand, lit while Dual Grip has it attacking.
       const tagX = x + size - 6;
       const tagY = y + 6;
@@ -5002,7 +5035,7 @@ function drawStyleSlots() {
   });
   const sig = classSignature();
   if (sig?.active) {
-    const x = baseX + 3 * (size + gap);
+    const x = baseX + 4 * (size + gap);
     const ready = !(player.signatureCooldown > 0);
     drawManaPanel(x, baseY, size, size, ready ? '#c9a65a' : '#80765b');
     ctx.fillStyle = sig.color;
@@ -5018,7 +5051,7 @@ function drawStyleSlots() {
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#ffe38a';
-    ctx.fillText('4', x + 4, baseY + 3);
+    ctx.fillText('5', x + 4, baseY + 3);
     if (!ready) {
       ctx.textAlign = 'center';
       ctx.font = 'bold 14px Arial';
@@ -5566,7 +5599,7 @@ function drawChapter() {
 }
 
 // The weapon a class fights with, as an icon in its card's corner (a ? for the random delver).
-const CLASS_WEAPON_COLORS = { melee: '#e58a64', bow: '#94d47e', magic: '#7fc8ff' };
+const CLASS_WEAPON_COLORS = { melee: '#e58a64', bow: '#94d47e', magic: '#7fc8ff', brawl: '#ffc56b' };
 
 function drawClassWeaponBadge(entry, x, y) {
   const size = 34;
@@ -5697,7 +5730,7 @@ function drawCharacterSelect() {
     const rating = (value) => (value >= 1.3 ? '★★★' : value >= 1.1 ? '★★' : value >= 0.95 ? '★' : '·');
     ctx.fillText(`HP ${startingHearts(entry)}  •  DMG ${entry.damage}  •  SPEED ${Math.round(entry.speed)}`, x, y + 84);
     ctx.font = '10px Arial';
-    ctx.fillText(`⚔${rating(profile.melee)} 🏹${rating(Math.max(profile.bow, profile.bowRate))} ✦${rating(profile.magic)}`, x, y + 98);
+    ctx.fillText(`⚔${rating(profile.melee)} 🏹${rating(Math.max(profile.bow, profile.bowRate))} ✦${rating(profile.magic)} F${rating(Math.max(profile.brawl, profile.brawlRate))}`, x, y + 98);
     ctx.font = '11px Arial';
     ctx.fillStyle = '#d9c796';
     ctx.fillText(entry.trait, x, y + 113, bounds.width - 12);
@@ -5712,7 +5745,7 @@ function drawCharacterSelect() {
   const selectedSignature = classSignature(selected);
   ctx.fillText(isCharacterUnlocked(selected)
     ? `${selected.trait}${selectedSignature ? `  ·  ${selectedSignature.label}: ${selectedSignature.desc}` : ''}`
-    : `LOCKED  /  ${selected.unlock}`, VIEW_W / 2, 416);
+    : `LOCKED  /  ${selected.unlock}`, VIEW_W / 2, 416, VIEW_W - 30);
   const ancestry = raceProfiles[selected.raceHead];
   ctx.font = '11px Arial';
   if (!selected.random && ancestry) ctx.fillText(`${ancestry.name}: ${ancestry.trait}`, VIEW_W / 2, 434);
@@ -5938,20 +5971,21 @@ const BRANCH_MAP_RINGS = [0, 72, 180, 288];
 const BRANCH_MAP_SWIRL = 0.1;
 // Spoke order keeps synergy partners side by side; Flurry + Cinder is the one pair that has to reach around Riposte.
 const BRANCH_MAP_ORDER = {
+  brawl: ['brawl-windup', 'brawl-power', 'brawl-flurry', 'brawl-guard', 'brawl-rush'],
   magic: ['prism', 'conduit', 'focus', 'impact', 'miasma'],
   bow: ['quickdraw', 'volley', 'piercer', 'longdraw', 'stormstring'],
   melee: ['windup', 'cleave', 'flurry', 'riposte', 'cinder'],
 };
-const BRANCH_HEART_ICONS = { melee: '⚔', bow: '➶', magic: '✦' };
-const BRANCH_HEART_COLORS = { melee: '#e58a64', bow: '#94d47e' };
+const BRANCH_HEART_ICONS = { melee: '⚔', bow: '➶', magic: '✦', brawl: '»' };
+const BRANCH_HEART_COLORS = { melee: '#e58a64', bow: '#94d47e', brawl: '#ffc56b' };
 const BRANCH_MAP_VIEW = { x: 34, y: 72, width: 620, height: 404 };
 const BRANCH_ZOOM_MIN = 0.35;
 const BRANCH_ZOOM_MAX = 2.4;
 const BRANCH_DRAG_SLOP = 7;
-// The Confluence tab lays the three weapon maps out as one, bridged through the middle toward the Trinity.
+// The Confluence tab lays the weapon maps out as one, bridged through the middle toward the Trinity.
 // Same order as BRANCH_STYLES in playermanager.js (a literal so gameui can load without it in tests).
-const BRANCH_TABS = ['melee', 'bow', 'magic', 'confluence'];
-const CONFLUENCE_HEARTS = { magic: { x: 0, y: -700 }, melee: { x: -606, y: 350 }, bow: { x: 606, y: 350 } };
+const BRANCH_TABS = ['melee', 'bow', 'magic', 'brawl', 'confluence'];
+const CONFLUENCE_HEARTS = { magic: { x: 0, y: -850 }, melee: { x: -850, y: 0 }, bow: { x: 850, y: 0 }, brawl: { x: 0, y: 850 } };
 const CONFLUENCE_ZOOM_MIN = 0.12;
 const CONFLUENCE_START_ZOOM = 0.7;
 const CONFLUENCE_PART_ORDER = ['g1', 's1', 's2', 'fusion', 's3', 's4', 'g2'];
@@ -6060,7 +6094,7 @@ function branchMapId(style, id) {
   return branchTab === 'confluence' ? `${style}/${id}` : id;
 }
 
-// The three weapon maps around their hearts, Dual Grip left out (it has its own spot on every weapon tab), then each
+// The weapon maps around their hearts, Dual Grip left out (it has its own spot on every weapon tab), then each
 // bridge's seven nodes (a seal at each end) evenly spaced between its two tier III ends, its move pushed outward from its fusion, and the
 // Trinity in the middle. Bridge links point back along the chain so each segment is drawn once.
 function confluenceMapNodes() {
@@ -6083,16 +6117,17 @@ function confluenceMapNodes() {
       const t = (index + 1) / (CONFLUENCE_PART_ORDER.length + 1);
       const links = [index === 0 ? from.id : part(CONFLUENCE_PART_ORDER[index - 1])];
       if (index === CONFLUENCE_PART_ORDER.length - 1) links.push(to.id);
-      nodes.push({ id: part(name), kind: 'cf', cf: confluenceNode(part(name)),
+      if (name === 'fusion' && bridge.optional) links.push('cf:trinity');
+      placeBranchMapNode(nodes, { id: part(name), kind: 'cf', cf: confluenceNode(part(name)),
         x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, links });
     });
     const fusion = nodes.find((node) => node.id === part('fusion'));
     const out = Math.hypot(fusion.x, fusion.y) || 1;
-    nodes.push({ id: part('move'), kind: 'cf', cf: confluenceNode(part('move')),
+    placeBranchMapNode(nodes, { id: part('move'), kind: 'cf', cf: confluenceNode(part('move')),
       x: fusion.x + fusion.x / out * 78, y: fusion.y + fusion.y / out * 78, links: [fusion.id] });
   }
   nodes.push({ id: 'cf:trinity', kind: 'cf', cf: confluenceNode('cf:trinity'), x: 0, y: 0,
-    links: CONFLUENCE_BRIDGES.map((bridge) => `cf:${bridge.id}:fusion`) });
+    links: CONFLUENCE_BRIDGES.filter((bridge) => !bridge.optional).map((bridge) => `cf:${bridge.id}:fusion`) });
   for (const stat of skillStatNodes().filter((node) => node.target.kind === 'confluence')) {
     const target = nodes.find((node) => node.id === stat.target.id);
     if (!target) continue;
@@ -6161,7 +6196,7 @@ function resetBranchMap() {
     const heart = CONFLUENCE_HEARTS[style];
     branchMapFocus = `${style}/heart`;
     Object.assign(branchToken, { x: heart.x, y: heart.y, fromX: heart.x, fromY: heart.y, toX: heart.x, toY: heart.y });
-    Object.assign(branchCam, { x: heart.x * 0.5, y: heart.y * 0.5, zoom: CONFLUENCE_START_ZOOM });
+    Object.assign(branchCam, { x: heart.x, y: heart.y, zoom: CONFLUENCE_START_ZOOM });
     clampBranchCam();
   }
   branchPointers.clear();
@@ -6240,7 +6275,7 @@ function focusedMapBranch() {
 
 function branchMapLayout() {
   return {
-    tabs: BRANCH_TABS.map((style, index) => ({ style, bounds: { x: 330 + index * 122, y: 26, width: 114, height: 34 } })),
+    tabs: BRANCH_TABS.map((style, index) => ({ style, bounds: { x: 280 + index * 106, y: 26, width: 100, height: 34 } })),
     close: { x: 820, y: 26, width: 96, height: 34 },
     view: BRANCH_MAP_VIEW,
     zoomOut: { x: 44, y: 430, width: 38, height: 36 },
@@ -6395,6 +6430,10 @@ function weaponPowerText(id) {
 }
 
 function setFocusedWeaponHand(slot) {
+  if (echoArsenalActive()) {
+    setBranchNotice('Sword, Arrows, Magic and Fists are always active together. Echo-Bound Delver cannot change weapons.');
+    return;
+  }
   const id = focusedWeaponId();
   const entry = weaponById(id);
   if (!entry) return;
@@ -7512,6 +7551,17 @@ function weaponTraitText(entry) {
 
 // Main / Off hand buttons for a learned weapon (the heart is its family's base weapon).
 function drawWeaponHandButtons(layout, id, y) {
+  if (echoArsenalActive()) {
+    if (y !== null) {
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 11px Arial';
+      ctx.fillStyle = '#8fdca6';
+      ctx.fillText('Sword + Arrows + Magic + Fists active.', 676, y + 16, 228);
+    }
+    drawBranchButton(layout.toggle, 'All active', 'fixed ultimate arsenal', '#796b47', false);
+    drawBranchButton(layout.unlock, 'No swapping', 'upgrade family stats and skills', '#796b47', false);
+    return;
+  }
   const hand = weaponHandOf(id);
   if (y !== null) {
     const handText = hand === 'main' ? 'In your main hand.' : hand === 'off'
@@ -7779,7 +7829,7 @@ function drawElementChoice() {
 }
 
 function startingWeaponBounds(index) {
-  return { x: VIEW_W / 2 - 330 + index * 224, y: 190, width: 212, height: 156 };
+  return { x: VIEW_W / 2 - 436 + index * 220, y: 190, width: 212, height: 156 };
 }
 
 function moveStartingWeaponFocus(direction) {
@@ -7794,7 +7844,7 @@ function confirmStartingWeaponChoice(index = startingWeaponFocus) {
 function handleStartingWeaponKey(event, key) {
   if (event.key === 'ArrowLeft' || key === 'a') moveStartingWeaponFocus(-1);
   else if (event.key === 'ArrowRight' || key === 'd') moveStartingWeaponFocus(1);
-  else if (['1', '2', '3'].includes(key)) confirmStartingWeaponChoice(Number(key) - 1);
+  else if (['1', '2', '3', '4'].includes(key)) confirmStartingWeaponChoice(Number(key) - 1);
   else if (event.key === 'Enter' || event.key === ' ' || key === 'e') confirmStartingWeaponChoice();
 }
 
@@ -7813,8 +7863,8 @@ function drawStartingWeaponChoice() {
   ctx.font = 'bold 26px Georgia';
   ctx.fillStyle = '#f2e5c6';
   ctx.fillText('CHOOSE YOUR STARTING WEAPON', VIEW_W / 2, 142);
-  const names = ['Sword', 'Arrows', 'Magic'];
-  const descriptions = ['Close-range strikes and parries', 'Tap shots and charged arrows', 'Bubble spells; visit obelisks'];
+  const names = ['Sword', 'Arrows', 'Magic', 'Brawler'];
+  const descriptions = ['Slashing strikes and parries', 'Tap shots and charged arrows', 'Bubble spells; visit obelisks', 'Fists, gauntlets and rushing blows'];
   STARTING_WEAPON_STYLES.forEach((style, index) => {
     const bounds = startingWeaponBounds(index);
     const focused = index === startingWeaponFocus || pointInBounds(bounds);
@@ -7833,15 +7883,15 @@ function drawStartingWeaponChoice() {
   ctx.fillStyle = '#d9c796';
   ctx.fillText(lastInputMode === 'controller' ? 'D-pad left/right, then A'
     : lastInputMode === 'touch' ? 'Tap a weapon to start'
-      : '1-3, click, or Left/Right then Enter', VIEW_W / 2, 392);
+      : '1-4, click, or Left/Right then Enter', VIEW_W / 2, 392);
   ctx.restore();
 }
 
 // ---- Starting-ability picker (before the final weapon choice) ----
 function abilitySlotBounds(slot) {
-  const x = VIEW_W / 2 - 396 + slot.column * 268;
-  if (slot.row >= START_ABILITY_ROWS) return { x, y: 404, width: 256, height: 44 };
-  return { x, y: 160 + slot.row * 58, width: 256, height: 50 };
+  const x = VIEW_W / 2 - 436 + slot.column * 220;
+  if (slot.row >= START_ABILITY_ROWS) return { x, y: 404, width: 212, height: 44 };
+  return { x, y: 160 + slot.row * 58, width: 212, height: 50 };
 }
 
 function confirmAbilityChoice(index = abilityFocus) {
@@ -7905,7 +7955,7 @@ function drawAbilityChoice() {
   ctx.fillStyle = '#bbb49d';
   ctx.fillText('Any weapon. Its branch lights up and the weapon goes in your hand. Find more in the descent.', VIEW_W / 2, 116);
   BRANCH_STYLES.forEach((style, column) => {
-    const x = VIEW_W / 2 - 396 + column * 268 + 128;
+    const x = VIEW_W / 2 - 436 + column * 220 + 106;
     const base = weaponById(BASE_WEAPON_FOR_STYLE[style]);
     ctx.font = 'bold 17px Georgia';
     ctx.fillStyle = '#e6dcc0';
@@ -8215,7 +8265,7 @@ function tutorialPages() {
         ['Use things', 'Near a shop stall, pad, menhir, obelisk or altar with no enemies left, Attack glows gold and reads Use: tap it to buy, talk or activate. Walk into an open doorway to go through. Item appears once you carry a consumable from a broken pot or crate.'],
         ['Menus', 'Map, Story and Build (cleared rooms) are on the left (top in portrait); Pause is on the right. The pause screen has Resume and Save & exit buttons.'],
       ] : [
-      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')} pick melee/bow/magic`}. ${b('shock')} unleashes a shockwave; discover Betsanc to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
+      ['Fight', `${b('dash')} dashes. ${b('nextWeapon')} cycles weapons${pad ? '' : `, ${b('weapon1')}/${b('weapon2')}/${b('weapon3')}/${b('weapon4')} pick sword/bow/magic/fists`}. ${b('shock')} unleashes a shockwave; discover Betsanc to replace it with orbiting weapon guards. Firing follows your controller right stick, touch auto-target (manual aim/facing with no enemies), or mouse cursor. ${b('ability')} uses your class ability.`],
       ['Use things', `${b('interact')} interacts: buy, talk, open doors. ${b('bomb')} drops a bomb. ${b('item')} uses a consumable.`],
       ['Menus', `${b('map')} map, ${b('journal')} journal, ${b('branches')} weapon branches (cleared rooms), ${pad ? p.menu : 'P'} pause.       Change controls in Controls (${pad ? 'Back on the pause screen' : 'C on the title or pause screen'}).${pad ? '' : ' The buttons beside the game (Pause on the right) do the same with a click.'}`],
             ]),

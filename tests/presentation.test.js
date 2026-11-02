@@ -660,6 +660,65 @@ test('player body, clothing and head retain their original size and attack pulse
   const shadow = c.calls.find(({ layer, method }) => layer === 'screen' && method === 'drawImage');
   assert.deepEqual(shadow.args.slice(-2), [64 * 1.45 * 1.08, 64 * 1.45 * 0.955]);
   assert.ok(c.calls.some(({ method, args }) => method === 'scale' && args[0] === 1.08 && args[1] === 0.955));
+
+  c.currentAttackStyle = () => 'brawl';
+  c.activeWeaponMod = () => null;
+  const worn = [];
+  c.drawClothing = (clothing, frame) => worn.push([clothing.sprite, frame]);
+  c.drawEffect = () => {};
+  c.dashTimer = 0.1;
+  for (const move of [null, 'brawler-rush', 'weapon-form']) {
+    c.player.dashMove = move;
+    c.dashVector = { x: 1, y: 0 };
+    c.weaponShape = () => ({ variant: 'iron-gauntlets' });
+    const bodyCount = layers.filter(([kind]) => kind === 'body').length;
+    c.drawPlayer();
+    assert.equal(layers.filter(([kind]) => kind === 'body').length, bodyCount + 1, `${move} retains the player body`);
+    assert.equal(worn.at(-1)[0], 'ironGauntlets');
+  }
+  c.weaponShape = () => ({ variant: null });
+  c.activeWeaponMod = () => ({ id: 'mod-flurry' });
+  c.drawPlayer();
+  assert.equal(worn.at(-1)[0], 'flurryGloves');
+  c.activeWeaponMod = () => null;
+  c.drawPlayer();
+  assert.equal(worn.at(-1)[0], 'leatherGloves');
+  c.player.dashMove = null;
+  for (const [style, start, count, duration] of [['hand', 7, 4, 0.32], ['bow', 11, 5, 0.4]]) {
+    c.player.attackAnimationStyle = style;
+    for (let direction = 0; direction < 4; direction++) {
+      [c.player.lookX, c.player.lookY] = [[0, 1], [-1, 0], [0, -1], [1, 0]][direction];
+      for (let frame = 0; frame < count; frame++) {
+        c.player.attackAnimationTimer = duration * (1 - (frame + 0.5) / count);
+        c.drawPlayer();
+        assert.equal(worn.at(-1)[1], direction * 16 + start + frame);
+      }
+    }
+  }
+  c.currentAttackStyle = () => 'bow';
+  c.player.attackAnimationStyle = 'bow';
+  for (let direction = 0; direction < 4; direction++) {
+    [c.player.lookX, c.player.lookY] = [[0, 1], [-1, 0], [0, -1], [1, 0]][direction];
+    for (let frame = 0; frame < 5; frame++) {
+      c.player.attackAnimationTimer = 0.4 * (1 - (frame + 0.5) / 5);
+      c.drawPlayer();
+      assert.deepEqual(worn.at(-1), ['woodenBow', direction * 16 + 11 + frame]);
+    }
+    c.player.attackAnimationTimer = 0;
+    c.player.moving = false;
+    c.drawPlayer();
+    assert.deepEqual(worn.at(-1), ['woodenBow', direction * 16]);
+    c.player.moving = true;
+    for (let frame = 1; frame <= 6; frame++) {
+      c.elapsed = (frame - 1 + 0.1) / 10;
+      c.drawPlayer();
+      assert.deepEqual(worn.at(-1), ['woodenBow', direction * 16 + frame]);
+    }
+  }
+  c.weaponShape = () => ({ variant: 'kunai' });
+  worn.length = 0;
+  c.drawPlayer();
+  assert.ok(!worn.some(([sprite]) => sprite === 'woodenBow'), 'a thrown variant does not display a bow');
 });
 
 test('lit, flashing and tinted sprites never set a per-draw canvas filter on the screen', () => {

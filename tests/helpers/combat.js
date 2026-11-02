@@ -17,7 +17,7 @@ function combat({ skillPrerequisitesOpen = true } = {}) {
     weapon: { damageBonus: 0, shotDamageMultiplier: (2 / 3) / 0.23,
       fireDelay: 2 / 3, shotCount: 1, rangeLevel: 0 },
     character: { className: 'Mage', raceHead: 'humanMale', startingStyle: 'magic', fireDelay: 0.23 },
-    meleeWeapons: new Set(['hands']), combatStyles: new Set(['magic', 'bow', 'melee']),
+    meleeWeapons: new Set(['hands']), combatStyles: new Set(['magic', 'bow', 'melee', 'brawl']),
     ownedItems: new Set(), shopItemCatalog: [
       { id: 'mana-tonic', name: 'Mana Tonic', kind: 'consumable' },
       { id: 'bomb-bundle', name: 'Bomb Bundle', kind: 'consumable' },

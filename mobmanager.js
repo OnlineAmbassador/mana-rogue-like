@@ -8,11 +8,12 @@ function estimatedPlayerDps() {
   const interval = Math.max(0.12, weapon.fireDelay * FIRE_RATE_SCALE);
   const magic = rangedDamage * profile.magic * volley / interval;
   const bow = rangedDamage * profile.bow * profile.bowRate * volley / interval;
-  const meleeBonus = [...meleeWeapons].reduce((sum, item) => sum + (item === 'sword' ? 2 : item === 'daggers' ? 1 : 0), 0);
+  const meleeBonus = meleeWeapons.has('daggers') ? 1 : 2;
   const meleeInterval = Math.max(0.5,
     (nativeStyle() === 'melee' ? character.fireDelay || 0.3 : 0.3) * FIRE_RATE_SCALE * 2.4) / profile.meleeRate;
   const melee = (base + meleeBonus) * MELEE_BASE_SCALE * profile.melee / meleeInterval;
-  return Math.max(6, magic, bow, melee);
+  const brawl = (base + 1) * 2.2 * profile.brawl * profile.brawlRate / 0.36;
+  return Math.max(6, magic, bow, melee, brawl);
 }
 
 // How regular mobs answer the weapon the player relies on (see dominantAIStyle). Scale fields are multipliers on
@@ -21,6 +22,7 @@ const styleAIProfiles = {
   neutral: { ringScale: 1, dodgeScale: 1, dodgeAll: false, tokenBonus: 0, spacingScale: 1, rangedRate: 1, punishRecovery: false },
   // Melee: casters kite wide, and foes commit while the player recovers from a swing.
   melee: { ringScale: 1.3, dodgeScale: 1, dodgeAll: false, tokenBonus: 0, spacingScale: 1, rangedRate: 1, punishRecovery: true },
+  brawl: { ringScale: 1.05, dodgeScale: 1, dodgeAll: false, tokenBonus: 0, spacingScale: 1.1, rangedRate: 1, punishRecovery: false },
   // Bow: kiting is punished: foes close in, dodge more often and one more melee mob may engage.
   bow: { ringScale: 0.75, dodgeScale: 1.5, dodgeAll: true, tokenBonus: 1, spacingScale: 1, rangedRate: 1, punishRecovery: false },
   // Magic: foes spread out to blunt area and chain effects, and ranged mobs act a little faster.

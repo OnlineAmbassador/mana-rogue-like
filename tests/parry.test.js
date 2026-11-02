@@ -13,7 +13,7 @@ function combat() {
       swordParryTimer: 0, swordParryRadius: 0, swordParryDamage: 7,
       swordParryRewarded: false,
       meleeSwings: [{
-        weapon: 'hands', angle: 0, damage: 7, reach: 92, timer: 0.2, maxTimer: 0.2,
+        weapon: 'sword', angle: 0, damage: 7, reach: 92, timer: 0.2, maxTimer: 0.2,
       }],
     },
     enemyProjectiles: [], enemies: [], returned: [], damageCalls: [], elapsed: 1, mode: 'playing', bombScorches: [],

@@ -35,10 +35,12 @@ test('behaviour items only work while a highlighted branch of the held weapon li
 
 test('item branches stay dormant until their item is found; technique branches always work', () => {
   const c = branchContext();
-  c.toggleBranch('windup');
-  assert.equal(c.fireMode('melee'), 'rapid', 'Wind-Up without its wraps does nothing');
+  c.toggleBranch('brawl-windup');
+  assert.equal(c.fireMode('brawl'), 'rapid', 'Twisting Fist without its wraps does nothing');
   c.ownedItems.add('mod-windup');
-  assert.equal(c.fireMode('melee'), 'charge');
+  assert.equal(c.fireMode('brawl'), 'charge');
+  c.toggleBranch('windup');
+  assert.equal(c.fireMode('melee'), 'charge', 'Heavy Slash is a sword technique, not a glove ability');
   c.toggleBranch('focus');
   assert.equal(c.fireMode('magic'), 'charge', 'Focus needs no item');
   c.toggleBranch('cleave');
@@ -252,7 +254,7 @@ function abilityPickerContext() {
     weaponHands = { main: 'magic', off: 'blade' };`, c);
   const mod = (id, style, extra = {}) => ({ id, name: id, description: `${style}: does a thing`, kind: 'mod', style, ...extra });
   c.shopItemCatalog.push(
-    mod('mod-windup', 'melee'), mod('mod-flurry', 'melee'), mod('mod-cinder', 'melee', { locked: true }),
+    mod('mod-windup', 'brawl'), mod('mod-flurry', 'brawl'), mod('mod-cinder', 'melee', { locked: true }),
     mod('mod-pierce', 'bow'), mod('mod-draw', 'bow'), mod('mod-quiver', 'bow'), mod('mod-storm-arrows', 'bow'),
     mod('mod-splash', 'magic'), mod('mod-chain', 'magic'), mod('mod-lingering', 'magic'),
     { id: 'spore-bloom', name: 'Spore Bloom', description: 'Magic shots split', kind: 'ability' },
@@ -267,9 +269,9 @@ const slotName = (slot) => slot.item?.id || slot.kind;
 test('the run-start ability picker lists found abilities by weapon, plus Random and Skip', () => {
   const c = abilityPickerContext();
   const slots = c.startAbilitySlots();
-  assert.deepEqual([...slots.map(slotName)], ['mod-windup', 'mod-pierce', 'mod-chain', 'random', 'skip'],
+  assert.deepEqual([...slots.map(slotName)], ['mod-pierce', 'mod-chain', 'mod-windup', 'random', 'skip'],
     'only found, unlocked abilities; locked Cinder and unfound Flurry stay hidden');
-  assert.deepEqual([...slots.slice(0, 3).map((slot) => slot.column)], [0, 1, 2], 'Blade, Bow and Magic columns');
+  assert.deepEqual([...slots.slice(0, 3).map((slot) => slot.column)], [1, 2, 3], 'Bow, Magic and Brawler columns');
   for (const slot of slots) {
     const bounds = c.abilitySlotBounds(slot);
     assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 960 && bounds.y + bounds.height <= 460, `${slotName(slot)} fits`);
@@ -277,8 +279,6 @@ test('the run-start ability picker lists found abilities by weapon, plus Random 
 
   assert.equal(c.openAbilityChoice(), true);
   assert.equal(peek(c, 'mode'), 'ability');
-  assert.equal(slotName(focusedSlot(c)), 'mod-windup');
-  c.moveAbilityFocus(1);
   assert.equal(slotName(focusedSlot(c)), 'mod-pierce');
   c.moveAbilityFocus(1);
   assert.equal(slotName(focusedSlot(c)), 'mod-chain');
@@ -304,7 +304,7 @@ test('the run-start ability picker lists found abilities by weapon, plus Random 
 
 test('a full weapon swaps its last branch for the pick; the last pick is focused first; Escape skips', () => {
   const c = abilityPickerContext();
-  for (const id of ['cleave', 'flurry', 'riposte']) c.toggleBranch(id);
+  for (const id of ['brawl-power', 'brawl-flurry', 'brawl-rush']) c.toggleBranch(id);
   c.save.branches.startAbility = 'mod-windup';
   c.openAbilityChoice();
   assert.equal(slotName(focusedSlot(c)), 'mod-windup', 'the remembered pick is focused');
@@ -312,9 +312,9 @@ test('a full weapon swaps its last branch for the pick; the last pick is focused
   const bounds = c.abilitySlotBounds(focusedSlot(c));
   Object.assign(c.pointer, { x: bounds.x + 4, y: bounds.y + 4 });
   c.handleAbilityPointer();
-  assert.deepEqual([...c.save.branches.loadouts.melee], ['cleave', 'flurry', 'windup']);
-  assert.match(c.messages.at(-1), /Wind-Up replaces Riposte/);
-  assert.equal(peek(c, 'weaponHands.main'), 'blade', 'the blade in the off hand swaps into the main hand');
+  assert.deepEqual([...c.save.branches.loadouts.brawl], ['brawl-power', 'brawl-flurry', 'brawl-windup']);
+  assert.match(c.messages.at(-1), /Twisting Fist replaces Meteor Rush/);
+  assert.equal(peek(c, 'weaponHands.main'), 'fists', 'the brawler weapon goes in hand');
 
   c.openAbilityChoice();
   c.clock += 400;
@@ -331,23 +331,23 @@ test('a full weapon swaps its last branch for the pick; the last pick is focused
 
 test('the Random card rolls an ability that suits the run element on any weapon, even one not found yet', () => {
   const c = abilityPickerContext();
-  assert.deepEqual([...c.randomStartAbilityPool('fire').map((item) => item.id)], ['mod-draw', 'mod-splash'],
-    'fire suits Cinder, Longbow Draw and Impact Core; locked Cinder is left out');
-  assert.deepEqual([...c.randomStartAbilityPool('spore').map((item) => item.id)], ['mod-flurry', 'mod-pierce'],
+  assert.deepEqual([...c.randomStartAbilityPool('fire').map((item) => item.id)], ['mod-draw', 'mod-splash', 'mod-flurry'],
+    'fire suits Longbow Draw, Impact Core and Flurry; locked Cinder is left out');
+  assert.deepEqual([...c.randomStartAbilityPool('spore').map((item) => item.id)], ['mod-pierce', 'mod-flurry'],
     'Spore Bloom unlocks a class, so it must be found for real first');
   c.save.discoveredItemIds.push('spore-bloom');
   assert.ok(c.randomStartAbilityPool('spore').some((item) => item.id === 'spore-bloom'));
   for (const element of Object.keys(peek(c, 'magicElementPalette'))) {
     const affinity = peek(c, 'ELEMENT_ABILITY_AFFINITY')[element];
     assert.ok(affinity, `${element} has abilities`);
-    for (const style of ['melee', 'bow', 'magic']) {
+    for (const style of ['melee', 'bow', 'magic', 'brawl']) {
       assert.equal(c.startAbilityStyle(c.shopItemCatalog.find((item) => item.id === affinity[style])), style);
     }
   }
 
   c.activeMagicElement = 'fire';
   c.magicElements.add('fire');
-  vm.runInContext('Math.random = () => 0.99', c);
+  vm.runInContext('Math.random = () => 0.5', c);
   c.openAbilityChoice();
   c.clock += 400;
   const random = peek(c, 'abilitySlots').findIndex((slot) => slot.kind === 'random');
@@ -451,7 +451,9 @@ test('walking the map moves the character node to node, and on/off and grow act 
   c.focusBranchNode('heart');
   assert.equal(peek(c, 'branchMapFocus'), 'heart');
   c.handleBranchKey({ key: 'e' }, 'e');
-  assert.equal(peek(c, 'branchTab'), 'confluence', 'Q/E change tab now that A/D walk; Magic is followed by the Confluence');
+  assert.equal(peek(c, 'branchTab'), 'brawl', 'Magic is followed by Brawler');
+  c.handleBranchKey({ key: 'e' }, 'e');
+  assert.equal(peek(c, 'branchTab'), 'confluence', 'Brawler is followed by Confluence');
   c.handleBranchKey({ key: 'e' }, 'e');
   assert.equal(peek(c, 'branchTab'), 'melee', 'and the tabs wrap around');
   assert.equal(peek(c, 'branchMapFocus'), 'heart');
@@ -685,7 +687,7 @@ test('play style is recorded per family, halves when large, and survives a save 
   assert.equal(play.magic.use, Math.floor((peek(c, 'PLAYSTYLE_HALVE_AT') + 1) / 2), 'old play fades so recent runs count most');
   const clean = c.sanitizePlaySave({ melee: { use: 5.9, charge: -3, tap: 'x' }, junk: {} });
   assert.deepEqual(JSON.parse(JSON.stringify(clean)),
-    { melee: { use: 5, charge: 0, tap: 0 }, bow: { use: 0, charge: 0, tap: 0 }, magic: { use: 0, charge: 0, tap: 0 } });
+    { melee: { use: 5, charge: 0, tap: 0 }, bow: { use: 0, charge: 0, tap: 0 }, magic: { use: 0, charge: 0, tap: 0 }, brawl: { use: 0, charge: 0, tap: 0 } });
 });
 
 test('the suggested path follows play style but never blocks other choices', () => {
@@ -699,7 +701,7 @@ test('the suggested path follows play style but never blocks other choices', () 
   assert.match(c.suggestedPath('melee')[0].id, /^stat:tier:flurry:/, 'quick taps suggest attack-speed routes');
   c.toggleBranch('riposte');
   c.save.branches.unlocks.riposte = 2;
-  const steps = c.suggestedPath('melee').map((step) => step.mapId);
+  const steps = c.suggestedPath('melee', 6).map((step) => step.mapId);
   assert.ok(steps.includes('riposte:3'), 'what you highlight and grow is built on');
   assert.equal(new Set(steps).size, steps.length, 'each step is a different node');
   c.save.branches.xp = 999;

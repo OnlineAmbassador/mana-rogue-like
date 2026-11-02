@@ -8,7 +8,7 @@ const { sliceText, loadFunctions } = require('./helpers/load');
 function combat() {
   const c = vm.createContext({
     player: { x: 100, y: 100, radius: 12, hp: 4, maxHp: 4, armor: 0, invuln: 0 },
-    mode: 'playing', ownedItems: new Set(), enemies: [], enemyProjectiles: [], pickups: [],
+    mode: 'playing', elapsed: 0, ownedItems: new Set(), enemies: [], enemyProjectiles: [], pickups: [],
     groundHazards: [], bombScorches: [], bossStrikes: [], breakables: [], currentFloor: 12,
     save: { loreRelics: [] }, rooms: [], manaLoreRelics: [], shopItemCatalog: [],
     runOfferedAbilityIds: new Set(),
@@ -65,6 +65,24 @@ test('armor absorbs a half-heart hit without healing the player', () => {
   c.damagePlayer(0.5, null);
   assert.equal(c.player.hp, 3.5);
   assert.equal(c.player.armor, 0);
+});
+
+test('Brawler recovery guard reduces a hit by half a heart briefly, never to zero or forever', () => {
+  const c = combat();
+  c.character = { id: 'brawler', className: 'Brawler' };
+  c.combatStyles.add('brawl');
+  c.activeCombatStyle = 'brawl';
+  c.elapsed = 10;
+  c.player.brawlerBraceUntil = 10.18;
+  c.damagePlayer(1, null);
+  assert.equal(c.player.hp, 3.5);
+  c.player.invuln = 0;
+  c.damagePlayer(0.5, null);
+  assert.equal(c.player.hp, 3, 'a guard cannot negate all damage');
+  c.player.invuln = 0;
+  c.elapsed = 10.19;
+  c.damagePlayer(1, null);
+  assert.equal(c.player.hp, 2, 'the defensive window expires');
 });
 
 test('invulnerability and Aegis still block half-heart damage', () => {
@@ -541,6 +559,7 @@ test('heart renderer clips a half-heart to exactly half the icon with or without
 
 test('weapon slots show the swap cooldown on the unselected styles only', () => {
   const c = combat();
+  c.character = { id: 'wanderer' };
   const texts = [];
   c.ctx = new Proxy({}, {
     get: (_, key) => (...args) => { if (key === 'fillText') texts.push(args[0]); },
@@ -552,11 +571,30 @@ test('weapon slots show the swap cooldown on the unselected styles only', () => 
   c.shopItemIconImages = {};
   vm.runInContext('weaponSwapCooldown = 4.2;', c);
   c.drawStyleSlots();
-  assert.equal(texts.filter((text) => text === '5').length, 2);
+  assert.equal(texts.filter((text) => text === '5').length, 3);
   texts.length = 0;
   vm.runInContext('weaponSwapCooldown = 0;', c);
   c.drawStyleSlots();
   assert.equal(texts.includes('5'), false);
+});
+
+test('Echo-Bound Delver HUD marks all four weapons active without swap cooldowns', () => {
+  const c = combat();
+  c.character = { id: 'echo-bound-delver' };
+  const texts = [];
+  c.ctx = new Proxy({}, {
+    get: (_, key) => (...args) => { if (key === 'fillText') texts.push(args[0]); },
+    set: () => true,
+  });
+  c.currentAttackStyle = () => 'magic';
+  c.classSignature = () => null;
+  c.shopItemIconImages = {};
+  vm.runInContext('weaponSwapCooldown = 4.2;', c);
+  c.drawStyleSlots();
+  assert.equal(texts.filter((text) => text === 'ALL').length, 4);
+  assert.equal(texts.includes('5'), false);
+  assert.equal(texts.includes('M'), false);
+  assert.equal(texts.includes('O'), false);
 });
 
 test('restoring a room whose saved state lacks lists treats it as fresh instead of throwing', () => {

@@ -19,10 +19,14 @@ The same rules are kept in [HANDOFF.md](HANDOFF.md) under "Persistent instructio
 
 ## Human-made assets in use
 
+The Brawler uses unmodified TMW glove icons in menus and matching male/female equipment sheets on the player's hands, restored from the pre-trim snapshot in git history. Cotton mitten overlays receive a leather tint at draw time; assassin and Bromenal sheets provide Flurry gloves and iron gauntlets. All use the same 16-frame strips, frame index and position as the player body. Punches and rushes use the existing swipe effect, never flying glove icons, and the player remains visible during a fist dash. Sword slashes rotate credited item/effect bitmaps at draw time; no new bitmap art was generated. See [CREDITS.md](CREDITS.md) for per-file authors and licenses.
+
 | Source | What | Credits |
 | --- | --- | --- |
 | The Mana World client data (`assets/tmw/clientdata`, snapshot `3ab88eb5`) | Player, hair and clothing sprites, monster sprites, item icons, hats, floor tilesets, castle and desert walls, footprints, sandstorm, sound effects | [CREDITS.md](CREDITS.md), `assets/tmw/clientdata/LICENSE` |
 | Source of Mana (`assets/som`) | Sandstone walls (`wall.png`), Soul Menhir, Artis market sheet (shop stalls, counters, banners), Tulimshar map fixture, sound effects | `assets/som/CREDITS.md` |
+
+The base player bow uses Reid's matching `sprites/equipment/weapons/woodenbow.png` overlay, sharing the body's frame and draw position rather than the oversized bandit accessory. Restored pixels are unchanged; see [CREDITS.md](CREDITS.md).
 
 **Check of the files on disk (2026-10-31).** `assets/som/CREDITS.md` records its images as unedited. In git history the only commit that modified existing TMW images is `b107cbb` (2026-10-25). It changed 598 files across the whole client-data tree, including the upstream CI scripts, `.mailmap` and tooling, which matches an upstream refresh rather than an edit; no agent edit of a bitmap was found. All PNGs were then losslessly recompressed (2026-10-31, `tools/optimize-pngs.js`; see CREDITS.md), so their bytes no longer match upstream; any comparison with upstream revision `3ab88eb5` has to compare decoded pixels. That comparison is the open item at the end of the list.
 

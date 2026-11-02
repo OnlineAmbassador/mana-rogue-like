@@ -21,6 +21,139 @@ function weaponContext() {
 
 const hands = (c) => ({ ...peek(c, 'weaponHands') });
 
+function echoContext() {
+  const c = weaponContext();
+  Object.assign(c.character, { id: 'echo-bound-delver', className: 'Echo Warden', raceHead: 'elfMale' });
+  Object.assign(c.weapon, { projectileSpeed: 480, rangeMultiplier: 1, tearSize: 1 });
+  Object.assign(c.player, { meleeSwings: [], fireCooldown: 0, swordParryTimer: 0, swordParryFlash: 0 });
+  c.gamepadInput = {};
+  c.attackInputSuppressed = false;
+  c.applyWeaponHands({ main: 'axe', off: 'kunai' });
+  return c;
+}
+
+test('Echo-Bound Delver has a fixed arsenal, skips weapon choice and cannot swap or reassign hands', () => {
+  const c = echoContext();
+  assert.equal(c.echoArsenalActive(), true);
+  assert.deepEqual(hands(c), { main: 'magic', off: 'blade' });
+  assert.equal(c.meleeWeapons.has('sword'), true);
+  assert.equal(c.openStartingWeaponChoice(), false);
+  assert.equal(peek(c, 'startingWeaponPending'), false);
+  assert.equal(c.mode, 'playing');
+  assert.equal(c.chooseStartingWeapon(1), false);
+  for (const slot of ['main', 'off']) assert.equal(c.setWeaponHand(slot, 'bow'), false);
+  for (const style of ['melee', 'bow', 'magic']) c.selectCombatStyle(style);
+  c.cycleCombatStyle();
+  assert.equal(c.swapWeaponHands(), false);
+  assert.equal(c.holdStartAbilityWeapon('bow'), null);
+  assert.deepEqual(hands(c), { main: 'magic', off: 'blade' });
+  assert.equal(c.activeCombatStyle, 'magic');
+  assert.equal(peek(c, 'weaponSwapCooldown'), 0);
+  assert.equal(c.offhandActive(), false, 'the normal Dual Grip attack must not duplicate his sword');
+});
+
+test('Echo arsenal launches Sword, Arrows, Magic and Fists from every input without a target', () => {
+  for (const input of ['mouse', 'controller', 'touch']) {
+    const c = echoContext();
+    if (input === 'mouse') c.pointer.down = true;
+    if (input === 'controller') c.gamepadInput.shoot = true;
+    if (input === 'touch') c.touchInput.attack = true;
+    c.updateMagicInput(0.016);
+    const magicCooldown = c.player.fireCooldown;
+    c.updateOffhand(0.016);
+    assert.ok(c.projectiles.some((shot) => shot.type === 'elemental'), input);
+    assert.ok(c.projectiles.some((shot) => shot.type === 'arrow'), input);
+    assert.ok(c.player.meleeSwings.some((swing) => swing.weapon === 'sword'), input);
+    assert.ok(c.player.meleeSwings.some((swing) => swing.weapon === 'hands'), input);
+    assert.ok(c.projectiles.every((shot) => Number.isFinite(shot.damage) && shot.damage > 0));
+    assert.equal(c.player.fireCooldown, magicCooldown, 'secondary weapons cannot consume magic cooldown');
+    assert.ok(c.player.echoWeapons.melee.cooldown > 0);
+    assert.ok(c.player.echoWeapons.bow.cooldown > 0);
+    assert.equal(c.activeCombatStyle, 'magic');
+    const shots = c.projectiles.length;
+    const swings = c.player.meleeSwings.length;
+    c.updateOffhand(0.001);
+    assert.equal(c.projectiles.length, shots);
+    assert.equal(c.player.meleeSwings.length, swings);
+  }
+});
+
+test('Echo weapons use full-strength base shapes and keep family bonuses', () => {
+  const c = echoContext();
+  for (const [style, id] of Object.entries(peek(c, 'BASE_WEAPON_FOR_STYLE'))) {
+    let shape;
+    c.performOffhandAttack(0, () => { shape = c.weaponShape(style); }, id, { cooldown: 0 });
+    assert.equal(shape.damage, 1, `${style} has no off-hand damage penalty`);
+    assert.equal(shape.rate, 1, `${style} has no off-hand speed penalty`);
+  }
+  const stat = c.skillStatNodes().find((node) => node.style === 'bow' && node.fx.rate);
+  c.skillStatState().push(stat.id);
+  c.performOffhandAttack(0, () => {
+    assert.ok(c.branchEffects('bow').rate < 1);
+    assert.equal(c.branchEffects('magic').rate, 1);
+  }, 'bow', { cooldown: 0 });
+});
+
+test('Echo charge branches release independently and preserve magic charge and cooldown', () => {
+  const c = echoContext();
+  c.fireModes.melee = c.fireModes.bow = c.fireModes.brawl = 'charge';
+  c.pointer.down = true;
+  c.player.magicHold = 0.42;
+  c.player.fireCooldown = 0.28;
+  c.updateOffhand(1.3);
+  assert.equal(c.player.meleeSwings.length, 0, 'sword waits for release');
+  assert.equal(c.projectiles.length, 1, 'bow still fires its initial quick arrow');
+  assert.equal(c.projectiles[0].type, 'arrow');
+  c.pointer.down = false;
+  c.updateOffhand(0.016);
+  assert.ok(c.player.meleeSwings.some((swing) => swing.weapon === 'sword' && swing.charged && !swing.spin));
+  assert.ok(c.player.meleeSwings.some((swing) => swing.weapon === 'hands' && swing.charged && swing.spin));
+  assert.ok(c.projectiles.some((shot) => shot.type === 'charge-beam'));
+  assert.ok(c.player.swordParryTimer > 0, 'charged sword retains its parry');
+  assert.ok(c.player.spin, 'charged sword retains its spin');
+  assert.equal(c.player.magicHold, 0.42);
+  assert.equal(c.player.fireCooldown, 0.28);
+  assert.equal(c.player.echoWeapons.melee.meleeCharge, 0);
+  assert.equal(c.player.echoWeapons.bow.bowHold, 0);
+});
+
+test('Echo arsenal respects disabled control, suppressed input and charge reset', () => {
+  const c = echoContext();
+  c.pointer.down = true;
+  c.updateOffhand(0.016, false);
+  assert.equal(c.projectiles.length, 0);
+  assert.equal(c.player.meleeSwings.length, 0);
+  c.attackInputSuppressed = true;
+  c.updateOffhand(0.016);
+  assert.equal(c.projectiles.length, 0);
+  assert.equal(c.player.meleeSwings.length, 0);
+  c.attackInputSuppressed = false;
+  c.fireModes.melee = c.fireModes.brawl = 'charge';
+  c.updateOffhand(0.2);
+  assert.ok(c.player.echoWeapons.melee.meleeCharge > 0);
+  c.resetChargeState();
+  assert.equal(c.player.echoWeapons.melee.meleeCharge, 0);
+  c.pointer.down = false;
+  c.updateOffhand(0.016);
+  assert.equal(c.player.meleeSwings.length, 0, 'changing element or menu state cannot release a stale charge');
+});
+
+test('Echo Build weapon controls explain the fixed arsenal instead of offering hand selection', () => {
+  const c = echoContext();
+  loadFunctions(c, 'gameui.js', ['setFocusedWeaponHand', 'drawWeaponHandButtons']);
+  const buttons = [];
+  const notices = [];
+  c.ctx = { fillText() {} };
+  c.drawBranchButton = (...args) => buttons.push(args);
+  c.setBranchNotice = (notice) => notices.push(notice);
+  c.setFocusedWeaponHand('main');
+  assert.match(notices[0], /always active together/);
+  c.drawWeaponHandButtons({ toggle: {}, unlock: {} }, 'bow', 10);
+  assert.deepEqual(buttons.map((args) => args[1]), ['All active', 'No swapping']);
+  assert.ok(buttons.every((args) => args[4] === false));
+  assert.deepEqual(hands(c), { main: 'magic', off: 'blade' });
+});
+
 function completedGrowthContext() {
   const c = weaponContext();
   for (const branch of peek(c, 'skillBranches')) c.branchState().unlocks[branch.id] = 3;
@@ -115,6 +248,7 @@ test('every class can select an unheld base family mid-run without Build or elem
       ['melee', 'blade', 'bow', 'magic'],
       ['bow', 'bow', 'magic', 'blade'],
       ['magic', 'magic', 'bow', 'blade'],
+      ['brawl', 'fists', 'magic', 'blade'],
     ]) {
       vm.runInContext('weaponSwapCooldown = 0;', c);
       c.applyWeaponHands({ main, off });
@@ -128,7 +262,7 @@ test('every class can select an unheld base family mid-run without Build or elem
   }
 });
 
-test('cycling reaches all three families in both directions and preserves held variants when selecting them', () => {
+test('cycling reaches all four families in both directions and preserves held variants when selecting them', () => {
   const c = weaponContext();
   c.applyWeaponHands({ main: 'kunai', off: 'scepter' });
   c.selectCombatStyle('magic');
@@ -137,12 +271,12 @@ test('cycling reaches all three families in both directions and preserves held v
   assert.equal(c.activeCombatStyle, 'magic', 'switch cooldown prevents immediate changes');
   for (const direction of [1, -1]) {
     const visited = new Set();
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < 4; i += 1) {
       vm.runInContext('weaponSwapCooldown = 0;', c);
       c.cycleCombatStyle(direction);
       visited.add(c.activeCombatStyle);
     }
-    assert.deepEqual([...visited].sort(), ['bow', 'magic', 'melee']);
+    assert.deepEqual([...visited].sort(), ['bow', 'brawl', 'magic', 'melee']);
   }
 });
 
@@ -151,9 +285,9 @@ test('HUD family slots use the rendered geometry for both signature layouts', ()
   loadFunctions(c, 'gameui.js', ['styleSlotBounds']);
   for (const active of [false, true]) {
     c.classSignature = () => ({ active });
-    for (let slot = 0; slot < 3; slot += 1) {
+    for (let slot = 0; slot < 4; slot += 1) {
       const bounds = c.styleSlotBounds(slot);
-      assert.deepEqual({ ...bounds }, { x: (active ? 256 : 300) + slot * 44, y: 2, width: 36, height: 36 });
+      assert.deepEqual({ ...bounds }, { x: (active ? 212 : 256) + slot * 44, y: 2, width: 36, height: 36 });
     }
   }
 });
@@ -198,14 +332,14 @@ test('setting a hand swaps when the weapon is already in the other one and is re
     'another class keeps its own default pair');
 });
 
-test('all three base weapons are explicitly selectable at run start on every class', () => {
+test('all four base weapons are explicitly selectable at run start on every class', () => {
   const c = weaponContext();
   c.keys = { w: true };
   c.pointer.down = true;
   c.saveRunState = c.suppressHeldAttackInput = () => {};
   for (const className of Object.keys(peek(c, 'classProfiles'))) {
     c.character.className = className;
-    for (const [index, id] of ['blade', 'bow', 'magic'].entries()) {
+    for (const [index, id] of ['blade', 'bow', 'magic', 'fists'].entries()) {
       c.meleeWeapons.clear();
       c.meleeWeapons.add('hands');
       c.openStartingWeaponChoice();
@@ -215,7 +349,7 @@ test('all three base weapons are explicitly selectable at run start on every cla
       assert.equal(c.chooseStartingWeapon(index), true, `${className}: ${id}`);
       assert.equal(hands(c).main, id);
       assert.notEqual(hands(c).off, id);
-      assert.equal(c.activeCombatStyle, ['melee', 'bow', 'magic'][index]);
+      assert.equal(c.activeCombatStyle, ['melee', 'bow', 'magic', 'brawl'][index]);
       if (index === 0) assert.equal(c.meleeWeapons.has('sword'), true, 'Sword choice equips real sword attacks, not fists');
       assert.equal(c.mode, 'playing');
       assert.equal(c.chooseStartingWeapon(index), false, 'a closed picker cannot change weapons');

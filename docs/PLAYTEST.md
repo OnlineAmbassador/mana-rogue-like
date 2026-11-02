@@ -6,13 +6,16 @@ Useful to write down with each note: which character you played, which floor, an
 
 ## Combat feel
 
+- **Sword versus Brawler.** Check alternating sword cuts and heavy slashes versus short punches and twisting fists. Confirm gloves never reflect shots, fists can break normal scenery but not bomb-only/solid objects, and leather/iron gloves feel meaningfully different.
+- **Brawler visuals and tree.** Gloves stay on both hands when idle, walking and punching in all four directions, for male/female bodies and leather/iron/Flurry gear. Punches show swoops, not glove projectiles; rush keeps the player visible. Confluence forms a diamond with Brawler linked to Sword and Bow and back through the centre.
+- **Brawler fairness.** Compare Mage, Rogue, Warrior and Brawler runs. Rush must hit each foe once and show a readable body-and-swoop dash; ordinary dash invulnerability is only 0.24 s. The brief recovery guard must not make repeated dashes permanently safe. Check all four HUD keys, touch Swap and controller LB/L1, plus signature key 5.
 - **Charged attacks.** Hold the attack button to charge a bow or magic shot. Does a charged shot feel worth the wait? Does a fully charged magic shot make bosses too easy?
 - **Arrow and spell arcs.** Do shots hit where they appear to land, especially at long range?
 - **Enemy difficulty.** Are fights fair? Look for enemies that feel too accurate, too fast, or that hit you from out of nowhere.
 - **Boss fights.** Do boss warnings give you enough time to react? Is there too much waiting around between attacks, or too little?
 - **Weapon swap.** Is the 6-second wait before swapping weapons too long?
 - **Enemies that read your input.** Play with keyboard, touch and a gamepad if you can. Does each feel distinct and fair? Look for touch shots that miss at close range, gamepad enemies that flank or crowd you too much, and the timing of the wide pulse (the circle that tells you to dash). The pause screen can turn Adaptive enemies off for comparison.
-- **Weapon styles.** Do enemies respond differently to sword, bow and magic, and does that feel fair?
+- **Weapon styles.** Do enemies respond differently to sword, bow, magic and fists, and does that feel fair?
 - **Tougher enemies.** Are enemies that gain boss-style moves early easy to read? Are the two-room trials worth the time?
 - **Desert regions.** Do the Tulimshar and Candor walls, paving and sand effects look right?
 

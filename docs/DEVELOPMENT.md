@@ -22,6 +22,18 @@ These are classic browser scripts, not modules, so their shared top-level declar
 
 ## Combat regression checks
 
+The fourth family is `brawl` (key 4), with `fists`, `leather-gloves` and `iron-gauntlets`. Sword remains `melee` (key 1): alternating blade cuts, Heavy Slash, and timed parries. `mod-windup` and `mod-flurry` now power only Brawler branches; swords no longer use glove mods or spin punches. Both close-range families share hit detection and input buffering, but keep separate effects, cooldowns and weapon shapes. Echo-Bound Delver drives all four families and never permits hand reassignment.
+
+Brawler starts unlocked. Its fist dash uses the normal 0.16-second movement, 0.24-second invulnerability and 0.85-second cooldown. `updateConfluenceDash` sweeps the traveled segment, deduplicates foe/scenery hits, respects solid/bomb-only immunity, and grants a 0.18-second half-heart guard at most every 3 seconds. Other classes earn rush and guard through stat-gated Brawler branches. Native Vault Delver and Reclaimer fists now use `brawl`; saved hand choices remain valid.
+
+Confluence places Magic/Sword/Bow/Brawler at the top/left/right/bottom of a symmetric diamond. Optional Fist/Sword and Fist/Bow bridges complete its lower sides and connect through stat gates to the central Trinity. Trinity still requires only the original three fusions; existing saves are not reset. Fist/Bow offers Swift Draw (5% faster fist/bow recovery) and Flow Step (4% walking speed). Both bridge ends can root progression and respec protects those roots.
+
+Worn gloves use the matching male/female cotton-mitten, assassin and Bromenal equipment sheets, not item icons. All follow the player's actual 16-frame race strips: walk 1-6, punch 7-10, bow 11-15. Body and gloves share the exact frame index, scale and destination, with no frame remapping. Cotton mittens receive a leather tint at draw time. Their decoded bitmap pixels remain unchanged. Punches and charged twists use a swipe/swoop; fist rushes retain the player body and worn gloves.
+
+The player's base bow uses the matching 64-pixel `woodenbow.png` equipment overlay through `drawClothing`, with the body's same frame, position and scale for idle, walking and firing in all four directions. The 128-pixel bandit accessory remains enemy-only. Found thrown/variant weapons retain their existing icon-only presentation instead of showing the base bow.
+
+Keys 1-4 select families; signatures move from 4 to 5 (right-click and controller D-pad right remain). Legacy default signature bindings migrate during `loadBindings`. Controller LB/L1 and touch Swap traverse four families using the same action as Tab/wheel. `tests/brawler.test.js` checks family separation, input wiring, dash sweeps, defense limits, progression and save compatibility; the character/branch/element/foe/boss matrices also include Brawler.
+
 The stat grid uses `SKILL_GRID_VERSION`, `skillStatNodes`, `skillStatReachable`, and `hasSkillStatPrerequisite` in playermanager.js. Damage/reach forks lead to Blade, recovery/charge-speed forks to Bow, and movement/splash/spell forks to Magic. Either fork is sufficient before its linked ability; bonuses are permanent for their weapon family, with movement applying to the character and magic splash capped at 30%. Stat prerequisites also gate first-tier behavior abilities, weapon learning, Dual Grip and non-stat Confluence nodes. `affordableSkillGrowth` supplies both the Build reminder and the exact opening focus, checking reachability, XP and every resource cost. `tests/grid.test.js` runs the real prerequisites; the shared combat fixture opens prerequisites by default to isolate existing combat tests.
 
 Grid version 1 intentionally resets legacy tree tiers/loadouts, weapon learning, Dual Grip, Confluence and onboarding flags while preserving XP, found weapons, Unweaving Runes, remembered hands, starting-ability preference, element discoveries and other profile/run resources. Current-grid saves keep their valid stat IDs and progress. Stat respec refunds the original price and protects dependencies. Build uses Activate/Deactivate and Upgrade; Close/Esc/controller B exit even during the tour. The first affordable reminder defocuses the game until Build is entered; later rooms pulse briefly without blur or arrows.
@@ -215,14 +227,14 @@ Landscape touch layouts hide the external title/stats header and message panel, 
 - Move: WASD or Arrow keys
 - Aim with the mouse; the delver faces the pointer continuously. Hold the primary mouse button to attack toward it; firing stops reliably when released or when the game loses focus. WASD movement does not override mouse facing while the mouse is moving, a button is held, or an attack is in progress; after about a second without mouse activity the delver faces the way he walks again, and moving the mouse snaps facing back to the pointer.
 - Dash: Space (left hand stays on WASD)
-- Weapon: 1/2/3 select, Tab or mouse wheel cycles
+- Weapon: 1/2/3/4 select, Tab or mouse wheel cycles
 - Weapon modes change through weapon-specific upgrades; there is no separate mode-cycle control or mode purchase. Charge mode is a rare, once-per-run discovery (5% per eligible upgrade), and when found it applies to all selectable weapon styles. Charged bows fire a sustained, obstacle-blocked beam that damages enemies along its path and detonates on impact; a fully charged magic shot is larger, explosive, and substantially stronger. Saved playtime and character unlocks can promote a few early-floor enemies into advanced AI without increasing room population. Major bosses use their own phase attacks rather than a shared multi-circle ground-strike pattern.
 - Player shots stop at the room's outer walls, including upgraded wall-piercing projectiles.
-- Class ability: 4 or right-click
+- Class ability: 5 or right-click
 - Use a consumable: Q
 - Shockwave (start with one; gain another each floor) / Mana familiars (discover the sigil; five room clears charge a summon of up to three one-hit guards): R
 - Bomb: F
-- Frost is automatic: it chills nearby foes by itself. Every class starts with Bubble; only obelisks unlock and change elements during a run. Choose Sword, Arrows or Magic at the start.
+- Frost is automatic: it chills nearby foes by itself. Every class starts with Bubble; only obelisks unlock and change elements during a run. Choose Sword, Arrows, Magic or Brawler fists at the start.
 - Interact / buy / talk: E (walking onto items never buys them)
 - The bottom HUD action bar shows each button, its count and cooldown.
 - Every action above can be rebound on the Controls screen (C on the title or pause screen). Bindings save and the tutorial and prompts update to match.

@@ -1,13 +1,13 @@
-// The Confluence: the Blade, Bow and Magic maps join through three bridges of stat nodes, a fusion and a move, with
-// the Trinity at the centre. Also the element ground effects it leans on: charged puddles, slush and quenching.
+// Four weapon maps form a diamond, with optional Brawler bridges and the original Trinity at its centre.
+// Also the element ground effects it leans on: charged puddles, slush and quenching.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const { combat, peek } = require('./helpers/combat');
 const { loadFunctions, loadBetween } = require('./helpers/load');
 
-function confluenceContext() {
-  const c = combat();
+function confluenceContext({ strict = false } = {}) {
+  const c = combat({ skillPrerequisitesOpen: !strict });
   c.save.branches = { xp: 100000, unlocks: {}, loadouts: { melee: [], bow: [], magic: [] } };
   c.save.bankedZeny = 100000;
   c.persistSave = () => {};
@@ -54,7 +54,7 @@ test('Confluence growth uses the XP gate; seals and abilities take Life Stones, 
     if (node.kind === 'stat') assert.equal(node.cost.lifeStone, undefined, `${node.id} is a stat`);
     else assert.deepEqual(Object.keys(node.cost), ['lifeStone'], `${node.id} is a Life Stone lock`);
   }
-  assert.equal(nodes.filter((node) => node.kind === 'seal').length, 6, 'a seal at each end of each bridge');
+  assert.equal(nodes.filter((node) => node.kind === 'seal').length, 10, 'a seal at each end of each bridge');
   assert.ok(new Set(nodes.filter((node) => node.kind === 'stat').map((node) => JSON.stringify(node.cost))).size >= 5,
     'stats have different prices');
 });
@@ -93,6 +93,51 @@ test('stat nodes stack for every weapon, and Vigor and Fortune land straight awa
   c.save.branches.unlocks.quickdraw = 3;
   grow(c, 'cf:string-spell:g1', 'cf:string-spell:s1', 'cf:string-spell:s2');
   assert.equal(c.player.luck, 1, 'Fortune');
+});
+
+test('Brawler bridges grow from either physical family and connect through the centre without changing Trinity requirements', () => {
+  for (const [bridge, roots] of [['fist-edge', ['brawl-power', 'cleave']], ['fist-string', ['brawl-flurry', 'quickdraw']]]) {
+    for (const [index, root] of roots.entries()) {
+      const c = confluenceContext();
+      c.save.branches.unlocks[root] = 3;
+      const parts = index === 0 ? ['g1', 's1', 's2', 'fusion', 's3', 's4', 'g2']
+        : ['g2', 's4', 's3', 'fusion', 's2', 's1', 'g1'];
+      assert.deepEqual(grow(c, ...parts.map(part => `cf:${bridge}:${part}`)), parts.map(() => 'grown'));
+      assert.equal(c.unweaveNode('tier', root), 'blocked');
+      loadFunctions(c, 'dbmanager.js', ['sanitizeConfluenceSave']);
+      assert.deepEqual([...c.sanitizeConfluenceSave(JSON.parse(JSON.stringify(c.save.branches.confluence)))],
+        [...c.save.branches.confluence]);
+    }
+    const c = confluenceContext();
+    c.save.branches.confluence = ['cf:trinity'];
+    assert.equal(c.growConfluenceNode(`cf:${bridge}:fusion`), 'grown', 'central entry is a real progression link');
+    assert.equal(c.growConfluenceNode(`cf:${bridge}:move`), 'grown');
+    assert.equal(c.growConfluenceNode(`cf:${bridge}:s2`), 'grown');
+    assert.equal(c.growConfluenceNode(`cf:${bridge}:s3`), 'grown');
+  }
+  const c = confluenceContext();
+  assert.equal(c.confluenceNode('cf:trinity').links.length, 3);
+  vm.runInContext("weaponHands.main = 'fists';", c);
+  const before = c.branchEffects('brawl').rate;
+  c.save.branches.confluence = ['cf:fist-string:fusion', 'cf:fist-string:move'];
+  assert.equal(c.branchEffects('brawl').rate, before * 0.95);
+  assert.equal(c.confluenceSpeedMultiplier(), 1.04);
+});
+
+test('both Brawler bridges require an affordable stat upgrade before their seals, fusion and move', () => {
+  for (const bridge of ['fist-edge', 'fist-string']) {
+    const c = confluenceContext({ strict: true });
+    c.save.branches.unlocks[c.confluenceNode(`cf:${bridge}:g1`).bridge.ends[0]] = 3;
+    for (const part of ['g1', 's1', 's2', 'fusion', 'move', 's3', 's4', 'g2']) {
+      const id = `cf:${bridge}:${part}`;
+      if (c.confluenceNode(id).kind !== 'stat') {
+        assert.equal(c.growConfluenceNode(id), 'locked', `${id} needs a stat first`);
+        const stat = c.skillStatNodes().find(node => node.target.id === id);
+        assert.equal(c.upgradeSkillStat(stat.id), 'upgraded');
+      }
+      assert.equal(c.growConfluenceNode(id), 'grown');
+    }
+  }
 });
 
 test('unweaving never strands a node: the chain and its tier III root are protected', () => {
@@ -180,11 +225,11 @@ function confluenceMapContext() {
   return c;
 }
 
-test('the Confluence tab joins all three maps, with every bridge linked into its tier III ends', () => {
+test('the Confluence tab joins all four maps, with every bridge linked into its tier III ends', () => {
   const c = confluenceMapContext();
   c.setBranchTab('confluence');
   const nodes = c.branchMapNodes('confluence');
-  const weaponNodes = ['melee', 'bow', 'magic'].reduce((sum, style) =>
+  const weaponNodes = ['melee', 'bow', 'magic', 'brawl'].reduce((sum, style) =>
     sum + c.branchMapNodes(style).length, 0);
   const bridgeStats = c.skillStatNodes().filter((node) => node.target.kind === 'confluence').length;
   assert.equal(nodes.length, weaponNodes + peek(c, 'confluenceNodes()').length + bridgeStats);
@@ -206,6 +251,37 @@ test('the Confluence tab joins all three maps, with every bridge linked into its
     }
   }
   assert.equal(peek(c, 'branchMapFocus'), 'magic/heart', 'the camera starts on the main hand heart');
+});
+
+test('opening Confluence keeps the selected heart visible for all four weapon families', () => {
+  const c = confluenceMapContext();
+  for (const style of ['melee', 'bow', 'magic', 'brawl']) {
+    c.applyWeaponHands(c.defaultWeaponHands({ startingStyle: style }));
+    c.setBranchTab('confluence');
+    c.resetBranchMap();
+    const node = c.branchMapNode(`${style}/heart`);
+    const screen = c.branchWorldToScreen(node.x, node.y);
+    const view = peek(c, 'BRANCH_MAP_VIEW');
+    assert.ok(screen.x >= view.x && screen.x <= view.x + view.width, `${style} horizontal focus`);
+    assert.ok(screen.y >= view.y && screen.y <= view.y + view.height, `${style} vertical focus`);
+    assert.equal(peek(c, 'branchMapFocus'), `${style}/heart`);
+  }
+});
+
+test('the four hearts form a symmetric diamond with both Brawler bridges joined to the central stat gates', () => {
+  const c = confluenceMapContext();
+  const nodes = c.branchMapNodes('confluence');
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  for (const [style, x, y] of [['magic', 0, -850], ['melee', -850, 0], ['bow', 850, 0], ['brawl', 0, 850]]) {
+    assert.equal(byId.get(`${style}/heart`).x, x);
+    assert.equal(byId.get(`${style}/heart`).y, y);
+  }
+  for (const bridge of ['fist-edge', 'fist-string']) {
+    const fusion = byId.get(`cf:${bridge}:fusion`);
+    const gates = fusion.links.map(id => byId.get(id));
+    assert.ok(gates.every(node => node.kind === 'stat'));
+    assert.ok(gates.every(node => node.links.includes('cf:trinity')), `${bridge} connects to the centre`);
+  }
 });
 
 test('growing a Confluence node from the map spends its price and explains a gate or a lock', () => {

@@ -122,8 +122,9 @@ test('Wind-Up Wraps and Longbow Draw put their style in charge mode once their b
   c.shopItemIconImages = {}; c.itemQuips = {}; c.itemEffectTagsFor = () => [];
   c.reservedUpgradeIds = new Set(); c.rangeLensItemIds = []; c.isCatalogItemUnlocked = () => true;
   c.styleSynergy = () => false;
-  assert.equal(c.grantUpgrade({ id: 'mod-windup', name: 'Wind-Up Wraps', kind: 'mod', style: 'melee' }), true);
-  assert.equal(c.fireMode('melee'), 'charge', 'the free Wind-Up slot is highlighted automatically');
+  assert.equal(c.grantUpgrade({ id: 'mod-windup', name: 'Wind-Up Wraps', kind: 'mod', style: 'brawl' }), true);
+  assert.equal(c.fireMode('brawl'), 'charge', 'the free Twisting Fist slot is highlighted automatically');
+  assert.equal(c.fireMode('melee'), 'rapid', 'gloves do not change sword attacks');
   assert.equal(c.fireMode('bow'), 'rapid', 'only its own style changes');
   assert.equal(c.grantUpgrade({ id: 'mod-draw', name: 'Longbow Draw', kind: 'mod', style: 'bow' }), true);
   assert.equal(c.fireMode('bow'), 'charge');
@@ -167,9 +168,9 @@ test('each Far-Reach Lens tier lengthens melee reach by 10%', () => {
     c.weapon.damageBonus = 0;
     const struck = [];
     c.damageEnemy = (enemy) => struck.push(enemy);
-    // Bare hands reach 66; a foe 1px beyond that (centre to centre, radius 10) is out of reach without a lens.
+    // The base sword reaches 92, including when another family is currently selected.
     c.enemies.length = 0;
-    c.enemies.push({ x: 300 + 66 + 10 + 1, y: 300, radius: 10, hp: 10 });
+    c.enemies.push({ x: 300 + 92 + 10 + 1, y: 300, radius: 10, hp: 10 });
     c.performMeleeSwing(0);
     return struck.length;
   };

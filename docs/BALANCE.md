@@ -11,6 +11,16 @@ Reference for anyone changing enemy tuning, in particular the input-adaptive tac
 
 Every new adaptive effect must be gated behind `adaptiveEnemiesEnabled()` (see T1).
 
+## Four weapon families
+
+Sword retains power, reach and timed projectile parries; Brawler combines shorter-range power with faster recovery, but cannot parry. Baseline fists use a 0.36 s recovery and 2.2 damage scale, before class/species/tree/gear modifiers. Brawler's class bonuses are 15% fist power and 15% recovery speed; Rogue retains its faster native bow cadence and Warrior its heavier native sword hits.
+
+Meteor Rush uses the same 0.24 s dash invulnerability and 0.85 s cooldown as other non-Scout classes, not permanent immunity. It hits each crossed target once, using swept collision, and follows the normal melee scenery immunity rules. Its recovery guard lasts 0.18 s, subtracts at most half a heart without reducing a hit below half a heart, and cannot refresh for 3 s. Ordinary and boss heavy hits still matter.
+
+The optional Fist/Bow Confluence bridge adds 5% fist/bow recovery through Swift Draw and 4% walking speed through Flow Step. It adds no parry, invulnerability or extra dash hits. Its seals, fusion and move retain resource costs and stat prerequisites; neither Brawler bridge changes Trinity's original three-fusion requirement.
+
+Fist-style mob adaptation adds no attacker token, does not dodge every punch or punish fist recovery, and uses only x1.05 ring spacing and x1.1 group spacing. Existing input-adaptive limits, telegraph lengths and boss-phase attacks remain shared across all four families. Boss HP estimates include the base sword and fist damage budgets, taking the strongest family rather than summing Echo's arsenal; automated checks prevent baseline attacks from deleting guardians in under 40 seconds. Actual feel and charged-build pacing still need human playtests.
+
 ## Anchors
 
 The rules derive from constants that already exist in the game. If one of these changes, re-check the rules that use it. The code is authoritative: if this table and the code differ, fix the table.

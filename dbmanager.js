@@ -309,6 +309,13 @@ function loadBindings() {
       const padValue = stored.pad?.[action.id];
       if (padValue === null || Number.isInteger(padValue)) bindings.pad[action.id] = padValue;
     }
+    if (!Object.hasOwn(stored.key || {}, 'weapon4')) {
+      const freeKey = () => [...'567890vcxztuyhioklng'].find(key => !Object.values(bindings.key).includes(key));
+      if (bindings.key.ability === '4') bindings.key.ability = freeKey();
+      if (bindingActions.some(action => action.id !== 'weapon4' && bindings.key[action.id] === '4')) {
+        bindings.key.weapon4 = freeKey();
+      }
+    }
     // Saves made before L1 became the default weapon swap still hold R3 and an unbound L1.
     if (bindings.pad.nextWeapon === 11 && !Object.values(bindings.pad).includes(4)) bindings.pad.nextWeapon = 4;
   } catch (error) {
@@ -644,7 +651,7 @@ function restoreRun() {
   activeMagicElement = magicElements.has(saved.activeMagicElement) ? saved.activeMagicElement : 'bubble';
   startingWeaponPending = saved.startingWeaponPending === true;
   combatStyles.clear();
-  for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
+  for (const style of STARTING_WEAPON_STYLES) combatStyles.add(style);
   meleeWeapons.clear();
   for (const item of saved.meleeWeapons || []) meleeWeapons.add(item);
   activeCombatStyle = saved.activeCombatStyle;
@@ -680,7 +687,7 @@ function restoreRun() {
   spawnRoom(currentRoom);
   orbitGuards.length = 0;
   orbitGuards.push(...(Array.isArray(saved.orbitGuards) ? saved.orbitGuards
-    .filter((guard) => ['arrow', 'sword', 'mana'].includes(guard.kind) && Number.isFinite(guard.angle))
+    .filter((guard) => ['arrow', 'sword', 'mana', 'fists'].includes(guard.kind) && Number.isFinite(guard.angle))
     .slice(0, ORBIT_GUARD_MAX)
     .map((guard) => ({
       ...guard,
@@ -688,7 +695,7 @@ function restoreRun() {
       y: player.y - 20 + Math.sin(guard.angle) * 32,
       radius: 11,
       color: guard.kind === 'arrow' ? '#d8b577'
-        : guard.kind === 'sword' ? '#c4e8ff' : magicElementPalette[activeMagicElement] || '#62d9ee',
+        : guard.kind === 'sword' ? '#c4e8ff' : guard.kind === 'fists' ? '#ffc56b' : magicElementPalette[activeMagicElement] || '#62d9ee',
     })) : []));
   nextOrbitGuardId = orbitGuards.reduce((nextId, guard) => Math.max(nextId, (guard.id || 0) + 1), 1);
   companions.push(...(saved.companions || []).map((companion) => ({
@@ -711,7 +718,7 @@ function clearSavedRun() {
 }
 
 function isCharacterUnlocked(entry) {
-  return ['wanderer', 'warden', 'arcanist'].includes(entry.id) || entry.random || save.unlockedCharacters.includes(entry.id) ||
+  return ['wanderer', 'warden', 'arcanist', 'brawler'].includes(entry.id) || entry.random || save.unlockedCharacters.includes(entry.id) ||
     (entry.id === 'arcanist' && save.arcanist) ||
     (entry.id === 'warden' && save.warden) ||
     (entry.id === 'mycelia-sporeling' && save.discoveredItemIds.includes('spore-bloom')) ||

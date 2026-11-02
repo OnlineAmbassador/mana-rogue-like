@@ -45,9 +45,10 @@ test('every character, weapon family and pair of highlighted branches emits fini
   for (const character of c.roster) {
     c.character = character;
     c.player.damage = character.damage;
-    for (const style of ['melee', 'bow', 'magic']) {
+    for (const style of ['melee', 'bow', 'magic', 'brawl']) {
       c.activeCombatStyle = style;
       c.applyWeaponHands(c.defaultWeaponHands({ startingStyle: style }));
+      c.activeCombatStyle = style;
       const family = branches.filter((branch) => branch.style === style);
       for (let first = 0; first < family.length; first++) {
         for (let second = first; second < family.length; second++) {
@@ -59,10 +60,10 @@ test('every character, weapon family and pair of highlighted branches emits fini
             for (const id of pair.flatMap((branch) => branch.items)) c.ownedItems.add(id);
             c.player.fireCooldown = 0;
             c.player.meleeSwings.length = c.projectiles.length = c.sporePods.length = c.groundHazards.length = 0;
-            if (style === 'melee') c.performMeleeSwing(0, 1, tier === 3);
+            if (c.isCloseCombatStyle(style)) c.performMeleeSwing(0, 1, tier === 3);
             else c.shoot(style === 'bow' ? (tier === 3 ? { charge: 1 } : { quick: true })
               : tier === 3 ? { magicCharge: 1 } : null);
-            const attacks = style === 'melee' ? c.player.meleeSwings
+            const attacks = c.isCloseCombatStyle(style) ? c.player.meleeSwings
               : character.className === 'Sporeling' && style === 'magic' ? c.sporePods : c.projectiles;
             const label = `${character.name}/${style}/${pair.map((branch) => branch.id)}/${tier}`;
             assert.ok(attacks.length > 0, label);
@@ -86,7 +87,7 @@ test('every character and all eight elements damage every mob and regional boss 
     c.character = character;
     for (const kind of Object.keys(c.monsterSprites)) {
       for (const element of elements) {
-        for (const type of ['tear', 'arrow', 'melee']) {
+        for (const type of ['tear', 'arrow', 'melee', 'brawl']) {
           const enemy = c.createEnemy(kind, 400, 300, peek(c, 'bossPhaseAttackSets')[kind] !== undefined);
           Object.assign(enemy, { hp: 100000, maxHp: 100001, phase: 1 });
           c.enemies.length = c.groundHazards.length = c.lightningArcs.length = c.moves.length = 0;
@@ -136,7 +137,7 @@ test('ancestry bonuses compose with class strengths and never depend on gender',
     const base = c.characterProfile({ className: character.className });
     const race = races[character.raceHead];
     assert.ok(race.name && race.trait, character.name);
-    for (const key of ['melee', 'meleeRate', 'bow', 'bowRate', 'magic']) {
+    for (const key of ['melee', 'meleeRate', 'bow', 'bowRate', 'magic', 'brawl', 'brawlRate']) {
       assert.equal(profile[key], base[key] * (race[key] ?? 1), `${character.name}/${key}`);
     }
   }
@@ -152,7 +153,7 @@ test('every generic boss phase signature resolves with finite attacks against ev
   let cases = 0;
   for (const character of c.roster) {
     c.character = character;
-    for (const style of ['melee', 'bow', 'magic']) {
+    for (const style of ['melee', 'bow', 'magic', 'brawl']) {
       c.activeCombatStyle = style;
       for (const [kind, phases] of Object.entries(rotations)) {
         if (['jacko', 'golem', 'spider-queen'].includes(kind)) continue;

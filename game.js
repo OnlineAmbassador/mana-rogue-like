@@ -411,6 +411,7 @@ const eliteHatImage = loadAsset('items/equipment/head/wizardhat.png');
 const linkedShieldImage = loadAsset('items/equipment/shields/steelshield.png');
 const luckCharmImage = loadAsset('items/equipment/charms/fourleafclover.png');
 const orbitGuardIcons = {
+  fists: loadAsset('items/equipment/hands/leathergloves.png'),
   arrow: loadAsset('items/equipment/ammo/arrow.png'),
   sword: loadAsset('items/equipment/weapons/sword.png'),
   mana: loadAsset('items/equipment/charms/spectralorb.png'),
@@ -439,8 +440,8 @@ const shopItemIconImages = {
   'curio-mana-cafe': loadAsset('items/equipment/charms/spectralorb.png'),
   'curio-dice': loadAsset('items/equipment/charms/astralcube.png'),
   'curio-wild-card': loadAsset('items/equipment/charms/firescroll.png'),
-  'mod-windup': loadAsset('items/equipment/weapons/kanabo.png'),
-  'mod-flurry': loadAsset('items/equipment/weapons/kunai.png'),
+  'mod-windup': loadAsset('items/equipment/hands/leathergloves.png'),
+  'mod-flurry': loadAsset('items/equipment/hands/assassingloves.png'),
   'mod-cinder': loadAsset('items/equipment/charms/firescroll.png'),
   'mod-pierce': loadAsset('items/equipment/ammo/ironarrow.png'),
   'mod-draw': loadAsset('items/equipment/ammo/ironarrow.png'),
@@ -466,7 +467,7 @@ const uniqueItemIconPaths = {
   'curio-sweat': 'charms/oldtowel', 'curio-brain': 'generic/brain', 'curio-quiver-me': 'ammo/cursedarrow',
   'curio-shake': 'generic/mysteriousbottle', 'curio-mana-lisa': 'generic/spellbookpage',
   'curio-dice': 'charms/astralcube', 'curio-wild-card': 'generic/casinocoins', 'curio-run-on': 'generic/scroll',
-  'mod-windup': 'weapons/halberd', 'mod-flurry': 'weapons/whip', 'mod-cinder': 'generic/coal',
+  'mod-windup': 'hands/leathergloves', 'mod-flurry': 'hands/assassingloves', 'mod-cinder': 'generic/coal',
   'mod-pierce': 'ammo/ironarrow', 'mod-draw': 'weapons/championshipbow', 'mod-quiver': 'ammo/trainingarrow',
   'mod-storm-arrows': 'ammo/tolchiarrow', 'mod-splash': 'ammo/mortararrow', 'mod-chain': 'weapons/legendwand',
   'mod-lingering': 'charms/snowmanglobe',
@@ -486,6 +487,7 @@ const uniqueItemIconPaths = {
   'spore-sower-companion': 'generic/grassseeds',
   'mana-tonic': 'generic/fluopowder', 'bomb-bundle': 'generic/powder', 'mana-burst': 'generic/elemental',
   'weapon-blade': 'weapons/sword', 'weapon-bow': 'weapons/woodenbow', 'weapon-magic': 'weapons/legendwand',
+  'weapon-fists': 'hands/leathergloves', 'weapon-leather-gloves': 'hands/leathergloves', 'weapon-iron-gauntlets': 'hands/irongloves',
   'weapon-axe': 'weapons/blacksmithsaxe', 'weapon-halberd': 'weapons/halberd', 'weapon-scythe': 'weapons/scythe',
   'weapon-kanabo': 'weapons/kanabo', 'weapon-whip': 'weapons/whip', 'weapon-kunai': 'weapons/kunai',
   'weapon-scepter': 'weapons/scepter', 'unweaving-rune': 'generic/runestone_n',
@@ -619,6 +621,22 @@ const clothingSprites = {
   },
   ironSword: { image: loadAsset('sprites/equipment/weapons/sword-iron.png'), frameWidth: 64, frameHeight: 64 },
   daggers: { image: loadAsset('sprites/equipment/weapons/knife.png'), frameWidth: 64, frameHeight: 64 },
+  woodenBow: { image: loadAsset('sprites/equipment/weapons/woodenbow.png'), frameWidth: 64, frameHeight: 64 },
+  leatherGloves: {
+    image: loadAsset('sprites/equipment/hands/cottongloves-male.png'),
+    femaleImage: loadAsset('sprites/equipment/hands/cottongloves-female.png'),
+    frameWidth: 64, frameHeight: 64, filter: 'sepia(1) saturate(1.6) brightness(0.65)',
+  },
+  ironGauntlets: {
+    image: loadAsset('sprites/equipment/hands/bromenalgloves-male.png'),
+    femaleImage: loadAsset('sprites/equipment/hands/bromenalgloves-female.png'),
+    frameWidth: 64, frameHeight: 64,
+  },
+  flurryGloves: {
+    image: loadAsset('sprites/equipment/hands/assassingloves-male.png'),
+    femaleImage: loadAsset('sprites/equipment/hands/assassingloves-female.png'),
+    frameWidth: 64, frameHeight: 64,
+  },
 };
 // `hitbox` (bats and bandits only) is where the sprite is hit: y offset and radii at scale 1.
 // Boss sheets (the biggest files) use loadDeferredAsset: they are first needed in a boss room, not on the first screen.
@@ -735,8 +753,8 @@ const shopItemCatalog = [
   { id: 'curio-run-on', name: 'Run-On Sentence', description: 'Much faster, slightly weaker', cost: 6, kind: 'curio', quip: 'RUN-ON SENTENCE! Fast, but light on punctuation.', effects: { speed: 1.35, damage: 0.95 } },
   { id: 'curio-dice', name: 'Roll With It', description: 'A random status change in every room', cost: 5, kind: 'curio', quip: 'ROLL WITH IT! Every room is a new gamble.', chaos: 'room' },
   { id: 'curio-wild-card', name: 'Wild Card', description: 'A random status change every few seconds', cost: 5, kind: 'curio', quip: 'WILD CARD! Fortune changes by the minute.', chaos: 'timed' },
-  { id: 'mod-windup', name: 'Wind-Up Wraps', description: 'Melee: switches to charge mode, which builds faster', cost: 7, kind: 'mod', style: 'melee' },
-  { id: 'mod-flurry', name: 'Flurry Gauntlets', description: 'Melee: lightning-fast jabs, lighter hits', cost: 7, kind: 'mod', style: 'melee' },
+  { id: 'mod-windup', name: 'Wind-Up Wraps', description: 'Brawler: charge a twisting fist sweep faster', cost: 7, kind: 'mod', style: 'brawl' },
+  { id: 'mod-flurry', name: 'Flurry Gauntlets', description: 'Brawler: faster punches with slightly lighter hits', cost: 7, kind: 'mod', style: 'brawl' },
   { id: 'mod-cinder', name: 'Cinder Edge', description: 'Melee: swings leave a wall of your element', cost: 8, kind: 'mod', style: 'melee', unlockAfterEnemyAbility: 'fire-burst' },
   { id: 'mod-pierce', name: 'Piercing Heads', description: 'Bow: arrows fly through foes', cost: 8, kind: 'mod', style: 'bow' },
   { id: 'mod-draw', name: 'Longbow Draw', description: 'Bow: switches to charge mode, which draws faster', cost: 7, kind: 'mod', style: 'bow' },
@@ -768,6 +786,7 @@ const characterRoster = [
   { id: 'wanderer', name: 'Mage', className: 'Mage', startingStyle: 'magic', styleLabel: 'Magic tears', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'male', color: '#75d8ff', hue: 0, speed: 235, hp: 6, damage: 1, fireDelay: 0.23, trait: 'Balanced delver', unlock: 'Available' },
   { id: 'warden', name: 'Rogue', className: 'Rogue', startingStyle: 'bow', styleLabel: 'Rapid light arrows', hairStyle: 'warden', raceHead: 'humanMale', sprite: 'neutral', color: '#fbd96f', hue: 205, speed: 250, hp: 4, damage: 1, fireDelay: 0.23, trait: 'Fast bow, lighter hits', unlock: 'Available' },
   { id: 'arcanist', name: 'Warrior', className: 'Warrior', startingStyle: 'melee', styleLabel: 'Heavy sword', hairStyle: 'arcanist', raceHead: 'humanFemale', sprite: 'female', color: '#d7a8ff', hue: 95, speed: 210, hp: 4, damage: 1, fireDelay: 0.28, trait: 'Heavy sword, slow recovery', unlock: 'Available' },
+  { id: 'brawler', name: 'Brawler', className: 'Brawler', startingStyle: 'brawl', styleLabel: 'Fists and gauntlets', hairStyle: 'ironbound', raceHead: 'humanMale', sprite: 'male', color: '#ffc56b', hue: 20, speed: 240, hp: 5, damage: 1, fireDelay: 0.26, trait: 'Swift powerful fists, damaging dash, brief guard', unlock: 'Available' },
   { id: 'candor-runner', name: 'Candor Runner', className: 'Scout', startingStyle: 'bow', styleLabel: 'Quick arrows', hairStyle: 'candor', raceHead: 'humanFemale', sprite: 'female', color: '#f5b86c', hue: 25, speed: 285, hp: 4, damage: 1, fireDelay: 0.34, trait: 'Very fast, slow draw', unlock: 'Defeat the Pinkie Matriarch' },
   { id: 'world-edge-pilgrim', name: 'World Edge Pilgrim', className: 'Pilgrim', startingStyle: 'magic', styleLabel: 'Patient casting', hairStyle: 'pilgrim', raceHead: 'elfMale', sprite: 'elf', color: '#b9d9a0', hue: 35, speed: 210, hp: 8, damage: 1, fireDelay: 0.3, trait: 'Patient casting, slower pace', unlock: 'Find a secret room' },
   { id: 'hurnscald-herbalist', name: 'Hurnscald Herbalist', className: 'Herbalist', startingStyle: 'magic', styleLabel: 'Frost magic', hairStyle: 'herbalist', raceHead: 'elfFemale', sprite: 'elfFemale', color: '#86d69c', hue: 65, speed: 200, hp: 7, damage: 1, fireDelay: 0.27, startingAbility: 'frost-rune', trait: 'Starts with Frost Rune', unlock: 'Reach Hurnscald' },
@@ -775,16 +794,16 @@ const characterRoster = [
   { id: 'ironbound', name: 'Ironbound', className: 'Sapper', startingStyle: 'melee', styleLabel: 'Heavy blows', hairStyle: 'ironbound', raceHead: 'orcMale', sprite: 'orc', color: '#c7b8a2', hue: 15, speed: 158, hp: 11, damage: 3, fireDelay: 0.4, startingBombs: 4, trait: 'Strong and slow', unlock: 'Defeat a sentinel' },
   { id: 'artis-archivist', name: 'Artis Archivist', className: 'Scholar', startingStyle: 'magic', styleLabel: 'Measured spells', hairStyle: 'archivist', raceHead: 'tritanMale', sprite: 'tritan', color: '#c4a6df', hue: 115, speed: 218, hp: 4, damage: 3, fireDelay: 0.32, trait: 'Heavy hits, fragile', unlock: 'Reach Artis' },
   { id: 'glass-quill', name: 'Glass Quill', className: 'Scribe', startingStyle: 'bow', styleLabel: 'Piercing shots', hairStyle: 'quill', raceHead: 'raijinFemale', sprite: 'raijin', color: '#f0a2a2', hue: 155, speed: 230, hp: 3, damage: 3, fireDelay: 0.36, projectileSpeed: 620, trait: 'High damage, very fragile', unlock: 'Defeat the Spider Queen' },
-  { id: 'vault-delver', name: 'Vault Delver', className: 'Delver', startingStyle: 'melee', styleLabel: 'Rapid fists', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'neutral', color: '#a9c1d7', hue: 220, speed: 180, hp: 6, damage: 1, fireDelay: 0.16, trait: 'Slow movement, fast attacks', unlock: 'Complete a descent' },
+  { id: 'vault-delver', name: 'Vault Delver', className: 'Delver', startingStyle: 'brawl', styleLabel: 'Rapid fists', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'neutral', color: '#a9c1d7', hue: 220, speed: 180, hp: 6, damage: 1, fireDelay: 0.16, trait: 'Slow movement, fast attacks', unlock: 'Complete a descent' },
   { id: 'graveyard-keeper', name: 'Graveyard Keeper', className: 'Keeper', startingStyle: 'magic', styleLabel: 'Spirit pulse', hairStyle: 'warden', raceHead: 'humanMale', sprite: 'neutral', color: '#a5aa9b', hue: 235, speed: 175, hp: 10, damage: 2, fireDelay: 0.34, startingBombs: 2, trait: 'Strong spirit, few bombs', unlock: 'Defeat the Reaper' },
   { id: 'tulimshar-guard', name: 'Tulimshar Guard', className: 'Guard', startingStyle: 'melee', styleLabel: 'Measured strikes', hairStyle: 'candor', raceHead: 'humanMale', sprite: 'male', color: '#e1ad72', hue: 12, speed: 195, hp: 9, damage: 2, fireDelay: 0.31, startingBombs: 4, trait: 'Extra bombs, slow attacks', unlock: 'Defeat the Great Red Slime' },
   { id: 'halinarzo-ranger', name: 'Halinarzo Ranger', className: 'Ranger', startingStyle: 'bow', styleLabel: 'Long shots', hairStyle: 'quill', raceHead: 'elfFemale', sprite: 'elfFemale', color: '#c5d38b', hue: 45, speed: 255, hp: 4, damage: 2, fireDelay: 0.3, projectileSpeed: 580, trait: 'Quick and fragile', unlock: 'Defeat Bandit Lord' },
   { id: 'nivalis-oracle', name: 'Nivalis Oracle', className: 'Oracle', startingStyle: 'magic', styleLabel: 'Ice magic', hairStyle: 'pilgrim', raceHead: 'raijinFemale', sprite: 'raijin', color: '#a9dbed', hue: 185, speed: 195, hp: 7, damage: 1, fireDelay: 0.25, startingAbility: 'frost-rune', trait: 'Frost Rune, slow movement', unlock: 'Defeat Snowman Boss' },
-  { id: 'frostia-reclaimer', name: 'Frostia Reclaimer', className: 'Reclaimer', startingStyle: 'melee', styleLabel: 'Heavy fists', hairStyle: 'ironbound', raceHead: 'tritanMale', sprite: 'tritan', color: '#88bdcf', hue: 205, speed: 170, hp: 10, damage: 2, fireDelay: 0.38, trait: 'High health, slow attacks', unlock: 'Defeat Yeti King' },
+  { id: 'frostia-reclaimer', name: 'Frostia Reclaimer', className: 'Reclaimer', startingStyle: 'brawl', styleLabel: 'Heavy fists', hairStyle: 'ironbound', raceHead: 'tritanMale', sprite: 'tritan', color: '#88bdcf', hue: 205, speed: 170, hp: 10, damage: 2, fireDelay: 0.38, trait: 'High health, slow attacks', unlock: 'Defeat Yeti King' },
   { id: 'candor-keeper', name: 'Candor Keeper', className: 'Warden', startingStyle: 'magic', styleLabel: 'Rooted magic', hairStyle: 'herbalist', raceHead: 'elfMale', sprite: 'elf', color: '#99c98a', hue: 80, speed: 205, hp: 6, damage: 2, fireDelay: 0.27, trait: 'Steady, modest speed', unlock: 'Defeat Forest Dragon' },
   { id: 'world-edge-veteran', name: 'World Edge Veteran', className: 'Veteran', startingStyle: 'bow', styleLabel: 'Last light', hairStyle: 'archivist', raceHead: 'orcMale', sprite: 'orc', color: '#c0a1d4', hue: 260, speed: 155, hp: 12, damage: 3, fireDelay: 0.42, trait: 'Very tough, very slow', unlock: 'Defeat Night Dragon' },
   { id: 'random', name: 'Random Delver', className: '???', startingStyle: 'melee', styleLabel: 'Roll the dice', hairStyle: 'wanderer', raceHead: 'humanMale', sprite: 'neutral', color: '#ffffff', hue: 300, speed: 200, hp: 6, damage: 1, fireDelay: 0.25, trait: 'Surprise me!', unlock: 'Available', random: true },
-  { id: 'echo-bound-delver', name: 'Echo-Bound Delver', className: 'Echo Warden', startingStyle: 'magic', styleLabel: 'Echoing magic', hairStyle: 'archivist', raceHead: 'elfMale', sprite: 'elf', color: '#a8e7d0', hue: 165, speed: 218, hp: 8, damage: 2, fireDelay: 0.29, trait: 'Carries the memories of every region', unlock: 'Find all nine Mana echoes' },
+  { id: 'echo-bound-delver', name: 'Echo-Bound Delver', className: 'Echo Warden', startingStyle: 'magic', styleLabel: 'Sword + Arrows + Magic + Fists', hairStyle: 'archivist', raceHead: 'elfMale', sprite: 'elf', color: '#a8e7d0', hue: 165, speed: 218, hp: 8, damage: 2, fireDelay: 0.29, trait: 'Ultimate arsenal: all four weapons attack together', unlock: 'Find all nine Mana echoes' },
 ];
 const manaLoreRelics = [
   { id: 'mana-echo-tulimshar', region: 'tulimshar', name: 'Desert Echo', description: 'A buried note tells of a seed drawn along Mana’s flow.' },
@@ -1329,7 +1348,7 @@ const BOW_CHARGE_TIME = 0.75;
 const MAX_CHARGE_SHOTS = 4;
 
 // Rapid/triple modes stay per-weapon; an upgrade that grants charge enables it for every style.
-const fireModes = { melee: 'rapid', bow: 'rapid', magic: 'rapid' };
+const fireModes = { melee: 'rapid', bow: 'rapid', magic: 'rapid', brawl: 'rapid' };
 
 
 
@@ -1341,6 +1360,7 @@ const classProfiles = {
   Mage: { magic: 1.2, melee: 0.9, bow: 1 },
   Warrior: { melee: 2.1, meleeRate: 0.75, magic: 0.75, bow: 0.85 },
   Rogue: { bow: 0.65, bowRate: 2, melee: 0.8, magic: 0.8 },
+  Brawler: { brawl: 1.15, brawlRate: 1.15, melee: 0.85, bow: 0.85, magic: 0.85 },
   Scout: { bowRate: 1.25, bow: 0.95 },
   Pilgrim: { magic: 1.1 },
   Herbalist: { magic: 1.15 },
@@ -1348,12 +1368,12 @@ const classProfiles = {
   Sapper: { melee: 1.5, meleeRate: 0.85, magic: 0.6 },
   Scholar: { magic: 1.5, melee: 0.7, bow: 0.8 },
   Scribe: { bow: 1.3 },
-  Delver: { melee: 1.0, meleeRate: 1.2 },
+  Delver: { brawl: 1.0, brawlRate: 1.2 },
   Keeper: { magic: 1.2 },
   Guard: { melee: 1.25, meleeRate: 0.95, bow: 0.9 },
   Ranger: { bow: 1.2, bowRate: 1.2 },
   Oracle: { magic: 1.3, melee: 0.8 },
-  Reclaimer: { melee: 1.3, meleeRate: 0.9 },
+  Reclaimer: { brawl: 1.3, brawlRate: 0.9 },
   Veteran: { bow: 1.3, melee: 1.15, bowRate: 0.9 },
 };
 
@@ -1362,10 +1382,11 @@ const classSignatures = {
   Mage: { label: 'Steady Magic', desc: 'Balanced casting and movement; no rapid bow or heavy sword bonus' },
   Rogue: { label: 'Rapid Draw', desc: 'Fast, light bow shots; weaker sword and spells use their own slower cadence' },
   Warrior: { label: 'Heavy Blade', desc: 'Starts with a powerful sword; slow recovery, weaker bows and spells' },
-  // active: true gives the class a dedicated key-4 ability on its own cooldown; it never replaces keys 1-3.
-  Sapper: { label: 'Bomb Forge', short: 'Forge', desc: 'Key 4: forge a free bomb at your feet', active: true, cooldown: 6, color: '#ffad59' },
-  Scribe: { label: 'Laser Quill', short: 'Laser', desc: 'Key 4: fire a piercing laser beam', active: true, cooldown: 5, color: '#ff7a9c' },
-  Keeper: { label: 'Spirit Nova', short: 'Nova', desc: 'Key 4: release a spirit blast around you', active: true, cooldown: 9, color: '#b9ffd8' },
+  Brawler: { label: 'Meteor Rush', desc: 'Fists dash through foes; normal brief dash invulnerability and a 0.18 s half-heart guard after landing (3 s recovery). No fist parries.' },
+  // Signatures use key 5; keys 1-4 always select weapon families.
+  Sapper: { label: 'Bomb Forge', short: 'Forge', desc: 'Key 5: forge a free bomb at your feet', active: true, cooldown: 6, color: '#ffad59' },
+  Scribe: { label: 'Laser Quill', short: 'Laser', desc: 'Key 5: fire a piercing laser beam', active: true, cooldown: 5, color: '#ff7a9c' },
+  Keeper: { label: 'Spirit Nova', short: 'Nova', desc: 'Key 5: release a spirit blast around you', active: true, cooldown: 9, color: '#b9ffd8' },
   Sporeling: { label: 'Spore Bloom', desc: 'Magic slot fires spore pods that burst into spores' },
   Scout: { label: 'Wind Step', desc: 'Dash recovers twice as fast' },
   Pilgrim: { label: 'Steady Stride', desc: 'Walks 12% faster' },
@@ -1374,11 +1395,11 @@ const classSignatures = {
   Herbalist: { label: 'Frost Bloom', desc: 'Starts with a Frost Rune; kills chill nearby foes' },
 };
 const raceProfiles = {
-  humanMale: { meleeRate: 1.03, bowRate: 1.03, name: 'Human', trait: 'Adaptable craft: sword and bow recovery +3%' },
-  humanFemale: { meleeRate: 1.03, bowRate: 1.03, name: 'Human', trait: 'Adaptable craft: sword and bow recovery +3%' },
+  humanMale: { meleeRate: 1.03, bowRate: 1.03, brawlRate: 1.03, name: 'Human', trait: 'Adaptable craft: physical attack recovery +3%' },
+  humanFemale: { meleeRate: 1.03, bowRate: 1.03, brawlRate: 1.03, name: 'Human', trait: 'Adaptable craft: physical attack recovery +3%' },
   elfMale: { magic: 1.08, bowRate: 1.05, name: 'Elf', trait: 'Mana affinity: spells +8%, bow recovery +5%' },
   elfFemale: { magic: 1.08, bowRate: 1.05, name: 'Elf', trait: 'Mana affinity: spells +8%, bow recovery +5%' },
-  orcMale: { melee: 1.15, magic: 0.9, name: 'Orc', trait: 'Stone and bone: sword damage +15%, spells -10%' },
+  orcMale: { melee: 1.15, brawl: 1.15, magic: 0.9, name: 'Orc', trait: 'Stone and bone: sword and fist damage +15%, spells -10%' },
   tritanMale: { magic: 1.05, name: 'Tritan', trait: 'Tidal study: spell damage +5%' },
   raijinFemale: { bowRate: 1.1, magic: 1.05, name: 'Raijin', trait: 'Storm touch: bow recovery +10%, spells +5%' },
 };
@@ -1521,11 +1542,12 @@ const bindingActions = [
   { id: 'bomb', label: 'Bomb', desc: 'Drop a bomb (near a bank vault: withdraw on pad)', key: 'f', pad: 1 },
   { id: 'item', label: 'Use consumable', desc: 'Drink or use the next stored item', key: 'q', pad: 6 },
   { id: 'shock', label: 'Shockwave / Mana familiars', desc: 'Use Shockwave; discover Betsanc to summon orbiting guards', key: 'r', pad: 3 },
-  { id: 'ability', label: 'Class ability', desc: 'Your class signature (also right-click)', key: '4', pad: 15 },
-  { id: 'nextWeapon', label: 'Cycle weapons', desc: 'Cycle Sword, Arrows and Magic (also mouse wheel)', key: 'tab', pad: 4 },
+  { id: 'ability', label: 'Class ability', desc: 'Your class signature (also right-click)', key: '5', pad: 15 },
+  { id: 'nextWeapon', label: 'Cycle weapons', desc: 'Cycle Sword, Arrows, Magic and Fists (also mouse wheel)', key: 'tab', pad: 4 },
   { id: 'weapon1', label: 'Select melee', desc: 'Draw your held melee weapon or a base sword', key: '1', keyOnly: true },
   { id: 'weapon2', label: 'Select bow', desc: 'Draw your held bow weapon or a base bow', key: '2', keyOnly: true },
   { id: 'weapon3', label: 'Select magic', desc: 'Draw your held magic weapon or base magic', key: '3', keyOnly: true },
+  { id: 'weapon4', label: 'Select brawler', desc: 'Draw your held gloves or base fists', key: '4', keyOnly: true },
   { id: 'interact', label: 'Interact / buy', desc: 'Buy, talk, open doors (Shift+E: bank withdraw)', key: 'e', pad: 0 },
   { id: 'map', label: 'Map', desc: 'Open or close the full map', key: 'm', pad: 8 },
   { id: 'journal', label: 'Journal', desc: 'Open or close your story notes', key: 'j', pad: 13 },
@@ -1753,6 +1775,10 @@ function beginRun() {
   player.dashHits = null;
   player.earthshakerCooldown = 0;
   player.earthshakerFlash = 0;
+  player.brawlerBraceUntil = 0;
+  player.brawlerBraceReadyAt = 0;
+  player.dashObstacleHits = null;
+  player.dashFrom = null;
   elementalSummons.length = 0;
   player.attackPulse = 0;
   player.attackAnimationTimer = 0;
@@ -1786,6 +1812,7 @@ function beginRun() {
   fireModes.melee = 'rapid';
   fireModes.bow = 'rapid';
   fireModes.magic = 'rapid';
+  fireModes.brawl = 'rapid';
   ownedItems.clear();
   runOfferedAbilityIds.clear();
   magicElements.clear();
@@ -1796,7 +1823,7 @@ function beginRun() {
   meleeWeapons.add('hands');
   if (entry.className === 'Warrior') meleeWeapons.add('sword');
   reservedUpgradeIds.clear();
-  for (const style of ['melee', 'bow', 'magic']) combatStyles.add(style);
+  for (const style of STARTING_WEAPON_STYLES) combatStyles.add(style);
   activeCombatStyle = entry.startingStyle;
   applyWeaponHands(savedWeaponHands(entry));
   resetStyleHeat();
@@ -1856,7 +1883,7 @@ function beginRun() {
   recordStory('Ancestry · ' + entry.className, ancestryNotes[entry.raceHead] ||
     'This delver reads the seed through a tradition the field notes have yet to record.');
   spawnRoom(currentRoom);
-  startingWeaponPending = true;
+  startingWeaponPending = !echoArsenalActive();
   saveRunState();
   discoverRegion();
   if (!openAbilityChoice()) openStartingWeaponChoice();
@@ -2214,7 +2241,7 @@ function update(dt) {
   if (!control) {
     player.meleeCharge = 0;
     player.bowHold = 0;
-  } else if (attackStyle === 'melee') updateMeleeInput(dt);
+  } else if (isCloseCombatStyle(attackStyle)) updateMeleeInput(dt);
   else if (attackStyle === 'bow') {
     player.meleeCharge = 0;
     updateBowInput(dt);
@@ -2846,6 +2873,7 @@ function runAction(id, options = {}) {
     case 'weapon1': selectCombatStyle('melee'); break;
     case 'weapon2': selectCombatStyle('bow'); break;
     case 'weapon3': selectCombatStyle('magic'); break;
+    case 'weapon4': selectCombatStyle('brawl'); break;
     case 'map': if (showMap) closeMap(); else openMap(); break;
     case 'journal': showStoryJournal = !showStoryJournal; break;
     case 'branches': openBranchScreen(); break;

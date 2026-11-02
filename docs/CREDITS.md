@@ -24,8 +24,18 @@ The TMW client-data repository is cloned at `assets/tmw/clientdata` (snapshot `3
 - `graphics/items/equipment/chest/leathershirt.png` — EJlol; GPLv2 and CC BY-SA 3.0 (CC BY-SA 3.0 used). The Leather Vest icon, unmodified.
 - `graphics/items/equipment/legs/chaps.png` — Black Don; GPLv2. The Leather Legguards icon, unmodified.
 - `graphics/items/equipment/legs/silkpants.png` — LuH; GPLv2. The Silk Shorts icon, unmodified.
+- `graphics/items/equipment/hands/leathergloves.png` — original artist not identified; upstream credit TMW.org; GPLv2. Restored unchanged from the pre-trim client-data snapshot in git history (`e4b8cbe^`); base fists, leather gloves, and Wind-Up Wraps.
+- `graphics/items/equipment/hands/irongloves.png` — Skipy; upstream credit Duke M; GPLv2. Restored unchanged from the same snapshot; Iron Gauntlets.
+- `graphics/items/equipment/hands/assassingloves.png` — Black Don; GPLv2. Restored unchanged from the same snapshot; Flurry Gauntlets.
+- `graphics/sprites/equipment/hands/cottongloves-male.png`, `cottongloves-female.png` — original artist not identified; GPLv2; upstream credit Saulc. Restored from `e4b8cbe^`; matching worn mitten overlays, tinted only at draw time for leather gloves.
+- `graphics/sprites/equipment/hands/assassingloves-male.png`, `assassingloves-female.png` — Black Don; GPLv2; upstream credit Saulc. Restored unchanged from the same snapshot; worn Flurry gloves.
+- `graphics/sprites/equipment/hands/bromenalgloves-male.png`, `bromenalgloves-female.png` — Skipy; GPLv2; upstream credit Saulc. Restored unchanged from the same snapshot; worn iron gauntlets.
+
+The six worn-glove sheets above were losslessly recompressed from the upstream files with `tools/optimize-pngs.js`: every decoded RGBA pixel was verified identical. All tinting remains draw-time only; the overlays share the body's exact animation frame without remapping.
+
 - `graphics/images/ambient/sandstorm.png` — Crush; GPL 3.0 or CC BY-SA 3.0 (the CC BY-SA 3.0 option is used here). Used for the desert edge ambience, with canvas opacity and drift; the original image is unchanged.
 - `graphics/sprites/monsters/accessories/banditbow.png` — GPLv2; jesusalva.
+- `graphics/sprites/equipment/weapons/woodenbow.png` — Reid; CC BY-SA 3.0. Matching 64-pixel player bow overlay, restored from `e4b8cbe^` and losslessly recompressed with `tools/optimize-pngs.js` (10,336 to 4,438 bytes; decoded pixels verified identical).
 - `graphics/sprites/monsters/fluffy.png` — Crush; CC BY-SA 3.0.
 - `graphics/sprites/monsters/snail.png` — FotherJ; CC BY-SA 3.0.
 - `graphics/sprites/monsters/slime-mother.png` — CandyCurt, Wushin; GPLv2.

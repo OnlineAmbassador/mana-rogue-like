@@ -26,6 +26,8 @@ Documentation lives in this folder: [BALANCE.md](BALANCE.md) for enemy tuning ru
 
 ## Current task
 
+The Brawler/four-family implementation is complete and user-approved for publication. Final validation: 484 tests pass, runtime syntax and whitespace checks pass, and matching mitten/bow sheets load in the browser. Next work is human combat-feel testing in [PLAYTEST.md](PLAYTEST.md): sword slash/parry timing, fist swoops, Meteor Rush, bounded recovery guard, and all four input slots. Brawler connects to Sword and Bow along a symmetric Confluence diamond, with stat-gated central connections and unchanged Trinity requirements. Matching worn mitten and bow overlays use the body's exact frames and position. Brawler starts unlocked; Vault Delver/Reclaimer use fists, and Echo-Bound Delver uses all four weapons simultaneously. Keep `_sh1.png` out of commits. The older playtest notes below remain follow-up checks, not pending implementation.
+
 The run-start ability picker (first entry under Recent changes) needs a run on the phone and laptop: start runs with a few elements, take a Blade, Bow and Magic ability and Random, and check the weapon goes in hand, the branch lights up, and arrows, kunai, Cinder walls and swings look like the element. Tune `ELEMENT_ABILITY_AFFINITY`, `START_ABILITY_IDS` and `ELEMENT_WALL_CAP` after playing.
 
 The per-node costs and guidance (first entry under Recent changes) need a run on the phone and laptop: open Build for the first time to see the five-step tour; try growing a stat tier without materials, a padlocked ability without a Life Stone, a branch with full slots and a Confluence seal far from its tier III end, and check that the spotlight and arrow point at the right thing and clear on the next input. Tune `STAT_COST_RULES`, `ABILITY_TIER_COST`, the `CONFLUENCE_STATS` costs and the Life Stone rates if the prices feel off.
@@ -33,14 +35,14 @@ The per-node costs and guidance (first entry under Recent changes) need a run on
 The branch map (second entry under Recent changes) needs hands-on time on the Motorola phone and the laptop. Open Build in a cleared room and check the following. Tune the `BRANCH_MAP_*` constants and `BRANCH_MAP_ORDER` in gameui.js after playing.
 - Drag, pinch and the +/−/magnifier (zoom out to fit) buttons work and are comfortable.
 - Tapping a node walks the character there.
-- ON/OFF and Grow work on the branch the character stands on.
+- Activate/Deactivate and Upgrade work on the branch the character stands on.
 - The socket bar jumps to a highlighted branch.
 - Synergy gems light only once both partners are powered.
 - Q/E (LB/RB) switch weapons, and the mouse wheel and LT/RT zoom.
 
 The starting weapon picker and obelisks need a run:
-- Every class starts with Bubble only, then picks Sword, Arrows or Magic after its optional starting ability.
-- The pick stays locked; the Build screen no longer changes it.
+- Every class starts with Bubble only, then picks Sword, Arrows, Magic or Brawler fists after its optional starting ability (Echo skips the weapon picker).
+- Every family remains selectable; only the run's element stays locked until an obelisk.
 - At an obelisk, its element unlocks for this run and the picker reopens with only elements reached during this descent.
 - Fire normal and charged arrows into enemy shots: about half and three quarters should bounce, with the sword unchanged.
 - Tune `ARROW_DEFLECT_CHANCE` / `ARROW_DEFLECT_CHARGED_CHANCE` in playermanager.js after playing.
@@ -82,6 +84,8 @@ Art sources: the desert uses bundled TMW art and CC BY-SA 4.0 Source of Mana art
 - [ ] Six icons are orphaned by the removed items and the clothing icon change (`coinbag.png`, `grimoir.png`, `leatherpatch.png`, `cottoncloth.png`, `fur.png`, `processedfur.png`); `node tools/trim-assets.js --apply` removes them. (`woodenbow.png` is used again as the Bow weapon icon.)
 
 ## Recent changes
+
+- **Brawler and distinct swords (local, uncommitted).** Added the initially unlocked Brawler, separate `brawl` skill map with Power/Swiftness forks and five technique routes, leather/iron glove variants, and a Fist/Sword Confluence bridge. Sword attacks alternate visible blade slashes; charged fist attacks twist and never parry. Glove mods now belong only to fists. Meteor Rush sweeps each target once, obeys scenery immunity, keeps the standard dash invulnerability/cooldown, and grants only a 0.18 s half-heart guard with 3 s recovery. Slot 4 selects fists; signatures move to 5 with old-default migration. HUD, start menus, touch Swap, controller LB/L1, saves, orbiting guards and Echo's fixed arsenal all support four families. Mob style adaptation has a bounded close-range fist profile; boss DPS estimates include both physical families. Existing tree progress and Trinity requirements remain compatible. Restored three credited, unchanged TMW glove icons from history. Re-check the feel on real touch/controller hardware; numerical tests cannot establish subjective fairness.
 
 - **Branching stat grid and affordable Build guidance.** Stat forks now precede branch upgrades, first-tier behavior abilities, weapon learning, Dual Grip and Confluence abilities. Blade routes focus on damage/reach, Bow on attack/charge speed, Magic on character movement, capped splash chance and spell damage. Stat investments steer the next affordable route; the Build reminder opens on an actually affordable node, not an unaffordable ability. The first reminder blurs/dims the game and points to Build; entry acknowledges it persistently, and subsequent rooms only pulse. Close/Esc/controller B always exit the tree, including during onboarding. Controls read Activate/Deactivate and Upgrade. The user explicitly requested a one-time reset to the new grid while keeping XP, resources and other unlocks; migration lives in `sanitizeBranchSave`, versioned by `SKILL_GRID_VERSION`. Real-grid tests live in `tests/grid.test.js`; old combat fixtures isolate already-available techniques.
 

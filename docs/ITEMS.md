@@ -54,8 +54,8 @@ Two standard ability slots; Betsanc does not use one.
 |---|---|---|---|
 | Iron Sword | 8 | +2 melee damage, reach 92 (+40% against bare hands) | was 7; no longer offered when a sword is already held (the Warrior starts with one) |
 | Swift Daggers | 7 | +1 melee damage, reach 53 (-20% against bare hands), +25% swing rate | the speed is new |
-| Wind-Up Wraps | 7 | Powers the Wind-Up branch (charge mode); +40% charge speed | charge mode now comes from the highlighted branch, not a re-roll |
-| Flurry Gauntlets | 7 | Jabs at 1.0x scale (-62% hit damage) with +180% swing rate (about +8% DPS) | was x0.4 (about -4%) |
+| Wind-Up Wraps | 7 | Powers Brawler's Twisting Fist branch; +40% charge speed | Fists only, not sword slashes |
+| Flurry Gauntlets | 7 | Brawler punches recover 18% faster with 15% lighter hits, plus the highlighted branch bonuses | Fists only; no projectile parries |
 | Cinder Edge | 8 | Swings leave a wall of the run element (fire with no element) | unchanged |
 | Piercing Heads | 8 | Arrows pierce 9 foes | was 7 |
 | Longbow Draw | 7 | Powers the Longdraw branch (charge mode); +40% charge speed | same as Wind-Up |
