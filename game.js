@@ -2861,7 +2861,7 @@ function loop(timestamp) {
       (mode === 'playing' && enemies.length === 0 && !showMap && !showStoryJournal))) {
     openChapter();
   }
-  pollGamepad();
+  pollGamepad(dt);
   updateTouchControls();
   update(dt);
   draw();

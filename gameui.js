@@ -7714,7 +7714,7 @@ function drawBranchScreen() {
   ctx.font = '11px Arial';
   ctx.fillStyle = '#bbb49d';
   const hint = lastInputMode === 'controller'
-    ? 'Stick/D-pad: walk · A: activate/deactivate or main hand · Y: upgrade or off hand · X: learn or unweave · LB/RB: tab · LT/RT: zoom · B: close'
+    ? 'LS/D-pad: walk · A: activate/main · Y: upgrade/off · X: learn/unweave · LB/RB: tab · RS up/down or LT/RT: zoom · B: close'
     : lastInputMode === 'touch'
       ? 'Drag to look around, pinch or +/− to zoom. Tap a node, then use the buttons on the right. Gold numbers suggest a path.'
       : 'WASD: walk · Enter: activate/deactivate or main · U: upgrade or off · R: learn or unweave · Q/E: tab · wheel: zoom · Esc: close';

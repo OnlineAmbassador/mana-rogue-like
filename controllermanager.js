@@ -23,7 +23,7 @@ function applyGamepadDeadzone(value) {
   return magnitude <= deadzone ? 0 : Math.sign(value) * (magnitude - deadzone) / (1 - deadzone);
 }
 
-function pollGamepad() {
+function pollGamepad(dt = 1 / 60) {
   const gamepads = typeof navigator.getGamepads === 'function' ? navigator.getGamepads() : [];
   const gamepad = Array.from(gamepads).find((candidate) => candidate?.connected &&
     (candidate.mapping === 'standard' || (candidate.axes?.length >= 4 && candidate.buttons?.length >= 10)));
@@ -217,7 +217,8 @@ function pollGamepad() {
     } else if (branchTourActive()) {
       if (anyPress || (mapStep && mapStepKey !== lastMapStep)) advanceBranchTour();
     } else {
-      if (anyPress || (mapStep && mapStepKey !== lastMapStep)) dismissBranchGuide();
+      if (anyPress || aimY !== 0 || (mapStep && mapStepKey !== lastMapStep)) dismissBranchGuide();
+      if (aimY !== 0) zoomBranchMap(Math.exp(-aimY * 1.5 * Math.min(dt, 0.1)));
       if (mapStep && mapStepKey !== lastMapStep) moveBranchMapFocus(mapStep[0], mapStep[1]);
       if (wasButtonPressed(4)) stepBranchTab(-1);
       if (wasButtonPressed(5)) stepBranchTab(1);

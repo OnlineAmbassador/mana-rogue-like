@@ -147,6 +147,91 @@ test('pause controller selects left/right with D-pad or stick and confirms eithe
   }
 });
 
+function branchZoomControllerContext() {
+  const c = controllerContext();
+  c.mode = 'branches';
+  c.gamepad.axes = [0, 0, 0, 0];
+  Object.assign(c, {
+    zoom: 1, zoomCalls: 0, guideDismissals: 0, tour: false,
+    branchTourActive: () => c.tour,
+    dismissBranchGuide() { c.guideDismissals++; },
+    zoomBranchMap(factor) { c.zoom *= factor; c.zoomCalls++; },
+    closeBranchScreen() { c.mode = 'playing'; },
+    moveBranchMapFocus() {}, advanceBranchTour() {},
+  });
+  return c;
+}
+
+test('skill-map right stick zooms continuously, proportionally and independently of frame rate', () => {
+  for (const fps of [30, 60, 120]) {
+    for (const axis of [-1, -0.61, 0.61, 1]) {
+      const c = branchZoomControllerContext();
+      c.gamepad.axes[3] = axis;
+      for (let frame = 0; frame < fps; frame++) c.pollGamepad(1 / fps);
+      const expected = Math.exp(-c.applyGamepadDeadzone(axis) * 1.5);
+      assert.ok(Math.abs(c.zoom - expected) < 1e-10);
+      assert.equal(c.zoomCalls, fps, 'held stick zooms every frame, not just on its edge');
+      assert.equal(c.guideDismissals, fps);
+      c.gamepad.axes[3] = 0;
+      c.pollGamepad(1 / fps);
+      assert.equal(c.zoomCalls, fps, 'centering the stick immediately stops zoom');
+    }
+  }
+});
+
+test('skill-map stick zoom ignores drift, horizontal motion, tours and other screens', () => {
+  const c = branchZoomControllerContext();
+  for (const axis of [-0.22, 0, 0.22]) {
+    c.gamepad.axes = [0, 0, 1, axis];
+    c.pollGamepad(1 / 60);
+  }
+  assert.equal(c.zoomCalls, 0);
+  c.tour = true;
+  c.gamepad.axes[3] = -1;
+  c.pollGamepad(1 / 60);
+  assert.equal(c.zoomCalls, 0);
+  c.tour = false;
+  c.mode = 'playing';
+  c.pollGamepad(1 / 60);
+  assert.equal(c.zoomCalls, 0, 'right stick retains its gameplay aiming role');
+  c.mode = 'branches';
+  c.pollGamepad(5);
+  assert.ok(Math.abs(c.zoom - Math.exp(0.15)) < 1e-10, 'a long frame cannot cause a large zoom jump');
+  c.navigator.getGamepads = () => [];
+  c.pollGamepad(1 / 60);
+  assert.equal(c.zoomCalls, 1, 'disconnect stops zoom');
+});
+
+test('skill-map triggers keep their step zoom alongside continuous right-stick zoom', () => {
+  const c = branchZoomControllerContext();
+  for (const [button, expected] of [[7, 1.25], [6, 1]]) {
+    c.gamepad.buttons[button] = { pressed: true, value: 1 };
+    c.pollGamepad(1 / 60);
+    assert.ok(Math.abs(c.zoom - expected) < 1e-10);
+    c.gamepad.buttons[button] = { pressed: false, value: 0 };
+    c.pollGamepad(1 / 60);
+  }
+});
+
+test('continuous skill-map zoom respects the existing camera limits and center anchor', () => {
+  const c = branchZoomControllerContext();
+  Object.assign(c, {
+    branchCam: { x: 120, y: -80, zoom: 1 }, branchCamTarget: null,
+    BRANCH_ZOOM_MAX: 2, branchZoomMin: () => 0.25,
+    branchMapCenter: () => ({ x: 300, y: 250 }),
+    branchScreenToWorld: () => ({ x: c.branchCam.x, y: c.branchCam.y }),
+    clampBranchCam() {},
+  });
+  loadFunctions(c, 'gameui.js', ['zoomBranchMap']);
+  for (const [axis, expected] of [[-1, 2], [1, 0.25]]) {
+    c.gamepad.axes[3] = axis;
+    for (let frame = 0; frame < 300; frame++) c.pollGamepad(1 / 60);
+    assert.equal(c.branchCam.zoom, expected);
+    assert.equal(c.branchCam.x, 120);
+    assert.equal(c.branchCam.y, -80);
+  }
+});
+
 test('pause Settings opens with the controller and audio cannot trigger pause actions', () => {
   const c = pauseControllerContext();
   c.press(15);
